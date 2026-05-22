@@ -1,0 +1,20 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #0d0d1a;
+  color: rgba(255, 255, 255, 0.8);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+#root {
+  width: 100%;
+  max-width: none;
+  border: none;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
