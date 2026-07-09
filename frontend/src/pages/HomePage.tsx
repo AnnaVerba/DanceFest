@@ -1,4 +1,4 @@
-import { useQuery } from '@apollo/client';
+import { useQuery } from '@apollo/client/react';
 import { GET_COMPETITIONS } from '../graphql/queries';
 import styles from './HomePage.module.css';
 
@@ -18,9 +18,10 @@ export default function HomePage() {
   return (
     <main>
       <section id="home" className={styles.hero}>
+        <div className={styles.heroInner}>
         <div className={styles.heroContent}>
           <p className={styles.eyebrow}>Ласкаво просимо</p>
-          <h1 className={styles.title}>DanseFest</h1>
+          <h1 className={styles.title}>DanceFest</h1>
           <p className={styles.subtitle}>
             Платформа для організації та проведення танцювальних конкурсів
           </p>
@@ -37,6 +38,7 @@ export default function HomePage() {
           <div className={styles.circle1} />
           <div className={styles.circle2} />
           <div className={styles.diamond}>&#9670;</div>
+        </div>
         </div>
       </section>
 
@@ -55,7 +57,7 @@ export default function HomePage() {
 
         {data && (
           <div className={styles.cards}>
-            {data.competitions.map((c) => (
+            {data.competitions.map((c: Competition) => (
               <article key={c.id} className={styles.card}>
                 <span className={styles.cardStyle}>{c.style}</span>
                 <h3 className={styles.cardTitle}>{c.name}</h3>

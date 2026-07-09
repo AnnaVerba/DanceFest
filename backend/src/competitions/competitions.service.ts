@@ -20,7 +20,7 @@ export class CompetitionsService {
     },
     {
       id: '3',
-      name: 'DanseFest Open',
+      name: 'DanceFest Open',
       date: '2026-08-10',
       location: 'Одеса, Філармонія',
       style: 'Хіп-хоп',

@@ -7,7 +7,7 @@ export default function Header() {
       <div className={styles.inner}>
         <a href="/" className={styles.logo}>
           <span className={styles.logoIcon}>&#9670;</span>
-          DanseFest
+          DanceFest
         </a>
         <Nav />
       </div>

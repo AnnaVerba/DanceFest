@@ -1,13 +1,19 @@
 .hero {
+  background: linear-gradient(135deg, #0d0d1a 0%, #1a1030 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.heroInner {
+  max-width: 1200px;
+  margin: 0 auto;
   min-height: calc(100vh - 64px);
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: center;
   gap: 48px;
   padding: 64px 48px;
-  background: linear-gradient(135deg, #0d0d1a 0%, #1a1030 100%);
-  position: relative;
-  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .heroContent {
@@ -235,7 +241,7 @@
 }
 
 @media (max-width: 768px) {
-  .hero {
+  .heroInner {
     grid-template-columns: 1fr;
     padding: 48px 24px;
     min-height: auto;
