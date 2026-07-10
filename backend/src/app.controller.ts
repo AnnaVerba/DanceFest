@@ -14,14 +14,14 @@ export class AppController {
   @Get('health')
   async healthCheck(): Promise<string> {
     this.appService;
-    кусок коментаря
+
     return 'OK';
   }
 
   @Get('variables')
   variables() {
 
-
+щось не серйозне
     return {
       status: 'OK',
       env: process.env,
