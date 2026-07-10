@@ -14,7 +14,7 @@ export class AppController {
   @Get('health')
   async healthCheck(): Promise<string> {
     this.appService;
-bjhhfjdfhj
+    кусок коментаря
     return 'OK';
   }
 
