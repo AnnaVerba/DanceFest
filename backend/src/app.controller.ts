@@ -20,6 +20,8 @@ bjhhfjdfhj
 
   @Get('variables')
   variables() {
+
+
     return {
       status: 'OK',
       env: process.env,
