@@ -13,8 +13,8 @@ export class AppController {
 
   @Get('health')
   async healthCheck(): Promise<string> {
-    this.appService.getHello;
-console.log('hello')
+    this.appService;
+bjhhfjdfhj
     return 'OK';
   }
 
