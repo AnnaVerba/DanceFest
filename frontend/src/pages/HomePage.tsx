@@ -1,4 +1,4 @@
-import { useQuery } from '@apollo/client';
+import { useQuery } from '@apollo/client/react';
 import { GET_COMPETITIONS } from '../graphql/queries';
 import styles from './HomePage.module.css';
 
