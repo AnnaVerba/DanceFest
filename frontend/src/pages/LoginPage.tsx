@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { AuthError, login, saveSession } from '../lib/auth';
 import styles from './LoginPage.module.css';
 
 export default function LoginPage() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -14,10 +17,15 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      // TODO: підключити GraphQL-мутацію логіну замість заглушки нижче
-      console.log('Вхід:', { email, password });
-    } catch {
-      setError('Не вдалося увійти. Перевірте email та пароль.');
+      const auth = await login(email, password);
+      saveSession(auth);
+      navigate('/');
+    } catch (err) {
+      setError(
+        err instanceof AuthError
+          ? err.message
+          : 'Не вдалося увійти. Перевірте email та пароль.',
+      );
     } finally {
       setSubmitting(false);
     }

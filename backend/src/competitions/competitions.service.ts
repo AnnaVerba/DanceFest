@@ -1,33 +1,40 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/sequelize';
+import { CreationAttributes } from 'sequelize';
 import { Competition } from './competition.model';
+import { CreateCompetitionDto } from './dto/create-competition.dto';
+import { UpdateCompetitionDto } from './dto/update-competition.dto';
 
 @Injectable()
 export class CompetitionsService {
-  private competitions: Competition[] = [
-    {
-      id: '1',
-      name: 'Зірки Танцполу 2026',
-      date: '2026-06-15',
-      location: 'Київ, Палац Спорту',
-      style: 'Латина',
-    },
-    {
-      id: '2',
-      name: 'Золотий Вальс',
-      date: '2026-07-20',
-      location: 'Львів, Оперний театр',
-      style: 'Стандарт',
-    },
-    {
-      id: '3',
-      name: 'DanseFest Open',
-      date: '2026-08-10',
-      location: 'Одеса, Філармонія',
-      style: 'Хіп-хоп',
-    },
-  ];
+  constructor(
+    @InjectModel(Competition)
+    private readonly competitionModel: typeof Competition,
+  ) {}
 
-  findAll(): Competition[] {
-    return this.competitions;
+  findAll(): Promise<Competition[]> {
+    return this.competitionModel.findAll();
+  }
+
+  async findOne(id: string): Promise<Competition> {
+    const competition = await this.competitionModel.findByPk(id);
+    if (!competition) {
+      throw new NotFoundException(`Competition with id ${id} not found`);
+    }
+    return competition;
+  }
+
+  create(dto: CreateCompetitionDto): Promise<Competition> {
+    return this.competitionModel.create(dto as CreationAttributes<Competition>);
+  }
+
+  async update(id: string, dto: UpdateCompetitionDto): Promise<Competition> {
+    const competition = await this.findOne(id);
+    return competition.update(dto);
+  }
+
+  async remove(id: string): Promise<void> {
+    const competition = await this.findOne(id);
+    await competition.destroy();
   }
 }

@@ -1,7 +1,7 @@
 import { Column, DataType, Model, Table } from 'sequelize-typescript';
 
-@Table({ tableName: 'competitions' })
-export class Competition extends Model<Competition> {
+@Table({ tableName: 'admins' })
+export class Admin extends Model<Admin> {
   @Column({
     type: DataType.UUID,
     defaultValue: DataType.UUIDV4,
@@ -12,12 +12,9 @@ export class Competition extends Model<Competition> {
   @Column({ type: DataType.STRING, allowNull: false })
   declare name: string;
 
-  @Column({ type: DataType.DATEONLY, allowNull: false })
-  declare date: string;
+  @Column({ type: DataType.STRING, allowNull: false, unique: true })
+  declare email: string;
 
   @Column({ type: DataType.STRING, allowNull: false })
-  declare location: string;
-
-  @Column({ type: DataType.STRING, allowNull: false })
-  declare style: string;
+  declare passwordHash: string;
 }

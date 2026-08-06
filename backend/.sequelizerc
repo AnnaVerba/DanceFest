@@ -1,0 +1,17 @@
+require('ts-node').register({
+  transpileOnly: true,
+  compilerOptions: {
+    module: 'commonjs',
+    moduleResolution: 'node',
+    resolvePackageJsonExports: false,
+    isolatedModules: false,
+  },
+});
+
+const path = require('path');
+
+module.exports = {
+  config: path.resolve('src', 'config', 'database.js'),
+  'migrations-path': path.resolve('migrations'),
+  'seeders-path': path.resolve('seeders'),
+};

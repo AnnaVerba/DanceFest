@@ -1,8 +1,12 @@
 import { Module } from '@nestjs/common';
-import { CompetitionsResolver } from './competitions.resolver';
+import { SequelizeModule } from '@nestjs/sequelize';
+import { CompetitionsController } from './competitions.controller';
 import { CompetitionsService } from './competitions.service';
+import { Competition } from './competition.model';
 
 @Module({
-  providers: [CompetitionsResolver, CompetitionsService],
+  imports: [SequelizeModule.forFeature([Competition])],
+  controllers: [CompetitionsController],
+  providers: [CompetitionsService],
 })
 export class CompetitionsModule {}
