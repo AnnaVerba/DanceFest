@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -41,16 +43,22 @@ export class CompetitionsController {
     return this.competitionsService.create(createCompetitionDto, admin.id);
   }
 
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @Patch(':id')
   update(
     @Param('id') id: string,
     @Body() updateCompetitionDto: UpdateCompetitionDto,
+    @CurrentUser() admin: AuthenticatedAdmin,
   ) {
-    return this.competitionsService.update(id, updateCompetitionDto);
+    return this.competitionsService.update(id, updateCompetitionDto, admin.id);
   }
 
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.competitionsService.remove(id);
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@Param('id') id: string, @CurrentUser() admin: AuthenticatedAdmin) {
+    return this.competitionsService.remove(id, admin.id);
   }
 }

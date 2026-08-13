@@ -66,8 +66,8 @@ export class TeamService {
       competition: {
         id: competition.id,
         name: competition.name,
-        date: competition.date,
-        location: competition.location,
+        dateFrom: competition.dateFrom,
+        dateTo: competition.dateTo,
       },
       organizer: owner && {
         id: owner.id,

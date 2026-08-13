@@ -1,23 +1,58 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsDateString, IsNotEmpty, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsDateString,
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUrl,
+  Matches,
+} from 'class-validator';
+
+const PHONE_REGEX = /^\+?[0-9()\-\s]{7,20}$/;
 
 export class CreateCompetitionDto {
+  @ApiPropertyOptional({ example: 'https://example.com/poster.jpg' })
+  @IsOptional()
+  @IsUrl()
+  image?: string;
+
   @ApiProperty({ example: 'Зірки Танцполу 2026' })
   @IsString()
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ example: '2026-06-15' })
+  @ApiProperty({
+    example: 'Щорічний конкурс бальних танців для всіх вікових категорій.',
+  })
+  @IsString()
+  @IsNotEmpty()
+  description: string;
+
+  @ApiProperty({ example: '2026-09-10' })
   @IsDateString()
-  date: string;
+  dateFrom: string;
 
-  @ApiProperty({ example: 'Київ, Палац Спорту' })
-  @IsString()
-  @IsNotEmpty()
-  location: string;
+  @ApiProperty({ example: '2026-09-12' })
+  @IsDateString()
+  dateTo: string;
 
-  @ApiProperty({ example: 'Латина' })
+  @ApiProperty({ example: '2026-08-01' })
+  @IsDateString()
+  registrationFrom: string;
+
+  @ApiProperty({ example: '2026-09-01' })
+  @IsDateString()
+  registrationTo: string;
+
+  @ApiProperty({ example: '+380501234567' })
   @IsString()
-  @IsNotEmpty()
-  style: string;
+  @Matches(PHONE_REGEX, {
+    message: 'contactNumber must be a valid phone number',
+  })
+  contactNumber: string;
+
+  @ApiProperty({ example: 'contact@dansefest.example' })
+  @IsEmail()
+  contactEmail: string;
 }
