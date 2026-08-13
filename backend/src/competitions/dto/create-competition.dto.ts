@@ -29,6 +29,11 @@ export class CreateCompetitionDto {
   @IsNotEmpty()
   description: string;
 
+  @ApiProperty({ example: 'м. Львів, Палац культури' })
+  @IsString()
+  @IsNotEmpty()
+  location: string;
+
   @ApiProperty({ example: '2026-09-10' })
   @IsDateString()
   dateFrom: string;

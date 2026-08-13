@@ -30,6 +30,9 @@ export class Competition extends Model<Competition> {
   @Column({ type: DataType.TEXT, allowNull: false })
   declare description: string;
 
+  @Column({ type: DataType.STRING, allowNull: false })
+  declare location: string;
+
   @Column({ type: DataType.DATEONLY, allowNull: false })
   declare dateFrom: string;
 

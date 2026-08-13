@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react';
-import { getCompetitions } from '../lib/competitions';
+import { getCompetitionStatus, getCompetitions } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import styles from './HomePage.module.css';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('uk-UA', {
-    day: '2-digit',
-    month: 'short',
+    day: 'numeric',
+    month: 'long',
     year: 'numeric',
   });
 }
 
-function isRegistrationOpen(registrationTo: string): boolean {
-  return new Date(registrationTo) >= new Date(new Date().toDateString());
+function formatDateRange(dateFrom: string, dateTo: string): string {
+  return dateFrom === dateTo
+    ? `${formatDate(dateFrom)} р.`
+    : `${formatDate(dateFrom)} – ${formatDate(dateTo)} р.`;
 }
 
 export default function HomePage() {
@@ -38,27 +40,11 @@ export default function HomePage() {
   }, []);
 
   return (
-    <main className={styles.page}>
-      <section id="home" className={styles.hero}>
-        <p className={styles.eyebrow}>Ласкаво просимо</p>
-        <h1 className={styles.title}>DanseFest</h1>
-        <p className={styles.subtitle}>
-          Платформа для організації та проведення танцювальних конкурсів
-        </p>
-        <div className={styles.actions}>
-          <a href="#competitions" className={styles.btnPrimary}>
-            Переглянути конкурси
-          </a>
-          <a href="#contacts" className={styles.btnSecondary}>
-            Зв&apos;язатися з нами
-          </a>
-        </div>
-      </section>
-
-      <section id="competitions" className={styles.section}>
-        <h2 className={styles.sectionTitle}>Найближчі конкурси</h2>
-        <p className={styles.sectionSub}>
-          Реєструйтесь та беріть участь у найкращих танцювальних подіях України
+    <main className={styles.main}>
+      <div className={styles.container}>
+        <h1 className={styles.pageTitle}>Танцювальні конкурси</h1>
+        <p className={styles.pageSubtitle}>
+          Оберіть конкурс і подайте заявку на участь — реєстрація не потрібна.
         </p>
 
         {loading && <p className={styles.status}>Завантаження...</p>}
@@ -68,63 +54,46 @@ export default function HomePage() {
         )}
 
         {!loading && !error && competitions && competitions.length > 0 && (
-          <div className={styles.cards}>
+          <ul className={styles.contests}>
             {competitions.map((c) => (
-              <article key={c.id} className={styles.card}>
-                {c.image ? (
-                  <img src={c.image} alt="" className={styles.cardImage} />
-                ) : (
-                  <div className={styles.cardImagePlaceholder} aria-hidden="true">
-                    &#9670;
-                  </div>
-                )}
-                <div className={styles.cardBody}>
-                  <h3 className={styles.cardTitle}>{c.name}</h3>
-                  <p className={styles.cardDescription}>{c.description}</p>
-                  <dl className={styles.cardMeta}>
-                    <div>
-                      <dt>Дати</dt>
-                      <dd>
-                        {formatDate(c.dateFrom)} – {formatDate(c.dateTo)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Реєстрація</dt>
-                      <dd>до {formatDate(c.registrationTo)}</dd>
-                    </div>
-                  </dl>
-                  <button
-                    type="button"
-                    className={styles.cardBtn}
-                    disabled={!isRegistrationOpen(c.registrationTo)}
-                  >
-                    {isRegistrationOpen(c.registrationTo)
-                      ? 'Зареєструватися'
-                      : 'Реєстрацію закрито'}
-                  </button>
+              <li key={c.id} className={styles.card}>
+                <div className={styles.cardBanner}>
+                  {c.image ? (
+                    <img src={c.image} alt="" />
+                  ) : (
+                    <>
+                      <svg
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <circle cx="8.8" cy="8.8" r="1.6" />
+                        <path d="M21 15.5l-5-5L5 21" />
+                      </svg>
+                      <span>Банер конкурсу</span>
+                    </>
+                  )}
                 </div>
-              </article>
+                <div className={styles.cardBody}>
+                  <span className={styles.badge}>{getCompetitionStatus(c)}</span>
+                  <h2 className={styles.cardTitle}>{c.name}</h2>
+                  <p className={styles.cardMeta}>
+                    {formatDateRange(c.dateFrom, c.dateTo)}
+                    {c.location && ` · ${c.location}`}
+                  </p>
+                </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
-      </section>
-
-      <section id="participants" className={styles.section}>
-        <h2 className={styles.sectionTitle}>Учасники</h2>
-        <p className={styles.sectionSub}>Розділ у розробці</p>
-      </section>
-
-      <section id="judging" className={styles.section}>
-        <h2 className={styles.sectionTitle}>Суддівство</h2>
-        <p className={styles.sectionSub}>Розділ у розробці</p>
-      </section>
-
-      <section id="contacts" className={styles.section}>
-        <h2 className={styles.sectionTitle}>Контакти</h2>
-        <p className={styles.sectionSub}>
-          Зв&apos;яжіться з організаторами для отримання додаткової інформації
-        </p>
-      </section>
+      </div>
     </main>
   );
 }

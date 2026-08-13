@@ -32,3 +32,24 @@
   color: #2563eb;
   font-size: 16px;
 }
+
+.loginBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.loginBtn:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
