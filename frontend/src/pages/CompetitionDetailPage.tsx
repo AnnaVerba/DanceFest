@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import AdminHeader from '../components/AdminHeader';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
+import EntriesPanel from '../components/admin/EntriesPanel';
+import JudgesPanel from '../components/admin/JudgesPanel';
+import VenuesPanel from '../components/admin/VenuesPanel';
 import { ToastStack } from '../components/admin/Toast';
 import { useToasts } from '../components/admin/useToasts';
 import { getStoredAdmin, getToken } from '../lib/auth';
@@ -159,8 +162,28 @@ export default function CompetitionDetailPage() {
                 ))}
               </div>
 
-              {activeTab !== 'Деталі' && (
-                <p className={styles.tabPlaceholder}>Розділ у розробці</p>
+              {activeTab === 'Заявки' && (
+                <EntriesPanel
+                  competitionId={id}
+                  canManage={isOwner}
+                  onError={(message) => showToast(message)}
+                />
+              )}
+
+              {activeTab === 'Судді' && (
+                <JudgesPanel
+                  competitionId={id}
+                  canManage={isOwner}
+                  onError={(message) => showToast(message)}
+                />
+              )}
+
+              {activeTab === 'Майданчики' && (
+                <VenuesPanel
+                  competitionId={id}
+                  canManage={isOwner}
+                  onError={(message) => showToast(message)}
+                />
               )}
 
               {activeTab === 'Деталі' && (
@@ -298,21 +321,22 @@ export default function CompetitionDetailPage() {
                     )}
                   </section>
 
-                  {isOwner && (
-                    <div className={styles.actions}>
-                      <button
-                        type="button"
-                        className={styles.btnDanger}
-                        onClick={() => setConfirmingDelete(true)}
-                      >
-                        Видалити
-                      </button>
-                      <Link to={`/competitions/${id}/edit`} className={styles.btnPrimary}>
-                        Редагувати
-                      </Link>
-                    </div>
-                  )}
                 </>
+              )}
+
+              {isOwner && (
+                <div className={styles.actions}>
+                  <button
+                    type="button"
+                    className={styles.btnDanger}
+                    onClick={() => setConfirmingDelete(true)}
+                  >
+                    Видалити
+                  </button>
+                  <Link to={`/competitions/${id}/edit`} className={styles.btnPrimary}>
+                    Редагувати
+                  </Link>
+                </div>
               )}
             </article>
           )}
