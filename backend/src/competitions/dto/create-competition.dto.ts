@@ -52,7 +52,7 @@ export class CreateCompetitionDto {
   })
   contactNumber: string;
 
-  @ApiProperty({ example: 'contact@dansefest.example' })
+  @ApiProperty({ example: 'admin@studio.ua' })
   @IsEmail()
   contactEmail: string;
 }
