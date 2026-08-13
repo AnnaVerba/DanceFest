@@ -7,8 +7,14 @@ import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes } from 'sequelize';
 import { Competition } from './competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
+import { Admin } from '../admins/admin.model';
 import { CreateCompetitionDto } from './dto/create-competition.dto';
 import { UpdateCompetitionDto } from './dto/update-competition.dto';
+
+// Лише публічно безпечні поля власника — без passwordHash/email.
+const OWNER_INCLUDE = [
+  { model: Admin, as: 'owner', attributes: ['id', 'name'] },
+];
 
 @Injectable()
 export class CompetitionsService {
@@ -20,11 +26,13 @@ export class CompetitionsService {
   ) {}
 
   findAll(): Promise<Competition[]> {
-    return this.competitionModel.findAll();
+    return this.competitionModel.findAll({ include: OWNER_INCLUDE });
   }
 
   async findOne(id: string): Promise<Competition> {
-    const competition = await this.competitionModel.findByPk(id);
+    const competition = await this.competitionModel.findByPk(id, {
+      include: OWNER_INCLUDE,
+    });
     if (!competition) {
       throw new NotFoundException(`Competition with id ${id} not found`);
     }

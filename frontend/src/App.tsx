@@ -5,6 +5,7 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import TeamPage from './pages/TeamPage';
+import DashboardPage from './pages/DashboardPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import './App.css';
 
@@ -27,8 +28,9 @@ function App() {
         {/* TODO: обгорнути AuthGuard, коли підключимо реальну авторизацію адмінів */}
         <Route path="/competitions/:id/team" element={<TeamPage />} />
 
+        <Route path="/dashboard" element={<DashboardPage />} />
+
         {/* Екрани зі скрін-бару, які ще не реалізовані */}
-        <Route path="/dashboard" element={<PlaceholderPage title="Дашборд" />} />
         <Route
           path="/competitions/new"
           element={<PlaceholderPage title="Новий конкурс" />}
