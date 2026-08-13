@@ -173,8 +173,8 @@ export default function TeamPage() {
         {team?.competition && (
           <p className={styles.subtitle}>
             {team.competition.name} ·{' '}
-            {new Date(team.competition.date).toLocaleDateString('uk-UA')} ·{' '}
-            {team.competition.location}
+            {formatDateFull(team.competition.dateFrom)} –{' '}
+            {formatDateFull(team.competition.dateTo)}
           </p>
         )}
 

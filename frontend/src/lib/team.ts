@@ -27,8 +27,8 @@ export type ViewerRole = 'owner' | 'admin';
 export interface TeamCompetitionSummary {
   id: string;
   name: string;
-  date: string;
-  location: string;
+  dateFrom: string;
+  dateTo: string;
 }
 
 export interface TeamData {
