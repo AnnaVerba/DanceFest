@@ -1,104 +1,133 @@
 import type { QueryInterface } from 'sequelize';
 import { DataTypes } from 'sequelize';
 
-module.exports = {
-  up: async (queryInterface: QueryInterface) => {
-    await queryInterface.removeColumn('competitions', 'date');
-    await queryInterface.removeColumn('competitions', 'location');
-    await queryInterface.removeColumn('competitions', 'style');
+const TABLE = 'competitions';
 
-    await queryInterface.addColumn('competitions', 'image', {
+async function ensureColumn(
+  queryInterface: QueryInterface,
+  name: string,
+  options: Parameters<QueryInterface['addColumn']>[2],
+): Promise<void> {
+  const table = await queryInterface.describeTable(TABLE);
+  if (!table[name]) {
+    await queryInterface.addColumn(TABLE, name, options);
+  }
+}
+
+async function ensureColumnRemoved(
+  queryInterface: QueryInterface,
+  name: string,
+): Promise<void> {
+  const table = await queryInterface.describeTable(TABLE);
+  if (table[name]) {
+    await queryInterface.removeColumn(TABLE, name);
+  }
+}
+
+module.exports = {
+  // Кожен крок ідемпотентний (перевіряє поточну схему через describeTable),
+  // щоб міграцію можна було безпечно перезапустити після часткового збою.
+  up: async (queryInterface: QueryInterface) => {
+    await ensureColumnRemoved(queryInterface, 'date');
+    await ensureColumnRemoved(queryInterface, 'location');
+    await ensureColumnRemoved(queryInterface, 'style');
+
+    await ensureColumn(queryInterface, 'image', {
       type: DataTypes.STRING,
       allowNull: true,
     });
-    await queryInterface.addColumn('competitions', 'description', {
+    await ensureColumn(queryInterface, 'description', {
       type: DataTypes.TEXT,
-      allowNull: false,
-      defaultValue: '',
+      allowNull: true,
     });
-    await queryInterface.addColumn('competitions', 'dateFrom', {
+    await ensureColumn(queryInterface, 'dateFrom', {
       type: DataTypes.DATEONLY,
-      allowNull: false,
-      defaultValue: DataTypes.NOW,
+      allowNull: true,
     });
-    await queryInterface.addColumn('competitions', 'dateTo', {
+    await ensureColumn(queryInterface, 'dateTo', {
       type: DataTypes.DATEONLY,
-      allowNull: false,
-      defaultValue: DataTypes.NOW,
+      allowNull: true,
     });
-    await queryInterface.addColumn('competitions', 'registrationFrom', {
+    await ensureColumn(queryInterface, 'registrationFrom', {
       type: DataTypes.DATEONLY,
-      allowNull: false,
-      defaultValue: DataTypes.NOW,
+      allowNull: true,
     });
-    await queryInterface.addColumn('competitions', 'registrationTo', {
+    await ensureColumn(queryInterface, 'registrationTo', {
       type: DataTypes.DATEONLY,
-      allowNull: false,
-      defaultValue: DataTypes.NOW,
+      allowNull: true,
     });
-    await queryInterface.addColumn('competitions', 'contactNumber', {
+    await ensureColumn(queryInterface, 'contactNumber', {
       type: DataTypes.STRING,
-      allowNull: false,
-      defaultValue: '',
+      allowNull: true,
     });
-    await queryInterface.addColumn('competitions', 'contactEmail', {
+    await ensureColumn(queryInterface, 'contactEmail', {
       type: DataTypes.STRING,
-      allowNull: false,
-      defaultValue: '',
+      allowNull: true,
     });
 
-    // Тимчасові значення за замовчуванням прибираємо — далі поля обов'язкові без дефолту.
-    await queryInterface.changeColumn('competitions', 'description', {
+    // Бекфіл існуючих рядків (dev-дані), щоб нижче можна було ввімкнути NOT NULL.
+    await queryInterface.sequelize.query(`
+      UPDATE ${TABLE} SET
+        description = COALESCE(description, ''),
+        "dateFrom" = COALESCE("dateFrom", CURRENT_DATE),
+        "dateTo" = COALESCE("dateTo", CURRENT_DATE),
+        "registrationFrom" = COALESCE("registrationFrom", CURRENT_DATE),
+        "registrationTo" = COALESCE("registrationTo", CURRENT_DATE),
+        "contactNumber" = COALESCE("contactNumber", ''),
+        "contactEmail" = COALESCE("contactEmail", '')
+    `);
+
+    await queryInterface.changeColumn(TABLE, 'description', {
       type: DataTypes.TEXT,
       allowNull: false,
     });
-    await queryInterface.changeColumn('competitions', 'dateFrom', {
+    await queryInterface.changeColumn(TABLE, 'dateFrom', {
       type: DataTypes.DATEONLY,
       allowNull: false,
     });
-    await queryInterface.changeColumn('competitions', 'dateTo', {
+    await queryInterface.changeColumn(TABLE, 'dateTo', {
       type: DataTypes.DATEONLY,
       allowNull: false,
     });
-    await queryInterface.changeColumn('competitions', 'registrationFrom', {
+    await queryInterface.changeColumn(TABLE, 'registrationFrom', {
       type: DataTypes.DATEONLY,
       allowNull: false,
     });
-    await queryInterface.changeColumn('competitions', 'registrationTo', {
+    await queryInterface.changeColumn(TABLE, 'registrationTo', {
       type: DataTypes.DATEONLY,
       allowNull: false,
     });
-    await queryInterface.changeColumn('competitions', 'contactNumber', {
+    await queryInterface.changeColumn(TABLE, 'contactNumber', {
       type: DataTypes.STRING,
       allowNull: false,
     });
-    await queryInterface.changeColumn('competitions', 'contactEmail', {
+    await queryInterface.changeColumn(TABLE, 'contactEmail', {
       type: DataTypes.STRING,
       allowNull: false,
     });
   },
 
   down: async (queryInterface: QueryInterface) => {
-    await queryInterface.removeColumn('competitions', 'image');
-    await queryInterface.removeColumn('competitions', 'description');
-    await queryInterface.removeColumn('competitions', 'dateFrom');
-    await queryInterface.removeColumn('competitions', 'dateTo');
-    await queryInterface.removeColumn('competitions', 'registrationFrom');
-    await queryInterface.removeColumn('competitions', 'registrationTo');
-    await queryInterface.removeColumn('competitions', 'contactNumber');
-    await queryInterface.removeColumn('competitions', 'contactEmail');
+    await ensureColumnRemoved(queryInterface, 'image');
+    await ensureColumnRemoved(queryInterface, 'description');
+    await ensureColumnRemoved(queryInterface, 'dateFrom');
+    await ensureColumnRemoved(queryInterface, 'dateTo');
+    await ensureColumnRemoved(queryInterface, 'registrationFrom');
+    await ensureColumnRemoved(queryInterface, 'registrationTo');
+    await ensureColumnRemoved(queryInterface, 'contactNumber');
+    await ensureColumnRemoved(queryInterface, 'contactEmail');
 
-    await queryInterface.addColumn('competitions', 'date', {
+    await ensureColumn(queryInterface, 'date', {
       type: DataTypes.DATEONLY,
       allowNull: false,
       defaultValue: DataTypes.NOW,
     });
-    await queryInterface.addColumn('competitions', 'location', {
+    await ensureColumn(queryInterface, 'location', {
       type: DataTypes.STRING,
       allowNull: false,
       defaultValue: '',
     });
-    await queryInterface.addColumn('competitions', 'style', {
+    await ensureColumn(queryInterface, 'style', {
       type: DataTypes.STRING,
       allowNull: false,
       defaultValue: '',
