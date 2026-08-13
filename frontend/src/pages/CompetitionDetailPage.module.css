@@ -1,0 +1,255 @@
+.main {
+  background: #f1f5f9;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Arial,
+    sans-serif;
+  color: #0f172a;
+  padding: 28px 0 64px;
+  min-height: calc(100vh - 64px - 47px);
+  box-sizing: border-box;
+}
+
+.main *,
+.main *::before,
+.main *::after {
+  box-sizing: border-box;
+}
+
+.wrap {
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #2563eb;
+  font-size: 14.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.back:hover {
+  text-decoration: underline;
+}
+
+.status {
+  margin-top: 24px;
+  color: #64748b;
+  font-style: italic;
+}
+
+.card {
+  margin-top: 18px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  padding: 30px 34px 28px;
+}
+
+.contestHead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.contestHeadIcon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 10px;
+  background: #e8effc;
+  color: #2563eb;
+  display: grid;
+  place-items: center;
+}
+
+.contestHead h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.tabs {
+  margin-top: 22px;
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.tab {
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 8px 8px 0 0;
+  background: none;
+  color: #64748b;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tab:hover {
+  color: #0f172a;
+  background: #f4f6f9;
+}
+
+.tab[aria-selected='true'] {
+  background: #2563eb;
+  color: #fff;
+}
+
+.tabPlaceholder {
+  padding: 24px 0;
+  color: #64748b;
+  font-style: italic;
+}
+
+.section {
+  padding: 24px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.section:first-of-type {
+  padding-top: 26px;
+}
+
+.section:last-of-type {
+  border-bottom: 0;
+}
+
+.sectionTitle {
+  margin: 0 0 4px;
+  color: #2563eb;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.sectionNote {
+  margin: 0 0 16px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.description {
+  margin: 20px 0 0;
+  color: #334155;
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.grid {
+  display: grid;
+  gap: 20px 32px;
+}
+
+.grid3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.grid2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.itemLabel {
+  color: #64748b;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.itemValue {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.itemValue a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.itemValue a:hover {
+  color: #2563eb;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 22px;
+}
+
+.btnPrimary,
+.btnDanger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 22px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.btnPrimary {
+  border: 0;
+  background: #2563eb;
+  color: #fff;
+}
+
+.btnPrimary:hover {
+  background: #1d4ed8;
+}
+
+.btnDanger {
+  border: 1px solid #fecaca;
+  background: #fff;
+  color: #ef4444;
+}
+
+.btnDanger:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+@media (max-width: 760px) {
+  .wrap {
+    padding: 0 16px;
+  }
+
+  .card {
+    padding: 22px 18px;
+  }
+
+  .contestHead h1 {
+    font-size: 21px;
+  }
+
+  .tabs {
+    overflow-x: auto;
+  }
+
+  .grid3,
+  .grid2 {
+    grid-template-columns: 1fr;
+  }
+
+  .actions {
+    flex-direction: column-reverse;
+  }
+
+  .actions .btnPrimary,
+  .actions .btnDanger {
+    width: 100%;
+  }
+}

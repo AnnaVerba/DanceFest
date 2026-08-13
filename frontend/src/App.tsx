@@ -6,6 +6,8 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import TeamPage from './pages/TeamPage';
 import DashboardPage from './pages/DashboardPage';
+import CompetitionDetailPage from './pages/CompetitionDetailPage';
+import CompetitionPreviewRedirect from './pages/CompetitionPreviewRedirect';
 import PlaceholderPage from './pages/PlaceholderPage';
 import './App.css';
 
@@ -26,18 +28,19 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         {/* TODO: обгорнути AuthGuard, коли підключимо реальну авторизацію адмінів */}
-        <Route path="/competitions/:id/team" element={<TeamPage />} />
-
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/competitions/preview" element={<CompetitionPreviewRedirect />} />
+        <Route path="/competitions/:id" element={<CompetitionDetailPage />} />
+        <Route path="/competitions/:id/team" element={<TeamPage />} />
+        <Route
+          path="/competitions/:id/edit"
+          element={<PlaceholderPage title="Редагувати конкурс" />}
+        />
 
         {/* Екрани зі скрін-бару, які ще не реалізовані */}
         <Route
           path="/competitions/new"
           element={<PlaceholderPage title="Новий конкурс" />}
-        />
-        <Route
-          path="/competitions/preview"
-          element={<PlaceholderPage title="Перегляд конкурсу" />}
         />
         <Route path="/judge" element={<PlaceholderPage title="Кабінет судді" />} />
         <Route

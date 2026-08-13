@@ -235,7 +235,9 @@ export default function DashboardPage() {
                               <path d="M12 14v3M9 20h6M10 17h4" />
                             </svg>
                           </span>
-                          <span className={styles.contestName}>{c.name}</span>
+                          <Link to={`/competitions/${c.id}`} className={styles.contestName}>
+                            {c.name}
+                          </Link>
                         </div>
                       </td>
                       <td>

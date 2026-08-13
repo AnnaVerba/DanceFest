@@ -60,4 +60,31 @@ export class CreateCompetitionDto {
   @ApiProperty({ example: 'admin@studio.ua' })
   @IsEmail()
   contactEmail: string;
+
+  @ApiPropertyOptional({ example: 'ФОП Ковальчук О. М.' })
+  @IsOptional()
+  @IsString()
+  paymentRecipient?: string;
+
+  @ApiPropertyOptional({ example: 'UA123456780000026007233566001' })
+  @IsOptional()
+  @IsString()
+  paymentAccount?: string;
+
+  @ApiPropertyOptional({ example: 'АТ КБ «ПриватБанк»' })
+  @IsOptional()
+  @IsString()
+  paymentBank?: string;
+
+  @ApiPropertyOptional({ example: '3214567890' })
+  @IsOptional()
+  @IsString()
+  paymentTaxId?: string;
+
+  @ApiPropertyOptional({
+    example: 'Організаційний внесок за участь у конкурсі «Зірки Танцполу 2026»',
+  })
+  @IsOptional()
+  @IsString()
+  paymentPurpose?: string;
 }

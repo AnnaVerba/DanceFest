@@ -51,6 +51,22 @@ export class Competition extends Model<Competition> {
   @Column({ type: DataType.STRING, allowNull: false })
   declare contactEmail: string;
 
+  // Реквізити для оплати — необов'язкові, не кожен конкурс приймає оплату.
+  @Column({ type: DataType.STRING, allowNull: true })
+  declare paymentRecipient: string | null;
+
+  @Column({ type: DataType.STRING, allowNull: true })
+  declare paymentAccount: string | null;
+
+  @Column({ type: DataType.STRING, allowNull: true })
+  declare paymentBank: string | null;
+
+  @Column({ type: DataType.STRING, allowNull: true })
+  declare paymentTaxId: string | null;
+
+  @Column({ type: DataType.STRING, allowNull: true })
+  declare paymentPurpose: string | null;
+
   @ForeignKey(() => Admin)
   @Column({ type: DataType.UUID, allowNull: false })
   declare ownerId: string;

@@ -18,6 +18,11 @@ export interface Competition {
   registrationTo: string;
   contactNumber: string;
   contactEmail: string;
+  paymentRecipient: string | null;
+  paymentAccount: string | null;
+  paymentBank: string | null;
+  paymentTaxId: string | null;
+  paymentPurpose: string | null;
   ownerId: string;
   owner: CompetitionOwner | null;
 }
@@ -50,6 +55,14 @@ export async function getCompetitions(): Promise<Competition[]> {
     throw new Error('Не вдалося завантажити конкурси');
   }
   return response.json() as Promise<Competition[]>;
+}
+
+export async function getCompetition(id: string): Promise<Competition> {
+  const response = await fetch(`${API_BASE_URL}/competitions/${id}`);
+  if (!response.ok) {
+    throw new Error('Не вдалося завантажити конкурс');
+  }
+  return response.json() as Promise<Competition>;
 }
 
 export async function deleteCompetition(id: string): Promise<void> {
