@@ -24,8 +24,11 @@ export class CompetitionsService {
     return competition;
   }
 
-  create(dto: CreateCompetitionDto): Promise<Competition> {
-    return this.competitionModel.create(dto as CreationAttributes<Competition>);
+  create(dto: CreateCompetitionDto, ownerId: string): Promise<Competition> {
+    return this.competitionModel.create({
+      ...dto,
+      ownerId,
+    } as CreationAttributes<Competition>);
   }
 
   async update(id: string, dto: UpdateCompetitionDto): Promise<Competition> {

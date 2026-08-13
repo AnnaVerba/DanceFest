@@ -1,30 +1,45 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AuthError, login, saveSession } from '../lib/auth';
+import { AuthError, register, saveSession } from '../lib/auth';
+// Той самий стиль, що й у логіну — свідомо той самий CSS-модуль,
+// щоб екрани не розходилися при майбутніх правках.
 import styles from './LoginPage.module.css';
 
-export default function LoginPage() {
+const MIN_PASSWORD_LENGTH = 6;
+
+export default function RegisterPage() {
   const navigate = useNavigate();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
-    setSubmitting(true);
 
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Пароль має містити щонайменше ${MIN_PASSWORD_LENGTH} символів`);
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Паролі не збігаються');
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      const auth = await login(email, password);
+      const auth = await register(name, email, password);
       saveSession(auth);
       navigate('/');
     } catch (err) {
       setError(
         err instanceof AuthError
           ? err.message
-          : 'Не вдалося увійти. Перевірте email та пароль.',
+          : 'Не вдалося зареєструватися. Спробуйте ще раз.',
       );
     } finally {
       setSubmitting(false);
@@ -60,12 +75,26 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <h1 className={styles.title}>Вхід</h1>
-        <p className={styles.subtitle}>Увійдіть у свій акаунт адміністратора</p>
+        <h1 className={styles.title}>Реєстрація</h1>
+        <p className={styles.subtitle}>Створіть акаунт адміністратора конкурсів</p>
 
         {error && <p className={styles.error}>{error}</p>}
 
         <form onSubmit={handleSubmit}>
+          <div className={styles.field}>
+            <label htmlFor="name">ПІБ</label>
+            <input
+              type="text"
+              id="name"
+              name="name"
+              placeholder="Анна Верба"
+              autoComplete="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+
           <div className={styles.field}>
             <label htmlFor="email">Email</label>
             <input
@@ -87,20 +116,34 @@ export default function LoginPage() {
               id="password"
               name="password"
               placeholder="••••••••"
-              autoComplete="current-password"
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
           </div>
 
+          <div className={styles.field}>
+            <label htmlFor="confirmPassword">Повторіть пароль</label>
+            <input
+              type="password"
+              id="confirmPassword"
+              name="confirmPassword"
+              placeholder="••••••••"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+            />
+          </div>
+
           <button type="submit" className={styles.submit} disabled={submitting}>
-            {submitting ? 'Вхід...' : 'Увійти'}
+            {submitting ? 'Реєстрація...' : 'Зареєструватися'}
           </button>
         </form>
 
         <p className={styles.footer}>
-          Немає акаунта? <Link to="/register">Зареєструватися</Link>
+          Вже маєте акаунт? <Link to="/login">Увійти</Link>
         </p>
       </div>
     </main>

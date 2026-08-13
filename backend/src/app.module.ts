@@ -4,6 +4,7 @@ import { SequelizeModule } from '@nestjs/sequelize';
 import { CompetitionsModule } from './competitions/competitions.module';
 import { AdminsModule } from './admins/admins.module';
 import { AuthModule } from './auth/auth.module';
+import { TeamModule } from './team/team.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { AuthModule } from './auth/auth.module';
     CompetitionsModule,
     AdminsModule,
     AuthModule,
+    TeamModule,
   ],
 })
 export class AppModule {}

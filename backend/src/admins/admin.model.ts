@@ -1,4 +1,12 @@
-import { Column, DataType, Model, Table } from 'sequelize-typescript';
+import {
+  BelongsToMany,
+  Column,
+  DataType,
+  Model,
+  Table,
+} from 'sequelize-typescript';
+import { Competition } from '../competitions/competition.model';
+import { CompetitionAdmin } from '../team/competition-admin.model';
 
 @Table({ tableName: 'admins' })
 export class Admin extends Model<Admin> {
@@ -17,4 +25,8 @@ export class Admin extends Model<Admin> {
 
   @Column({ type: DataType.STRING, allowNull: false })
   declare passwordHash: string;
+
+  /** Конкурси, куди адміна запросили (без урахування тих, де він власник). */
+  @BelongsToMany(() => Competition, () => CompetitionAdmin)
+  declare competitions: Competition[];
 }

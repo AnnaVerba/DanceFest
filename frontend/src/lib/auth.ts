@@ -24,16 +24,17 @@ function extractErrorMessage(payload: ErrorPayload | null, fallback: string) {
     : payload.message;
 }
 
-export async function login(
-  email: string,
-  password: string,
+async function postAuth(
+  path: string,
+  body: unknown,
+  fallbackMessage: string,
 ): Promise<AuthResponse> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}/auth/login`, {
+    response = await fetch(`${API_BASE_URL}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(body),
     });
   } catch {
     throw new AuthError("Не вдалося з'єднатися з сервером");
@@ -42,12 +43,30 @@ export async function login(
   const payload = (await response.json().catch(() => null)) as ErrorPayload | null;
 
   if (!response.ok) {
-    throw new AuthError(
-      extractErrorMessage(payload, 'Не вдалося увійти. Перевірте email та пароль.'),
-    );
+    throw new AuthError(extractErrorMessage(payload, fallbackMessage));
   }
 
   return payload as unknown as AuthResponse;
+}
+
+export function login(email: string, password: string): Promise<AuthResponse> {
+  return postAuth(
+    '/auth/login',
+    { email, password },
+    'Не вдалося увійти. Перевірте email та пароль.',
+  );
+}
+
+export function register(
+  name: string,
+  email: string,
+  password: string,
+): Promise<AuthResponse> {
+  return postAuth(
+    '/auth/register',
+    { name, email, password },
+    'Не вдалося зареєструватися. Спробуйте ще раз.',
+  );
 }
 
 const TOKEN_KEY = 'dansefest.accessToken';

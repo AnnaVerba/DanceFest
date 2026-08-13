@@ -1,0 +1,61 @@
+.wrap {
+  position: relative;
+  flex: none;
+}
+
+.trigger {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.trigger:hover,
+.trigger[aria-expanded='true'] {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+  padding: 6px;
+  z-index: 50;
+}
+
+.item {
+  width: 100%;
+  text-align: left;
+  padding: 9px 10px;
+  font-size: 14px;
+  font-family: inherit;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.item:hover {
+  background: #f8fafc;
+}
+
+.item.destructive {
+  color: #dc2626;
+}
+
+.item.destructive:hover {
+  background: #fef2f2;
+}

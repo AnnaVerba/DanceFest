@@ -1,0 +1,249 @@
+.page {
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --field: #f8fafc;
+  --brand: #2563eb;
+  --brand-hover: #1d4ed8;
+
+  min-height: 100vh;
+  background: #eff2f8;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Arial,
+    sans-serif;
+  color: var(--ink);
+  padding: 32px 24px 80px;
+  box-sizing: border-box;
+}
+
+.page *,
+.page *::before,
+.page *::after {
+  box-sizing: border-box;
+}
+
+.container {
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+/* --- Хедер сторінки --- */
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--muted);
+  text-decoration: none;
+  margin-bottom: 18px;
+}
+
+.back:hover {
+  color: var(--ink);
+}
+
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: -0.4px;
+}
+
+.subtitle {
+  font-size: 14.5px;
+  color: var(--muted);
+  margin: 6px 0 28px;
+}
+
+.addBtn {
+  flex: none;
+  height: 44px;
+  padding: 0 18px;
+  font-size: 14.5px;
+  font-weight: 700;
+  font-family: inherit;
+  color: #fff;
+  background: var(--brand);
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.addBtn:hover {
+  background: var(--brand-hover);
+}
+
+/* --- Картка зі списком --- */
+.card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+
+.section + .section {
+  border-top: 1px solid var(--line);
+}
+
+.sectionHeader {
+  padding: 18px 24px 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 24px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--line);
+}
+
+.avatar {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--field);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--brand);
+}
+
+.identity {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.name {
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nameMuted {
+  color: var(--muted);
+  font-weight: 600;
+  font-style: italic;
+}
+
+.email {
+  font-size: 13.5px;
+  color: var(--muted);
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  flex: none;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.badgeOwner {
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--brand);
+}
+
+.badgeInvited {
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+}
+
+/* --- Порожній стан --- */
+.empty {
+  padding: 56px 24px;
+  text-align: center;
+}
+
+.emptyIcon {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: var(--field);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.emptyText {
+  font-size: 15px;
+  color: var(--muted);
+  margin: 0 0 20px;
+}
+
+.subEmpty {
+  padding: 14px 24px 18px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.loadError {
+  font-size: 14px;
+  color: #dc2626;
+  margin: 0 0 20px;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 20px 16px 60px;
+  }
+
+  .titleRow {
+    flex-direction: column;
+  }
+
+  .addBtn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .row {
+    flex-wrap: wrap;
+    padding: 14px 16px;
+  }
+
+  .meta {
+    text-align: left;
+    margin-left: 54px;
+  }
+}
