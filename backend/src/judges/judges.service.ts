@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import * as bcrypt from 'bcrypt';
@@ -11,6 +12,7 @@ import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Judge } from './judge.model';
 import { CreateJudgeDto } from './dto/create-judge.dto';
+import { JudgeLoginDto } from './dto/judge-login.dto';
 
 const SALT_ROUNDS = 10;
 const TEMP_PASSWORD_LENGTH = 8;
@@ -81,6 +83,26 @@ export class JudgesService {
       throw new NotFoundException('Суддю не знайдено');
     }
     await judge.destroy();
+  }
+
+  findById(judgeId: string): Promise<Judge | null> {
+    return this.judgeModel.findByPk(judgeId);
+  }
+
+  /**
+   * Той самий email міг отримати запрошення на кілька різних конкурсів —
+   * кожне окремим рядком Judge. Перебираємо всі, поки пароль не збіжиться.
+   */
+  async login(dto: JudgeLoginDto): Promise<Judge> {
+    const candidates = await this.judgeModel.findAll({
+      where: { email: dto.email.trim() },
+    });
+    for (const candidate of candidates) {
+      if (await bcrypt.compare(dto.password, candidate.passwordHash)) {
+        return candidate;
+      }
+    }
+    throw new UnauthorizedException('Невірний email або пароль');
   }
 
   /** Керувати суддями може власник або будь-який адмін, доданий до команди. */
