@@ -4,7 +4,6 @@ import { DataTypes } from 'sequelize';
 const TABLE = 'competitions';
 
 module.exports = {
-  // Той самий ідемпотентний підхід, що і в міграції для location.
   up: async (queryInterface: QueryInterface) => {
     const table = await queryInterface.describeTable(TABLE);
     if (!table.organizer) {

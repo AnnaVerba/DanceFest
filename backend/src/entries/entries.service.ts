@@ -38,10 +38,6 @@ export class EntriesService {
     return entries.map((e) => this.toDto(e));
   }
 
-  /**
-   * Публічне подання заявки — форма реєстрації учасника, авторизація не
-   * потрібна. Номінація має відповідати вже згенерованій для конкурсу.
-   */
   async create(competitionId: string, dto: CreateEntryDto) {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
@@ -57,8 +53,6 @@ export class EntriesService {
       );
     }
 
-    // Наступний порядковий номер у межах конкурсу; рідкісний конфлікт від
-    // одночасних заявок ловимо один раз повторною спробою.
     for (let attempt = 0; attempt < 2; attempt++) {
       const last = await this.entryModel.findOne({
         where: { competitionId },
@@ -85,7 +79,6 @@ export class EntriesService {
         throw err;
       }
     }
-    // Недосяжно — цикл або повертає, або кидає виняток на другій ітерації.
     throw new Error('Не вдалося створити заявку');
   }
 
@@ -105,7 +98,6 @@ export class EntriesService {
     await entry.destroy();
   }
 
-  /** Переглядати й видаляти заявки може власник або будь-який адмін команди. */
   private async loadCompetitionAndAssertAccess(
     competitionId: string,
     requesterId: string,
@@ -126,7 +118,6 @@ export class EntriesService {
   }
 
   private toDto(entry: Entry) {
-    // Середнє з оцінок суддів, якщо вони вже є; інакше — застаріле пряме поле.
     const scores = entry.scores ?? [];
     const averageScore =
       scores.length > 0

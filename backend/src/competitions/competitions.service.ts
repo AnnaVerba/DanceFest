@@ -12,9 +12,6 @@ import { PaymentDetails } from '../payment-details/payment-details.model';
 import { CreateCompetitionDto } from './dto/create-competition.dto';
 import { UpdateCompetitionDto } from './dto/update-competition.dto';
 
-// Лише публічно безпечні поля власника — без passwordHash/email.
-// paymentDetails включені навмисно: реквізити для оплати мають бути видні
-// на публічній сторінці конкурсу, щоб учасник міг переказати внесок.
 const OWNER_INCLUDE = [
   { model: Admin, as: 'owner', attributes: ['id', 'name'] },
   { model: PaymentDetails, as: 'paymentDetails' },
@@ -66,7 +63,6 @@ export class CompetitionsService {
     await competition.destroy();
   }
 
-  /** Редагувати конкурс може власник або будь-який адмін, доданий до команди. */
   private async assertCanEdit(
     competition: Competition,
     requesterId: string,

@@ -26,7 +26,6 @@ export class Admin extends Model<Admin> {
   @Column({ type: DataType.STRING, allowNull: false })
   declare passwordHash: string;
 
-  /** Конкурси, куди адміна запросили (без урахування тих, де він власник). */
   @BelongsToMany(() => Competition, () => CompetitionAdmin)
   declare competitions: Competition[];
 }

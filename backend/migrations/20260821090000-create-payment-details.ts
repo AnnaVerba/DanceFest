@@ -31,12 +31,6 @@ module.exports = {
         type: DataTypes.STRING,
         allowNull: false,
       },
-      // Номер картки або IBAN отримувача в одному полі — так само, як це
-      // вводиться однією формою на фронті ("Номер картки / IBAN"). Значення
-      // зберігається як є, без маскування: це не дані платника (немає
-      // CVV/строку дії), картка й так публікується учасникам для переказу
-      // внеску, тож поза межами PCI DSS — маскування лише заважало б
-      // скопіювати номер.
       account: {
         type: DataTypes.STRING,
         allowNull: false,
@@ -63,16 +57,12 @@ module.exports = {
       },
     });
 
-    // Один конкурс — одні реквізити.
     await queryInterface.addIndex(TABLE, {
       fields: ['competitionId'],
       name: 'payment_details_competition_id_unique',
       unique: true,
     });
 
-    // Бекфіл зі старих колонок competitions.payment* (додані в
-    // 20260815090000). UUID генеруємо в JS, щоб не залежати від розширення
-    // pgcrypto на боці бази.
     const rows = await queryInterface.sequelize.query<{
       id: string;
       ownerId: string;

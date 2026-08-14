@@ -21,8 +21,6 @@ export class Nomination extends Model<Nomination> {
   @Column({ type: DataType.UUID, allowNull: false })
   declare competitionId: string;
 
-  // Повна назва номінації — комбінація значень категорій-осей,
-  // напр. "Соло · Діти · Дебют". Формується на фронтенді при генерації.
   @Column({ type: DataType.STRING, allowNull: false })
   declare name: string;
 

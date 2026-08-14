@@ -25,8 +25,6 @@ async function ensureColumnRemoved(
 }
 
 module.exports = {
-  // Кожен крок ідемпотентний (перевіряє поточну схему через describeTable),
-  // щоб міграцію можна було безпечно перезапустити після часткового збою.
   up: async (queryInterface: QueryInterface) => {
     await ensureColumnRemoved(queryInterface, 'date');
     await ensureColumnRemoved(queryInterface, 'location');
@@ -65,7 +63,6 @@ module.exports = {
       allowNull: true,
     });
 
-    // Бекфіл існуючих рядків (dev-дані), щоб нижче можна було ввімкнути NOT NULL.
     await queryInterface.sequelize.query(`
       UPDATE ${TABLE} SET
         description = COALESCE(description, ''),

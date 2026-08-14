@@ -14,7 +14,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtPayload, RefreshTokenPayload } from './jwt-payload.interface';
 
 const SALT_ROUNDS = 10;
-const DEFAULT_REFRESH_EXPIRES_IN_SECONDS = 60 * 60 * 24 * 30; // 30 днів
+const DEFAULT_REFRESH_EXPIRES_IN_SECONDS = 60 * 60 * 24 * 30;
 
 @Injectable()
 export class AuthService {
@@ -54,12 +54,6 @@ export class AuthService {
     return this.buildAuthResponse(admin);
   }
 
-  /**
-   * Обмінює дійсний refreshToken на нову пару токенів (ротація).
-   * Токен підписаний окремим секретом (JWT_REFRESH_SECRET), тож навіть
-   * якщо його випадково передадуть у звичайний auth-guard, підпис не
-   * збіжиться з JWT_SECRET і його буде відхилено.
-   */
   async refresh(dto: RefreshTokenDto) {
     let payload: RefreshTokenPayload;
     try {
@@ -106,8 +100,6 @@ export class AuthService {
   }
 
   private refreshSecret(): string {
-    // Якщо окремий секрет не заданий — падати на access-секрет означало б,
-    // що обидва токени можна підробити одним ключем. Вимагаємо явного значення.
     const secret = this.config.get<string>('JWT_REFRESH_SECRET');
     if (!secret) {
       throw new Error('JWT_REFRESH_SECRET не налаштований');

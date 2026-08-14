@@ -38,7 +38,6 @@ module.exports = {
       },
     });
 
-    // Один суддя — одна оцінка на номер; повторний PATCH оновлює її, не дублює.
     await queryInterface.addIndex('scores', {
       fields: ['entryId', 'judgeId'],
       name: 'scores_entry_id_judge_id_idx',

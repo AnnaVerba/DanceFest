@@ -31,8 +31,6 @@ export class CategoryTemplate extends Model<CategoryTemplate> {
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   declare isPublic: boolean;
 
-  // Категорії-осі шаблону — те саме, що фронтенд генерує на кроці "Категорії"
-  // майстра створення конкурсу; декартів добуток значень дає номінації.
   @Column({ type: DataType.JSONB, allowNull: false })
   declare axes: CategoryTemplateAxis[];
 

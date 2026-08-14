@@ -4,8 +4,6 @@ import { DataTypes } from 'sequelize';
 const TABLE = 'competitions';
 
 module.exports = {
-  // Ідемпотентно (через describeTable), як і попередня міграція схеми —
-  // безпечно перезапустити, якщо колонка вже додана вручну.
   up: async (queryInterface: QueryInterface) => {
     const table = await queryInterface.describeTable(TABLE);
     if (!table.location) {

@@ -9,7 +9,6 @@ import { Admin } from '../admins/admin.model';
 import { CategoryTemplate } from './category-template.model';
 import { CreateCategoryTemplateDto } from './dto/create-category-template.dto';
 
-// Лише публічно безпечні поля автора — без passwordHash/email.
 const AUTHOR_INCLUDE = [
   { model: Admin, as: 'author', attributes: ['id', 'name'] },
 ];
@@ -21,7 +20,6 @@ export class CategoryTemplatesService {
     private readonly templateModel: typeof CategoryTemplate,
   ) {}
 
-  /** Публічні шаблони + власні приватні того, хто питає. */
   async list(requesterId: string) {
     const templates = await this.templateModel.findAll({
       where: { [Op.or]: [{ isPublic: true }, { authorId: requesterId }] },

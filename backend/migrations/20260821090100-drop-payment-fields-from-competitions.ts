@@ -2,8 +2,6 @@ import type { QueryInterface } from 'sequelize';
 import { DataTypes } from 'sequelize';
 
 const TABLE = 'competitions';
-// Дані вже перенесені в payment_details попередньою міграцією
-// (20260821090000-create-payment-details).
 const COLUMNS = [
   'paymentRecipient',
   'paymentAccount',

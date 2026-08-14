@@ -17,9 +17,6 @@ import { JwtStrategy } from './jwt.strategy';
       useFactory: (config: ConfigService): JwtModuleOptions => ({
         secret: config.get<string>('JWT_SECRET'),
         signOptions: {
-          // .env завжди повертає рядок; якщо передати jsonwebtoken рядок
-          // із самих цифр без одиниці, `ms()` прочитає його як мілісекунди,
-          // а не секунди — токен жив би ~86с замість доби. Приводимо до Number.
           expiresIn:
             Number(config.get<string>('JWT_EXPIRES_IN_SECONDS')) || 86400,
         },

@@ -9,7 +9,6 @@ import {
 import { Admin } from '../admins/admin.model';
 import { Competition } from '../competitions/competition.model';
 
-/** Зв'язка «конкурс — адміністратор, що має доступ». Власник тут не зберігається. */
 @Table({ tableName: 'competition_admins' })
 export class CompetitionAdmin extends Model<CompetitionAdmin> {
   @Column({

@@ -16,8 +16,6 @@ import { UpsertPaymentDetailsDto } from './dto/upsert-payment-details.dto';
 export class PaymentDetailsController {
   constructor(private readonly paymentDetailsService: PaymentDetailsService) {}
 
-  // Публічний: реквізити мають бути видні учасникам на сторінці конкурсу,
-  // щоб вони знали, куди переказати внесок.
   @ApiOperation({ summary: "Get a competition's payment details" })
   @ApiResponse({
     status: 200,

@@ -16,7 +16,6 @@ import { JudgeLoginDto } from './dto/judge-login.dto';
 
 const SALT_ROUNDS = 10;
 const TEMP_PASSWORD_LENGTH = 8;
-// Без 0/O/1/I — щоб пароль, продиктований чи переписаний вручну, не плутався.
 const TEMP_PASSWORD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 function generateTempPassword(): string {
@@ -64,8 +63,6 @@ export class JudgesService {
       passwordHash,
     } as CreationAttributes<Judge>);
 
-    // Єдине місце, де тимчасовий пароль існує у відкритому вигляді —
-    // ця відповідь. Далі в БД лишається тільки bcrypt-хеш.
     return { ...this.toDto(judge), tempPassword };
   }
 
@@ -89,10 +86,6 @@ export class JudgesService {
     return this.judgeModel.findByPk(judgeId);
   }
 
-  /**
-   * Той самий email міг отримати запрошення на кілька різних конкурсів —
-   * кожне окремим рядком Judge. Перебираємо всі, поки пароль не збіжиться.
-   */
   async login(dto: JudgeLoginDto): Promise<Judge> {
     const candidates = await this.judgeModel.findAll({
       where: { email: dto.email.trim() },
@@ -105,7 +98,6 @@ export class JudgesService {
     throw new UnauthorizedException('Невірний email або пароль');
   }
 
-  /** Керувати суддями може власник або будь-який адмін, доданий до команди. */
   private async loadCompetitionAndAssertAccess(
     competitionId: string,
     requesterId: string,

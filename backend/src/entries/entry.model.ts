@@ -23,7 +23,6 @@ export class Entry extends Model<Entry> {
   @Column({ type: DataType.UUID, allowNull: false })
   declare competitionId: string;
 
-  // Порядковий номер заявки в межах конкурсу, присвоюється при поданні.
   @Column({ type: DataType.INTEGER, allowNull: false })
   declare number: number;
 
@@ -33,8 +32,6 @@ export class Entry extends Model<Entry> {
   @Column({ type: DataType.STRING, allowNull: false })
   declare nomination: string;
 
-  // Категорії конкурсу — довільні осі (див. nominations), тому ці три поля
-  // більше не гарантовано заповнені окремо від назви номінації.
   @Column({ type: DataType.STRING, allowNull: true })
   declare ageCategory: string | null;
 
@@ -62,8 +59,6 @@ export class Entry extends Model<Entry> {
   @Column({ type: DataType.STRING, allowNull: true })
   declare paymentMethod: string | null;
 
-  // Застаріле пряме поле — з появою per-суддівських Score більше не пишеться;
-  // лишається лише для сумісності зі старими рядками.
   @Column({ type: DataType.DECIMAL(4, 1), allowNull: true })
   declare score: number | null;
 

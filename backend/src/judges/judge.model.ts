@@ -27,8 +27,6 @@ export class Judge extends Model<Judge> {
   @Column({ type: DataType.STRING, allowNull: false })
   declare email: string;
 
-  // Лише хеш — тимчасовий пароль у відкритому вигляді повертається
-  // одноразово з відповіді на створення судді і ніде більше не зберігається.
   @Column({ type: DataType.STRING, allowNull: false })
   declare passwordHash: string;
 

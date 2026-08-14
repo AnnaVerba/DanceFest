@@ -62,7 +62,6 @@ export class VenuesService {
     await venue.destroy();
   }
 
-  /** Керувати майданчиками може власник або будь-який адмін, доданий до команди. */
   private async loadCompetitionAndAssertAccess(
     competitionId: string,
     requesterId: string,

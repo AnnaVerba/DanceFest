@@ -69,7 +69,6 @@ export class Competition extends Model<Competition> {
   @HasMany(() => Invitation)
   declare invitations: Invitation[];
 
-  /** Банківські реквізити для прийому оплати — необов'язкові. */
   @HasOne(() => PaymentDetails)
   declare paymentDetails: PaymentDetails | null;
 }

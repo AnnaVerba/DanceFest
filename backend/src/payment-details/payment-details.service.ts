@@ -21,8 +21,6 @@ export class PaymentDetailsService {
     private readonly paymentDetailsModel: typeof PaymentDetails,
   ) {}
 
-  // Публічний доступ: реквізити мають бути видні учасникам, щоб вони знали,
-  // куди переказати внесок за участь.
   async get(competitionId: string): Promise<PaymentDetails | null> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
@@ -60,7 +58,6 @@ export class PaymentDetailsService {
     );
   }
 
-  /** Керувати реквізитами може власник або будь-який адмін, доданий до команди. */
   private async loadCompetitionAndAssertAccess(
     competitionId: string,
     requesterId: string,

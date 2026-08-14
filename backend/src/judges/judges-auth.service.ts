@@ -96,9 +96,6 @@ export class JudgesAuthService {
       throw new NotFoundException('Заявку не знайдено');
     }
 
-    // Явний find-then-write замість upsert() — модель не описує унікальний
-    // індекс (entryId, judgeId) декоративно, тож Sequelize не зібрав би
-    // правильний ON CONFLICT і кожен виклик просто дублював би рядок.
     const existing = await this.scoreModel.findOne({
       where: { entryId, judgeId: judge.id },
     });

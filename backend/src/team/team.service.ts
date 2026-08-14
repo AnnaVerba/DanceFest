@@ -262,10 +262,6 @@ export class TeamService {
     };
   }
 
-  /**
-   * Заглушка реального надсилання email: логуємо посилання в консоль бекенду.
-   * Коли з'явиться поштовий сервіс — саме тут підключити відправку листа.
-   */
   private logInviteLink(invitation: Invitation): void {
     const frontendUrl =
       this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';

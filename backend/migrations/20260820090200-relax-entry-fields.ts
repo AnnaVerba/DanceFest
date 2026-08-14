@@ -3,11 +3,13 @@ import { DataTypes } from 'sequelize';
 
 const TABLE = 'entries';
 
-// Форма заявки учасника (публічна) не збирає вікову категорію/лігу/програму
-// окремо — вони приходили лише з фіксованого мокапу. Категорії конкурсу тепер
-// довільні осі (див. nominations), тож ці три поля стають необов'язковими.
-// studioName і choreographer теж не позначені обов'язковими в самій формі.
-const NULLABLE_COLUMNS = ['ageCategory', 'league', 'program', 'studioName', 'choreographer'];
+const NULLABLE_COLUMNS = [
+  'ageCategory',
+  'league',
+  'program',
+  'studioName',
+  'choreographer',
+];
 
 module.exports = {
   up: async (queryInterface: QueryInterface) => {

@@ -21,7 +21,6 @@ export class NominationsService {
     private readonly nominationModel: typeof Nomination,
   ) {}
 
-  /** Публічний список — потрібен формі заявки учасника, авторизація не потрібна. */
   async listPublic(competitionId: string) {
     await this.assertCompetitionExists(competitionId);
     const nominations = await this.nominationModel.findAll({
@@ -73,7 +72,6 @@ export class NominationsService {
     return competition;
   }
 
-  /** Керувати номінаціями може власник або будь-який адмін, доданий до команди. */
   private async loadCompetitionAndAssertAccess(
     competitionId: string,
     requesterId: string,
