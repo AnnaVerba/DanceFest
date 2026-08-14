@@ -31,17 +31,15 @@ module.exports = {
         type: DataTypes.STRING,
         allowNull: false,
       },
-      // Картка отримувача зберігається як є (без маскування) — вона й так
-      // публікується учасникам для переказу внеску, тобто не є секретом.
-      // Це не платіжні дані платника (немає CVV/строку дії), тож поза
-      // межами PCI DSS; маскування лише завадило б скопіювати номер.
-      cardNumber: {
+      // Номер картки або IBAN отримувача в одному полі — так само, як це
+      // вводиться однією формою на фронті ("Номер картки / IBAN"). Значення
+      // зберігається як є, без маскування: це не дані платника (немає
+      // CVV/строку дії), картка й так публікується учасникам для переказу
+      // внеску, тож поза межами PCI DSS — маскування лише заважало б
+      // скопіювати номер.
+      account: {
         type: DataTypes.STRING,
-        allowNull: true,
-      },
-      iban: {
-        type: DataTypes.STRING,
-        allowNull: true,
+        allowNull: false,
       },
       bankName: {
         type: DataTypes.STRING,
@@ -73,26 +71,23 @@ module.exports = {
     });
 
     // Бекфіл зі старих колонок competitions.payment* (додані в
-    // 20260815090000). paymentAccount містив або картку, або IBAN в одному
-    // полі — розкладаємо за виглядом значення (IBAN починається з 2 літер
-    // коду країни, картка — цифри). UUID генеруємо в JS, щоб не залежати
-    // від розширення pgcrypto на боці бази.
+    // 20260815090000). UUID генеруємо в JS, щоб не залежати від розширення
+    // pgcrypto на боці бази.
     const rows = await queryInterface.sequelize.query<{
       id: string;
       ownerId: string;
       paymentRecipient: string;
-      paymentAccount: string | null;
+      paymentAccount: string;
       paymentBank: string | null;
       paymentTaxId: string | null;
       paymentPurpose: string | null;
     }>(
       `SELECT id, "ownerId", "paymentRecipient", "paymentAccount", "paymentBank", "paymentTaxId", "paymentPurpose"
-       FROM competitions WHERE "paymentRecipient" IS NOT NULL`,
+       FROM competitions WHERE "paymentRecipient" IS NOT NULL AND "paymentAccount" IS NOT NULL`,
       { type: QueryTypes.SELECT },
     );
 
     if (rows.length > 0) {
-      const isIban = (value: string) => /^[A-Za-z]{2}/.test(value);
       await queryInterface.bulkInsert(
         TABLE,
         rows.map((row) => ({
@@ -100,14 +95,7 @@ module.exports = {
           competitionId: row.id,
           adminId: row.ownerId,
           beneficiary: row.paymentRecipient,
-          cardNumber:
-            row.paymentAccount && !isIban(row.paymentAccount)
-              ? row.paymentAccount
-              : null,
-          iban:
-            row.paymentAccount && isIban(row.paymentAccount)
-              ? row.paymentAccount
-              : null,
+          account: row.paymentAccount,
           bankName: row.paymentBank,
           taxId: row.paymentTaxId,
           destination: row.paymentPurpose,

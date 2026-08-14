@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -39,10 +38,6 @@ export class PaymentDetailsService {
   ): Promise<PaymentDetails> {
     await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
 
-    if (!dto.cardNumber?.trim() && !dto.iban?.trim()) {
-      throw new BadRequestException('Вкажіть номер картки або IBAN отримувача');
-    }
-
     const existing = await this.paymentDetailsModel.findOne({
       where: { competitionId },
     });
@@ -51,8 +46,7 @@ export class PaymentDetailsService {
       competitionId,
       adminId: requesterId,
       beneficiary: dto.beneficiary.trim(),
-      cardNumber: dto.cardNumber?.trim() || null,
-      iban: dto.iban?.trim() || null,
+      account: dto.account.trim(),
       bankName: dto.bankName?.trim() || null,
       taxId: dto.taxId?.trim() || null,
       destination: dto.destination?.trim() || null,

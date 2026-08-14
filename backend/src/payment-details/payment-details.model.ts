@@ -34,16 +34,14 @@ export class PaymentDetails extends Model<PaymentDetails> {
   @Column({ type: DataType.STRING, allowNull: false })
   declare beneficiary: string;
 
-  // Номер картки отримувача зберігається як є, без маскування. Це не дані
-  // платника (немає CVV/строку дії) — картка й так публікується учасникам,
-  // щоб вони могли переказати внесок, тож маскування лише заважало б
-  // скопіювати номер. Поза межами PCI DSS, оскільки платежі карткою тут не
-  // обробляються — це реквізити для прямого P2P-переказу.
-  @Column({ type: DataType.STRING, allowNull: true })
-  declare cardNumber: string | null;
-
-  @Column({ type: DataType.STRING, allowNull: true })
-  declare iban: string | null;
+  // Номер картки або IBAN отримувача в одному полі (як на формі — єдине
+  // поле "Номер картки / IBAN"). Зберігається як є, без маскування: це не
+  // дані платника (немає CVV/строку дії) — картка й так публікується
+  // учасникам, щоб вони могли переказати внесок, тож маскування лише
+  // заважало б скопіювати номер. Поза межами PCI DSS, оскільки платежі
+  // карткою тут не обробляються — це реквізити для прямого P2P-переказу.
+  @Column({ type: DataType.STRING, allowNull: false })
+  declare account: string;
 
   @Column({ type: DataType.STRING, allowNull: true })
   declare bankName: string | null;

@@ -7,19 +7,13 @@ export class UpsertPaymentDetailsDto {
   @IsNotEmpty()
   beneficiary: string;
 
-  @ApiPropertyOptional({
-    example: '4441111122223333',
-    description:
-      'Номер картки отримувача для P2P-переказу. Разом з iban — має бути вказано хоча б одне поле.',
+  @ApiProperty({
+    example: 'UA123456780000026007233566001',
+    description: 'Номер картки або IBAN отримувача — одне поле, як на формі.',
   })
-  @IsOptional()
   @IsString()
-  cardNumber?: string;
-
-  @ApiPropertyOptional({ example: 'UA123456780000026007233566001' })
-  @IsOptional()
-  @IsString()
-  iban?: string;
+  @IsNotEmpty()
+  account: string;
 
   @ApiPropertyOptional({ example: 'АТ КБ «ПриватБанк»' })
   @IsOptional()

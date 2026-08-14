@@ -38,8 +38,7 @@ export class PaymentDetailsController {
   @ApiResponse({ status: 200, description: 'Payment details saved.' })
   @ApiResponse({
     status: 400,
-    description:
-      'Validation failed, or neither cardNumber nor iban was provided.',
+    description: 'Validation failed for one or more fields.',
   })
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
   @ApiResponse({
