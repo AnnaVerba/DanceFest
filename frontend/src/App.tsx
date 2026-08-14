@@ -6,9 +6,14 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import TeamPage from './pages/TeamPage';
 import DashboardPage from './pages/DashboardPage';
+import NewCompetitionPage from './pages/NewCompetitionPage';
+import CompetitionEditPage from './pages/CompetitionEditPage';
 import CompetitionDetailPage from './pages/CompetitionDetailPage';
 import CompetitionPreviewRedirect from './pages/CompetitionPreviewRedirect';
-import PlaceholderPage from './pages/PlaceholderPage';
+import JudgePage from './pages/JudgePage';
+import ApplyPage from './pages/ApplyPage';
+import CategoryTemplatesPage from './pages/CategoryTemplatesPage';
+import NewCategoryTemplatePage from './pages/NewCategoryTemplatePage';
 import './App.css';
 
 function App() {
@@ -32,29 +37,14 @@ function App() {
         <Route path="/competitions/preview" element={<CompetitionPreviewRedirect />} />
         <Route path="/competitions/:id" element={<CompetitionDetailPage />} />
         <Route path="/competitions/:id/team" element={<TeamPage />} />
-        <Route
-          path="/competitions/:id/edit"
-          element={<PlaceholderPage title="Редагувати конкурс" />}
-        />
+        <Route path="/competitions/:id/edit" element={<CompetitionEditPage />} />
+        <Route path="/competitions/new" element={<NewCompetitionPage />} />
 
-        {/* Екрани зі скрін-бару, які ще не реалізовані */}
-        <Route
-          path="/competitions/new"
-          element={<PlaceholderPage title="Новий конкурс" />}
-        />
-        <Route path="/judge" element={<PlaceholderPage title="Кабінет судді" />} />
-        <Route
-          path="/apply"
-          element={<PlaceholderPage title="Форма заявки (учасник)" />}
-        />
-        <Route
-          path="/category-templates"
-          element={<PlaceholderPage title="Шаблони категорій" />}
-        />
-        <Route
-          path="/category-templates/new"
-          element={<PlaceholderPage title="Створити шаблон" />}
-        />
+        <Route path="/judge" element={<JudgePage />} />
+        <Route path="/apply" element={<ApplyPage />} />
+        <Route path="/competitions/:id/apply" element={<ApplyPage />} />
+        <Route path="/category-templates" element={<CategoryTemplatesPage />} />
+        <Route path="/category-templates/new" element={<NewCategoryTemplatePage />} />
       </Routes>
     </>
   );

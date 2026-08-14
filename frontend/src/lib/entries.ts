@@ -6,14 +6,29 @@ export interface Entry {
   number: number;
   routineName: string;
   nomination: string;
-  ageCategory: string;
-  league: string;
-  program: string;
+  ageCategory: string | null;
+  league: string | null;
+  program: string | null;
   participantsCount: number | null;
-  studioName: string;
-  choreographer: string;
+  studioName: string | null;
+  choreographer: string | null;
+  city?: string | null;
+  improv?: boolean;
+  paymentMethod?: 'cash' | 'card' | null;
   score: number | null;
+  scoresCount?: number;
   createdAt: string;
+}
+
+export interface EntryInput {
+  routineName: string;
+  nomination: string;
+  participantsCount?: number;
+  studioName?: string;
+  choreographer?: string;
+  city?: string;
+  improv?: boolean;
+  paymentMethod?: 'cash' | 'card';
 }
 
 export class EntryApiError extends Error {
@@ -71,6 +86,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function getEntries(competitionId: string): Promise<Entry[]> {
   return request<Entry[]>(`/competitions/${competitionId}/entries`);
+}
+
+/** Публічне подання заявки — форма реєстрації учасника, без авторизації. */
+export function createEntry(
+  competitionId: string,
+  input: EntryInput,
+): Promise<Entry> {
+  return request<Entry>(`/competitions/${competitionId}/entries`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
 export function deleteEntry(competitionId: string, entryId: string): Promise<void> {

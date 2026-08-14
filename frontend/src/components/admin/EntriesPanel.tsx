@@ -28,12 +28,12 @@ function formatScore(score: number | null): string {
 }
 
 /** Унікальні значення поля серед заявок, у порядку появи. */
-function uniqueValues(entries: Entry[], pick: (e: Entry) => string): string[] {
+function uniqueValues(entries: Entry[], pick: (e: Entry) => string | null): string[] {
   const seen = new Set<string>();
   const values: string[] = [];
   for (const entry of entries) {
     const value = pick(entry);
-    if (!seen.has(value)) {
+    if (value && !seen.has(value)) {
       seen.add(value);
       values.push(value);
     }
@@ -112,8 +112,8 @@ export default function EntriesPanel({
       if (!query) return true;
       return (
         e.routineName.toLowerCase().includes(query) ||
-        e.studioName.toLowerCase().includes(query) ||
-        e.choreographer.toLowerCase().includes(query)
+        (e.studioName?.toLowerCase().includes(query) ?? false) ||
+        (e.choreographer?.toLowerCase().includes(query) ?? false)
       );
     });
 
@@ -149,7 +149,12 @@ export default function EntriesPanel({
           Заявки подають самі учасники через форму реєстрації на конкурс — тут ви
           лише переглядаєте подані заявки.
         </p>
-        <a className={styles.btn} href="#" target="_blank" rel="noopener">
+        <a
+          className={styles.btn}
+          href={`/competitions/${competitionId}/apply`}
+          target="_blank"
+          rel="noopener"
+        >
           Форма подачі заявки ↗
         </a>
       </div>

@@ -61,7 +61,7 @@ export default function DashboardPage() {
           (c) =>
             c.name.toLowerCase().includes(q) ||
             c.location.toLowerCase().includes(q) ||
-            (c.owner?.name.toLowerCase().includes(q) ?? false),
+            c.organizer.toLowerCase().includes(q),
         )
       : list;
 
@@ -69,9 +69,7 @@ export default function DashboardPage() {
     if (sortKey === 'name') {
       sorted.sort((a, b) => a.name.localeCompare(b.name, 'uk'));
     } else if (sortKey === 'organizer') {
-      sorted.sort((a, b) =>
-        (a.owner?.name ?? '').localeCompare(b.owner?.name ?? '', 'uk'),
-      );
+      sorted.sort((a, b) => a.organizer.localeCompare(b.organizer, 'uk'));
     } else {
       sorted.sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
     }
@@ -245,7 +243,7 @@ export default function DashboardPage() {
                       </td>
                       <td>{formatDate(c.dateFrom)}</td>
                       <td>{c.location || '—'}</td>
-                      <td>{c.owner?.name ?? '—'}</td>
+                      <td>{c.organizer || '—'}</td>
                       <td className={styles.contact}>
                         {c.contactNumber && (
                           <div className={styles.contactPhone}>{c.contactNumber}</div>

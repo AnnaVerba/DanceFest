@@ -12,6 +12,7 @@ export interface Competition {
   name: string;
   description: string;
   location: string;
+  organizer: string;
   dateFrom: string;
   dateTo: string;
   registrationFrom: string;
@@ -63,6 +64,66 @@ export async function getCompetition(id: string): Promise<Competition> {
     throw new Error('Не вдалося завантажити конкурс');
   }
   return response.json() as Promise<Competition>;
+}
+
+export interface CompetitionInput {
+  image?: string;
+  name: string;
+  description: string;
+  location: string;
+  organizer: string;
+  dateFrom: string;
+  dateTo: string;
+  registrationFrom: string;
+  registrationTo: string;
+  contactNumber: string;
+  contactEmail: string;
+  paymentRecipient?: string;
+  paymentAccount?: string;
+  paymentBank?: string;
+  paymentTaxId?: string;
+  paymentPurpose?: string;
+}
+
+async function submitCompetition(
+  path: string,
+  method: 'POST' | 'PATCH',
+  input: CompetitionInput,
+): Promise<Competition> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    throw new CompetitionApiError("Не вдалося з'єднатися з сервером", 0);
+  }
+
+  const payload = (await response.json().catch(() => null)) as
+    | (ErrorPayload & Competition)
+    | null;
+
+  if (!response.ok) {
+    throw new CompetitionApiError(
+      extractMessage(payload, 'Не вдалося зберегти конкурс'),
+      response.status,
+    );
+  }
+
+  return payload as unknown as Competition;
+}
+
+export function createCompetition(input: CompetitionInput): Promise<Competition> {
+  return submitCompetition('/competitions', 'POST', input);
+}
+
+export function updateCompetition(
+  id: string,
+  input: CompetitionInput,
+): Promise<Competition> {
+  return submitCompetition(`/competitions/${id}`, 'PATCH', input);
 }
 
 export async function deleteCompetition(id: string): Promise<void> {

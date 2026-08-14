@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { getCompetitionStatus, getCompetitions } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
+import { mockCompetitions } from '../lib/mockCompetitions';
 import styles from './HomePage.module.css';
+
+// Бекенд знову піднятий — моки вимкнені. Поставити true, якщо бекенд ляже знову.
+const USE_MOCK_DATA = false;
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('uk-UA', {
@@ -23,6 +28,12 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (USE_MOCK_DATA) {
+      setCompetitions(mockCompetitions);
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     getCompetitions()
       .then((data) => {
@@ -56,39 +67,41 @@ export default function HomePage() {
         {!loading && !error && competitions && competitions.length > 0 && (
           <ul className={styles.contests}>
             {competitions.map((c) => (
-              <li key={c.id} className={styles.card}>
-                <div className={styles.cardBanner}>
-                  {c.image ? (
-                    <img src={c.image} alt="" />
-                  ) : (
-                    <>
-                      <svg
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <rect x="3" y="3" width="18" height="18" rx="2" />
-                        <circle cx="8.8" cy="8.8" r="1.6" />
-                        <path d="M21 15.5l-5-5L5 21" />
-                      </svg>
-                      <span>Банер конкурсу</span>
-                    </>
-                  )}
-                </div>
-                <div className={styles.cardBody}>
-                  <span className={styles.badge}>{getCompetitionStatus(c)}</span>
-                  <h2 className={styles.cardTitle}>{c.name}</h2>
-                  <p className={styles.cardMeta}>
-                    {formatDateRange(c.dateFrom, c.dateTo)}
-                    {c.location && ` · ${c.location}`}
-                  </p>
-                </div>
+              <li key={c.id}>
+                <Link to={`/competitions/${c.id}`} className={styles.card}>
+                  <div className={styles.cardBanner}>
+                    {c.image ? (
+                      <img src={c.image} alt="" />
+                    ) : (
+                      <>
+                        <svg
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.7"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <circle cx="8.8" cy="8.8" r="1.6" />
+                          <path d="M21 15.5l-5-5L5 21" />
+                        </svg>
+                        <span>Банер конкурсу</span>
+                      </>
+                    )}
+                  </div>
+                  <div className={styles.cardBody}>
+                    <span className={styles.badge}>{getCompetitionStatus(c)}</span>
+                    <h2 className={styles.cardTitle}>{c.name}</h2>
+                    <p className={styles.cardMeta}>
+                      {formatDateRange(c.dateFrom, c.dateTo)}
+                      {c.location && ` · ${c.location}`}
+                    </p>
+                  </div>
+                </Link>
               </li>
             ))}
           </ul>

@@ -14,7 +14,11 @@ import {
   getCompetitionStatus,
 } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
+import { getMockCompetitionById } from '../lib/mockCompetitions';
 import styles from './CompetitionDetailPage.module.css';
+
+// Бекенд знову піднятий — моки вимкнені. Поставити true, якщо бекенд ляже знову.
+const USE_MOCK_DATA = false;
 
 const TABS = ['Деталі', 'Судді', 'Майданчики', 'Заявки'] as const;
 type Tab = (typeof TABS)[number];
@@ -66,6 +70,18 @@ export default function CompetitionDetailPage() {
 
   useEffect(() => {
     if (!id) return;
+
+    if (USE_MOCK_DATA) {
+      const mock = getMockCompetitionById(id);
+      if (mock) {
+        setCompetition(mock);
+      } else {
+        setLoadError('Не вдалося завантажити конкурс.');
+      }
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     getCompetition(id)
       .then((data) => {
@@ -211,7 +227,7 @@ export default function CompetitionDetailPage() {
                       <div className={styles.item}>
                         <div className={styles.itemLabel}>Організатор</div>
                         <div className={styles.itemValue}>
-                          {competition.owner?.name ?? '—'}
+                          {competition.organizer || '—'}
                         </div>
                       </div>
                       <div className={styles.item}>
