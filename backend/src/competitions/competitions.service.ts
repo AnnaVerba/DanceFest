@@ -8,12 +8,16 @@ import { CreationAttributes } from 'sequelize';
 import { Competition } from './competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Admin } from '../admins/admin.model';
+import { PaymentDetails } from '../payment-details/payment-details.model';
 import { CreateCompetitionDto } from './dto/create-competition.dto';
 import { UpdateCompetitionDto } from './dto/update-competition.dto';
 
 // Лише публічно безпечні поля власника — без passwordHash/email.
+// paymentDetails включені навмисно: реквізити для оплати мають бути видні
+// на публічній сторінці конкурсу, щоб учасник міг переказати внесок.
 const OWNER_INCLUDE = [
   { model: Admin, as: 'owner', attributes: ['id', 'name'] },
+  { model: PaymentDetails, as: 'paymentDetails' },
 ];
 
 @Injectable()

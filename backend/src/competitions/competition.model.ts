@@ -5,12 +5,14 @@ import {
   DataType,
   ForeignKey,
   HasMany,
+  HasOne,
   Model,
   Table,
 } from 'sequelize-typescript';
 import { Admin } from '../admins/admin.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Invitation } from '../team/invitation.model';
+import { PaymentDetails } from '../payment-details/payment-details.model';
 
 @Table({ tableName: 'competitions' })
 export class Competition extends Model<Competition> {
@@ -54,22 +56,6 @@ export class Competition extends Model<Competition> {
   @Column({ type: DataType.STRING, allowNull: false })
   declare contactEmail: string;
 
-  // Реквізити для оплати — необов'язкові, не кожен конкурс приймає оплату.
-  @Column({ type: DataType.STRING, allowNull: true })
-  declare paymentRecipient: string | null;
-
-  @Column({ type: DataType.STRING, allowNull: true })
-  declare paymentAccount: string | null;
-
-  @Column({ type: DataType.STRING, allowNull: true })
-  declare paymentBank: string | null;
-
-  @Column({ type: DataType.STRING, allowNull: true })
-  declare paymentTaxId: string | null;
-
-  @Column({ type: DataType.STRING, allowNull: true })
-  declare paymentPurpose: string | null;
-
   @ForeignKey(() => Admin)
   @Column({ type: DataType.UUID, allowNull: false })
   declare ownerId: string;
@@ -82,4 +68,8 @@ export class Competition extends Model<Competition> {
 
   @HasMany(() => Invitation)
   declare invitations: Invitation[];
+
+  /** Банківські реквізити для прийому оплати — необов'язкові. */
+  @HasOne(() => PaymentDetails)
+  declare paymentDetails: PaymentDetails | null;
 }

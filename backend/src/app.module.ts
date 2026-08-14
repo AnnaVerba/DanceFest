@@ -10,6 +10,7 @@ import { VenuesModule } from './venues/venues.module';
 import { EntriesModule } from './entries/entries.module';
 import { NominationsModule } from './nominations/nominations.module';
 import { CategoryTemplatesModule } from './category-templates/category-templates.module';
+import { PaymentDetailsModule } from './payment-details/payment-details.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { CategoryTemplatesModule } from './category-templates/category-templates
     EntriesModule,
     NominationsModule,
     CategoryTemplatesModule,
+    PaymentDetailsModule,
   ],
 })
 export class AppModule {}
