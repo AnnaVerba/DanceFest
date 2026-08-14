@@ -88,7 +88,6 @@ export function getEntries(competitionId: string): Promise<Entry[]> {
   return request<Entry[]>(`/competitions/${competitionId}/entries`);
 }
 
-/** Публічне подання заявки — форма реєстрації учасника, без авторизації. */
 export function createEntry(
   competitionId: string,
   input: EntryInput,

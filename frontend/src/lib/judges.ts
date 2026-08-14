@@ -8,7 +8,6 @@ export interface Judge {
   addedAt: string;
 }
 
-/** Тимчасовий пароль приходить лише у відповіді на створення, один раз. */
 export interface CreatedJudge extends Judge {
   tempPassword: string;
 }

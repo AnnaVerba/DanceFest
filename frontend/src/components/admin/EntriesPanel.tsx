@@ -6,8 +6,6 @@ import styles from './EntriesPanel.module.css';
 
 interface EntriesPanelProps {
   competitionId: string;
-  /** Видаляти заявки можуть власник і тім-адміни; сюди прокидаємо
-   *  вже пораховане на сторінці-контейнері значення. */
   canManage: boolean;
   onError: (message: string) => void;
 }
@@ -27,7 +25,6 @@ function formatScore(score: number | null): string {
   return score === null ? '—' : score.toFixed(1);
 }
 
-/** Унікальні значення поля серед заявок, у порядку появи. */
 function uniqueValues(entries: Entry[], pick: (e: Entry) => string | null): string[] {
   const seen = new Set<string>();
   const values: string[] = [];

@@ -41,7 +41,6 @@ function pluralNominations(n: number): string {
   return 'номінацій';
 }
 
-/** Декартів добуток значень осей — категорії стають комбінаціями "Соло · Діти · Аматори". */
 function cartesianCount(axes: DraftAxis[]): number {
   const active = axes.filter((a) => a.values.length > 0);
   if (active.length === 0) return 0;

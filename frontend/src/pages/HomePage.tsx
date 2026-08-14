@@ -5,7 +5,6 @@ import type { Competition } from '../lib/competitions';
 import { mockCompetitions } from '../lib/mockCompetitions';
 import styles from './HomePage.module.css';
 
-// Бекенд знову піднятий — моки вимкнені. Поставити true, якщо бекенд ляже знову.
 const USE_MOCK_DATA = false;
 
 function formatDate(iso: string): string {

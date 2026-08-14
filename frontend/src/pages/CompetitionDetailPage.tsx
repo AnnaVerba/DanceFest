@@ -17,7 +17,6 @@ import type { Competition } from '../lib/competitions';
 import { getMockCompetitionById } from '../lib/mockCompetitions';
 import styles from './CompetitionDetailPage.module.css';
 
-// Бекенд знову піднятий — моки вимкнені. Поставити true, якщо бекенд ляже знову.
 const USE_MOCK_DATA = false;
 
 const TABS = ['Деталі', 'Судді', 'Майданчики', 'Заявки'] as const;
@@ -117,9 +116,6 @@ export default function CompetitionDetailPage() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Спрощення: без окремого виклику команди ми не знаємо, чи поточний
-  // адмін — запрошений тім-адмін (бек таке дозволяє для редагування),
-  // тож кнопки керування показуємо лише власнику, кого точно видно тут.
   const isOwner = !!admin && !!competition && competition.ownerId === admin.id;
   const hasPayment =
     !!competition &&

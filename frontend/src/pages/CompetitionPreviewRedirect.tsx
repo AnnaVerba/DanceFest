@@ -2,10 +2,6 @@ import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { getCompetitions } from '../lib/competitions';
 
-/**
- * Чип «Перегляд конкурсу» зі скрін-бару не прив'язаний до конкретного id —
- * підставляємо перший конкурс зі списку і ведемо на його реальну сторінку.
- */
 export default function CompetitionPreviewRedirect() {
   const [targetId, setTargetId] = useState<string | null | undefined>(undefined);
 

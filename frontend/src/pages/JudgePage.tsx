@@ -50,8 +50,6 @@ export default function JudgePage() {
   }, [judge]);
 
   const total = entries?.length ?? 0;
-  // Рахуємо підтверджені (збережені на бекенді) оцінки, а не щойно набраний
-  // текст у полі — інакше лічильник бреше, якщо збереження не вдалося.
   const done = useMemo(() => entries?.filter((e) => e.score !== null).length ?? 0, [entries]);
 
   const handleLogin = async (e: FormEvent) => {

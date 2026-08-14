@@ -1,10 +1,5 @@
 import type { Competition } from './competitions';
 
-/**
- * Тимчасові мок-дані для головної сторінки, поки бекенд не підключений
- * (або недоступний локально). Прибрати, коли HomePage знову ходитиме
- * в API через getCompetitions().
- */
 export const mockCompetitions: Competition[] = [
   {
     id: 'mock-1',

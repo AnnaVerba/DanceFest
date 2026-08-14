@@ -61,7 +61,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as unknown as T;
 }
 
-/** Публічний — форма заявки учасника читає номінації без авторизації. */
 export function getNominations(competitionId: string): Promise<Nomination[]> {
   return request<Nomination[]>(`/competitions/${competitionId}/nominations`);
 }

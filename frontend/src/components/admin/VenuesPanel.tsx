@@ -7,8 +7,6 @@ import styles from './VenuesPanel.module.css';
 
 interface VenuesPanelProps {
   competitionId: string;
-  /** Керувати (додавати/видаляти) можуть власник і тім-адміни; сюди прокидаємо
-   *  вже пораховане на сторінці-контейнері значення. */
   canManage: boolean;
   onError: (message: string) => void;
 }

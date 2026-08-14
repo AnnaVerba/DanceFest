@@ -146,7 +146,6 @@ export async function deleteCompetition(id: string): Promise<void> {
   );
 }
 
-/** Бекенд не зберігає статус — рахуємо його з дат на льоту. */
 export function getCompetitionStatus(c: Competition): string {
   const now = new Date();
   const registrationFrom = new Date(c.registrationFrom);

@@ -99,11 +99,6 @@ export function clearSession() {
   localStorage.removeItem(ADMIN_KEY);
 }
 
-/**
- * Обмінює збережений refreshToken на нову пару токенів і зберігає її.
- * Викликається вручну там, де потрібно продовжити сесію без повторного
- * логіну; автоматичного перехоплення 401 по всіх fetch-запитах поки нема.
- */
 export async function refreshSession(): Promise<AuthResponse> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) {

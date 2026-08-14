@@ -76,7 +76,6 @@ export default function DashboardPage() {
     return sorted;
   }, [competitions, query, sortKey]);
 
-  // "З реквізитами" — конкурси, де заповнені і телефон, і email для зв'язку.
   const stats = useMemo(() => {
     const list = competitions ?? [];
     const now = new Date();

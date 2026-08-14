@@ -26,7 +26,6 @@ const EMPTY_FORM: CompetitionInput = {
   paymentPurpose: '',
 };
 
-/** Порожні необов'язкові поля бек не любить бачити як '' — вирізаємо їх перед відправкою. */
 function toPayload(form: CompetitionInput): CompetitionInput {
   const payload: CompetitionInput = { ...form };
   (Object.keys(payload) as (keyof CompetitionInput)[]).forEach((key) => {

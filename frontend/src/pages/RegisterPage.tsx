@@ -2,8 +2,6 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthError, register, saveSession } from '../lib/auth';
-// Той самий стиль, що й у логіну — свідомо той самий CSS-модуль,
-// щоб екрани не розходилися при майбутніх правках.
 import styles from './LoginPage.module.css';
 
 const MIN_PASSWORD_LENGTH = 6;

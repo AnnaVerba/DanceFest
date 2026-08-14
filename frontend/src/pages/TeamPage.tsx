@@ -46,15 +46,10 @@ export default function TeamPage() {
   const [loading, setLoading] = useState(true);
 
   const [addModalOpen, setAddModalOpen] = useState(false);
-  // Змінюємо key при кожному відкритті, щоб модалка монтувалась заново
-  // з чистим станом (без ефекту-скидання полів).
   const [addModalKey, setAddModalKey] = useState(0);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const { toasts, showToast } = useToasts();
 
-  // loading/loadError стартують у стані "йде завантаження" (див. useState нижче),
-  // тож тут лишаються тільки setState-виклики вже після await — без синхронного
-  // setState прямо в тілі ефекту.
   const loadTeam = useCallback(async () => {
     if (!competitionId) return;
     try {
@@ -69,14 +64,10 @@ export default function TeamPage() {
   }, [competitionId]);
 
   useEffect(() => {
-    // Дата-фетч на маунті: усі setState в loadTeam виконуються вже після
-    // await, але статичний аналіз цього правила не бачить різниці.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadTeam();
   }, [loadTeam]);
 
-  // Без токена цьому екрану робити нічого — сюди дійде повноцінний
-  // AuthGuard на маршруті, коли з'явиться більше захищених сторінок.
   if (!getToken()) {
     return <Navigate to="/login" replace />;
   }

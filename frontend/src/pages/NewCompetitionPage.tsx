@@ -54,7 +54,6 @@ interface DraftAxis {
   values: string[];
 }
 
-/** Декартів добуток значень осей — категорії стають комбінаціями "Соло · Діти · Аматори". */
 function cartesianNominations(axes: { values: string[] }[]): string[] {
   const active = axes.filter((a) => a.values.length > 0);
   if (active.length === 0) return [];
@@ -78,7 +77,6 @@ export default function NewCompetitionPage() {
 
   const [step, setStep] = useState(1);
 
-  // Крок 1 — Загальне
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState('');
@@ -88,25 +86,21 @@ export default function NewCompetitionPage() {
   const [registrationTo, setRegistrationTo] = useState('');
   const [bannerName, setBannerName] = useState<string | null>(null);
 
-  // Крок 2 — Контакти
   const [contactNumber, setContactNumber] = useState('');
   const [contactEmail, setContactEmail] = useState('');
 
-  // Крок 3 — Оплата
   const [paymentRecipient, setPaymentRecipient] = useState('');
   const [paymentAccount, setPaymentAccount] = useState('');
   const [paymentBank, setPaymentBank] = useState('');
   const [paymentTaxId, setPaymentTaxId] = useState('');
   const [paymentPurpose, setPaymentPurpose] = useState('');
 
-  // Крок 4 — Судді
   const [judges, setJudges] = useState<DraftJudge[]>([]);
   const [judgeNameInput, setJudgeNameInput] = useState('');
   const [judgeEmailInput, setJudgeEmailInput] = useState('');
   const judgeNameRef = useRef<HTMLInputElement>(null);
   const judgeEmailRef = useRef<HTMLInputElement>(null);
 
-  // Крок 5 — Категорії
   const [axisMode, setAxisMode] = useState<'own' | 'tpl'>(
     searchParams.get('template') ? 'tpl' : 'own',
   );
@@ -137,13 +131,11 @@ export default function NewCompetitionPage() {
     return selectedTemplate ? cartesianNominations(selectedTemplate.axes) : [];
   }, [axisMode, axes, selectedTemplate]);
 
-  // Крок 6 — Майданчики
   const [venues, setVenues] = useState<DraftVenue[]>([]);
   const [venueNameInput, setVenueNameInput] = useState('');
   const [venueNoteInput, setVenueNoteInput] = useState('');
   const venueNameRef = useRef<HTMLInputElement>(null);
 
-  // Крок 7 — Розподіл
   const [assignments, setAssignments] = useState<Record<string, string>>({});
 
   const [submitting, setSubmitting] = useState(false);
@@ -296,8 +288,6 @@ export default function NewCompetitionPage() {
         ...nominations.map((n) => createNomination(competition.id, n)),
       ]);
 
-      // Тимчасовий пароль судді повертається лише цим одним запитом і більше
-      // ніде не показується — перш ніж перейти далі, даємо адміну його зберегти.
       if (successfulJudges.length > 0) {
         setCreatedJudges(successfulJudges);
         setCreatedCompetitionId(competition.id);
