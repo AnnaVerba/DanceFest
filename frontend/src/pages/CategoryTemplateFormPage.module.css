@@ -1,0 +1,380 @@
+.main {
+  --bg: #f1f5f9;
+  --surface: #fff;
+  --field: #f8fafc;
+  --line: #e5e7eb;
+  --line-strong: #cbd5e1;
+  --ink: #0f172a;
+  --ink-soft: #334155;
+  --muted: #64748b;
+  --gold: #b07d1e;
+  --gold-hover: #96690f;
+  --gold-soft: #fdf3e0;
+  --gold-line: #d8b271;
+  --danger: #dc2626;
+  --r: 12px;
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.04);
+
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.5;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Arial,
+    sans-serif;
+  padding: 34px 32px 90px;
+  min-height: calc(100vh - 64px);
+  box-sizing: border-box;
+}
+
+.main *,
+.main *::before,
+.main *::after {
+  box-sizing: border-box;
+}
+
+.main button {
+  font: inherit;
+}
+
+.wrap {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.wrap h1 {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 22px;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gold);
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-bottom: 14px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--gold-hover);
+  text-decoration: underline;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  padding: 26px;
+  margin-bottom: 24px;
+}
+
+.sectionTitle {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 20px;
+}
+
+.field {
+  margin-bottom: 20px;
+}
+
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-bottom: 7px;
+}
+
+.req {
+  color: var(--danger);
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.field input::placeholder,
+.field textarea::placeholder {
+  color: #94a3b8;
+}
+
+.field input:focus,
+.field textarea:focus {
+  outline: none;
+  background: #fff;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(176, 125, 30, 0.15);
+}
+
+.field textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.fieldError {
+  margin: 7px 0 0;
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.error {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: var(--danger);
+  font-size: 14px;
+}
+
+/* публічний / приватний */
+.visibility {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.vis {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--field);
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--ink-soft);
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, color 0.15s;
+}
+
+.vis:hover {
+  border-color: var(--gold-line);
+}
+
+.vis .dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-strong);
+  flex: none;
+  transition: all 0.15s;
+}
+
+.vis[aria-pressed='true'] {
+  border-color: var(--gold);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(176, 125, 30, 0.13);
+  color: var(--ink);
+}
+
+.vis[aria-pressed='true'] .dot {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+/* категорії-осі */
+.axis {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: #fff;
+}
+
+.axisHead {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.axisHead input {
+  font-weight: 600;
+}
+
+.axisAdd {
+  display: flex;
+  gap: 12px;
+}
+
+.axisAdd input {
+  flex: 1;
+  min-width: 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--gold-soft);
+  color: var(--gold);
+  border: 1px solid var(--gold-line);
+  border-radius: 999px;
+  padding: 5px 8px 5px 13px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.chip button {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.7;
+  padding: 0 2px;
+}
+
+.chip button:hover {
+  opacity: 1;
+}
+
+.newAxis {
+  display: flex;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.newAxis input {
+  flex: 1;
+  min-width: 0;
+}
+
+.hint {
+  margin: 18px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.linkDanger {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--danger);
+  font-size: 13.5px;
+  cursor: pointer;
+  flex: none;
+}
+
+.linkDanger:hover {
+  text-decoration: underline;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.btn:hover {
+  background: var(--field);
+  border-color: #94a3b8;
+}
+
+.btnGold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  border: 0;
+  background: var(--gold);
+  color: #fff;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.btnGold:hover {
+  background: var(--gold-hover);
+}
+
+.btnSm {
+  padding: 8px 14px;
+  font-size: 13.5px;
+}
+
+@media (max-width: 720px) {
+  .main {
+    padding: 24px 16px 60px;
+  }
+
+  .wrap h1 {
+    font-size: 24px;
+  }
+
+  .panel {
+    padding: 20px;
+  }
+
+  .visibility {
+    grid-template-columns: 1fr;
+  }
+
+  .axisAdd,
+  .newAxis {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main * {
+    transition: none !important;
+  }
+}

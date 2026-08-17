@@ -7,14 +7,10 @@ import styles from './JudgesPanel.module.css';
 
 interface JudgesPanelProps {
   competitionId: string;
-  /** Керувати (додавати/видаляти) можуть власник і тім-адміни; сюди прокидаємо
-   *  вже пораховане на сторінці-контейнері значення. */
   canManage: boolean;
   onError: (message: string) => void;
 }
 
-// Судді, доданого щойно в цій сесії — тримаємо разом з одноразовим паролем,
-// якого більше ніде (ні в списку з бекенду, ні в БД відкрито) немає.
 type PanelJudge = Judge & { tempPassword?: string };
 
 export default function JudgesPanel({

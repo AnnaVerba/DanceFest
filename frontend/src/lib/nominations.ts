@@ -1,18 +1,14 @@
 import { API_BASE_URL } from './api';
 import { getToken } from './auth';
 
-export interface Judge {
+export interface Nomination {
   id: string;
   name: string;
-  email: string;
-  addedAt: string;
+  price: number | null;
+  createdAt: string;
 }
 
-export interface CreatedJudge extends Judge {
-  tempPassword: string;
-}
-
-export class JudgeApiError extends Error {
+export class NominationApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
     super(message);
@@ -24,14 +20,14 @@ interface ErrorPayload {
   message?: string | string[];
 }
 
-function extractMessage(payload: ErrorPayload | null, fallback: string): string {
-  if (!payload?.message) return fallback;
-  return Array.isArray(payload.message) ? payload.message.join(', ') : payload.message;
-}
-
 function authHeaders(): HeadersInit {
   const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function extractMessage(payload: ErrorPayload | null, fallback: string): string {
+  if (!payload?.message) return fallback;
+  return Array.isArray(payload.message) ? payload.message.join(', ') : payload.message;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -46,7 +42,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       },
     });
   } catch {
-    throw new JudgeApiError("Не вдалося з'єднатися з сервером", 0);
+    throw new NominationApiError("Не вдалося з'єднатися з сервером", 0);
   }
 
   if (response.status === 204) {
@@ -54,32 +50,37 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   const payload = (await response.json().catch(() => null)) as ErrorPayload | null;
+
   if (!response.ok) {
-    throw new JudgeApiError(
+    throw new NominationApiError(
       extractMessage(payload, 'Щось пішло не так. Спробуйте ще раз.'),
       response.status,
     );
   }
+
   return payload as unknown as T;
 }
 
-export function getJudges(competitionId: string): Promise<Judge[]> {
-  return request<Judge[]>(`/competitions/${competitionId}/judges`);
+export function getNominations(competitionId: string): Promise<Nomination[]> {
+  return request<Nomination[]>(`/competitions/${competitionId}/nominations`);
 }
 
-export function createJudge(
+export function createNomination(
   competitionId: string,
   name: string,
-  email: string,
-): Promise<CreatedJudge> {
-  return request<CreatedJudge>(`/competitions/${competitionId}/judges`, {
+  price?: number,
+): Promise<Nomination> {
+  return request<Nomination>(`/competitions/${competitionId}/nominations`, {
     method: 'POST',
-    body: JSON.stringify({ name: name.trim(), email: email.trim() }),
+    body: JSON.stringify({ name: name.trim(), price }),
   });
 }
 
-export function deleteJudge(competitionId: string, judgeId: string): Promise<void> {
-  return request(`/competitions/${competitionId}/judges/${judgeId}`, {
+export function deleteNomination(
+  competitionId: string,
+  nominationId: string,
+): Promise<void> {
+  return request(`/competitions/${competitionId}/nominations/${nominationId}`, {
     method: 'DELETE',
   });
 }

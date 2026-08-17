@@ -6,7 +6,6 @@ interface ModalProps {
   open: boolean;
   title: string;
   onClose: () => void;
-  /** Заблокувати закриття по Esc/бекдропу, поки триває запит. */
   closeDisabled?: boolean;
   children: ReactNode;
 }

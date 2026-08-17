@@ -12,7 +12,6 @@ interface AddAdminModalProps {
   competitionId: string;
   onClose: () => void;
   onSuccess: (invitation: TeamInvitation) => void;
-  /** Викликається з кнопки «Надіслати повторно» під помилкою «вже надіслано». */
   onResendExisting: (email: string) => Promise<void>;
 }
 
@@ -34,9 +33,6 @@ export default function AddAdminModal({
   const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle');
   const emailRef = useRef<HTMLInputElement>(null);
 
-  // Батько монтує модалку заново під новим `key` щоразу, коли її відкривають
-  // (див. TeamPage), тож стан тут уже «чистий» від початку — лишається
-  // тільки поставити фокус як побічний ефект над DOM.
   useEffect(() => {
     if (open) emailRef.current?.focus();
   }, [open]);
