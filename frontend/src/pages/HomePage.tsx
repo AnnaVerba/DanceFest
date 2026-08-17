@@ -1,97 +1,99 @@
-import { useQuery } from '@apollo/client/react';
-import { GET_COMPETITIONS } from '../graphql/queries';
+import { useEffect, useState } from 'react';
+import { getCompetitionStatus, getCompetitions } from '../lib/competitions';
+import type { Competition } from '../lib/competitions';
 import styles from './HomePage.module.css';
 
-interface Competition {
-  id: string;
-  name: string;
-  date: string;
-  location: string;
-  style: string;
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('uk-UA', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+function formatDateRange(dateFrom: string, dateTo: string): string {
+  return dateFrom === dateTo
+    ? `${formatDate(dateFrom)} р.`
+    : `${formatDate(dateFrom)} – ${formatDate(dateTo)} р.`;
 }
 
 export default function HomePage() {
-  const { data, loading, error } = useQuery<{ competitions: Competition[] }>(
-    GET_COMPETITIONS,
-  );
+  const [competitions, setCompetitions] = useState<Competition[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    getCompetitions()
+      .then((data) => {
+        if (!cancelled) setCompetitions(data);
+      })
+      .catch(() => {
+        if (!cancelled) setError('Не вдалося завантажити конкурси. Спробуйте оновити сторінку.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
-    <main>
-      <section id="home" className={styles.hero}>
-        <div className={styles.heroContent}>
-          <p className={styles.eyebrow}>Ласкаво просимо</p>
-          <h1 className={styles.title}>DanseFest</h1>
-          <p className={styles.subtitle}>
-            Платформа для організації та проведення танцювальних конкурсів
-          </p>
-          <div className={styles.actions}>
-            <a href="#competitions" className={styles.btnPrimary}>
-              Переглянути конкурси
-            </a>
-            <a href="#contacts" className={styles.btnSecondary}>
-              Зв&apos;язатися з нами
-            </a>
-          </div>
-        </div>
-        <div className={styles.heroVisual} aria-hidden="true">
-          <div className={styles.circle1} />
-          <div className={styles.circle2} />
-          <div className={styles.diamond}>&#9670;</div>
-        </div>
-      </section>
-
-      <section id="competitions" className={styles.section}>
-        <h2 className={styles.sectionTitle}>Найближчі конкурси</h2>
-        <p className={styles.sectionSub}>
-          Реєструйтесь та беріть участь у найкращих танцювальних подіях України
+    <main className={styles.main}>
+      <div className={styles.container}>
+        <h1 className={styles.pageTitle}>Танцювальні конкурси</h1>
+        <p className={styles.pageSubtitle}>
+          Оберіть конкурс і подайте заявку на участь — реєстрація не потрібна.
         </p>
 
         {loading && <p className={styles.status}>Завантаження...</p>}
-        {error && (
-          <p className={styles.status}>
-            Бекенд не підключено — дані з GraphQL з&apos;являться після запуску сервера.
-          </p>
+        {error && <p className={styles.status}>{error}</p>}
+        {!loading && !error && competitions?.length === 0 && (
+          <p className={styles.status}>Поки що немає запланованих конкурсів</p>
         )}
 
-        {data && (
-          <div className={styles.cards}>
-            {data.competitions.map((c) => (
-              <article key={c.id} className={styles.card}>
-                <span className={styles.cardStyle}>{c.style}</span>
-                <h3 className={styles.cardTitle}>{c.name}</h3>
-                <dl className={styles.cardMeta}>
-                  <div>
-                    <dt>Дата</dt>
-                    <dd>{new Date(c.date).toLocaleDateString('uk-UA')}</dd>
-                  </div>
-                  <div>
-                    <dt>Місце</dt>
-                    <dd>{c.location}</dd>
-                  </div>
-                </dl>
-                <button className={styles.cardBtn}>Зареєструватися</button>
-              </article>
+        {!loading && !error && competitions && competitions.length > 0 && (
+          <ul className={styles.contests}>
+            {competitions.map((c) => (
+              <li key={c.id} className={styles.card}>
+                <div className={styles.cardBanner}>
+                  {c.image ? (
+                    <img src={c.image} alt="" />
+                  ) : (
+                    <>
+                      <svg
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <circle cx="8.8" cy="8.8" r="1.6" />
+                        <path d="M21 15.5l-5-5L5 21" />
+                      </svg>
+                      <span>Банер конкурсу</span>
+                    </>
+                  )}
+                </div>
+                <div className={styles.cardBody}>
+                  <span className={styles.badge}>{getCompetitionStatus(c)}</span>
+                  <h2 className={styles.cardTitle}>{c.name}</h2>
+                  <p className={styles.cardMeta}>
+                    {formatDateRange(c.dateFrom, c.dateTo)}
+                    {c.location && ` · ${c.location}`}
+                  </p>
+                </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
-      </section>
-
-      <section id="participants" className={styles.section}>
-        <h2 className={styles.sectionTitle}>Учасники</h2>
-        <p className={styles.sectionSub}>Розділ у розробці</p>
-      </section>
-
-      <section id="judging" className={styles.section}>
-        <h2 className={styles.sectionTitle}>Суддівство</h2>
-        <p className={styles.sectionSub}>Розділ у розробці</p>
-      </section>
-
-      <section id="contacts" className={styles.section}>
-        <h2 className={styles.sectionTitle}>Контакти</h2>
-        <p className={styles.sectionSub}>
-          Зв&apos;яжіться з організаторами для отримання додаткової інформації
-        </p>
-      </section>
+      </div>
     </main>
   );
 }

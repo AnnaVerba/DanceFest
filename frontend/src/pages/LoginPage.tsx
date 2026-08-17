@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AuthError, login, saveSession } from '../lib/auth';
 import styles from './LoginPage.module.css';
 
@@ -100,7 +100,7 @@ export default function LoginPage() {
         </form>
 
         <p className={styles.footer}>
-          Немає акаунта? <a href="#">Зареєструватися</a>
+          Немає акаунта? <Link to="/register">Зареєструватися</Link>
         </p>
       </div>
     </main>

@@ -17,6 +17,7 @@ async function bootstrap() {
     .setTitle('DanseFest API')
     .setDescription('REST API для DanseFest')
     .setVersion('1.0')
+    .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document);

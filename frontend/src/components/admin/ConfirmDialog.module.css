@@ -1,0 +1,63 @@
+.text {
+  margin: 4px 0 24px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #334155;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.cancel,
+.confirm {
+  height: 44px;
+  padding: 0 20px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  border-radius: 9px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    background 0.15s,
+    opacity 0.15s;
+}
+
+.cancel {
+  background: #fff;
+  color: #0f172a;
+  border-color: #e2e8f0;
+}
+
+.cancel:hover {
+  background: #f8fafc;
+}
+
+.confirm {
+  color: #fff;
+  background: #dc2626;
+}
+
+.confirm:hover {
+  background: #b91c1c;
+}
+
+.confirm:disabled,
+.cancel:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .actions {
+    flex-direction: column-reverse;
+  }
+
+  .cancel,
+  .confirm {
+    width: 100%;
+  }
+}
