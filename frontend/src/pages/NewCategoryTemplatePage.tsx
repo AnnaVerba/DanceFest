@@ -16,6 +16,9 @@ import {
   getCategories,
 } from '../lib/categories';
 import type { Category, CategoryType } from '../lib/categories';
+import SpecialCategoryModal from '../components/nominations/SpecialCategoryModal';
+import type { SpecialNominationDraft } from '../components/nominations/SpecialCategoryModal';
+import type { ExitMode } from '../lib/categoryTemplates';
 import styles from './CategoryTemplateFormPage.module.css';
 
 // Та сама стеля, що й на беку: п'ять типів по десять значень дають
@@ -30,6 +33,8 @@ interface DraftNomination {
   price: string;
   allowsImprovisation: boolean;
   categoryIds: string[];
+  isSpecial: boolean;
+  exitMode: ExitMode;
 }
 
 type Selection = Record<CategoryType, Category[]>;
@@ -70,6 +75,7 @@ export default function NewCategoryTemplatePage() {
   const [nameError, setNameError] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [specialOpen, setSpecialOpen] = useState(false);
 
   useEffect(() => {
     getCategories()
@@ -147,8 +153,11 @@ export default function NewCategoryTemplatePage() {
 
     setNominations((prev) => {
       const edited = new Map(prev.map((n) => [n.signature, n]));
+      // Спецкатегорії не входять у декартів добуток осей — регенерація їх
+      // не перебирає й не має права затерти.
+      const specials = prev.filter((n) => n.isSpecial);
       // Наявні рядки зберігають ціну й галочку, нові комбінації додаються.
-      return combos.map((combo) => {
+      const generated = combos.map((combo) => {
         const categoryIds = combo.map((c) => c.id);
         const signature = signatureOf(categoryIds);
         return (
@@ -158,10 +167,31 @@ export default function NewCategoryTemplatePage() {
             price: '',
             allowsImprovisation: false,
             categoryIds,
+            isSpecial: false,
+            exitMode: 'single' as ExitMode,
           }
         );
       });
+      return [...generated, ...specials];
     });
+  };
+
+  const addSpecial = (drafts: SpecialNominationDraft[]) => {
+    // Рахуємо поза оновлювачем стану: у StrictMode він викликається двічі,
+    // і тост дублювався б.
+    const known = new Set(nominations.map((n) => n.signature));
+    const fresh = drafts.filter((d) => !known.has(d.signature));
+
+    if (fresh.length === 0) {
+      showToast('Ці номінації вже є в шаблоні');
+      return;
+    }
+    showToast(
+      fresh.length < drafts.length
+        ? `Додано ${fresh.length} із ${drafts.length}: решта вже є в шаблоні`
+        : `Додано ${fresh.length} ${pluralNominations(fresh.length)}`,
+    );
+    setNominations((prev) => [...prev, ...fresh]);
   };
 
   const patchNomination = (signature: string, patch: Partial<DraftNomination>) =>
@@ -204,6 +234,8 @@ export default function NewCategoryTemplatePage() {
           price: n.price.trim() === '' ? undefined : Number(n.price),
           allowsImprovisation: n.allowsImprovisation,
           categoryIds: n.categoryIds,
+          isSpecial: n.isSpecial,
+          exitMode: n.exitMode,
           sortOrder: index,
         })),
       });
@@ -367,6 +399,13 @@ export default function NewCategoryTemplatePage() {
               <button type="button" className={styles.btnGold} onClick={generate}>
                 Згенерувати номінації
               </button>
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.btnSm}`}
+                onClick={() => setSpecialOpen(true)}
+              >
+                Додати спеціальну категорію
+              </button>
               {plannedCount > 0 && (
                 <span className={styles.hint}>
                   буде {plannedCount} {pluralNominations(plannedCount)}
@@ -399,16 +438,30 @@ export default function NewCategoryTemplatePage() {
                     {nominations.map((nomination) => (
                       <tr key={nomination.signature}>
                         <td>
-                          <input
-                            type="text"
-                            aria-label="Назва номінації"
-                            value={nomination.name}
-                            onChange={(e) =>
-                              patchNomination(nomination.signature, {
-                                name: e.target.value,
-                              })
-                            }
-                          />
+                          <div className={styles.nameCell}>
+                            {nomination.isSpecial && (
+                              <span
+                                className={styles.specialTag}
+                                title={
+                                  nomination.exitMode === 'single'
+                                    ? 'Спеціальна категорія: один вихід на сцену'
+                                    : 'Спеціальна категорія: окремий вихід на кожну програму'
+                                }
+                              >
+                                Спец
+                              </span>
+                            )}
+                            <input
+                              type="text"
+                              aria-label="Назва номінації"
+                              value={nomination.name}
+                              onChange={(e) =>
+                                patchNomination(nomination.signature, {
+                                  name: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
                         </td>
                         <td>
                           <input
@@ -470,6 +523,18 @@ export default function NewCategoryTemplatePage() {
           </div>
         </div>
       </main>
+
+      <SpecialCategoryModal
+        open={specialOpen}
+        categories={suggestions}
+        onClose={() => setSpecialOpen(false)}
+        onCategoryCreated={(category) =>
+          setSuggestions((prev) =>
+            prev.some((s) => s.id === category.id) ? prev : [...prev, category],
+          )
+        }
+        onSubmit={addSpecial}
+      />
 
       <ToastStack toasts={toasts} />
     </>

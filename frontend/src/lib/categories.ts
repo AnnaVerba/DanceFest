@@ -5,7 +5,6 @@ export type CategoryType =
   | 'participants_count'
   | 'age'
   | 'level'
-  | 'direction'
   | 'discipline';
 
 // Порядок той самий, у якому категорії показувались в редакторі шаблону
@@ -14,7 +13,6 @@ export const CATEGORY_TYPES: CategoryType[] = [
   'participants_count',
   'age',
   'level',
-  'direction',
   'discipline',
 ];
 
@@ -22,7 +20,6 @@ export const CATEGORY_TYPE_LABELS: Record<CategoryType, string> = {
   participants_count: 'Кількість учасників',
   age: 'Вік',
   level: 'Рівень',
-  direction: 'Напрямок',
   discipline: 'Дисципліна',
 };
 

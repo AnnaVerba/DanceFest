@@ -1,12 +1,20 @@
 import { API_BASE_URL } from './api';
 import { getToken } from './auth';
 
+// Скільки разів учасник виходить на сцену. Має сенс лише для спецкатегорій:
+// 'single' — усі програми танцюються підряд, без сходження зі сцени.
+export type ExitMode = 'single' | 'per_program';
+
 export interface TemplateNomination {
   id: string;
   name: string;
   price: number | null;
   allowsImprovisation: boolean;
   categoryIds: string[];
+  // Спецкатегорія — «Кубок», «Корона», батл. Її дисципліни не множаться в
+  // окремі номінації, а збираються в одну (або в стільки, скільки програм).
+  isSpecial: boolean;
+  exitMode: ExitMode;
   sortOrder: number;
 }
 
@@ -15,6 +23,8 @@ export interface TemplateNominationInput {
   price?: number;
   allowsImprovisation?: boolean;
   categoryIds?: string[];
+  isSpecial?: boolean;
+  exitMode?: ExitMode;
   sortOrder?: number;
 }
 

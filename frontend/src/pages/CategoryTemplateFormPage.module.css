@@ -475,3 +475,31 @@
   color: var(--muted);
   font-size: 14px;
 }
+
+/* --- спеціальні категорії --- */
+
+.nameCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nameCell input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Позначка на рядку спецкатегорії: вона не входить у декартів добуток осей,
+   тож регенерація її не чіпає — це має бути видно. */
+.specialTag {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #e8effc;
+  border: 1px solid #dbeafe;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  cursor: help;
+}

@@ -1,6 +1,10 @@
 import { API_BASE_URL } from './api';
 import { getToken } from './auth';
 
+import type { ExitMode } from './categoryTemplates';
+
+export type { ExitMode };
+
 export interface Nomination {
   id: string;
   name: string;
@@ -8,6 +12,8 @@ export interface Nomination {
   // Дозвіл від адміна. Позначку «це імпровізація» ставить учасник у заявці.
   allowsImprovisation: boolean;
   categoryIds: string[];
+  isSpecial: boolean;
+  exitMode: ExitMode;
   createdAt: string;
 }
 
@@ -16,6 +22,8 @@ export interface NominationInput {
   price?: number;
   allowsImprovisation?: boolean;
   categoryIds?: string[];
+  isSpecial?: boolean;
+  exitMode?: ExitMode;
 }
 
 export class NominationApiError extends Error {
