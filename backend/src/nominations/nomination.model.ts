@@ -9,8 +9,8 @@ import {
 import { Competition } from '../competitions/competition.model';
 import { Venue } from '../venues/venue.model';
 
-@Table({ tableName: 'judges' })
-export class Judge extends Model<Judge> {
+@Table({ tableName: 'nominations' })
+export class Nomination extends Model<Nomination> {
   @Column({
     type: DataType.UUID,
     defaultValue: DataType.UUIDV4,
@@ -22,8 +22,7 @@ export class Judge extends Model<Judge> {
   @Column({ type: DataType.UUID, allowNull: false })
   declare competitionId: string;
 
-  // Майданчик, за яким закріплений суддя; кожен майданчик має свою групу
-  // суддів (необов'язково — не всі конкурси розподіляють суддів по сценах).
+  // Майданчик, до якого розподілено номінацію; необов'язково.
   @ForeignKey(() => Venue)
   @Column({ type: DataType.UUID, allowNull: true })
   declare venueId: string | null;
@@ -31,13 +30,8 @@ export class Judge extends Model<Judge> {
   @Column({ type: DataType.STRING, allowNull: false })
   declare name: string;
 
-  @Column({ type: DataType.STRING, allowNull: false })
-  declare email: string;
-
-  // Лише хеш — тимчасовий пароль у відкритому вигляді повертається
-  // одноразово з відповіді на створення судді і ніде більше не зберігається.
-  @Column({ type: DataType.STRING, allowNull: false })
-  declare passwordHash: string;
+  @Column({ type: DataType.DECIMAL(10, 2), allowNull: true })
+  declare price: number | null;
 
   @BelongsTo(() => Competition)
   declare competition: Competition;

@@ -1,12 +1,13 @@
 import { randomInt } from 'crypto';
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import * as bcrypt from 'bcrypt';
-import { CreationAttributes } from 'sequelize';
+import { CreationAttributes, UniqueConstraintError } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Judge } from './judge.model';
@@ -55,16 +56,34 @@ export class JudgesService {
     const tempPassword = generateTempPassword();
     const passwordHash = await bcrypt.hash(tempPassword, SALT_ROUNDS);
 
-    const judge = await this.judgeModel.create({
-      competitionId,
-      name: dto.name.trim(),
-      email: dto.email.trim(),
-      passwordHash,
-    } as CreationAttributes<Judge>);
+    let judge: Judge;
+    try {
+      judge = await this.judgeModel.create({
+        competitionId,
+        venueId: dto.venueId ?? null,
+        name: dto.name.trim(),
+        email: dto.email.trim(),
+        passwordHash,
+      } as CreationAttributes<Judge>);
+    } catch (err) {
+      if (err instanceof UniqueConstraintError) {
+        throw new ConflictException('Суддя з таким email вже доданий до конкурсу');
+      }
+      throw err;
+    }
 
     // Єдине місце, де тимчасовий пароль існує у відкритому вигляді —
     // ця відповідь. Далі в БД лишається тільки bcrypt-хеш.
     return { ...this.toDto(judge), tempPassword };
+  }
+
+  /** Для логіну судді (email унікальний по всій таблиці). */
+  findByEmail(email: string): Promise<Judge | null> {
+    return this.judgeModel.findOne({ where: { email: email.trim() } });
+  }
+
+  findById(id: string): Promise<Judge | null> {
+    return this.judgeModel.findByPk(id);
   }
 
   async remove(
@@ -108,6 +127,7 @@ export class JudgesService {
       id: judge.id,
       name: judge.name,
       email: judge.email,
+      venueId: judge.venueId,
       addedAt: judge.createdAt,
     };
   }

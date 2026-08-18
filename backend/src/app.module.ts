@@ -8,6 +8,8 @@ import { TeamModule } from './team/team.module';
 import { JudgesModule } from './judges/judges.module';
 import { VenuesModule } from './venues/venues.module';
 import { EntriesModule } from './entries/entries.module';
+import { NominationsModule } from './nominations/nominations.module';
+import { CategoryTemplatesModule } from './category-templates/category-templates.module';
 
 @Module({
   imports: [
@@ -35,6 +37,8 @@ import { EntriesModule } from './entries/entries.module';
     JudgesModule,
     VenuesModule,
     EntriesModule,
+    NominationsModule,
+    CategoryTemplatesModule,
   ],
 })
 export class AppModule {}
