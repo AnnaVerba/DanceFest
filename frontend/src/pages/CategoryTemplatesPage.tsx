@@ -7,11 +7,15 @@ import { useToasts } from '../components/admin/useToasts';
 import { getStoredAdmin, getToken } from '../lib/auth';
 import {
   CategoryTemplateApiError,
-  createCategoryTemplate,
   deleteCategoryTemplate,
+  forkCategoryTemplate,
+  getCategoryTemplate,
   getCategoryTemplates,
 } from '../lib/categoryTemplates';
-import type { CategoryTemplate } from '../lib/categoryTemplates';
+import type {
+  CategoryTemplate,
+  TemplateNomination,
+} from '../lib/categoryTemplates';
 import styles from './CategoryTemplatesPage.module.css';
 
 type Scope = 'all' | 'mine' | 'public';
@@ -19,13 +23,9 @@ type Scope = 'all' | 'mine' | 'public';
 function plural(n: number): string {
   const d10 = n % 10;
   const d100 = n % 100;
-  if (d10 === 1 && d100 !== 11) return 'категорія';
-  if (d10 >= 2 && d10 <= 4 && (d100 < 12 || d100 > 14)) return 'категорії';
-  return 'категорій';
-}
-
-function nominationCount(t: CategoryTemplate): number {
-  return t.axes.reduce((acc, axis) => acc * (axis.values.length || 1), 1);
+  if (d10 === 1 && d100 !== 11) return 'номінація';
+  if (d10 >= 2 && d10 <= 4 && (d100 < 12 || d100 > 14)) return 'номінації';
+  return 'номінацій';
 }
 
 export default function CategoryTemplatesPage() {
@@ -36,6 +36,10 @@ export default function CategoryTemplatesPage() {
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState<Scope>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Список приходить без вмісту — номінації довантажуємо при розгортанні.
+  const [nominationsById, setNominationsById] = useState<
+    Record<string, TemplateNomination[]>
+  >({});
   const [pendingDelete, setPendingDelete] = useState<CategoryTemplate | null>(null);
   const { toasts, showToast } = useToasts();
 
@@ -60,21 +64,40 @@ export default function CategoryTemplatesPage() {
     });
   }, [templates, search, scope, admin?.id]);
 
-  const handleDuplicate = async (template: CategoryTemplate) => {
+  const toggleExpanded = async (template: CategoryTemplate) => {
+    if (expandedId === template.id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(template.id);
+    if (nominationsById[template.id]) return;
+
     try {
-      const copy = await createCategoryTemplate({
-        name: `${template.name} (копія)`,
-        description: template.description ?? undefined,
-        isPublic: false,
-        axes: template.axes,
-      });
-      setTemplates((prev) => (prev ? [copy, ...prev] : [copy]));
-      showToast(`Шаблон «${template.name}» продубльовано`);
+      const detail = await getCategoryTemplate(template.id);
+      setNominationsById((prev) => ({ ...prev, [template.id]: detail.nominations }));
     } catch (err) {
       showToast(
         err instanceof CategoryTemplateApiError
           ? err.message
-          : 'Не вдалося продублювати шаблон.',
+          : 'Не вдалося завантажити номінації шаблону.',
+      );
+    }
+  };
+
+  // Чужий шаблон не редагується напряму — бек робить власну приватну копію.
+  const handleFork = async (template: CategoryTemplate) => {
+    try {
+      const copy = await forkCategoryTemplate(
+        template.id,
+        `${template.name} (моя версія)`,
+      );
+      setTemplates((prev) => (prev ? [copy, ...prev] : [copy]));
+      showToast(`Створено вашу копію «${copy.name}»`);
+    } catch (err) {
+      showToast(
+        err instanceof CategoryTemplateApiError
+          ? err.message
+          : 'Не вдалося створити копію шаблону.',
       );
     }
   };
@@ -180,7 +203,7 @@ export default function CategoryTemplatesPage() {
           {!loadError && templates !== null && filtered.length > 0 && (
             <div className={styles.grid}>
               {filtered.map((t) => {
-                const count = nominationCount(t);
+                const count = t.nominationsCount;
                 return (
                   <article key={t.id} className={styles.tpl}>
                     <div className={styles.tplHead}>
@@ -200,11 +223,19 @@ export default function CategoryTemplatesPage() {
 
                     {expandedId === t.id && (
                       <ul className={styles.nomList}>
-                        {t.axes.map((axis) => (
-                          <li key={axis.name}>
-                            <strong>{axis.name}:</strong> {axis.values.join(', ')}
-                          </li>
-                        ))}
+                        {nominationsById[t.id] === undefined ? (
+                          <li>Завантаження...</li>
+                        ) : nominationsById[t.id].length === 0 ? (
+                          <li>Шаблон порожній</li>
+                        ) : (
+                          nominationsById[t.id].map((nomination) => (
+                            <li key={nomination.id}>
+                              {nomination.name}
+                              {nomination.price !== null && ` — ${nomination.price} грн`}
+                              {nomination.allowsImprovisation && ' · імпровізація'}
+                            </li>
+                          ))
+                        )}
                       </ul>
                     )}
 
@@ -219,23 +250,27 @@ export default function CategoryTemplatesPage() {
                         type="button"
                         className={styles.btn}
                         aria-expanded={expandedId === t.id}
-                        onClick={() =>
-                          setExpandedId((id) => (id === t.id ? null : t.id))
-                        }
+                        onClick={() => void toggleExpanded(t)}
                       >
-                        Категорії
+                        Номінації
                       </button>
-                      <button type="button" className={styles.linkMuted} onClick={notReady}>
-                        Редагувати
-                      </button>
+                      {t.author?.id === admin?.id && (
+                        <button
+                          type="button"
+                          className={styles.linkMuted}
+                          onClick={notReady}
+                        >
+                          Редагувати
+                        </button>
+                      )}
                     </div>
                     <div className={styles.tplLinks}>
                       <button
                         type="button"
                         className={styles.link}
-                        onClick={() => handleDuplicate(t)}
+                        onClick={() => void handleFork(t)}
                       >
-                        Дублювати
+                        {t.author?.id === admin?.id ? 'Дублювати' : 'Зберегти як мою копію'}
                       </button>
                       {t.author?.id === admin?.id && (
                         <button

@@ -9,7 +9,7 @@ import {
   IsString,
   ValidateNested,
 } from 'class-validator';
-import { CategoryTemplateAxisDto } from './category-template-axis.dto';
+import { TemplateNominationDto } from './template-nomination.dto';
 
 export class CreateCategoryTemplateDto {
   @ApiProperty({ example: 'Східний танець — стандарт' })
@@ -29,10 +29,10 @@ export class CreateCategoryTemplateDto {
   @IsBoolean()
   isPublic?: boolean;
 
-  @ApiProperty({ type: [CategoryTemplateAxisDto] })
+  @ApiProperty({ type: [TemplateNominationDto] })
   @IsArray()
   @ArrayNotEmpty()
   @ValidateNested({ each: true })
-  @Type(() => CategoryTemplateAxisDto)
-  axes: CategoryTemplateAxisDto[];
+  @Type(() => TemplateNominationDto)
+  nominations: TemplateNominationDto[];
 }

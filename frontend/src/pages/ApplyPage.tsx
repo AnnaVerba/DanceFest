@@ -178,7 +178,14 @@ export default function ApplyPage() {
             id="f-nom"
             value={nominationIndex}
             disabled={nominations.length === 0}
-            onChange={(e) => setNominationIndex(e.target.value)}
+            onChange={(e) => {
+              setNominationIndex(e.target.value);
+              // Нова номінація може не дозволяти імпровізацію — знімаємо
+              // позначку, щоб вона не поїхала на бек прихованою.
+              const next =
+                e.target.value === '' ? null : nominations[Number(e.target.value)];
+              if (!next?.allowsImprovisation) setImprov(false);
+            }}
           >
             <option value="">Оберіть номінацію...</option>
             {nominations.map((n, i) => (
@@ -194,9 +201,19 @@ export default function ApplyPage() {
           )}
         </div>
 
+        {/* Позначку ставить учасник, але лише там, де адмін дозволив
+            імпровізацію для цієї номінації. */}
         <label className={styles.check}>
-          <input type="checkbox" checked={improv} onChange={handleImprovChange} />
+          <input
+            type="checkbox"
+            checked={improv}
+            disabled={!selectedNomination?.allowsImprovisation}
+            onChange={handleImprovChange}
+          />
           Імпровізація
+          {selectedNomination && !selectedNomination.allowsImprovisation && (
+            <span className={styles.hint}> — недоступна в цій номінації</span>
+          )}
         </label>
 
         <div className={styles.row}>

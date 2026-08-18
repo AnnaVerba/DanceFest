@@ -20,6 +20,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedAdmin } from '../auth/current-user.decorator';
 import { NominationsService } from './nominations.service';
 import { CreateNominationDto } from './dto/create-nomination.dto';
+import { BulkCreateNominationsDto } from './dto/bulk-create-nominations.dto';
 
 @ApiTags('nominations')
 @Controller('competitions/:competitionId/nominations')
@@ -65,6 +66,36 @@ export class NominationsController {
     @Body() dto: CreateNominationDto,
   ) {
     return this.nominationsService.create(competitionId, admin.id, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Add many nominations at once',
+    description:
+      'Used when a competition copies a whole set from a category template.',
+  })
+  @ApiResponse({ status: 201, description: 'Nominations created.' })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation failed, or the batch exceeds the size limit.',
+  })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'The caller has no access to this competition.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'No competition exists with the given id.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('bulk')
+  bulkCreate(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() admin: AuthenticatedAdmin,
+    @Body() dto: BulkCreateNominationsDto,
+  ) {
+    return this.nominationsService.bulkCreate(competitionId, admin.id, dto);
   }
 
   @ApiOperation({ summary: 'Remove a nomination from a competition' })

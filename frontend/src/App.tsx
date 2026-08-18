@@ -1,5 +1,4 @@
 import { Routes, Route } from 'react-router-dom';
-import ScreensBar from './components/ScreensBar';
 import Header from './components/Header';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
@@ -18,35 +17,32 @@ import './App.css';
 
 function App() {
   return (
-    <>
-      <ScreensBar />
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <>
-              <Header />
-              <HomePage />
-            </>
-          }
-        />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        {/* TODO: обгорнути AuthGuard, коли підключимо реальну авторизацію адмінів */}
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/competitions/preview" element={<CompetitionPreviewRedirect />} />
-        <Route path="/competitions/:id" element={<CompetitionDetailPage />} />
-        <Route path="/competitions/:id/team" element={<TeamPage />} />
-        <Route path="/competitions/:id/edit" element={<CompetitionEditPage />} />
-        <Route path="/competitions/new" element={<NewCompetitionPage />} />
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <>
+            <Header />
+            <HomePage />
+          </>
+        }
+      />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      {/* TODO: обгорнути AuthGuard, коли підключимо реальну авторизацію адмінів */}
+      <Route path="/dashboard" element={<DashboardPage />} />
+      <Route path="/competitions/preview" element={<CompetitionPreviewRedirect />} />
+      <Route path="/competitions/:id" element={<CompetitionDetailPage />} />
+      <Route path="/competitions/:id/team" element={<TeamPage />} />
+      <Route path="/competitions/:id/edit" element={<CompetitionEditPage />} />
+      <Route path="/competitions/new" element={<NewCompetitionPage />} />
 
-        <Route path="/judge" element={<JudgePage />} />
-        <Route path="/apply" element={<ApplyPage />} />
-        <Route path="/competitions/:id/apply" element={<ApplyPage />} />
-        <Route path="/category-templates" element={<CategoryTemplatesPage />} />
-        <Route path="/category-templates/new" element={<NewCategoryTemplatePage />} />
-      </Routes>
-    </>
+      <Route path="/judge" element={<JudgePage />} />
+      <Route path="/apply" element={<ApplyPage />} />
+      <Route path="/competitions/:id/apply" element={<ApplyPage />} />
+      <Route path="/category-templates" element={<CategoryTemplatesPage />} />
+      <Route path="/category-templates/new" element={<NewCategoryTemplatePage />} />
+    </Routes>
   );
 }
 

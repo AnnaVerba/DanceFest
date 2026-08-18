@@ -3,15 +3,12 @@ import {
   Column,
   DataType,
   ForeignKey,
+  HasMany,
   Model,
   Table,
 } from 'sequelize-typescript';
 import { Admin } from '../admins/admin.model';
-
-export interface CategoryTemplateAxis {
-  name: string;
-  values: string[];
-}
+import { TemplateNomination } from './template-nomination.model';
 
 @Table({ tableName: 'category_templates' })
 export class CategoryTemplate extends Model<CategoryTemplate> {
@@ -31,15 +28,20 @@ export class CategoryTemplate extends Model<CategoryTemplate> {
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   declare isPublic: boolean;
 
-  @Column({ type: DataType.JSONB, allowNull: false })
-  declare axes: CategoryTemplateAxis[];
-
   @ForeignKey(() => Admin)
   @Column({ type: DataType.UUID, allowNull: false })
   declare authorId: string;
 
   @BelongsTo(() => Admin, 'authorId')
   declare author: Admin;
+
+  // Заповнюється, коли шаблон створено як копію чужого публічного.
+  @ForeignKey(() => CategoryTemplate)
+  @Column({ type: DataType.UUID, allowNull: true })
+  declare forkedFromId: string | null;
+
+  @HasMany(() => TemplateNomination)
+  declare nominations: TemplateNomination[];
 
   @Column(DataType.DATE)
   declare createdAt: Date;

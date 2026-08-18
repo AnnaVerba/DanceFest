@@ -19,7 +19,8 @@ export default function LoginPage() {
     try {
       const auth = await login(email, password);
       saveSession(auth);
-      navigate('/');
+      // replace, щоб «назад» у браузері не повертало на форму входу
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(
         err instanceof AuthError
