@@ -1,9 +1,21 @@
 import { API_BASE_URL } from './api';
 import { getToken } from './auth';
 
-export interface CategoryTemplateAxis {
+export interface TemplateNomination {
+  id: string;
   name: string;
-  values: string[];
+  price: number | null;
+  allowsImprovisation: boolean;
+  categoryIds: string[];
+  sortOrder: number;
+}
+
+export interface TemplateNominationInput {
+  name: string;
+  price?: number;
+  allowsImprovisation?: boolean;
+  categoryIds?: string[];
+  sortOrder?: number;
 }
 
 export interface CategoryTemplateAuthor {
@@ -16,16 +28,22 @@ export interface CategoryTemplate {
   name: string;
   description: string | null;
   isPublic: boolean;
-  axes: CategoryTemplateAxis[];
+  forkedFromId: string | null;
   author: CategoryTemplateAuthor | null;
   createdAt: string;
+  nominationsCount: number;
+}
+
+// Список повертає шаблони без вмісту — номінації приходять лише в GET по id.
+export interface CategoryTemplateDetail extends CategoryTemplate {
+  nominations: TemplateNomination[];
 }
 
 export interface CategoryTemplateInput {
   name: string;
   description?: string;
   isPublic?: boolean;
-  axes: CategoryTemplateAxis[];
+  nominations: TemplateNominationInput[];
 }
 
 export class CategoryTemplateApiError extends Error {
@@ -85,12 +103,40 @@ export function getCategoryTemplates(): Promise<CategoryTemplate[]> {
   return request<CategoryTemplate[]>('/category-templates');
 }
 
+export function getCategoryTemplate(id: string): Promise<CategoryTemplateDetail> {
+  return request<CategoryTemplateDetail>(`/category-templates/${id}`);
+}
+
 export function createCategoryTemplate(
   input: CategoryTemplateInput,
-): Promise<CategoryTemplate> {
-  return request<CategoryTemplate>('/category-templates', {
+): Promise<CategoryTemplateDetail> {
+  return request<CategoryTemplateDetail>('/category-templates', {
     method: 'POST',
     body: JSON.stringify(input),
+  });
+}
+
+export function updateCategoryTemplate(
+  id: string,
+  input: Partial<CategoryTemplateInput>,
+): Promise<CategoryTemplateDetail> {
+  return request<CategoryTemplateDetail>(`/category-templates/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+/**
+ * Чужий публічний шаблон не редагується напряму — з нього робиться власна
+ * приватна копія з іншою назвою.
+ */
+export function forkCategoryTemplate(
+  id: string,
+  name: string,
+): Promise<CategoryTemplateDetail> {
+  return request<CategoryTemplateDetail>(`/category-templates/${id}/fork`, {
+    method: 'POST',
+    body: JSON.stringify({ name: name.trim() }),
   });
 }
 

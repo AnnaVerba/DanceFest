@@ -171,6 +171,20 @@
   cursor: pointer;
 }
 
+.hint {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.check input:disabled {
+  cursor: not-allowed;
+}
+
+.check:has(input:disabled) {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
 .check input {
   accent-color: var(--accent);
   width: 16px;

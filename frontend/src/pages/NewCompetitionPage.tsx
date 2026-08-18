@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import AdminHeader from '../components/AdminHeader';
@@ -7,8 +7,8 @@ import { CompetitionApiError, createCompetition } from '../lib/competitions';
 import { createJudge } from '../lib/judges';
 import type { CreatedJudge } from '../lib/judges';
 import { createVenue } from '../lib/venues';
-import { createNomination } from '../lib/nominations';
-import { getCategoryTemplates } from '../lib/categoryTemplates';
+import { createNominationsBulk } from '../lib/nominations';
+import { getCategoryTemplate, getCategoryTemplates } from '../lib/categoryTemplates';
 import type { CategoryTemplate } from '../lib/categoryTemplates';
 import styles from './NewCompetitionPage.module.css';
 
@@ -37,31 +37,19 @@ function pluralNominations(n: number): string {
   return 'номінацій';
 }
 
-const DEFAULT_AXIS_NAMES = ['Кількість учасників', 'Вік', 'Рівень', 'Напрямок', 'Дисципліна'];
-function defaultAxes(): DraftAxis[] {
-  return DEFAULT_AXIS_NAMES.map((name) => ({ id: nextDraftId(), name, values: [] }));
-}
-
 interface DraftJudge {
   id: string;
   name: string;
   email: string;
 }
 
-interface DraftAxis {
+// Номінація, скопійована з шаблону й відредагована під цей конкурс.
+interface DraftNomination {
   id: string;
   name: string;
-  values: string[];
-}
-
-function cartesianNominations(axes: { values: string[] }[]): string[] {
-  const active = axes.filter((a) => a.values.length > 0);
-  if (active.length === 0) return [];
-  const combos = active.reduce<string[][]>(
-    (acc, axis) => acc.flatMap((combo) => axis.values.map((v) => [...combo, v])),
-    [[]],
-  );
-  return combos.map((combo) => combo.join(' · '));
+  price: string;
+  allowsImprovisation: boolean;
+  categoryIds: string[];
 }
 
 interface DraftVenue {
@@ -101,16 +89,12 @@ export default function NewCompetitionPage() {
   const judgeNameRef = useRef<HTMLInputElement>(null);
   const judgeEmailRef = useRef<HTMLInputElement>(null);
 
-  const [axisMode, setAxisMode] = useState<'own' | 'tpl'>(
-    searchParams.get('template') ? 'tpl' : 'own',
-  );
-  const [axes, setAxes] = useState<DraftAxis[]>(defaultAxes);
-  const [newAxisNameInput, setNewAxisNameInput] = useState('');
-  const [axisValueInputs, setAxisValueInputs] = useState<Record<string, string>>({});
   const [categoryTemplates, setCategoryTemplates] = useState<CategoryTemplate[] | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState(
     searchParams.get('template') ?? '',
   );
+  const [nominations, setNominations] = useState<DraftNomination[]>([]);
+  const [loadingNominations, setLoadingNominations] = useState(false);
 
   useEffect(() => {
     getCategoryTemplates()
@@ -124,12 +108,46 @@ export default function NewCompetitionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const selectedTemplate = categoryTemplates?.find((t) => t.id === selectedTemplateId) ?? null;
+  // Номінації копіюються з шаблону в чернетку конкурсу й далі живуть окремо:
+  // правки тут не змінюють шаблон.
+  useEffect(() => {
+    // Порожній id буває лише до завантаження списку шаблонів, коли
+    // nominations і так порожні — чистити нічого.
+    if (!selectedTemplateId) return;
 
-  const nominations = useMemo(() => {
-    if (axisMode === 'own') return cartesianNominations(axes);
-    return selectedTemplate ? cartesianNominations(selectedTemplate.axes) : [];
-  }, [axisMode, axes, selectedTemplate]);
+    let cancelled = false;
+    setLoadingNominations(true);
+    getCategoryTemplate(selectedTemplateId)
+      .then((detail) => {
+        if (cancelled) return;
+        setNominations(
+          detail.nominations.map((n) => ({
+            id: nextDraftId(),
+            name: n.name,
+            price: n.price === null ? '' : String(n.price),
+            allowsImprovisation: n.allowsImprovisation,
+            categoryIds: n.categoryIds,
+          })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setNominations([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingNominations(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTemplateId]);
+
+  const patchNomination = (id: string, patch: Partial<DraftNomination>) =>
+    setNominations((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, ...patch } : n)),
+    );
+
+  const removeNomination = (id: string) =>
+    setNominations((prev) => prev.filter((n) => n.id !== id));
 
   const [venues, setVenues] = useState<DraftVenue[]>([]);
   const [venueNameInput, setVenueNameInput] = useState('');
@@ -172,34 +190,6 @@ export default function NewCompetitionPage() {
   };
 
   const removeJudge = (id: string) => setJudges((prev) => prev.filter((j) => j.id !== id));
-
-  const addAxis = () => {
-    const name = newAxisNameInput.trim();
-    if (!name) return;
-    setAxes((prev) => [...prev, { id: nextDraftId(), name, values: [] }]);
-    setNewAxisNameInput('');
-  };
-
-  const removeAxis = (id: string) => setAxes((prev) => prev.filter((a) => a.id !== id));
-
-  const renameAxis = (id: string, name: string) =>
-    setAxes((prev) => prev.map((a) => (a.id === id ? { ...a, name } : a)));
-
-  const addAxisValue = (axisId: string) => {
-    const value = (axisValueInputs[axisId] ?? '').trim();
-    if (!value) return;
-    setAxes((prev) =>
-      prev.map((a) => (a.id === axisId ? { ...a, values: [...a.values, value] } : a)),
-    );
-    setAxisValueInputs((prev) => ({ ...prev, [axisId]: '' }));
-  };
-
-  const removeAxisValue = (axisId: string, index: number) =>
-    setAxes((prev) =>
-      prev.map((a) =>
-        a.id === axisId ? { ...a, values: a.values.filter((_, i) => i !== index) } : a,
-      ),
-    );
 
   const addVenue = () => {
     if (!venueNameInput.trim()) {
@@ -285,7 +275,20 @@ export default function NewCompetitionPage() {
         ...venues
           .filter((v) => v.name.trim())
           .map((v) => createVenue(competition.id, v.name.trim(), v.note.trim())),
-        ...nominations.map((n) => createNomination(competition.id, n)),
+        // Один запит на весь набір замість запиту на кожну номінацію.
+        ...(nominations.length > 0
+          ? [
+              createNominationsBulk(
+                competition.id,
+                nominations.map((n) => ({
+                  name: n.name,
+                  price: n.price.trim() === '' ? undefined : Number(n.price),
+                  allowsImprovisation: n.allowsImprovisation,
+                  categoryIds: n.categoryIds,
+                })),
+              ),
+            ]
+          : []),
       ]);
 
       if (successfulJudges.length > 0) {
@@ -694,156 +697,111 @@ export default function NewCompetitionPage() {
               <p className={styles.sectionTitle} style={{ marginBottom: 16 }}>
                 Номінації конкурсу
               </p>
-              <div className={styles.modeGrid}>
-                <button
-                  type="button"
-                  className={styles.mode}
-                  aria-pressed={axisMode === 'own'}
-                  onClick={() => setAxisMode('own')}
-                >
-                  <span className={styles.modeTitle}>
-                    Створити тут <span className={styles.modeTick}>✓</span>
-                  </span>
-                  <span className={styles.modeDesc}>
-                    Додайте категорії й одразу згенеруйте номінації.
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={styles.mode}
-                  aria-pressed={axisMode === 'tpl'}
-                  onClick={() => setAxisMode('tpl')}
-                >
-                  <span className={styles.modeTitle}>
-                    Використати шаблон <span className={styles.modeTick}>✓</span>
-                  </span>
-                  <span className={styles.modeDesc}>
-                    Категорії й номінації скопіюються в конкурс і редагуються незалежно.
-                  </span>
-                </button>
+              <p className={styles.sectionNote}>
+                Номінації копіюються з шаблону в цей конкурс. Далі їх можна правити тут —
+                на сам шаблон це не вплине.
+              </p>
+
+              <div className={styles.field}>
+                <label htmlFor="w-tpl">Шаблон номінацій</label>
+                {categoryTemplates === null ? (
+                  <p className={styles.hint}>Завантаження шаблонів...</p>
+                ) : categoryTemplates.length === 0 ? (
+                  <p className={styles.hint}>
+                    Шаблонів ще немає.{' '}
+                    <Link to="/category-templates/new">Створіть перший</Link>.
+                  </p>
+                ) : (
+                  <select
+                    id="w-tpl"
+                    value={selectedTemplateId}
+                    onChange={(e) => setSelectedTemplateId(e.target.value)}
+                  >
+                    {categoryTemplates.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.nominationsCount})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
-              <div className={styles.divider} />
-
-              {axisMode === 'own' ? (
-                <div>
-                  <p className={styles.sectionTitle} style={{ marginBottom: 16 }}>
-                    Категорії
+              {loadingNominations ? (
+                <p className={styles.hint}>Завантаження номінацій...</p>
+              ) : nominations.length === 0 ? (
+                <p className={styles.empty}>
+                  У цьому шаблоні немає номінацій — оберіть інший.
+                </p>
+              ) : (
+                <>
+                  <p className={styles.hint}>
+                    Буде створено {nominations.length}{' '}
+                    {pluralNominations(nominations.length)}.
                   </p>
-                  {axes.map((axis) => (
-                    <div className={styles.axis} key={axis.id}>
-                      <div className={styles.axisHead}>
-                        <input
-                          type="text"
-                          aria-label="Назва категорії"
-                          value={axis.name}
-                          onChange={(e) => renameAxis(axis.id, e.target.value)}
-                        />
-                        <button
-                          type="button"
-                          className={styles.linkDanger}
-                          onClick={() => removeAxis(axis.id)}
-                        >
-                          Видалити
-                        </button>
-                      </div>
-                      {axis.values.length > 0 && (
-                        <div className={styles.chips}>
-                          {axis.values.map((v, i) => (
-                            <span className={styles.chip} key={`${axis.id}-${i}`}>
-                              {v}
+                  <div className={styles.nomTableScroll}>
+                    <table className={styles.nomTable}>
+                      <thead>
+                        <tr>
+                          <th>Назва</th>
+                          <th className={styles.nomColPrice}>Ціна, грн</th>
+                          <th className={styles.nomColImprov}>Імпровізація</th>
+                          <th className={styles.nomColRemove} aria-label="Прибрати" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {nominations.map((n) => (
+                          <tr key={n.id}>
+                            <td>
+                              <input
+                                type="text"
+                                aria-label="Назва номінації"
+                                value={n.name}
+                                onChange={(e) =>
+                                  patchNomination(n.id, { name: e.target.value })
+                                }
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                min="0"
+                                step="10"
+                                placeholder="—"
+                                aria-label={`Ціна номінації «${n.name}»`}
+                                value={n.price}
+                                onChange={(e) =>
+                                  patchNomination(n.id, { price: e.target.value })
+                                }
+                              />
+                            </td>
+                            <td className={styles.nomImprovCell}>
+                              <input
+                                type="checkbox"
+                                aria-label={`Дозволити імпровізацію в «${n.name}»`}
+                                checked={n.allowsImprovisation}
+                                onChange={(e) =>
+                                  patchNomination(n.id, {
+                                    allowsImprovisation: e.target.checked,
+                                  })
+                                }
+                              />
+                            </td>
+                            <td>
                               <button
                                 type="button"
-                                aria-label="Прибрати значення"
-                                onClick={() => removeAxisValue(axis.id, i)}
+                                className={`${styles.btn} ${styles.btnSm} ${styles.btnGhost}`}
+                                aria-label={`Прибрати «${n.name}»`}
+                                onClick={() => removeNomination(n.id)}
                               >
                                 ✕
                               </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <div className={styles.axisAdd}>
-                        <input
-                          type="text"
-                          placeholder="Нове значення"
-                          aria-label="Нове значення"
-                          value={axisValueInputs[axis.id] ?? ''}
-                          onChange={(e) =>
-                            setAxisValueInputs((prev) => ({ ...prev, [axis.id]: e.target.value }))
-                          }
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              addAxisValue(axis.id);
-                            }
-                          }}
-                        />
-                        <button
-                          type="button"
-                          className={`${styles.btn} ${styles.btnDark} ${styles.btnSm}`}
-                          onClick={() => addAxisValue(axis.id)}
-                        >
-                          Додати
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  <div className={styles.newAxis}>
-                    <input
-                      type="text"
-                      placeholder="Нова категорія (напр. Дисципліна)"
-                      aria-label="Нова категорія"
-                      value={newAxisNameInput}
-                      onChange={(e) => setNewAxisNameInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && addAxis()}
-                    />
-                    <button
-                      type="button"
-                      className={`${styles.btn} ${styles.btnPrimary}`}
-                      onClick={addAxis}
-                    >
-                      Додати категорію
-                    </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                </div>
-              ) : (
-                <div>
-                  <p className={styles.sectionTitle} style={{ marginBottom: 16 }}>
-                    Шаблон категорій
-                  </p>
-                  <div className={styles.field} style={{ marginBottom: 0 }}>
-                    <label htmlFor="w-tpl">Оберіть шаблон</label>
-                    {categoryTemplates === null ? (
-                      <p className={styles.hint}>Завантаження шаблонів...</p>
-                    ) : categoryTemplates.length === 0 ? (
-                      <p className={styles.hint}>
-                        Шаблонів ще немає.{' '}
-                        <Link to="/category-templates/new">Створіть перший</Link>.
-                      </p>
-                    ) : (
-                      <>
-                        <select
-                          id="w-tpl"
-                          value={selectedTemplateId}
-                          onChange={(e) => setSelectedTemplateId(e.target.value)}
-                        >
-                          {categoryTemplates.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name}
-                            </option>
-                          ))}
-                        </select>
-                        <p className={styles.hint}>
-                          {nominations.length > 0
-                            ? `Буде згенеровано ${nominations.length} ${pluralNominations(nominations.length)}. `
-                            : ''}
-                          Після копіювання зміни в шаблоні не впливають на цей конкурс.
-                        </p>
-                      </>
-                    )}
-                  </div>
-                </div>
+                </>
               )}
             </div>
           )}
@@ -940,15 +898,15 @@ export default function NewCompetitionPage() {
               ) : (
                 <div className={styles.list}>
                   {nominations.map((n) => (
-                    <div className={styles.item} key={n}>
+                    <div className={styles.item} key={n.id}>
                       <div style={{ flex: 1 }}>
-                        <h3>{n}</h3>
+                        <h3>{n.name}</h3>
                       </div>
                       <div style={{ width: 200 }}>
                         <select
                           aria-label="Майданчик для номінації"
-                          value={assignments[n] ?? venues[0]?.name ?? ''}
-                          onChange={(e) => setAssignment(n, e.target.value)}
+                          value={assignments[n.id] ?? venues[0]?.name ?? ''}
+                          onChange={(e) => setAssignment(n.id, e.target.value)}
                         >
                           {venues.map((v) => (
                             <option key={v.id} value={v.name}>

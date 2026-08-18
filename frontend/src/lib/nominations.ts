@@ -5,7 +5,17 @@ export interface Nomination {
   id: string;
   name: string;
   price: number | null;
+  // Дозвіл від адміна. Позначку «це імпровізація» ставить учасник у заявці.
+  allowsImprovisation: boolean;
+  categoryIds: string[];
   createdAt: string;
+}
+
+export interface NominationInput {
+  name: string;
+  price?: number;
+  allowsImprovisation?: boolean;
+  categoryIds?: string[];
 }
 
 export class NominationApiError extends Error {
@@ -73,6 +83,25 @@ export function createNomination(
   return request<Nomination>(`/competitions/${competitionId}/nominations`, {
     method: 'POST',
     body: JSON.stringify({ name: name.trim(), price }),
+  });
+}
+
+/**
+ * Копіювання набору з шаблону одним запитом. Раніше кожна номінація йшла
+ * окремим POST — на великому шаблоні це сотні запитів підряд.
+ */
+export function createNominationsBulk(
+  competitionId: string,
+  nominations: NominationInput[],
+): Promise<Nomination[]> {
+  return request<Nomination[]>(`/competitions/${competitionId}/nominations/bulk`, {
+    method: 'POST',
+    body: JSON.stringify({
+      nominations: nominations.map((n) => ({
+        ...n,
+        name: n.name.trim(),
+      })),
+    }),
   });
 }
 

@@ -9,6 +9,7 @@ import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Nomination } from './nomination.model';
 import { CreateNominationDto } from './dto/create-nomination.dto';
+import { BulkCreateNominationsDto } from './dto/bulk-create-nominations.dto';
 
 @Injectable()
 export class NominationsService {
@@ -41,9 +42,35 @@ export class NominationsService {
       competitionId,
       name: dto.name.trim(),
       price: dto.price ?? null,
+      allowsImprovisation: dto.allowsImprovisation ?? false,
+      categoryIds: dto.categoryIds ?? [],
     } as CreationAttributes<Nomination>);
 
     return this.toDto(nomination);
+  }
+
+  /**
+   * Копіювання набору з шаблону. Раніше фронт слав по запиту на номінацію —
+   * на п'яти осях по чотири значення це 1024 HTTP-запити.
+   */
+  async bulkCreate(
+    competitionId: string,
+    requesterId: string,
+    dto: BulkCreateNominationsDto,
+  ) {
+    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+
+    const created = await this.nominationModel.bulkCreate(
+      dto.nominations.map((n) => ({
+        competitionId,
+        name: n.name.trim(),
+        price: n.price ?? null,
+        allowsImprovisation: n.allowsImprovisation ?? false,
+        categoryIds: n.categoryIds ?? [],
+      })) as CreationAttributes<Nomination>[],
+    );
+
+    return created.map((n) => this.toDto(n));
   }
 
   async remove(
@@ -93,6 +120,8 @@ export class NominationsService {
       id: nomination.id,
       name: nomination.name,
       price: nomination.price === null ? null : Number(nomination.price),
+      allowsImprovisation: nomination.allowsImprovisation,
+      categoryIds: nomination.categoryIds,
       createdAt: nomination.createdAt,
     };
   }

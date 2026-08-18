@@ -6,10 +6,10 @@ import {
   Model,
   Table,
 } from 'sequelize-typescript';
-import { Competition } from '../competitions/competition.model';
+import { CategoryTemplate } from './category-template.model';
 
-@Table({ tableName: 'nominations' })
-export class Nomination extends Model<Nomination> {
+@Table({ tableName: 'template_nominations' })
+export class TemplateNomination extends Model<TemplateNomination> {
   @Column({
     type: DataType.UUID,
     defaultValue: DataType.UUIDV4,
@@ -17,9 +17,9 @@ export class Nomination extends Model<Nomination> {
   })
   declare id: string;
 
-  @ForeignKey(() => Competition)
+  @ForeignKey(() => CategoryTemplate)
   @Column({ type: DataType.UUID, allowNull: false })
-  declare competitionId: string;
+  declare templateId: string;
 
   @Column({ type: DataType.STRING, allowNull: false })
   declare name: string;
@@ -27,8 +27,6 @@ export class Nomination extends Model<Nomination> {
   @Column({ type: DataType.DECIMAL(10, 2), allowNull: true })
   declare price: number | null;
 
-  // Дозвіл від адміна. Позначку «це імпровізація» ставить учасник у заявці
-  // (entries.improv) — це різні речі.
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   declare allowsImprovisation: boolean;
 
@@ -39,8 +37,11 @@ export class Nomination extends Model<Nomination> {
   })
   declare categoryIds: string[];
 
-  @BelongsTo(() => Competition)
-  declare competition: Competition;
+  @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0 })
+  declare sortOrder: number;
+
+  @BelongsTo(() => CategoryTemplate)
+  declare template: CategoryTemplate;
 
   @Column(DataType.DATE)
   declare createdAt: Date;

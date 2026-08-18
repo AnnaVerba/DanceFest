@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
   IsBoolean,
+  IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -10,15 +11,15 @@ import {
   Min,
 } from 'class-validator';
 
-export class CreateNominationDto {
-  @ApiProperty({ example: 'Соло · Діти · Дебют · Фрі Денс' })
+export class TemplateNominationDto {
+  @ApiProperty({ example: 'Соло · 12-15 · Профі · Хіп-хоп' })
   @IsString()
   @IsNotEmpty()
   name: string;
 
-  @ApiPropertyOptional({ example: 600 })
+  @ApiPropertyOptional({ example: 350 })
   @IsOptional()
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   price?: number;
 
@@ -30,12 +31,15 @@ export class CreateNominationDto {
   @IsBoolean()
   allowsImprovisation?: boolean;
 
-  @ApiPropertyOptional({
-    type: [String],
-    description: 'Ids of the categories this nomination was generated from.',
-  })
+  @ApiPropertyOptional({ type: [String], description: 'Source category ids.' })
   @IsOptional()
   @IsArray()
   @IsUUID('4', { each: true })
   categoryIds?: string[];
+
+  @ApiPropertyOptional({ example: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
 }

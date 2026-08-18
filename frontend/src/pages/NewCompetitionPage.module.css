@@ -652,3 +652,66 @@
     transition: none !important;
   }
 }
+
+/* --- Таблиця номінацій, скопійованих із шаблону --- */
+
+.nomTableScroll {
+  overflow-x: auto;
+  margin-top: 12px;
+}
+
+.nomTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  min-width: 620px;
+}
+
+.nomTable th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 0 10px 8px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.nomTable td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.nomTable tbody tr:hover {
+  background: var(--field);
+}
+
+.nomTable input[type='text'],
+.nomTable input[type='number'] {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  font: inherit;
+}
+
+.nomColPrice {
+  width: 130px;
+}
+
+.nomColImprov {
+  width: 150px;
+  text-align: center;
+}
+
+.nomColRemove {
+  width: 52px;
+}
+
+.nomImprovCell {
+  text-align: center;
+}

@@ -378,3 +378,100 @@
     transition: none !important;
   }
 }
+
+/* --- Згенеровані номінації --- */
+
+.wide {
+  max-width: 980px;
+}
+
+.genBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.tableScroll {
+  overflow-x: auto;
+  margin-top: 6px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  min-width: 620px;
+}
+
+.table th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 0 10px 8px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.table tbody tr:hover {
+  background: var(--field);
+}
+
+.table input[type='text'],
+.table input[type='number'] {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.colPrice {
+  width: 130px;
+}
+
+.colImprov {
+  width: 150px;
+  text-align: center;
+}
+
+.colRemove {
+  width: 44px;
+}
+
+.improvCell {
+  text-align: center;
+}
+
+.rowRemove {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  line-height: 1;
+}
+
+.rowRemove:hover {
+  color: var(--danger);
+  background: var(--field);
+}
+
+.empty {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
