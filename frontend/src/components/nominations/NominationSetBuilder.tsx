@@ -12,28 +12,25 @@ import type { Category, CategoryType } from '../../lib/categories';
 import type { ExitMode } from '../../lib/categoryTemplates';
 import {
   MAX_NOMINATIONS,
+  emptyAxisSelection,
   pluralNominations,
   signatureOf,
 } from '../../lib/nominationSet';
-import type { DraftNomination } from '../../lib/nominationSet';
+import type { AxisSelection, DraftNomination } from '../../lib/nominationSet';
 import styles from './NominationSetBuilder.module.css';
 
 interface NominationSetBuilderProps {
   nominations: DraftNomination[];
   onChange: (next: DraftNomination[]) => void;
+  // Обрані осі належать сторінці: у майстрі крок із категоріями зникає з
+  // дерева, щойно людина йде далі, і власний стан конструктора не пережив би
+  // повернення назад. null означає «людина осей ще не чіпала».
+  selection: AxisSelection | null;
+  onSelectionChange: (next: AxisSelection) => void;
   onNotice?: (message: string) => void;
   // Осі збереженого набору. Без них редактор відкривався б із порожніми осями
   // над повною таблицею, і «Згенерувати» стерло б усе, що там уже є.
   seedCategoryIds?: string[];
-}
-
-type Selection = Record<CategoryType, Category[]>;
-
-function emptySelection(): Selection {
-  return CATEGORY_TYPES.reduce((acc, type) => {
-    acc[type] = [];
-    return acc;
-  }, {} as Selection);
 }
 
 /**
@@ -47,15 +44,14 @@ function emptySelection(): Selection {
 export default function NominationSetBuilder({
   nominations,
   onChange,
+  selection: picked,
+  onSelectionChange,
   onNotice,
   seedCategoryIds,
 }: NominationSetBuilderProps) {
   // Помилка живе тут, а не в сторінці: раніше вона їхала нагору документа, а
   // кнопка «Згенерувати» стоїть унизу — натиснув, і здається, що нічого не сталося.
   const [error, setError] = useState<string | null>(null);
-  // null означає «людина осей ще не чіпала» — тоді показуємо ті, що виведені
-  // зі збереженого набору. Щойно вона щось додала чи прибрала, стан стає її.
-  const [picked, setPicked] = useState<Selection | null>(null);
   const [suggestions, setSuggestions] = useState<Category[]>([]);
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [addingType, setAddingType] = useState<CategoryType | null>(null);
@@ -68,7 +64,7 @@ export default function NominationSetBuilder({
   }, []);
 
   const seededSelection = useMemo(() => {
-    const restored = emptySelection();
+    const restored = emptyAxisSelection();
     if (!seedCategoryIds?.length || suggestions.length === 0) return restored;
 
     const ids = new Set(seedCategoryIds);
@@ -80,8 +76,12 @@ export default function NominationSetBuilder({
 
   const selection = picked ?? seededSelection;
 
-  const updateSelection = (next: (current: Selection) => Selection) =>
-    setPicked((prev) => next(prev ?? seededSelection));
+  const updateSelection = (next: (current: AxisSelection) => AxisSelection) => {
+    // Будь-яка зміна осей знімає попередню скаргу: інакше «Додайте хоча б одне
+    // значення категорії» висить над уже доданими значеннями.
+    setError(null);
+    onSelectionChange(next(selection));
+  };
 
   const plannedCount = useMemo(() => {
     const active = CATEGORY_TYPES.map((t) => selection[t]).filter(

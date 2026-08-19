@@ -12,7 +12,7 @@ import {
 } from '../lib/categoryTemplates';
 import NominationSetBuilder from '../components/nominations/NominationSetBuilder';
 import { savedSignatureOf } from '../lib/nominationSet';
-import type { DraftNomination } from '../lib/nominationSet';
+import type { AxisSelection, DraftNomination } from '../lib/nominationSet';
 import styles from './CategoryTemplateFormPage.module.css';
 
 /**
@@ -30,6 +30,7 @@ export default function CategoryTemplateFormPage() {
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(false);
   const [nominations, setNominations] = useState<DraftNomination[]>([]);
+  const [axes, setAxes] = useState<AxisSelection | null>(null);
 
   const [loading, setLoading] = useState(isEdit);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -236,6 +237,8 @@ export default function CategoryTemplateFormPage() {
               <NominationSetBuilder
                 nominations={nominations}
                 onChange={setNominations}
+                selection={axes}
+                onSelectionChange={setAxes}
                 onNotice={showToast}
                 seedCategoryIds={seedCategoryIds}
               />

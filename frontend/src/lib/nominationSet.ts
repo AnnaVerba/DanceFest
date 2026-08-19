@@ -1,4 +1,20 @@
+import { CATEGORY_TYPES } from './categories';
+import type { Category, CategoryType } from './categories';
 import type { ExitMode } from './categoryTemplates';
+
+/**
+ * Обрані значення осей. Живе в сторінці, а не в конструкторі: у майстрі
+ * створення конкурсу крок із категоріями розмонтовується, щойно людина йде
+ * далі, і разом із ним гинули б усі щойно додані осі.
+ */
+export type AxisSelection = Record<CategoryType, Category[]>;
+
+export function emptyAxisSelection(): AxisSelection {
+  return CATEGORY_TYPES.reduce((acc, type) => {
+    acc[type] = [];
+    return acc;
+  }, {} as AxisSelection);
+}
 
 // Та сама стеля, що й на беку: п'ять типів по десять значень дають
 // 100 000 комбінацій, і без межі це кладе і браузер, і базу.

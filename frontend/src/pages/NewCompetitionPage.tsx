@@ -10,7 +10,7 @@ import { createVenue } from '../lib/venues';
 import { createNominationsBulk } from '../lib/nominations';
 import NominationSetBuilder from '../components/nominations/NominationSetBuilder';
 import { pluralNominations, savedSignatureOf } from '../lib/nominationSet';
-import type { DraftNomination } from '../lib/nominationSet';
+import type { AxisSelection, DraftNomination } from '../lib/nominationSet';
 import {
   CategoryTemplateApiError,
   createCategoryTemplate,
@@ -96,6 +96,9 @@ export default function NewCompetitionPage() {
   const [nominationSource, setNominationSource] = useState<NominationSource>('template');
   const [templateName, setTemplateName] = useState('');
   const [nominations, setNominations] = useState<DraftNomination[]>([]);
+  // Крок із категоріями зникає з дерева, щойно людина йде далі. Осі тримаємо
+  // тут, інакше на поверненні вони порожні, а таблиця вже повна.
+  const [axes, setAxes] = useState<AxisSelection | null>(null);
   const [loadingNominations, setLoadingNominations] = useState(false);
 
   useEffect(() => {
@@ -810,6 +813,8 @@ export default function NewCompetitionPage() {
                   <NominationSetBuilder
                     nominations={nominations}
                     onChange={setNominations}
+                    selection={axes}
+                    onSelectionChange={setAxes}
                   />
                 </>
               )}
