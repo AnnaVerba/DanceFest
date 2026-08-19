@@ -7,6 +7,7 @@ import {
   Table,
 } from 'sequelize-typescript';
 import { Competition } from '../competitions/competition.model';
+import { Venue } from '../venues/venue.model';
 
 @Table({ tableName: 'judges' })
 export class Judge extends Model<Judge> {
@@ -21,6 +22,12 @@ export class Judge extends Model<Judge> {
   @Column({ type: DataType.UUID, allowNull: false })
   declare competitionId: string;
 
+  // Майданчик, за яким закріплений суддя; кожен майданчик має свою групу
+  // суддів (необов'язково — не всі конкурси розподіляють суддів по сценах).
+  @ForeignKey(() => Venue)
+  @Column({ type: DataType.UUID, allowNull: true })
+  declare venueId: string | null;
+
   @Column({ type: DataType.STRING, allowNull: false })
   declare name: string;
 
@@ -32,6 +39,9 @@ export class Judge extends Model<Judge> {
 
   @BelongsTo(() => Competition)
   declare competition: Competition;
+
+  @BelongsTo(() => Venue)
+  declare venue: Venue;
 
   @Column(DataType.DATE)
   declare createdAt: Date;
