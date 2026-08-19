@@ -13,6 +13,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { CategoryTemplatesModule } from './category-templates/category-templates.module';
 import { PaymentDetailsModule } from './payment-details/payment-details.module';
 import { MailModule } from './mail/mail.module';
+import { RegistrationsModule } from './registrations/registrations.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { MailModule } from './mail/mail.module';
     CategoriesModule,
     CategoryTemplatesModule,
     PaymentDetailsModule,
+    RegistrationsModule,
   ],
 })
 export class AppModule {}
