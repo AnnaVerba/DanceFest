@@ -28,11 +28,6 @@ export class CategoriesService {
     return categories.map((c) => this.toDto(c));
   }
 
-  /**
-   * Довідник спільний, тому значення не дублюємо: спершу шукаємо наявне за
-   * нормалізованою назвою (той самий вираз, що й в унікальному індексі), і
-   * лише потім створюємо.
-   */
   async findOrCreate(name: string, type: CategoryType) {
     const trimmed = name.trim();
 

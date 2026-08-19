@@ -7,7 +7,6 @@ module.exports = {
       type: DataTypes.UUID,
       allowNull: true,
       references: { model: 'category_templates', key: 'id' },
-      // Оригінал видалили — форк лишається, просто втрачає посилання.
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
     });

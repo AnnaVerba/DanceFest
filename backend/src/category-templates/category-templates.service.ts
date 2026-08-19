@@ -36,8 +36,6 @@ export class CategoryTemplatesService {
       order: [['createdAt', 'DESC']],
     });
 
-    // Окремий запит замість include: у шаблоні бувають тисячі номінацій, і
-    // списку потрібна тільки їх кількість.
     const counts = await this.countsByTemplate(templates.map((t) => t.id));
 
     return templates.map((t) => ({
@@ -88,7 +86,6 @@ export class CategoryTemplatesService {
       throw new NotFoundException('Шаблон не знайдено');
     }
     if (template.authorId !== requesterId) {
-      // Чужий публічний шаблон правиться лише через форк.
       throw new ForbiddenException(
         'Редагувати шаблон може лише його автор. Створіть власну копію.',
       );
@@ -129,7 +126,6 @@ export class CategoryTemplatesService {
     const copy = await this.templateModel.create({
       name,
       description: source.description,
-      // Копія завжди приватна: публікувати її — окреме свідоме рішення автора.
       isPublic: false,
       authorId: requesterId,
       forkedFromId: source.id,
@@ -177,7 +173,6 @@ export class CategoryTemplatesService {
     if (!template) {
       throw new NotFoundException('Шаблон не знайдено');
     }
-    // Чужий приватний шаблон не має видавати себе існуванням — 404, не 403.
     if (!template.isPublic && template.authorId !== requesterId) {
       throw new NotFoundException('Шаблон не знайдено');
     }

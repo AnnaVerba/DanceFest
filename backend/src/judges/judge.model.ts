@@ -22,8 +22,6 @@ export class Judge extends Model<Judge> {
   @Column({ type: DataType.UUID, allowNull: false })
   declare competitionId: string;
 
-  // Майданчик, за яким закріплений суддя; кожен майданчик має свою групу
-  // суддів (необов'язково — не всі конкурси розподіляють суддів по сценах).
   @ForeignKey(() => Venue)
   @Column({ type: DataType.UUID, allowNull: true })
   declare venueId: string | null;

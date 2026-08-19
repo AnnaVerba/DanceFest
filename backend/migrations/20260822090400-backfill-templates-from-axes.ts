@@ -1,7 +1,6 @@
 import type { QueryInterface } from 'sequelize';
 import { DataTypes, QueryTypes } from 'sequelize';
 
-// Назви осей із UI (DEFAULT_AXIS_NAMES) → типи спільного довідника.
 const AXIS_NAME_TO_TYPE: Record<string, string> = {
   'Кількість учасників': 'participants_count',
   Вік: 'age',
@@ -10,7 +9,6 @@ const AXIS_NAME_TO_TYPE: Record<string, string> = {
   Дисципліна: 'discipline',
 };
 
-// Стеля, щоб бекфіл не згенерував мільйон рядків на одному кривому шаблоні.
 const MAX_COMBINATIONS = 2000;
 
 interface TemplateRow {
@@ -118,8 +116,6 @@ module.exports = {
       }
     }
 
-    // axes більше не джерело правди. Колонку не видаляємо одразу: спершу
-    // перевіряємо бекфіл на реальних даних, дроп — окремою міграцією.
     await queryInterface.changeColumn('category_templates', 'axes', {
       type: DataTypes.JSONB,
       allowNull: true,

@@ -36,7 +36,6 @@ export default function CategoryTemplatesPage() {
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState<Scope>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  // Список приходить без вмісту — номінації довантажуємо при розгортанні.
   const [nominationsById, setNominationsById] = useState<
     Record<string, TemplateNomination[]>
   >({});
@@ -84,7 +83,6 @@ export default function CategoryTemplatesPage() {
     }
   };
 
-  // Чужий шаблон не редагується напряму — бек робить власну приватну копію.
   const handleFork = async (template: CategoryTemplate) => {
     try {
       const copy = await forkCategoryTemplate(

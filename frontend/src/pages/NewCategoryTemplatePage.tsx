@@ -18,13 +18,9 @@ import {
 import type { Category, CategoryType } from '../lib/categories';
 import styles from './CategoryTemplateFormPage.module.css';
 
-// Та сама стеля, що й на беку: п'ять типів по десять значень дають
-// 100 000 комбінацій, і без межі це кладе і браузер, і базу.
 const MAX_NOMINATIONS = 2000;
 
 interface DraftNomination {
-  // Відсортовані categoryIds — за нею впізнаємо вже відредагований рядок
-  // при повторній генерації.
   signature: string;
   name: string;
   price: string;
@@ -100,7 +96,6 @@ export default function NewCategoryTemplatePage() {
     setAddingType(type);
     setSubmitError(null);
     try {
-      // Бек поверне наявну категорію, якщо така вже є в спільному довіднику.
       const category = await createCategory(raw, type);
       setSelection((prev) => ({ ...prev, [type]: [...prev[type], category] }));
       setSuggestions((prev) =>
@@ -147,7 +142,6 @@ export default function NewCategoryTemplatePage() {
 
     setNominations((prev) => {
       const edited = new Map(prev.map((n) => [n.signature, n]));
-      // Наявні рядки зберігають ціну й галочку, нові комбінації додаються.
       return combos.map((combo) => {
         const categoryIds = combo.map((c) => c.id);
         const signature = signatureOf(categoryIds);

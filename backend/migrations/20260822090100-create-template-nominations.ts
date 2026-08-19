@@ -30,8 +30,6 @@ module.exports = {
         allowNull: false,
         defaultValue: false,
       },
-      // Масив, а не join-таблиця: комбінацій бувають тисячі, а посилання
-      // потрібне лише для дозгенерації та фільтрів.
       categoryIds: {
         type: DataTypes.ARRAY(DataTypes.UUID),
         allowNull: false,

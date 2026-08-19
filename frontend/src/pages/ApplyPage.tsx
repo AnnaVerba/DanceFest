@@ -180,8 +180,6 @@ export default function ApplyPage() {
             disabled={nominations.length === 0}
             onChange={(e) => {
               setNominationIndex(e.target.value);
-              // Нова номінація може не дозволяти імпровізацію — знімаємо
-              // позначку, щоб вона не поїхала на бек прихованою.
               const next =
                 e.target.value === '' ? null : nominations[Number(e.target.value)];
               if (!next?.allowsImprovisation) setImprov(false);

@@ -22,7 +22,6 @@ export class Nomination extends Model<Nomination> {
   @Column({ type: DataType.UUID, allowNull: false })
   declare competitionId: string;
 
-  // Майданчик, до якого розподілено номінацію; необов'язково.
   @ForeignKey(() => Venue)
   @Column({ type: DataType.UUID, allowNull: true })
   declare venueId: string | null;
@@ -33,8 +32,6 @@ export class Nomination extends Model<Nomination> {
   @Column({ type: DataType.DECIMAL(10, 2), allowNull: true })
   declare price: number | null;
 
-  // Дозвіл від адміна. Позначку «це імпровізація» ставить учасник у заявці
-  // (entries.improv) — це різні речі.
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   declare allowsImprovisation: boolean;
 

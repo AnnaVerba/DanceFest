@@ -34,8 +34,6 @@ module.exports = {
       },
     });
 
-    // Функціональний індекс, а не звичайний unique: «Профі», «профі» і
-    // «Профі » мають вважатися одним значенням спільного довідника.
     await queryInterface.sequelize.query(
       `CREATE UNIQUE INDEX categories_type_normalized_name_unique
          ON categories ("type", lower(btrim(name)))`,
