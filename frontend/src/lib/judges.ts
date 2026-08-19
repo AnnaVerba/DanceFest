@@ -1,5 +1,4 @@
-import { API_BASE_URL } from './api';
-import { getToken } from './auth';
+import { authorizedFetch } from './auth';
 
 export interface Judge {
   id: string;
@@ -10,6 +9,7 @@ export interface Judge {
 
 export interface CreatedJudge extends Judge {
   tempPassword: string;
+  emailSent: boolean;
 }
 
 export class JudgeApiError extends Error {
@@ -29,19 +29,13 @@ function extractMessage(payload: ErrorPayload | null, fallback: string): string 
   return Array.isArray(payload.message) ? payload.message.join(', ') : payload.message;
 }
 
-function authHeaders(): HeadersInit {
-  const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await authorizedFetch(path, {
       ...init,
       headers: {
         'Content-Type': 'application/json',
-        ...authHeaders(),
         ...init?.headers,
       },
     });

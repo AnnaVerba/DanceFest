@@ -11,7 +11,7 @@ interface JudgesPanelProps {
   onError: (message: string) => void;
 }
 
-type PanelJudge = Judge & { tempPassword?: string };
+type PanelJudge = Judge & { tempPassword?: string; emailSent?: boolean };
 
 export default function JudgesPanel({
   competitionId,
@@ -112,6 +112,9 @@ export default function JudgesPanel({
               </div>
               {judge.tempPassword && (
                 <p className={styles.pass}>
+                  {judge.emailSent
+                    ? 'лист із паролем надіслано на email. '
+                    : 'лист не надіслано — перекажіть пароль самі. '}
                   тимчасовий пароль: <code>{judge.tempPassword}</code> — збережіть
                   його зараз, більше він ніде не показується
                 </p>
