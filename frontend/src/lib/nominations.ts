@@ -5,6 +5,21 @@ import type { ExitMode } from './categoryTemplates';
 
 export type { ExitMode };
 
+// Програма виступу — категорія номінації з типом «дисципліна». Окремого поля
+// під програми немає: це ті самі categoryIds.
+export interface NominationProgram {
+  id: string;
+  name: string;
+}
+
+// Один вихід на сцену. Похідне від складу номінації, рахує бек.
+export interface NominationExit {
+  programId: string | null;
+  programName: string | null;
+  label: string;
+  durationLimitSeconds: number | null;
+}
+
 export interface Nomination {
   id: string;
   name: string;
@@ -14,6 +29,10 @@ export interface Nomination {
   categoryIds: string[];
   isSpecial: boolean;
   exitMode: ExitMode;
+  durationLimitSeconds: number | null;
+  programLimits: Record<string, number>;
+  programs: NominationProgram[];
+  exits: NominationExit[];
   createdAt: string;
 }
 
@@ -24,6 +43,8 @@ export interface NominationInput {
   categoryIds?: string[];
   isSpecial?: boolean;
   exitMode?: ExitMode;
+  durationLimitSeconds?: number;
+  programLimits?: Record<string, number>;
 }
 
 export class NominationApiError extends Error {
@@ -85,13 +106,28 @@ export function getNominations(competitionId: string): Promise<Nomination[]> {
 
 export function createNomination(
   competitionId: string,
-  name: string,
-  price?: number,
+  input: NominationInput,
 ): Promise<Nomination> {
   return request<Nomination>(`/competitions/${competitionId}/nominations`, {
     method: 'POST',
-    body: JSON.stringify({ name: name.trim(), price }),
+    body: JSON.stringify({ ...input, name: input.name.trim() }),
   });
+}
+
+export function updateNomination(
+  competitionId: string,
+  nominationId: string,
+  input: Partial<NominationInput>,
+): Promise<Nomination> {
+  return request<Nomination>(
+    `/competitions/${competitionId}/nominations/${nominationId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(
+        input.name === undefined ? input : { ...input, name: input.name.trim() },
+      ),
+    },
+  );
 }
 
 /**

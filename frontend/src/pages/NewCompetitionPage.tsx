@@ -9,7 +9,7 @@ import type { CreatedJudge } from '../lib/judges';
 import { createVenue } from '../lib/venues';
 import { createNominationsBulk } from '../lib/nominations';
 import { getCategoryTemplate, getCategoryTemplates } from '../lib/categoryTemplates';
-import type { CategoryTemplate } from '../lib/categoryTemplates';
+import type { CategoryTemplate, ExitMode } from '../lib/categoryTemplates';
 import styles from './NewCompetitionPage.module.css';
 
 const STEP_LABELS = [
@@ -50,6 +50,10 @@ interface DraftNomination {
   price: string;
   allowsImprovisation: boolean;
   categoryIds: string[];
+  // Спецкатегорії шаблону мусять доїхати в конкурс такими, як були: без цього
+  // «Кубок» перетворюється на звичайну номінацію з одним виходом.
+  isSpecial: boolean;
+  exitMode: ExitMode;
 }
 
 interface DraftVenue {
@@ -127,6 +131,8 @@ export default function NewCompetitionPage() {
             price: n.price === null ? '' : String(n.price),
             allowsImprovisation: n.allowsImprovisation,
             categoryIds: n.categoryIds,
+            isSpecial: n.isSpecial,
+            exitMode: n.exitMode,
           })),
         );
       })
@@ -285,6 +291,8 @@ export default function NewCompetitionPage() {
                   price: n.price.trim() === '' ? undefined : Number(n.price),
                   allowsImprovisation: n.allowsImprovisation,
                   categoryIds: n.categoryIds,
+                  isSpecial: n.isSpecial,
+                  exitMode: n.exitMode,
                 })),
               ),
             ]

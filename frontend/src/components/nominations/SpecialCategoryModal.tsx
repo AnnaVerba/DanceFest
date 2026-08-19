@@ -7,6 +7,7 @@ import {
 } from '../../lib/categories';
 import type { Category, CategoryType } from '../../lib/categories';
 import { buildNominationLabel } from '../../lib/nominationNaming';
+import { formatDuration, parseDuration, pluralExits } from '../../lib/duration';
 import type { ExitMode } from '../../lib/categoryTemplates';
 import styles from './SpecialCategoryModal.module.css';
 
@@ -18,6 +19,12 @@ export interface SpecialNominationDraft {
   categoryIds: string[];
   isSpecial: boolean;
   exitMode: ExitMode;
+  // Ліміт виходу. При 'single' лишається порожнім — тоді бек складає ліміти
+  // програм, бо всі вони танцюються за один вихід.
+  durationLimitSeconds?: number;
+  programLimits: Record<string, number>;
+  // Тільки для перегляду: що саме побачить учасник у розкладі.
+  exitLabels: string[];
 }
 
 interface SpecialCategoryModalProps {
@@ -26,6 +33,7 @@ interface SpecialCategoryModalProps {
   onClose: () => void;
   onCategoryCreated: (category: Category) => void;
   onSubmit: (nominations: SpecialNominationDraft[]) => void;
+  submitLabel?: string;
 }
 
 // Осі, з якими перетинається спецкатегорія. Кількість учасників сюди не
@@ -47,6 +55,7 @@ export default function SpecialCategoryModal({
   onClose,
   onCategoryCreated,
   onSubmit,
+  submitLabel = 'Додати до шаблону',
 }: SpecialCategoryModalProps) {
   const [specialName, setSpecialName] = useState('');
   const [programs, setPrograms] = useState<Category[]>([]);
@@ -56,6 +65,8 @@ export default function SpecialCategoryModal({
   });
   const [exitMode, setExitMode] = useState<ExitMode>('single');
   const [price, setPrice] = useState('');
+  // Ключ — id програми, значення — сирий ввід «1:30» або «90».
+  const [limits, setLimits] = useState<Record<string, string>>({});
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [addingType, setAddingType] = useState<CategoryType | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +77,7 @@ export default function SpecialCategoryModal({
     setPicked({ age: [], level: [] });
     setExitMode('single');
     setPrice('');
+    setLimits({});
     setInputs({});
     setError(null);
   };
@@ -118,8 +130,22 @@ export default function SpecialCategoryModal({
       valuesOf(type).filter((c) => c.id !== id),
     );
 
+  const parsedLimits = useMemo<Record<string, number>>(() => {
+    const parsed: Record<string, number> = {};
+    for (const program of programs) {
+      const seconds = parseDuration(limits[program.id] ?? '');
+      if (seconds !== null) parsed[program.id] = seconds;
+    }
+    return parsed;
+  }, [programs, limits]);
+
   // Живий перегляд: рівно те, що буде створено. Без нього організатор не
   // розуміє, що натворить, доки не збереже.
+  //
+  // Спецкатегорія — одна номінація з усіма програмами всередині, а не по
+  // номінації на програму: судять і нагороджують її цілком, а exitMode лише
+  // вирішує, скільки разів учасник вийде на сцену в межах цієї однієї
+  // номінації. Тому перелік осей множиться, а перелік програм — ні.
   const preview = useMemo<SpecialNominationDraft[]>(() => {
     const trimmedName = specialName.trim();
     if (!trimmedName || programs.length === 0) return [];
@@ -133,40 +159,42 @@ export default function SpecialCategoryModal({
       [[]],
     );
 
-    return axisCombos.flatMap((combo) => {
+    return axisCombos.map((combo) => {
       const axisNames = combo.map((c) => c.name);
       const axisIds = combo.map((c) => c.id);
+      const label = buildNominationLabel({ axisNames, specialName: trimmedName });
 
-      if (exitMode === 'single') {
-        return [
-          {
-            signature: `special|${trimmedName}|${[...axisIds].sort().join(',')}|single`,
-            name: buildNominationLabel({ axisNames, specialName: trimmedName }),
-            price,
-            allowsImprovisation: false,
-            categoryIds: [...axisIds, ...programs.map((p) => p.id)],
-            isSpecial: true,
-            exitMode: 'single' as ExitMode,
-          },
-        ];
-      }
-
-      return programs.map((program) => ({
-        signature: `special|${trimmedName}|${[...axisIds].sort().join(',')}|${program.id}`,
-        name: buildNominationLabel({
-          axisNames,
-          specialName: trimmedName,
-          programName: program.name,
-        }),
+      return {
+        signature: `special|${trimmedName}|${[...axisIds].sort().join(',')}`,
+        name: label,
         price,
         allowsImprovisation: false,
-        categoryIds: [...axisIds, program.id],
+        categoryIds: [...axisIds, ...programs.map((p) => p.id)],
         isSpecial: true,
-        exitMode: 'per_program' as ExitMode,
-      }));
+        exitMode,
+        programLimits: parsedLimits,
+        exitLabels:
+          exitMode === 'single'
+            ? [label]
+            : programs.map((program) =>
+                buildNominationLabel({
+                  axisNames,
+                  specialName: trimmedName,
+                  programName: program.name,
+                }),
+              ),
+      };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [specialName, programs, picked, exitMode, price]);
+  }, [specialName, programs, picked, exitMode, price, parsedLimits]);
+
+  const exitsTotal = preview.reduce((sum, n) => sum + n.exitLabels.length, 0);
+
+  // Один вихід — усі програми підряд, тож ліміт виходу це їхня сума.
+  const singleExitLimit = Object.values(parsedLimits).reduce(
+    (sum, seconds) => sum + seconds,
+    0,
+  );
 
   const handleSubmit = () => {
     if (!specialName.trim()) {
@@ -179,6 +207,15 @@ export default function SpecialCategoryModal({
     }
     if (price.trim() !== '' && !(Number(price) >= 0)) {
       setError('Некоректна ціна.');
+      return;
+    }
+    const badLimit = programs.find(
+      (p) => (limits[p.id] ?? '').trim() !== '' && parseDuration(limits[p.id]) === null,
+    );
+    if (badLimit) {
+      setError(
+        `Некоректна тривалість для програми «${badLimit.name}». Пишіть «2:30» або «150».`,
+      );
       return;
     }
     onSubmit(preview);
@@ -294,6 +331,39 @@ export default function SpecialCategoryModal({
           </label>
         </fieldset>
 
+        {programs.length > 0 && (
+          <div className={styles.limits}>
+            <div className={styles.limitsHead}>
+              <strong>Тривалість програм</strong>
+              <span className={styles.axisHint}>
+                {exitMode === 'single'
+                  ? 'сумується в ліміт одного виходу'
+                  : 'ліміт кожного виходу окремо'}
+              </span>
+            </div>
+            {programs.map((program) => (
+              <div className={styles.limitRow} key={program.id}>
+                <label htmlFor={`limit-${program.id}`}>{program.name}</label>
+                <input
+                  id={`limit-${program.id}`}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="2:30"
+                  value={limits[program.id] ?? ''}
+                  onChange={(e) =>
+                    setLimits((prev) => ({ ...prev, [program.id]: e.target.value }))
+                  }
+                />
+              </div>
+            ))}
+            {exitMode === 'single' && singleExitLimit > 0 && (
+              <p className={styles.limitsTotal}>
+                Разом на один вихід: {formatDuration(singleExitLimit)}
+              </p>
+            )}
+          </div>
+        )}
+
         {AXES.map((type) =>
           renderPicker(
             type,
@@ -319,6 +389,8 @@ export default function SpecialCategoryModal({
             <strong>Буде створено</strong>
             <span className={styles.count}>
               {preview.length} {pluralNominations(preview.length)}
+              {exitsTotal !== preview.length &&
+                ` · ${exitsTotal} ${pluralExits(exitsTotal)}`}
             </span>
           </div>
           {preview.length === 0 ? (
@@ -328,12 +400,21 @@ export default function SpecialCategoryModal({
             </p>
           ) : (
             <ul className={styles.previewList}>
-              {preview.slice(0, 40).map((n) => (
-                <li key={n.signature}>{n.name}</li>
+              {preview.slice(0, 20).map((n) => (
+                <li key={n.signature}>
+                  {n.name}
+                  {n.exitLabels.length > 1 && (
+                    <ul className={styles.previewExits}>
+                      {n.exitLabels.map((label) => (
+                        <li key={label}>{label}</li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
               ))}
-              {preview.length > 40 && (
+              {preview.length > 20 && (
                 <li className={styles.previewMore}>
-                  …і ще {preview.length - 40}
+                  …і ще {preview.length - 20}
                 </li>
               )}
             </ul>
@@ -350,7 +431,7 @@ export default function SpecialCategoryModal({
             onClick={handleSubmit}
             disabled={preview.length === 0}
           >
-            Додати до шаблону
+            {submitLabel}
           </button>
         </div>
       </div>

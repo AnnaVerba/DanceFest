@@ -280,3 +280,23 @@
     transition: none !important;
   }
 }
+
+.exits {
+  list-style: none;
+  margin: 6px 0 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.exits li {
+  position: relative;
+}
+
+.exits li::before {
+  content: '↳';
+  position: absolute;
+  left: -14px;
+  opacity: 0.6;
+}

@@ -7,6 +7,7 @@ import {
   Table,
 } from 'sequelize-typescript';
 import { CategoryTemplate } from './category-template.model';
+import type { ExitMode } from '../nominations/nomination-exits';
 
 @Table({ tableName: 'template_nominations' })
 export class TemplateNomination extends Model<TemplateNomination> {
@@ -36,6 +37,18 @@ export class TemplateNomination extends Model<TemplateNomination> {
     defaultValue: [],
   })
   declare categoryIds: string[];
+
+  // Спецкатегорія — «Кубок», «Корона», батл. Ліміти тривалості сюди не
+  // потрапляють: вони налаштовуються під конкретний конкурс, не під шаблон.
+  @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
+  declare isSpecial: boolean;
+
+  @Column({
+    type: DataType.ENUM('single', 'per_program'),
+    allowNull: false,
+    defaultValue: 'single',
+  })
+  declare exitMode: ExitMode;
 
   @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0 })
   declare sortOrder: number;

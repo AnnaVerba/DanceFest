@@ -3,6 +3,7 @@ import { getToken } from './auth';
 
 export interface Entry {
   id: string;
+  nominationId: string | null;
   number: number;
   routineName: string;
   nomination: string;
@@ -22,7 +23,7 @@ export interface Entry {
 
 export interface EntryInput {
   routineName: string;
-  nomination: string;
+  nominationId: string;
   participantsCount?: number;
   studioName?: string;
   choreographer?: string;
@@ -88,11 +89,15 @@ export function getEntries(competitionId: string): Promise<Entry[]> {
   return request<Entry[]>(`/competitions/${competitionId}/entries`);
 }
 
+/**
+ * Повертає масив: спецкатегорія з окремим виходом на кожну програму дає по
+ * заявці на вихід, кожну зі своїм наскрізним номером.
+ */
 export function createEntry(
   competitionId: string,
   input: EntryInput,
-): Promise<Entry> {
-  return request<Entry>(`/competitions/${competitionId}/entries`, {
+): Promise<Entry[]> {
+  return request<Entry[]>(`/competitions/${competitionId}/entries`, {
     method: 'POST',
     body: JSON.stringify(input),
   });

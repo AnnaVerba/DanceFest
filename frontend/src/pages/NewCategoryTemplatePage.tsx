@@ -191,7 +191,20 @@ export default function NewCategoryTemplatePage() {
         ? `Додано ${fresh.length} із ${drafts.length}: решта вже є в шаблоні`
         : `Додано ${fresh.length} ${pluralNominations(fresh.length)}`,
     );
-    setNominations((prev) => [...prev, ...fresh]);
+    // Ліміти тривалості й перелік виходів у шаблон не йдуть: перше
+    // налаштовується під конкретний конкурс, друге — похідне від складу.
+    setNominations((prev) => [
+      ...prev,
+      ...fresh.map((d) => ({
+        signature: d.signature,
+        name: d.name,
+        price: d.price,
+        allowsImprovisation: d.allowsImprovisation,
+        categoryIds: d.categoryIds,
+        isSpecial: d.isSpecial,
+        exitMode: d.exitMode,
+      })),
+    ]);
   };
 
   const patchNomination = (signature: string, patch: Partial<DraftNomination>) =>

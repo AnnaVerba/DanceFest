@@ -9,6 +9,7 @@ import {
 } from 'sequelize-typescript';
 import { Competition } from '../competitions/competition.model';
 import { Score } from './score.model';
+import { Nomination } from '../nominations/nomination.model';
 
 @Table({ tableName: 'entries' })
 export class Entry extends Model<Entry> {
@@ -29,6 +30,12 @@ export class Entry extends Model<Entry> {
   @Column({ type: DataType.STRING, allowNull: false })
   declare routineName: string;
 
+  @ForeignKey(() => Nomination)
+  @Column({ type: DataType.UUID, allowNull: true })
+  declare nominationId: string | null;
+
+  // Знімок назви виходу на момент подачі — з програмою в кінці, якщо
+  // спецкатегорія дає окремий вихід на кожну програму.
   @Column({ type: DataType.STRING, allowNull: false })
   declare nomination: string;
 
@@ -64,6 +71,9 @@ export class Entry extends Model<Entry> {
 
   @BelongsTo(() => Competition)
   declare competition: Competition;
+
+  @BelongsTo(() => Nomination)
+  declare nominationRef: Nomination;
 
   @HasMany(() => Score)
   declare scores: Score[];

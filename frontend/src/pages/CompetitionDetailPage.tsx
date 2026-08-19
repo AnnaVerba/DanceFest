@@ -4,6 +4,7 @@ import AdminHeader from '../components/AdminHeader';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import EntriesPanel from '../components/admin/EntriesPanel';
 import JudgesPanel from '../components/admin/JudgesPanel';
+import NominationsPanel from '../components/admin/NominationsPanel';
 import VenuesPanel from '../components/admin/VenuesPanel';
 import { ToastStack } from '../components/admin/Toast';
 import { useToasts } from '../components/admin/useToasts';
@@ -19,7 +20,7 @@ import styles from './CompetitionDetailPage.module.css';
 
 const USE_MOCK_DATA = false;
 
-const TABS = ['Деталі', 'Судді', 'Майданчики', 'Заявки'] as const;
+const TABS = ['Деталі', 'Номінації', 'Судді', 'Майданчики', 'Заявки'] as const;
 type Tab = (typeof TABS)[number];
 
 function formatDate(iso: string): string {
@@ -173,6 +174,14 @@ export default function CompetitionDetailPage() {
                   </button>
                 ))}
               </div>
+
+              {activeTab === 'Номінації' && (
+                <NominationsPanel
+                  competitionId={id}
+                  canManage={isOwner}
+                  onError={(message) => showToast(message)}
+                />
+              )}
 
               {activeTab === 'Заявки' && (
                 <EntriesPanel

@@ -5,10 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { CreationAttributes } from 'sequelize';
+import { CreationAttributes, Transaction } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
-import { Nomination } from '../nominations/nomination.model';
+import { NominationsService } from '../nominations/nominations.service';
 import { Entry } from './entry.model';
 import { Score } from './score.model';
 import { CreateEntryDto } from './dto/create-entry.dto';
@@ -20,12 +20,11 @@ export class EntriesService {
     private readonly competitionModel: typeof Competition,
     @InjectModel(CompetitionAdmin)
     private readonly competitionAdminModel: typeof CompetitionAdmin,
-    @InjectModel(Nomination)
-    private readonly nominationModel: typeof Nomination,
     @InjectModel(Entry)
     private readonly entryModel: typeof Entry,
     @InjectModel(Score)
     private readonly scoreModel: typeof Score,
+    private readonly nominationsService: NominationsService,
   ) {}
 
   async list(competitionId: string, requesterId: string) {
@@ -38,42 +37,64 @@ export class EntriesService {
     return entries.map((e) => this.toDto(e));
   }
 
+  /**
+   * Одна заявка — стільки записів, скільки разів учасник вийде на сцену.
+   * Спецкатегорія з окремим виходом на кожну програму дає їх кілька, і кожен
+   * іде в програму фестивалю окремим номером зі своєю назвою програми.
+   */
   async create(competitionId: string, dto: CreateEntryDto) {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
       throw new NotFoundException('Конкурс не знайдено');
     }
-
-    const nomination = await this.nominationModel.findOne({
-      where: { competitionId, name: dto.nomination },
-    });
-    if (!nomination) {
-      throw new BadRequestException(
-        'Цю номінацію не знайдено серед номінацій конкурсу',
-      );
+    if (!dto.nominationId && !dto.nomination) {
+      throw new BadRequestException('Вкажіть номінацію');
     }
 
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const last = await this.entryModel.findOne({
-        where: { competitionId },
-        order: [['number', 'DESC']],
+    const { nomination, exits, ageCategory, league } =
+      await this.nominationsService.resolveForEntry(competitionId, {
+        nominationId: dto.nominationId,
+        name: dto.nomination,
       });
-      const number = (last?.number ?? 0) + 1;
 
+    // Номер виходу — max + 1, і на кожен вихід свій. Гонка двох одночасних
+    // заявок ловиться унікальним індексом (competitionId, number): повторюємо
+    // раз, уже з новим max.
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const entry = await this.entryModel.create({
-          competitionId,
-          number,
-          routineName: dto.routineName.trim(),
-          nomination: nomination.name,
-          participantsCount: dto.participantsCount ?? null,
-          studioName: dto.studioName?.trim() || null,
-          choreographer: dto.choreographer?.trim() || null,
-          city: dto.city?.trim() || null,
-          improv: dto.improv ?? false,
-          paymentMethod: dto.paymentMethod ?? null,
-        } as CreationAttributes<Entry>);
-        return this.toDto(entry);
+        const created = await this.entryModel.sequelize!.transaction(
+          async (transaction: Transaction) => {
+            const last = await this.entryModel.findOne({
+              where: { competitionId },
+              order: [['number', 'DESC']],
+              transaction,
+              lock: transaction.LOCK.UPDATE,
+            });
+            const firstNumber = (last?.number ?? 0) + 1;
+
+            return this.entryModel.bulkCreate(
+              exits.map((exit, index) => ({
+                competitionId,
+                nominationId: nomination.id,
+                number: firstNumber + index,
+                routineName: dto.routineName.trim(),
+                nomination: exit.label,
+                ageCategory,
+                league,
+                program: exit.programName,
+                participantsCount: dto.participantsCount ?? null,
+                studioName: dto.studioName?.trim() || null,
+                choreographer: dto.choreographer?.trim() || null,
+                city: dto.city?.trim() || null,
+                improv: dto.improv ?? false,
+                paymentMethod: dto.paymentMethod ?? null,
+              })) as CreationAttributes<Entry>[],
+              { transaction },
+            );
+          },
+        );
+
+        return created.map((entry) => this.toDto(entry));
       } catch (err) {
         if (attempt === 0) continue;
         throw err;
@@ -128,6 +149,7 @@ export class EntriesService {
 
     return {
       id: entry.id,
+      nominationId: entry.nominationId,
       number: entry.number,
       routineName: entry.routineName,
       nomination: entry.nomination,
