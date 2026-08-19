@@ -3,12 +3,12 @@ import type { FormEvent } from 'react';
 import {
   JudgeAuthError,
   clearJudgeSession,
-  getJudgeEntries,
+  getJudgePerformances,
   getStoredJudge,
   judgeLogin,
   submitJudgeScore,
 } from '../lib/judgeAuth';
-import type { JudgeEntry, JudgeProfile } from '../lib/judgeAuth';
+import type { JudgePerformance, JudgeProfile } from '../lib/judgeAuth';
 import styles from './JudgePage.module.css';
 
 export default function JudgePage() {
@@ -18,7 +18,7 @@ export default function JudgePage() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loggingIn, setLoggingIn] = useState(false);
 
-  const [entries, setEntries] = useState<JudgeEntry[] | null>(null);
+  const [performances, setPerformances] = useState<JudgePerformance[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [scoreInputs, setScoreInputs] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -27,10 +27,10 @@ export default function JudgePage() {
   useEffect(() => {
     if (!judge) return;
     let cancelled = false;
-    getJudgeEntries()
+    getJudgePerformances()
       .then((data) => {
         if (cancelled) return;
-        setEntries(data);
+        setPerformances(data);
         setScoreInputs(
           Object.fromEntries(data.map((e) => [e.id, e.score === null ? '' : String(e.score)])),
         );
@@ -49,8 +49,11 @@ export default function JudgePage() {
     };
   }, [judge]);
 
-  const total = entries?.length ?? 0;
-  const done = useMemo(() => entries?.filter((e) => e.score !== null).length ?? 0, [entries]);
+  const total = performances?.length ?? 0;
+  const done = useMemo(
+    () => performances?.filter((e) => e.score !== null).length ?? 0,
+    [performances],
+  );
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -71,7 +74,7 @@ export default function JudgePage() {
   const handleLogout = () => {
     clearJudgeSession();
     setJudge(null);
-    setEntries(null);
+    setPerformances(null);
   };
 
   const handleScoreChange = (id: string, raw: string) => {
@@ -94,7 +97,9 @@ export default function JudgePage() {
     setSavingId(id);
     try {
       await submitJudgeScore(id, value);
-      setEntries((prev) => prev?.map((e) => (e.id === id ? { ...e, score: value } : e)) ?? prev);
+      setPerformances(
+        (prev) => prev?.map((e) => (e.id === id ? { ...e, score: value } : e)) ?? prev,
+      );
     } catch {
       setSubmitMessage('Не вдалося зберегти оцінку. Спробуйте ще раз.');
     } finally {
@@ -166,13 +171,13 @@ export default function JudgePage() {
 
         {loadError && <p className={styles.status}>{loadError}</p>}
 
-        {!loadError && entries === null && <p className={styles.status}>Завантаження...</p>}
+        {!loadError && performances === null && <p className={styles.status}>Завантаження...</p>}
 
-        {!loadError && entries !== null && entries.length === 0 && (
+        {!loadError && performances !== null && performances.length === 0 && (
           <p className={styles.status}>Заявок на цей конкурс ще немає.</p>
         )}
 
-        {!loadError && entries !== null && entries.length > 0 && (
+        {!loadError && performances !== null && performances.length > 0 && (
           <div className={styles.card}>
             <div className={styles.tableScroll}>
               <table>
@@ -181,26 +186,20 @@ export default function JudgePage() {
                     <th className={styles.cNo}>№</th>
                     <th className={styles.cTitle}>Назва номеру</th>
                     <th className={styles.cNom}>Номінація</th>
-                    <th className={styles.cAge}>Вік. категорія</th>
-                    <th className={styles.cLeague}>Ліга</th>
-                    <th className={styles.cProg}>Програма</th>
-                    <th className={styles.cCount}>К-сть уч.</th>
+                    <th className={styles.cCount}>Учасники</th>
                     <th className={styles.cStudio}>Студія / хореограф</th>
                     <th className={styles.cScore}>Ваша оцінка (1–10)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {entries.map((e) => {
+                  {performances.map((e) => {
                     const value = scoreInputs[e.id] ?? '';
                     return (
                       <tr key={e.id}>
                         <td className={styles.cNo}>{e.number}</td>
-                        <td className={styles.cTitle}>{e.routineName}</td>
+                        <td className={styles.cTitle}>{e.routineName ?? '—'}</td>
                         <td className={styles.cNom}>{e.nomination}</td>
-                        <td className={styles.cAge}>{e.ageCategory || '—'}</td>
-                        <td className={styles.cLeague}>{e.league || '—'}</td>
-                        <td className={styles.cProg}>{e.program || '—'}</td>
-                        <td className={styles.cCount}>{e.participantsCount ?? '—'}</td>
+                        <td className={styles.cCount}>{e.participants.join(', ') || '—'}</td>
                         <td className={styles.cStudio}>
                           {[e.studioName, e.choreographer].filter(Boolean).join(' · ') || '—'}
                         </td>

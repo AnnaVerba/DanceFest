@@ -1,14 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ChangeEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { getNominations } from '../lib/nominations';
 import type { Nomination } from '../lib/nominations';
-import { EntryApiError, createEntry } from '../lib/entries';
+import { RegistrationApiError, createRegistration } from '../lib/registrations';
 import styles from './ApplyPage.module.css';
 
-type PayMethod = 'cash' | 'card';
+let draftIdCounter = 0;
+function nextDraftId(): string {
+  draftIdCounter += 1;
+  return `participant-${draftIdCounter}`;
+}
+
+interface DraftParticipant {
+  id: string;
+  name: string;
+}
+
+function emptyParticipant(): DraftParticipant {
+  return { id: nextDraftId(), name: '' };
+}
 
 export default function ApplyPage() {
   const { id } = useParams<{ id: string }>();
@@ -20,17 +32,19 @@ export default function ApplyPage() {
   const nominationRef = useRef<HTMLSelectElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const musicInputRef = useRef<HTMLInputElement>(null);
+  const participantRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const [title, setTitle] = useState('');
   const [nominationIndex, setNominationIndex] = useState('');
   const [improv, setImprov] = useState(false);
   const [studio, setStudio] = useState('');
   const [choreographer, setChoreographer] = useState('');
+  const [coachName, setCoachName] = useState('');
   const [city, setCity] = useState('');
-  const [participantsCount, setParticipantsCount] = useState('');
-  const [payMethod, setPayMethod] = useState<PayMethod>('card');
+  const [participants, setParticipants] = useState<DraftParticipant[]>([emptyParticipant()]);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [participantsError, setParticipantsError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -53,17 +67,33 @@ export default function ApplyPage() {
   const selectedNomination =
     nominationIndex === '' || !nominations ? null : nominations[Number(nominationIndex)];
 
-  const handleImprovChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setImprov(e.target.checked);
-    if (e.target.checked && musicInputRef.current) {
+  const handleImprovChange = (checked: boolean) => {
+    setImprov(checked);
+    if (checked && musicInputRef.current) {
       musicInputRef.current.value = '';
     }
+  };
+
+  const updateParticipantName = (participantId: string, name: string) => {
+    setParticipants((prev) => prev.map((p) => (p.id === participantId ? { ...p, name } : p)));
+    setParticipantsError(null);
+  };
+
+  const addParticipant = () => {
+    const draft = emptyParticipant();
+    setParticipants((prev) => [...prev, draft]);
+    setTimeout(() => participantRefs.current[draft.id]?.focus(), 0);
+  };
+
+  const removeParticipant = (participantId: string) => {
+    setParticipants((prev) => prev.filter((p) => p.id !== participantId));
   };
 
   const handleSubmit = async () => {
     if (!id) return;
     setSuccessMessage(null);
     setSubmitError(null);
+    setParticipantsError(null);
     if (!title.trim()) {
       titleRef.current?.focus();
       return;
@@ -72,32 +102,38 @@ export default function ApplyPage() {
       nominationRef.current?.focus();
       return;
     }
+    const namedParticipants = participants.filter((p) => p.name.trim());
+    if (namedParticipants.length === 0) {
+      setParticipantsError("Вкажіть ім'я хоча б одного учасника.");
+      return;
+    }
 
     setSubmitting(true);
     try {
-      await createEntry(id, {
+      await createRegistration(id, {
+        nominationId: selectedNomination.id,
         routineName: title.trim(),
-        nomination: selectedNomination.name,
-        participantsCount: participantsCount ? Number(participantsCount) : undefined,
+        coach: coachName.trim() ? { name: coachName.trim() } : undefined,
         studioName: studio.trim() || undefined,
         choreographer: choreographer.trim() || undefined,
         city: city.trim() || undefined,
         improv,
-        paymentMethod: payMethod,
+        participants: namedParticipants.map((p) => ({ name: p.name.trim() })),
       });
-      setSuccessMessage(
-        `Заявку надіслано. Спосіб оплати: ${payMethod === 'card' ? 'картка' : 'готівка'}.`,
-      );
+      setSuccessMessage('Заявку надіслано.');
       setTitle('');
       setNominationIndex('');
       setStudio('');
       setChoreographer('');
+      setCoachName('');
       setCity('');
-      setParticipantsCount('');
+      setParticipants([emptyParticipant()]);
       setImprov(false);
     } catch (err) {
       setSubmitError(
-        err instanceof EntryApiError ? err.message : 'Не вдалося надіслати заявку. Спробуйте ще раз.',
+        err instanceof RegistrationApiError
+          ? err.message
+          : 'Не вдалося надіслати заявку. Спробуйте ще раз.',
       );
     } finally {
       setSubmitting(false);
@@ -182,7 +218,7 @@ export default function ApplyPage() {
               setNominationIndex(e.target.value);
               const next =
                 e.target.value === '' ? null : nominations[Number(e.target.value)];
-              if (!next?.allowsImprovisation) setImprov(false);
+              if (!next?.allowsImprovisation) handleImprovChange(false);
             }}
           >
             <option value="">Оберіть номінацію...</option>
@@ -199,20 +235,52 @@ export default function ApplyPage() {
           )}
         </div>
 
-        {/* Позначку ставить учасник, але лише там, де адмін дозволив
-            імпровізацію для цієї номінації. */}
         <label className={styles.check}>
           <input
             type="checkbox"
             checked={improv}
             disabled={!selectedNomination?.allowsImprovisation}
-            onChange={handleImprovChange}
+            onChange={(e) => handleImprovChange(e.target.checked)}
           />
           Імпровізація
           {selectedNomination && !selectedNomination.allowsImprovisation && (
             <span className={styles.hint}> — недоступна в цій номінації</span>
           )}
         </label>
+
+        <div className={styles.field}>
+          <label>
+            Учасники <span className={styles.req}>*</span>
+          </label>
+          {participants.map((p, i) => (
+            <div key={p.id} className={styles.participantRow}>
+              <input
+                ref={(el) => {
+                  participantRefs.current[p.id] = el;
+                }}
+                type="text"
+                placeholder={`Учасник ${i + 1}`}
+                aria-label={`Ім'я учасника ${i + 1}`}
+                value={p.name}
+                onChange={(e) => updateParticipantName(p.id, e.target.value)}
+              />
+              {participants.length > 1 && (
+                <button
+                  type="button"
+                  className={styles.removeBtn}
+                  aria-label={`Прибрати учасника ${i + 1}`}
+                  onClick={() => removeParticipant(p.id)}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+          <button type="button" className={styles.addBtn} onClick={addParticipant}>
+            + Додати учасника
+          </button>
+          {participantsError && <p className={styles.error}>{participantsError}</p>}
+        </div>
 
         <div className={styles.row}>
           <div className={styles.field}>
@@ -239,6 +307,16 @@ export default function ApplyPage() {
 
         <div className={styles.row}>
           <div className={styles.field}>
+            <label htmlFor="f-coach">Тренер (необов'язково)</label>
+            <input
+              id="f-coach"
+              type="text"
+              placeholder="Олена Тренер"
+              value={coachName}
+              onChange={(e) => setCoachName(e.target.value)}
+            />
+          </div>
+          <div className={styles.field}>
             <label htmlFor="f-city">Місто</label>
             <input
               id="f-city"
@@ -248,48 +326,16 @@ export default function ApplyPage() {
               onChange={(e) => setCity(e.target.value)}
             />
           </div>
-          <div className={styles.field}>
-            <label htmlFor="f-count">К-сть учасників</label>
-            <input
-              id="f-count"
-              type="text"
-              inputMode="numeric"
-              placeholder="1"
-              value={participantsCount}
-              onChange={(e) => setParticipantsCount(e.target.value.replace(/\D/g, ''))}
-            />
-          </div>
         </div>
 
-        <div className={styles.row}>
-          <div className={styles.field}>
-            <label>Спосіб оплати</label>
-            <div className={styles.toggle}>
-              <button
-                type="button"
-                aria-pressed={payMethod === 'cash'}
-                onClick={() => setPayMethod('cash')}
-              >
-                Готівка
-              </button>
-              <button
-                type="button"
-                aria-pressed={payMethod === 'card'}
-                onClick={() => setPayMethod('card')}
-              >
-                Картка
-              </button>
-            </div>
-          </div>
-          <div className={styles.field}>
-            <label htmlFor="f-price">Ціна за номінацію</label>
-            <input
-              id="f-price"
-              type="text"
-              readOnly
-              value={selectedNomination?.price ? `${selectedNomination.price} грн` : '—'}
-            />
-          </div>
+        <div className={styles.field}>
+          <label htmlFor="f-price">Ціна за номінацію</label>
+          <input
+            id="f-price"
+            type="text"
+            readOnly
+            value={selectedNomination?.price ? `${selectedNomination.price} грн` : '—'}
+          />
         </div>
 
         <div className={styles.field}>

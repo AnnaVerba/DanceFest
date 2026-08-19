@@ -5,7 +5,11 @@ import { PassportModule } from '@nestjs/passport';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
-import { Entry } from '../entries/entry.model';
+import { Nomination } from '../nominations/nomination.model';
+import { Registration } from '../registrations/registration.model';
+import { RegistrationParticipant } from '../registrations/registration-participant.model';
+import { Person } from '../registrations/person.model';
+import { Performance } from '../registrations/performance.model';
 import { Score } from '../entries/score.model';
 import { Judge } from './judge.model';
 import { JudgesController } from './judges.controller';
@@ -20,7 +24,11 @@ import { JudgeJwtStrategy } from './judge-jwt.strategy';
       Competition,
       CompetitionAdmin,
       Judge,
-      Entry,
+      Nomination,
+      Registration,
+      RegistrationParticipant,
+      Person,
+      Performance,
       Score,
     ]),
     PassportModule,

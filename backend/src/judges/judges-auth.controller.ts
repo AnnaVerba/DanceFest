@@ -52,20 +52,22 @@ export class JudgesAuthController {
   }
 
   @ApiOperation({
-    summary: "List the judge's competition entries",
+    summary: "List the judge's competition performances",
     description:
-      "Each entry includes this judge's own score, if already submitted.",
+      "Each performance includes this judge's own score, if already submitted.",
   })
-  @ApiResponse({ status: 200, description: 'Entries returned.' })
+  @ApiResponse({ status: 200, description: 'Performances returned.' })
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
   @ApiBearerAuth()
   @UseGuards(JudgeAuthGuard)
-  @Get('me/entries')
-  listEntries(@CurrentJudge() judge: AuthenticatedJudge) {
-    return this.judgesAuthService.listEntries(judge);
+  @Get('me/performances')
+  listPerformances(@CurrentJudge() judge: AuthenticatedJudge) {
+    return this.judgesAuthService.listPerformances(judge);
   }
 
-  @ApiOperation({ summary: "Submit or update the judge's score for an entry" })
+  @ApiOperation({
+    summary: "Submit or update the judge's score for a performance",
+  })
   @ApiResponse({ status: 200, description: 'Score saved.' })
   @ApiResponse({
     status: 400,
@@ -74,16 +76,16 @@ export class JudgesAuthController {
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
   @ApiResponse({
     status: 404,
-    description: 'Entry not found in this judge’s competition.',
+    description: 'Performance not found in this judge’s competition.',
   })
   @ApiBearerAuth()
   @UseGuards(JudgeAuthGuard)
-  @Patch('me/entries/:entryId/score')
+  @Patch('me/performances/:performanceId/score')
   submitScore(
     @CurrentJudge() judge: AuthenticatedJudge,
-    @Param('entryId') entryId: string,
+    @Param('performanceId') performanceId: string,
     @Body() dto: SubmitScoreDto,
   ) {
-    return this.judgesAuthService.submitScore(judge, entryId, dto);
+    return this.judgesAuthService.submitScore(judge, performanceId, dto);
   }
 }

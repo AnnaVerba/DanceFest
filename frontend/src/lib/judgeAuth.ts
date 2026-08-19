@@ -8,17 +8,15 @@ export interface JudgeProfile {
   competitionName: string;
 }
 
-export interface JudgeEntry {
+export interface JudgePerformance {
   id: string;
   number: number;
-  routineName: string;
+  routineName: string | null;
   nomination: string;
-  ageCategory: string | null;
-  league: string | null;
-  program: string | null;
-  participantsCount: number | null;
+  round: 'final' | 'semifinal';
   studioName: string | null;
   choreographer: string | null;
+  participants: string[];
   score: number | null;
 }
 
@@ -105,12 +103,12 @@ export async function judgeLogin(email: string, password: string): Promise<Judge
   return data.judge;
 }
 
-export function getJudgeEntries(): Promise<JudgeEntry[]> {
-  return request<JudgeEntry[]>('/judges/me/entries');
+export function getJudgePerformances(): Promise<JudgePerformance[]> {
+  return request<JudgePerformance[]>('/judges/me/performances');
 }
 
-export function submitJudgeScore(entryId: string, value: number): Promise<void> {
-  return request(`/judges/me/entries/${entryId}/score`, {
+export function submitJudgeScore(performanceId: string, value: number): Promise<void> {
+  return request(`/judges/me/performances/${performanceId}/score`, {
     method: 'PATCH',
     body: JSON.stringify({ value }),
   });

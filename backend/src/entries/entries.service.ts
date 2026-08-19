@@ -10,7 +10,6 @@ import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Nomination } from '../nominations/nomination.model';
 import { Entry } from './entry.model';
-import { Score } from './score.model';
 import { CreateEntryDto } from './dto/create-entry.dto';
 
 @Injectable()
@@ -24,15 +23,12 @@ export class EntriesService {
     private readonly nominationModel: typeof Nomination,
     @InjectModel(Entry)
     private readonly entryModel: typeof Entry,
-    @InjectModel(Score)
-    private readonly scoreModel: typeof Score,
   ) {}
 
   async list(competitionId: string, requesterId: string) {
     await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
     const entries = await this.entryModel.findAll({
       where: { competitionId },
-      include: [Score],
       order: [['number', 'ASC']],
     });
     return entries.map((e) => this.toDto(e));
@@ -118,14 +114,6 @@ export class EntriesService {
   }
 
   private toDto(entry: Entry) {
-    const scores = entry.scores ?? [];
-    const averageScore =
-      scores.length > 0
-        ? scores.reduce((sum, s) => sum + Number(s.value), 0) / scores.length
-        : entry.score === null
-          ? null
-          : Number(entry.score);
-
     return {
       id: entry.id,
       number: entry.number,
@@ -140,8 +128,7 @@ export class EntriesService {
       city: entry.city,
       improv: entry.improv,
       paymentMethod: entry.paymentMethod,
-      score: averageScore,
-      scoresCount: scores.length,
+      score: entry.score === null ? null : Number(entry.score),
       createdAt: entry.createdAt,
     };
   }

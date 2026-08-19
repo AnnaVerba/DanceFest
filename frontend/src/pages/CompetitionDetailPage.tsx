@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import AdminHeader from '../components/AdminHeader';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
-import EntriesPanel from '../components/admin/EntriesPanel';
+import RegistrationsPanel from '../components/admin/RegistrationsPanel';
 import JudgesPanel from '../components/admin/JudgesPanel';
 import VenuesPanel from '../components/admin/VenuesPanel';
 import { ToastStack } from '../components/admin/Toast';
@@ -169,7 +169,7 @@ export default function CompetitionDetailPage() {
               </div>
 
               {activeTab === 'Заявки' && (
-                <EntriesPanel
+                <RegistrationsPanel
                   competitionId={id}
                   canManage={isOwner}
                   onError={(message) => showToast(message)}

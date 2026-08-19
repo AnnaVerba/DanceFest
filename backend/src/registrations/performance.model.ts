@@ -3,10 +3,12 @@ import {
   Column,
   DataType,
   ForeignKey,
+  HasMany,
   Model,
   Table,
 } from 'sequelize-typescript';
 import { Competition } from '../competitions/competition.model';
+import { Score } from '../entries/score.model';
 import { Registration } from './registration.model';
 
 export type PerformanceRound = 'final' | 'semifinal';
@@ -51,6 +53,9 @@ export class Performance extends Model<Performance> {
 
   @BelongsTo(() => Competition)
   declare competition: Competition;
+
+  @HasMany(() => Score)
+  declare scores: Score[];
 
   @Column(DataType.DATE)
   declare createdAt: Date;
