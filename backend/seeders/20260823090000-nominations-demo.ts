@@ -186,7 +186,7 @@ async function seed(
       nominations.push({
         ...base,
         id: randomUUID(),
-        name: [age, level, 'Корона Шехеризади'].join(SEPARATOR),
+        name: ['Корона Шехеризади', age, level].join(SEPARATOR),
         price: 900,
         allowsImprovisation: false,
         categoryIds: [age, level, ...crownPrograms].map(idOf),
@@ -212,7 +212,7 @@ async function seed(
   nominations.push({
     ...base,
     id: cupId,
-    name: ['Дорослі', 'Профі', 'Кубок Сходу'].join(SEPARATOR),
+    name: ['Кубок Сходу', 'Дорослі', 'Профі'].join(SEPARATOR),
     price: 1200,
     allowsImprovisation: false,
     categoryIds: ['Дорослі', 'Профі', ...cupPrograms].map(idOf),
@@ -274,7 +274,7 @@ async function seed(
         nominationId: cupId,
         number: 2 + index,
         routineName: 'Полум’я пустелі',
-        nomination: ['Дорослі', 'Профі', 'Кубок Сходу', program].join(
+        nomination: ['Кубок Сходу', 'Дорослі', 'Профі', program].join(
           SEPARATOR,
         ),
         ageCategory: 'Дорослі',

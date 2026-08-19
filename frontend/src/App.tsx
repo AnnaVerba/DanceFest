@@ -12,7 +12,7 @@ import CompetitionPreviewRedirect from './pages/CompetitionPreviewRedirect';
 import JudgePage from './pages/JudgePage';
 import ApplyPage from './pages/ApplyPage';
 import CategoryTemplatesPage from './pages/CategoryTemplatesPage';
-import NewCategoryTemplatePage from './pages/NewCategoryTemplatePage';
+import CategoryTemplateFormPage from './pages/CategoryTemplateFormPage';
 import './App.css';
 
 function App() {
@@ -41,7 +41,11 @@ function App() {
       <Route path="/apply" element={<ApplyPage />} />
       <Route path="/competitions/:id/apply" element={<ApplyPage />} />
       <Route path="/category-templates" element={<CategoryTemplatesPage />} />
-      <Route path="/category-templates/new" element={<NewCategoryTemplatePage />} />
+      <Route path="/category-templates/new" element={<CategoryTemplateFormPage />} />
+      <Route
+        path="/category-templates/:id/edit"
+        element={<CategoryTemplateFormPage />}
+      />
     </Routes>
   );
 }

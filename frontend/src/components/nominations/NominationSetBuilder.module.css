@@ -1,0 +1,315 @@
+/* Скопійовано з CategoryTemplateFormPage.module.css: конструктор переїхав
+   у власний компонент, і стилі мусять їхати з ним. */
+
+/* Токени задані тут, а не успадковані від сторінки: конструктор стоїть і в
+   редакторі шаблону, і в майстрі створення конкурсу, а в майстра своя палітра
+   і жодної з цих змінних він не оголошує. */
+.builder {
+  --surface: #fff;
+  --field: #f8fafc;
+  --line: #e5e7eb;
+  --line-strong: #cbd5e1;
+  --ink: #0f172a;
+  --ink-soft: #334155;
+  --muted: #64748b;
+  --gold: #b07d1e;
+  --gold-hover: #96690f;
+  --gold-soft: #fdf3e0;
+  --gold-line: #d8b271;
+  --danger: #dc2626;
+  --r: 12px;
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.04);
+
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.builder *,
+.builder *::before,
+.builder *::after {
+  box-sizing: border-box;
+}
+
+.builder button {
+  font: inherit;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  padding: 26px;
+  margin-bottom: 24px;
+}
+
+.sectionTitle {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 20px;
+}
+
+/* категорії-осі */
+.axis {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: #fff;
+}
+
+.axisHead {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.axisHead input {
+  font-weight: 600;
+}
+
+.axisAdd {
+  display: flex;
+  gap: 12px;
+}
+
+.axisAdd input {
+  flex: 1;
+  min-width: 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--gold-soft);
+  color: var(--gold);
+  border: 1px solid var(--gold-line);
+  border-radius: 999px;
+  padding: 5px 8px 5px 13px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.chip button {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.7;
+  padding: 0 2px;
+}
+
+.chip button:hover {
+  opacity: 1;
+}
+
+.hint {
+  margin: 18px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.btn:hover {
+  background: var(--field);
+  border-color: #94a3b8;
+}
+
+.btnGold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  border: 0;
+  background: var(--gold);
+  color: #fff;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.btnGold:hover {
+  background: var(--gold-hover);
+}
+
+.btnSm {
+  padding: 8px 14px;
+  font-size: 13.5px;
+}
+
+@media (max-width: 720px) {
+  .panel {
+    padding: 20px;
+  }
+  .axisAdd,
+  .newAxis {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* Стоїть одразу під кнопками генерації: людина натиснула тут — і відповідь
+   мусить бути тут-таки, а не десь на початку сторінки. */
+.error {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: var(--danger);
+  font-size: 14px;
+}
+
+.genBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.tableScroll {
+  overflow-x: auto;
+  margin-top: 6px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  min-width: 620px;
+}
+
+.table th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 0 10px 8px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.table tbody tr:hover {
+  background: var(--field);
+}
+
+.table input[type='text'],
+.table input[type='number'] {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.colPrice {
+  width: 130px;
+}
+
+.colImprov {
+  width: 150px;
+  text-align: center;
+}
+
+.colRemove {
+  width: 44px;
+}
+
+.improvCell {
+  text-align: center;
+}
+
+.rowRemove {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  line-height: 1;
+}
+
+.rowRemove:hover {
+  color: var(--danger);
+  background: var(--field);
+}
+
+.empty {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* --- спеціальні категорії --- */
+
+.nameCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nameCell input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Позначка на рядку спецкатегорії: вона не входить у декартів добуток осей,
+   тож регенерація її не чіпає — це має бути видно. */
+.specialTag {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #e8effc;
+  border: 1px solid #dbeafe;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  cursor: help;
+}

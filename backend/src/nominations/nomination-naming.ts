@@ -10,15 +10,16 @@ export interface NominationLabelParts {
 }
 
 /**
- * Порядок частин заданий положенням: спершу осі, далі назва спецкатегорії,
- * і лише потім програма. Тому «Юніори 1 · Перші кроки · Корона Шехеризади»
- * при одному виході й «… · Корона Шехеризади · Табла» при кількох.
+ * Назва спецкатегорії йде першою: у розкладі й на нагородженні «Корона
+ * Шехеризади» — це те, що називають уголос, а осі лише уточнюють, чия саме
+ * корона. Далі осі, і останньою програма: «Корона Шехеризади · Юніори 1 ·
+ * Перші кроки · Табла».
  *
  * Дублікат `frontend/src/lib/nominationNaming.ts` — фронт будує ту саму назву
  * в живому перегляді ще до збереження, і збігатись вони мусять посимвольно.
  */
 export function buildNominationLabel(parts: NominationLabelParts): string {
-  return [...parts.axisNames, parts.specialName, parts.programName]
+  return [parts.specialName, ...parts.axisNames, parts.programName]
     .map((part) => part?.trim())
     .filter((part): part is string => Boolean(part))
     .join(NOMINATION_LABEL_SEPARATOR);
