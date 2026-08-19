@@ -76,6 +76,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new JudgeAuthError("Не вдалося з'єднатися з сервером", 0);
   }
 
+  if (response.status === 401) {
+    clearJudgeSession();
+    if (typeof window !== 'undefined' && window.location.pathname !== '/judge') {
+      window.location.assign('/judge');
+    }
+  }
+
   const payload = (await response.json().catch(() => null)) as ErrorPayload | null;
 
   if (!response.ok) {

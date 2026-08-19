@@ -126,3 +126,46 @@ export async function refreshSession(): Promise<AuthResponse> {
   saveSession(auth);
   return auth;
 }
+
+let refreshInFlight: Promise<AuthResponse> | null = null;
+
+function refreshOnce(): Promise<AuthResponse> {
+  if (!refreshInFlight) {
+    refreshInFlight = refreshSession().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+function redirectToLogin() {
+  clearSession();
+  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+    window.location.assign('/login');
+  }
+}
+
+export async function authorizedFetch(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const send = (token: string | null) =>
+    fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        ...init.headers,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
+  const first = await send(getToken());
+  if (first.status !== 401) return first;
+
+  try {
+    const { accessToken } = await refreshOnce();
+    return await send(accessToken);
+  } catch {
+    redirectToLogin();
+    throw new AuthError('Сесія закінчилась, увійдіть знову.');
+  }
+}

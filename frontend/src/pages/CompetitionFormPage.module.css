@@ -141,6 +141,26 @@
   background: #fff;
 }
 
+.req {
+  color: #dc2626;
+}
+
+.field input.fieldInvalid,
+.field textarea.fieldInvalid {
+  border-color: #dc2626;
+}
+
+.field input.fieldInvalid:focus,
+.field textarea.fieldInvalid:focus {
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
+}
+
+.fieldError {
+  margin: 7px 0 0;
+  font-size: 12.5px;
+  color: #dc2626;
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;

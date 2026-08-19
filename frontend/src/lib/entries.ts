@@ -1,5 +1,4 @@
-import { API_BASE_URL } from './api';
-import { getToken } from './auth';
+import { authorizedFetch } from './auth';
 
 export interface Entry {
   id: string;
@@ -43,11 +42,6 @@ interface ErrorPayload {
   message?: string | string[];
 }
 
-function authHeaders(): HeadersInit {
-  const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 function extractMessage(payload: ErrorPayload | null, fallback: string): string {
   if (!payload?.message) return fallback;
   return Array.isArray(payload.message) ? payload.message.join(', ') : payload.message;
@@ -56,11 +50,10 @@ function extractMessage(payload: ErrorPayload | null, fallback: string): string 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await authorizedFetch(path, {
       ...init,
       headers: {
         'Content-Type': 'application/json',
-        ...authHeaders(),
         ...init?.headers,
       },
     });

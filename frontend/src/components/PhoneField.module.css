@@ -1,0 +1,56 @@
+.phone {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #f8fafc;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
+}
+
+.phone:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  background: #fff;
+}
+
+.phone.invalid {
+  border-color: #dc2626;
+}
+
+.phone.invalid:focus-within {
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
+}
+
+.phone :global(.PhoneInputInput) {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14.5px;
+  color: #0f172a;
+  padding: 0;
+}
+
+.phone :global(.PhoneInputInput::placeholder) {
+  color: #94a3b8;
+}
+
+.phone :global(.PhoneInputCountry) {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+}
+
+.phone :global(.PhoneInputCountryIcon) {
+  width: 22px;
+  box-shadow: none;
+}
