@@ -11,6 +11,7 @@ import { CategoriesService } from './categories.service';
 import { CATEGORY_TYPES } from './category.model';
 import type { CategoryType } from './category.model';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { BulkCreateCategoriesDto } from './dto/bulk-create-categories.dto';
 
 @ApiTags('categories')
 @ApiBearerAuth()
@@ -44,5 +45,22 @@ export class CategoriesController {
   @Post()
   create(@Body() dto: CreateCategoryDto) {
     return this.categoriesService.findOrCreate(dto.name, dto.type);
+  }
+
+  @ApiOperation({
+    summary: 'Create many categories at once',
+    description:
+      'Used right before a category set is saved: values typed into the axes are held in the browser until then, so an abandoned wizard leaves nothing behind. ' +
+      'Existing values are reused, and the response keeps the request order.',
+  })
+  @ApiResponse({ status: 201, description: 'Categories created or reused.' })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation failed, or the batch exceeds the size limit.',
+  })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @Post('bulk')
+  createMany(@Body() dto: BulkCreateCategoriesDto) {
+    return this.categoriesService.findOrCreateMany(dto.categories);
   }
 }

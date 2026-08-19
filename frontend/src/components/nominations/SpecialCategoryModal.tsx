@@ -34,6 +34,9 @@ interface SpecialCategoryModalProps {
   onCategoryCreated: (category: Category) => void;
   onSubmit: (nominations: SpecialNominationDraft[]) => void;
   submitLabel?: string;
+  // Як завести нове значення осі. За замовчуванням — одразу в спільний
+  // довідник; конструктор набору підставляє сюди чернетку.
+  createCategoryValue?: (name: string, type: CategoryType) => Promise<Category>;
 }
 
 // Осі, з якими перетинається спецкатегорія. Кількість учасників сюди не
@@ -56,6 +59,7 @@ export default function SpecialCategoryModal({
   onCategoryCreated,
   onSubmit,
   submitLabel = 'Додати до шаблону',
+  createCategoryValue = createCategory,
 }: SpecialCategoryModalProps) {
   const [specialName, setSpecialName] = useState('');
   const [programs, setPrograms] = useState<Category[]>([]);
@@ -108,8 +112,10 @@ export default function SpecialCategoryModal({
     setAddingType(type);
     setError(null);
     try {
-      // Бек поверне наявну категорію, якщо така вже є в спільному довіднику.
-      const category = await createCategory(raw, type);
+      // Чи піде значення в довідник одразу, чи почекає до збереження набору,
+      // вирішує батько: в готовому конкурсі відкладати нема куди, а в майстрі
+      // й редакторі шаблону — навпаки, не можна створювати наперед.
+      const category = await createCategoryValue(raw, type);
       setValuesOf(type, [...current, category]);
       onCategoryCreated(category);
       setInputs((prev) => ({ ...prev, [type]: '' }));

@@ -11,8 +11,9 @@ import {
   updateCategoryTemplate,
 } from '../lib/categoryTemplates';
 import NominationSetBuilder from '../components/nominations/NominationSetBuilder';
-import { savedSignatureOf } from '../lib/nominationSet';
+import { resolveDraftCategories, savedSignatureOf } from '../lib/nominationSet';
 import type { AxisSelection, DraftNomination } from '../lib/nominationSet';
+import { CategoryApiError } from '../lib/categories';
 import styles from './CategoryTemplateFormPage.module.css';
 
 /**
@@ -109,6 +110,24 @@ export default function CategoryTemplateFormPage() {
       return;
     }
 
+    setSubmitting(true);
+    try {
+      // Значення осей, набрані руками, досі жили лише в браузері — заводимо їх
+      // у довіднику саме тут, коли набір справді зберігається.
+      const resolved = await resolveDraftCategories(nominations);
+      await save(resolved);
+    } catch (err) {
+      setSubmitError(
+        err instanceof CategoryTemplateApiError || err instanceof CategoryApiError
+          ? err.message
+          : `Не вдалося ${isEdit ? 'зберегти' : 'створити'} шаблон. Спробуйте ще раз.`,
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const save = async (nominations: DraftNomination[]) => {
     const payload = {
       name: name.trim(),
       description: description.trim() || undefined,
@@ -124,24 +143,13 @@ export default function CategoryTemplateFormPage() {
       })),
     };
 
-    setSubmitting(true);
-    try {
-      const template = id
-        ? await updateCategoryTemplate(id, payload)
-        : await createCategoryTemplate(payload);
-      showToast(
-        isEdit ? `Шаблон «${template.name}» збережено` : `Шаблон «${template.name}» створено`,
-      );
-      setTimeout(() => navigate('/category-templates'), 700);
-    } catch (err) {
-      setSubmitError(
-        err instanceof CategoryTemplateApiError
-          ? err.message
-          : `Не вдалося ${isEdit ? 'зберегти' : 'створити'} шаблон. Спробуйте ще раз.`,
-      );
-    } finally {
-      setSubmitting(false);
-    }
+    const template = id
+      ? await updateCategoryTemplate(id, payload)
+      : await createCategoryTemplate(payload);
+    showToast(
+      isEdit ? `Шаблон «${template.name}» збережено` : `Шаблон «${template.name}» створено`,
+    );
+    setTimeout(() => navigate('/category-templates'), 700);
   };
 
   if (!getToken()) {

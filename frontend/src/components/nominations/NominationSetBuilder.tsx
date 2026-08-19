@@ -4,16 +4,16 @@ import type { SpecialNominationDraft } from './SpecialCategoryModal';
 import {
   CATEGORY_TYPES,
   CATEGORY_TYPE_LABELS,
-  CategoryApiError,
-  createCategory,
   getCategories,
 } from '../../lib/categories';
 import type { Category, CategoryType } from '../../lib/categories';
 import type { ExitMode } from '../../lib/categoryTemplates';
 import {
   MAX_NOMINATIONS,
+  draftCategory,
   emptyAxisSelection,
   pluralNominations,
+  sameCategoryValue,
   signatureOf,
 } from '../../lib/nominationSet';
 import type { AxisSelection, DraftNomination } from '../../lib/nominationSet';
@@ -54,7 +54,6 @@ export default function NominationSetBuilder({
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Category[]>([]);
   const [inputs, setInputs] = useState<Record<string, string>>({});
-  const [addingType, setAddingType] = useState<CategoryType | null>(null);
   const [specialOpen, setSpecialOpen] = useState(false);
 
   useEffect(() => {
@@ -91,40 +90,34 @@ export default function NominationSetBuilder({
     return active.reduce((acc, values) => acc * values.length, 1);
   }, [selection]);
 
-  const addValue = async (type: CategoryType) => {
+  /**
+   * Значення осі нікуди не летить: воно лишається чернеткою до моменту, коли
+   * людина збереже набір. Кинутий на півдорозі майстер не має лишати по собі
+   * рядки в спільному довіднику.
+   */
+  const addValue = (type: CategoryType) => {
     const raw = (inputs[type] ?? '').trim();
     if (!raw) return;
 
-    const alreadyPicked = selection[type].some(
-      (c) => c.name.trim().toLowerCase() === raw.toLowerCase(),
-    );
-    if (alreadyPicked) {
-      setInputs((prev) => ({ ...prev, [type]: '' }));
+    const clearInput = () => setInputs((prev) => ({ ...prev, [type]: '' }));
+    const candidate = { name: raw, type };
+
+    if (selection[type].some((c) => sameCategoryValue(c, candidate))) {
+      clearInput();
       return;
     }
 
-    setAddingType(type);
-    setError(null);
-    try {
-      // Бек поверне наявну категорію, якщо така вже є в спільному довіднику.
-      const category = await createCategory(raw, type);
-      updateSelection((current) => ({
-        ...current,
-        [type]: [...current[type], category],
-      }));
-      setSuggestions((prev) =>
-        prev.some((s) => s.id === category.id) ? prev : [...prev, category],
-      );
-      setInputs((prev) => ({ ...prev, [type]: '' }));
-    } catch (err) {
-      setError(
-        err instanceof CategoryApiError
-          ? err.message
-          : 'Не вдалося додати значення категорії.',
-      );
-    } finally {
-      setAddingType(null);
-    }
+    // Збіг із довідником шукаємо тут, а не лишаємо на бек: інакше набране
+    // «профі» стане окремою чернеткою, і те, що воно склеїться з наявним
+    // «ПРОФІ», людина побачить аж після збереження.
+    const existing = suggestions.find((s) => sameCategoryValue(s, candidate));
+    const category = existing ?? draftCategory(raw, type);
+
+    updateSelection((current) => ({
+      ...current,
+      [type]: [...current[type], category],
+    }));
+    clearInput();
   };
 
   const removeValue = (type: CategoryType, id: string) =>
@@ -261,7 +254,7 @@ export default function NominationSetBuilder({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
-                      void addValue(type);
+                      addValue(type);
                     }
                   }}
                 />
@@ -273,10 +266,9 @@ export default function NominationSetBuilder({
                 <button
                   type="button"
                   className={`${styles.btn} ${styles.btnSm}`}
-                  onClick={() => void addValue(type)}
-                  disabled={addingType === type}
+                  onClick={() => addValue(type)}
                 >
-                  {addingType === type ? 'Додаю...' : 'Додати значення'}
+                  Додати значення
                 </button>
               </div>
             </div>
@@ -402,6 +394,12 @@ export default function NominationSetBuilder({
         open={specialOpen}
         categories={suggestions}
         submitLabel="Додати до набору"
+        createCategoryValue={(name, type) =>
+          Promise.resolve(
+            suggestions.find((s) => sameCategoryValue(s, { name, type })) ??
+              draftCategory(name, type),
+          )
+        }
         onClose={() => setSpecialOpen(false)}
         onCategoryCreated={(category) =>
           setSuggestions((prev) =>

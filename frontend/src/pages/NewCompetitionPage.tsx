@@ -9,7 +9,12 @@ import type { CreatedJudge } from '../lib/judges';
 import { createVenue } from '../lib/venues';
 import { createNominationsBulk } from '../lib/nominations';
 import NominationSetBuilder from '../components/nominations/NominationSetBuilder';
-import { pluralNominations, savedSignatureOf } from '../lib/nominationSet';
+import { CategoryApiError } from '../lib/categories';
+import {
+  pluralNominations,
+  resolveDraftCategories,
+  savedSignatureOf,
+} from '../lib/nominationSet';
 import type { AxisSelection, DraftNomination } from '../lib/nominationSet';
 import {
   CategoryTemplateApiError,
@@ -260,13 +265,21 @@ export default function NewCompetitionPage() {
     setSubmitError(null);
     setSubmitting(true);
     try {
+      // Значення осей, набрані руками на кроці категорій, досі жили лише в
+      // браузері — заводимо їх у довіднику аж тут. Кинутий на півдорозі майстер
+      // не має лишати по собі рядків, які потім бачать усі організатори.
+      const saved =
+        nominationSource === 'custom'
+          ? await resolveDraftCategories(nominations)
+          : nominations;
+
       // Шаблон зберігається до конкурсу навмисно: якщо збереження впаде,
       // конкурс не створиться, а складений набір лишиться на екрані. У
       // зворотному порядку людина втратила б сітку, яку набирала руками.
       if (nominationSource === 'custom') {
         await createCategoryTemplate({
           name: templateName.trim(),
-          nominations: nominations.map((n, index) => ({
+          nominations: saved.map((n, index) => ({
             name: n.name.trim(),
             price: n.price.trim() === '' ? undefined : Number(n.price),
             allowsImprovisation: n.allowsImprovisation,
@@ -312,11 +325,11 @@ export default function NewCompetitionPage() {
           .filter((v) => v.name.trim())
           .map((v) => createVenue(competition.id, v.name.trim(), v.note.trim())),
         // Один запит на весь набір замість запиту на кожну номінацію.
-        ...(nominations.length > 0
+        ...(saved.length > 0
           ? [
               createNominationsBulk(
                 competition.id,
-                nominations.map((n) => ({
+                saved.map((n) => ({
                   name: n.name,
                   price: n.price.trim() === '' ? undefined : Number(n.price),
                   allowsImprovisation: n.allowsImprovisation,
@@ -338,7 +351,10 @@ export default function NewCompetitionPage() {
     } catch (err) {
       // Помилка шаблону приходить своїм класом і має інший текст: конкурсу ще
       // немає, і казати «не вдалося створити конкурс» було б брехнею.
-      if (err instanceof CategoryTemplateApiError) {
+      if (err instanceof CategoryApiError) {
+        setSubmitError(`Не вдалося зберегти значення категорій: ${err.message}`);
+        goStep(5);
+      } else if (err instanceof CategoryTemplateApiError) {
         setSubmitError(`Не вдалося зберегти шаблон: ${err.message}`);
         goStep(5);
       } else {
