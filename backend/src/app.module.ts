@@ -12,6 +12,7 @@ import { NominationsModule } from './nominations/nominations.module';
 import { CategoriesModule } from './categories/categories.module';
 import { CategoryTemplatesModule } from './category-templates/category-templates.module';
 import { PaymentDetailsModule } from './payment-details/payment-details.module';
+import { CompetitionRulesModule } from './competition-rules/competition-rules.module';
 import { MailModule } from './mail/mail.module';
 import { UploadsModule } from './uploads/uploads.module';
 
@@ -47,6 +48,7 @@ import { UploadsModule } from './uploads/uploads.module';
     CategoryTemplatesModule,
     PaymentDetailsModule,
     UploadsModule,
+    CompetitionRulesModule,
   ],
 })
 export class AppModule {}
