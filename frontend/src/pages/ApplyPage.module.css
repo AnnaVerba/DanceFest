@@ -1,20 +1,20 @@
 .main {
-  --surface: #fff;
-  --field: #f8fafc;
-  --field-off: #eef2f7;
-  --line: #e5e7eb;
-  --ink: #0f172a;
-  --ink-soft: #334155;
-  --muted: #64748b;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --gold: #b07d1e;
-  --gold-hover: #96690f;
-  --danger: #dc2626;
+  --surface: var(--g-surface);
+  --field: var(--g-field);
+  --field-off: var(--g-field-off);
+  --line: var(--g-line);
+  --ink: var(--g-ink);
+  --ink-soft: var(--g-ink-soft);
+  --muted: var(--g-muted);
+  --accent: var(--g-accent);
+  --accent-hover: var(--g-accent-hover);
+  --gold: var(--g-gold);
+  --gold-hover: var(--g-gold-hover);
+  --danger: var(--g-danger);
   --r: 14px;
   --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 6px 24px rgba(15, 23, 42, 0.06);
 
-  background: #f1f5f9;
+  background: var(--g-page-bg);
   color: var(--ink);
   font-size: 15px;
   line-height: 1.5;
@@ -115,13 +115,13 @@
 }
 
 .field input::placeholder {
-  color: #94a3b8;
+  color: var(--g-subtle);
 }
 
 .field input:focus,
 .field select:focus {
   outline: none;
-  background: #fff;
+  background: var(--g-surface);
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
@@ -215,7 +215,7 @@
 }
 
 .toggle button:hover {
-  background: #eef2f7;
+  background: var(--g-field-off);
 }
 
 .toggle button[aria-pressed='true'] {
@@ -250,9 +250,9 @@
   margin: 0 0 20px;
   padding: 12px 14px;
   border-radius: 8px;
-  background: #dcfce7;
-  border: 1px solid #bbf7d0;
-  color: #15803d;
+  background: var(--g-success-bg);
+  border: 1px solid var(--g-success-border);
+  color: var(--g-success);
   font-size: 13.5px;
 }
 

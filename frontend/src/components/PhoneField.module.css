@@ -4,9 +4,9 @@
   gap: 8px;
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--g-line);
   border-radius: 9px;
-  background: #f8fafc;
+  background: var(--g-field);
   transition:
     border-color 0.15s,
     box-shadow 0.15s,
@@ -14,13 +14,13 @@
 }
 
 .phone:focus-within {
-  border-color: #2563eb;
+  border-color: var(--g-accent);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-  background: #fff;
+  background: var(--g-surface);
 }
 
 .phone.invalid {
-  border-color: #dc2626;
+  border-color: var(--g-danger);
 }
 
 .phone.invalid:focus-within {
@@ -35,12 +35,12 @@
   background: transparent;
   font: inherit;
   font-size: 14.5px;
-  color: #0f172a;
+  color: var(--g-ink);
   padding: 0;
 }
 
 .phone :global(.PhoneInputInput::placeholder) {
-  color: #94a3b8;
+  color: var(--g-subtle);
 }
 
 .phone :global(.PhoneInputCountry) {
