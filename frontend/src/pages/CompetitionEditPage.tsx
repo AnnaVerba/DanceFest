@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import AdminHeader from '../components/AdminHeader';
@@ -11,6 +11,7 @@ import {
   getPaymentDetails,
   upsertPaymentDetails,
 } from '../lib/paymentDetails';
+import { UploadApiError, uploadImage } from '../lib/uploads';
 import { isValidEmail, isValidPhone } from '../lib/validation';
 import styles from './CompetitionFormPage.module.css';
 
@@ -69,6 +70,9 @@ export default function CompetitionEditPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<ContactFieldErrors>({});
+  const [bannerUploading, setBannerUploading] = useState(false);
+  const [bannerError, setBannerError] = useState<string | null>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -120,6 +124,24 @@ export default function CompetitionEditPage() {
     (key: keyof CompetitionInput) =>
     (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((prev) => ({ ...prev, [key]: e.target.value }));
+
+  const handleBannerPick = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setBannerError(null);
+    setBannerUploading(true);
+    try {
+      const url = await uploadImage(file);
+      setForm((prev) => ({ ...prev, image: url }));
+    } catch (err) {
+      setBannerError(
+        err instanceof UploadApiError ? err.message : 'Не вдалося завантажити банер.',
+      );
+    } finally {
+      setBannerUploading(false);
+    }
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -255,14 +277,45 @@ export default function CompetitionEditPage() {
                     />
                   </div>
                   <div className={styles.field}>
-                    <label htmlFor="image">Банер (посилання на зображення)</label>
-                    <input
-                      id="image"
-                      type="url"
-                      value={form.image}
-                      onChange={update('image')}
-                      placeholder="https://example.com/poster.jpg"
-                    />
+                    <label htmlFor="image">Банер</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        id="image"
+                        type="url"
+                        value={form.image}
+                        onChange={update('image')}
+                        placeholder="https://example.com/poster.jpg"
+                      />
+                      <button
+                        type="button"
+                        className={styles.btnSecondary}
+                        style={{ flex: 'none' }}
+                        onClick={() => bannerInputRef.current?.click()}
+                        disabled={bannerUploading}
+                      >
+                        {bannerUploading ? 'Завантаження...' : 'Завантажити'}
+                      </button>
+                      <input
+                        ref={bannerInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => void handleBannerPick(e)}
+                        style={{ display: 'none' }}
+                      />
+                    </div>
+                    {bannerError && <p className={styles.fieldError}>{bannerError}</p>}
+                    {form.image && (
+                      <img
+                        src={form.image}
+                        alt=""
+                        style={{
+                          marginTop: 10,
+                          maxHeight: 120,
+                          borderRadius: 7,
+                          display: 'block',
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
               </section>

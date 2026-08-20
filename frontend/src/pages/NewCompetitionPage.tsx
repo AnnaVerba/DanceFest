@@ -25,6 +25,7 @@ import {
 } from '../lib/categoryTemplates';
 import type { CategoryTemplate } from '../lib/categoryTemplates';
 import { upsertPaymentDetails } from '../lib/paymentDetails';
+import { UploadApiError, uploadImage } from '../lib/uploads';
 import { isValidEmail, isValidPhone } from '../lib/validation';
 import styles from './NewCompetitionPage.module.css';
 
@@ -110,6 +111,9 @@ export default function NewCompetitionPage() {
   const [registrationFrom, setRegistrationFrom] = useState('');
   const [registrationTo, setRegistrationTo] = useState('');
   const [bannerName, setBannerName] = useState<string | null>(null);
+  const [bannerUrl, setBannerUrl] = useState<string | null>(null);
+  const [bannerUploading, setBannerUploading] = useState(false);
+  const [bannerError, setBannerError] = useState<string | null>(null);
 
   const [contactNumber, setContactNumber] = useState('');
   const [contactEmail, setContactEmail] = useState('');
@@ -217,9 +221,25 @@ export default function NewCompetitionPage() {
     window.scrollTo(0, 0);
   };
 
-  const handleBannerPick = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleBannerPick = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    setBannerName(file ? file.name : null);
+    if (!file) return;
+
+    setBannerName(file.name);
+    setBannerUrl(null);
+    setBannerError(null);
+    setBannerUploading(true);
+    try {
+      const url = await uploadImage(file);
+      setBannerUrl(url);
+    } catch (err) {
+      setBannerError(
+        err instanceof UploadApiError ? err.message : 'Не вдалося завантажити банер.',
+      );
+      setBannerName(null);
+    } finally {
+      setBannerUploading(false);
+    }
   };
 
   const addJudge = () => {
@@ -396,6 +416,7 @@ export default function NewCompetitionPage() {
       }
 
       const competition = await createCompetition({
+        image: bannerUrl ?? undefined,
         name: name.trim(),
         description: description.trim(),
         location: location.trim(),
@@ -591,33 +612,47 @@ export default function NewCompetitionPage() {
               </p>
               <div className={styles.field}>
                 <label htmlFor="w-name">Банер конкурсу</label>
-                <button
-                  type="button"
-                  className={styles.dropzone}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <svg
-                    width="26"
-                    height="26"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    aria-hidden="true"
+                {bannerUrl ? (
+                  <button
+                    type="button"
+                    className={styles.dropzone}
+                    onClick={() => fileInputRef.current?.click()}
                   >
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <circle cx="8.5" cy="8.5" r="1.5" />
-                    <path d="M21 15l-5-5L5 21" />
-                  </svg>
-                  {bannerName ?? 'Перетягніть банер конкурсу'}
-                </button>
+                    <img src={bannerUrl} alt="" className={styles.bannerPreview} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.dropzone}
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={bannerUploading}
+                  >
+                    <svg
+                      width="26"
+                      height="26"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      aria-hidden="true"
+                    >
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <path d="M21 15l-5-5L5 21" />
+                    </svg>
+                    {bannerUploading
+                      ? 'Завантаження...'
+                      : (bannerName ?? 'Перетягніть банер конкурсу')}
+                  </button>
+                )}
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
-                  onChange={handleBannerPick}
+                  onChange={(e) => void handleBannerPick(e)}
                   style={{ display: 'none' }}
                 />
+                {bannerError && <p className={styles.fieldError}>{bannerError}</p>}
               </div>
               <div className={styles.field}>
                 <label htmlFor="w-name">

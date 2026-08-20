@@ -8,7 +8,6 @@ backend/node_modules/
 backend/dist/
 .idea/
 
-# Скріншоти та артефакти браузерних прогонів
 *.png
 .playwright-mcp/
 graphify-out/
