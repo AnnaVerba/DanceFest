@@ -57,10 +57,6 @@ export class NominationsService {
     return this.toDto(nomination, await this.loadCategories([nomination]));
   }
 
-  /**
-   * Копіювання набору з шаблону. Раніше фронт слав по запиту на номінацію —
-   * на п'яти осях по чотири значення це 1024 HTTP-запити.
-   */
   async bulkCreate(
     competitionId: string,
     requesterId: string,

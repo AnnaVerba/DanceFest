@@ -7,6 +7,7 @@ import {
   Table,
 } from 'sequelize-typescript';
 import { Competition } from '../competitions/competition.model';
+import { Venue } from '../venues/venue.model';
 import type { ExitMode } from './nomination-exits';
 
 @Table({ tableName: 'nominations' })
@@ -22,14 +23,16 @@ export class Nomination extends Model<Nomination> {
   @Column({ type: DataType.UUID, allowNull: false })
   declare competitionId: string;
 
+  @ForeignKey(() => Venue)
+  @Column({ type: DataType.UUID, allowNull: true })
+  declare venueId: string | null;
+
   @Column({ type: DataType.STRING, allowNull: false })
   declare name: string;
 
   @Column({ type: DataType.DECIMAL(10, 2), allowNull: true })
   declare price: number | null;
 
-  // Дозвіл від адміна. Позначку «це імпровізація» ставить учасник у заявці
-  // (entries.improv) — це різні речі.
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   declare allowsImprovisation: boolean;
 
@@ -60,6 +63,9 @@ export class Nomination extends Model<Nomination> {
 
   @BelongsTo(() => Competition)
   declare competition: Competition;
+
+  @BelongsTo(() => Venue)
+  declare venue: Venue;
 
   @Column(DataType.DATE)
   declare createdAt: Date;

@@ -1,5 +1,6 @@
 import { randomInt } from 'crypto';
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -7,9 +8,10 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import * as bcrypt from 'bcrypt';
-import { CreationAttributes } from 'sequelize';
+import { CreationAttributes, UniqueConstraintError } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
+import { MailService } from '../mail/mail.service';
 import { Judge } from './judge.model';
 import { CreateJudgeDto } from './dto/create-judge.dto';
 import { JudgeLoginDto } from './dto/judge-login.dto';
@@ -35,6 +37,7 @@ export class JudgesService {
     private readonly competitionAdminModel: typeof CompetitionAdmin,
     @InjectModel(Judge)
     private readonly judgeModel: typeof Judge,
+    private readonly mailService: MailService,
   ) {}
 
   async list(competitionId: string, requesterId: string) {
@@ -51,19 +54,42 @@ export class JudgesService {
     requesterId: string,
     dto: CreateJudgeDto,
   ) {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+    const competition = await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+    );
 
     const tempPassword = generateTempPassword();
     const passwordHash = await bcrypt.hash(tempPassword, SALT_ROUNDS);
 
-    const judge = await this.judgeModel.create({
-      competitionId,
-      name: dto.name.trim(),
-      email: dto.email.trim(),
-      passwordHash,
-    } as CreationAttributes<Judge>);
+    let judge: Judge;
+    try {
+      judge = await this.judgeModel.create({
+        competitionId,
+        venueId: dto.venueId ?? null,
+        name: dto.name.trim(),
+        email: dto.email.trim(),
+        passwordHash,
+      } as CreationAttributes<Judge>);
+    } catch (err) {
+      if (err instanceof UniqueConstraintError) {
+        throw new ConflictException('Суддя з таким email вже доданий до конкурсу');
+      }
+      throw err;
+    }
 
-    return { ...this.toDto(judge), tempPassword };
+    const emailSent = await this.mailService.sendJudgeTempPassword({
+      to: judge.email,
+      judgeName: judge.name,
+      competitionName: competition.name,
+      tempPassword,
+    });
+
+    return { ...this.toDto(judge), tempPassword, emailSent };
+  }
+
+  findByEmail(email: string): Promise<Judge | null> {
+    return this.judgeModel.findOne({ where: { email: email.trim() } });
   }
 
   async remove(
@@ -122,6 +148,7 @@ export class JudgesService {
       id: judge.id,
       name: judge.name,
       email: judge.email,
+      venueId: judge.venueId,
       addedAt: judge.createdAt,
     };
   }

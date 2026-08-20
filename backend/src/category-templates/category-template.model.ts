@@ -35,7 +35,6 @@ export class CategoryTemplate extends Model<CategoryTemplate> {
   @BelongsTo(() => Admin, 'authorId')
   declare author: Admin;
 
-  // Заповнюється, коли шаблон створено як копію чужого публічного.
   @ForeignKey(() => CategoryTemplate)
   @Column({ type: DataType.UUID, allowNull: true })
   declare forkedFromId: string | null;

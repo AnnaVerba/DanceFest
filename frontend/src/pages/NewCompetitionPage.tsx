@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import AdminHeader from '../components/AdminHeader';
+import PhoneField from '../components/PhoneField';
 import { getToken } from '../lib/auth';
 import { CompetitionApiError, createCompetition } from '../lib/competitions';
 import { createJudge } from '../lib/judges';
@@ -23,6 +24,8 @@ import {
   getCategoryTemplates,
 } from '../lib/categoryTemplates';
 import type { CategoryTemplate } from '../lib/categoryTemplates';
+import { upsertPaymentDetails } from '../lib/paymentDetails';
+import { isValidEmail, isValidPhone } from '../lib/validation';
 import styles from './NewCompetitionPage.module.css';
 
 const STEP_LABELS = [
@@ -35,6 +38,7 @@ const STEP_LABELS = [
   'Розподіл',
 ] as const;
 const TOTAL_STEPS = STEP_LABELS.length;
+const NOMINATIONS_STEP = 5;
 
 let draftIdCounter = 0;
 function nextDraftId(): string {
@@ -42,6 +46,34 @@ function nextDraftId(): string {
   return `draft-${draftIdCounter}`;
 }
 
+
+interface StepFieldErrors {
+  name?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  location?: string;
+  organizer?: string;
+  description?: string;
+  registrationFrom?: string;
+  registrationTo?: string;
+  contactNumber?: string;
+  contactEmail?: string;
+  paymentRecipient?: string;
+  paymentAccount?: string;
+}
+
+const STEP_1_FIELDS = [
+  'name',
+  'dateFrom',
+  'dateTo',
+  'location',
+  'organizer',
+  'description',
+  'registrationFrom',
+  'registrationTo',
+] as const;
+const STEP_2_FIELDS = ['contactNumber', 'contactEmail'] as const;
+const STEP_3_FIELDS = ['paymentRecipient', 'paymentAccount'] as const;
 
 interface DraftJudge {
   id: string;
@@ -118,11 +150,7 @@ export default function NewCompetitionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Номінації копіюються з шаблону в чернетку конкурсу й далі живуть окремо:
-  // правки тут не змінюють шаблон.
   useEffect(() => {
-    // Порожній id буває лише до завантаження списку шаблонів, коли
-    // nominations і так порожні — чистити нічого.
     if (!selectedTemplateId || nominationSource !== 'template') return;
 
     let cancelled = false;
@@ -173,6 +201,17 @@ export default function NewCompetitionPage() {
   const [createdCompetitionId, setCreatedCompetitionId] = useState<string | null>(null);
   const [createdJudges, setCreatedJudges] = useState<CreatedJudge[]>([]);
 
+  const [fieldErrors, setFieldErrors] = useState<StepFieldErrors>({});
+  const [judgeEmailError, setJudgeEmailError] = useState<string | null>(null);
+
+  const clearFieldError = (field: keyof StepFieldErrors) =>
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+
   const goStep = (n: number) => {
     setStep(Math.min(Math.max(n, 1), TOTAL_STEPS));
     window.scrollTo(0, 0);
@@ -189,9 +228,16 @@ export default function NewCompetitionPage() {
       return;
     }
     if (!judgeEmailInput.trim()) {
+      setJudgeEmailError("Вкажіть email судді.");
       judgeEmailRef.current?.focus();
       return;
     }
+    if (!isValidEmail(judgeEmailInput)) {
+      setJudgeEmailError('Перевірте формат email.');
+      judgeEmailRef.current?.focus();
+      return;
+    }
+    setJudgeEmailError(null);
     setJudges((prev) => [
       ...prev,
       { id: nextDraftId(), name: judgeNameInput.trim(), email: judgeEmailInput.trim() },
@@ -222,47 +268,105 @@ export default function NewCompetitionPage() {
   const setAssignment = (categoryId: string, venue: string) =>
     setAssignments((prev) => ({ ...prev, [categoryId]: venue }));
 
-  function validateRequired(): { message: string; step: number } | null {
-    if (!name.trim()) return { message: 'Вкажіть назву конкурсу.', step: 1 };
-    if (!dateFrom) return { message: 'Вкажіть дату початку конкурсу.', step: 1 };
-    if (dateTo && dateTo < dateFrom) {
-      return { message: 'Дата завершення раніша за дату початку.', step: 1 };
+  function validateStep1(): StepFieldErrors {
+    const errors: StepFieldErrors = {};
+    if (!name.trim()) errors.name = 'Вкажіть назву конкурсу.';
+    if (!dateFrom) errors.dateFrom = 'Вкажіть дату початку конкурсу.';
+    if (dateFrom && dateTo && dateTo < dateFrom) {
+      errors.dateTo = 'Дата завершення раніша за дату початку.';
     }
-    if (!location.trim()) return { message: 'Вкажіть місце проведення.', step: 1 };
-    if (!organizer.trim()) return { message: 'Вкажіть організатора.', step: 1 };
-    if (!description.trim()) return { message: 'Додайте опис конкурсу.', step: 1 };
-    if (!registrationFrom || !registrationTo) {
-      return { message: 'Вкажіть період реєстрації.', step: 1 };
+    if (!location.trim()) errors.location = 'Вкажіть місце проведення.';
+    if (!organizer.trim()) errors.organizer = 'Вкажіть організатора.';
+    if (!description.trim()) errors.description = 'Додайте опис конкурсу.';
+    if (!registrationFrom) errors.registrationFrom = 'Вкажіть початок реєстрації.';
+    if (!registrationTo) errors.registrationTo = 'Вкажіть кінець реєстрації.';
+    if (registrationFrom && registrationTo && registrationFrom > registrationTo) {
+      errors.registrationTo = 'Кінець реєстрації не може бути раніше за початок.';
     }
-    if (nominationSource === 'custom') {
-      if (!templateName.trim()) {
-        return { message: 'Вкажіть назву шаблону для власного набору.', step: 5 };
-      }
-      if (nominations.length === 0) {
-        return { message: 'Складіть набір номінацій або оберіть готовий шаблон.', step: 5 };
-      }
+    if (!errors.registrationTo && dateFrom && registrationTo && registrationTo > dateFrom) {
+      errors.registrationTo = 'Реєстрація має закінчитись не пізніше дати конкурсу.';
     }
-    if (!contactNumber.trim()) return { message: 'Вкажіть контактний номер.', step: 2 };
-    if (!contactEmail.trim()) return { message: 'Вкажіть контактний email.', step: 2 };
-    if (!paymentRecipient.trim()) return { message: 'Вкажіть отримувача платежу.', step: 3 };
-    if (!paymentAccount.trim()) return { message: 'Вкажіть номер картки або IBAN.', step: 3 };
+    return errors;
+  }
+
+  function validateStep2(): StepFieldErrors {
+    const errors: StepFieldErrors = {};
+    if (!contactNumber.trim()) {
+      errors.contactNumber = 'Вкажіть контактний номер.';
+    } else if (!isValidPhone(contactNumber)) {
+      errors.contactNumber = 'Перевірте формат номера телефону.';
+    }
+    if (!contactEmail.trim()) {
+      errors.contactEmail = 'Вкажіть контактний email.';
+    } else if (!isValidEmail(contactEmail)) {
+      errors.contactEmail = 'Перевірте формат email.';
+    }
+    return errors;
+  }
+
+  function validateStep3(): StepFieldErrors {
+    const errors: StepFieldErrors = {};
+    if (!paymentRecipient.trim()) errors.paymentRecipient = 'Вкажіть отримувача платежу.';
+    if (!paymentAccount.trim()) errors.paymentAccount = 'Вкажіть номер картки або IBAN.';
+    return errors;
+  }
+
+  // Власний набір не має полів із помилками — крок валідується цілком.
+  function validateNominationSet(): string | null {
+    if (nominationSource !== 'custom') return null;
+    if (!templateName.trim()) return 'Вкажіть назву шаблону для власного набору.';
+    if (nominations.length === 0) {
+      return 'Складіть набір номінацій або оберіть готовий шаблон.';
+    }
     return null;
   }
 
+  function validateStep(n: number): StepFieldErrors {
+    if (n === 1) return validateStep1();
+    if (n === 2) return validateStep2();
+    if (n === 3) return validateStep3();
+    return {};
+  }
+
+  function firstInvalidStep(errors: StepFieldErrors): number {
+    if (STEP_1_FIELDS.some((f) => errors[f])) return 1;
+    if (STEP_2_FIELDS.some((f) => errors[f])) return 2;
+    if (STEP_3_FIELDS.some((f) => errors[f])) return 3;
+    return TOTAL_STEPS;
+  }
+
   const handlePrimaryAction = async () => {
+    if (step <= 3) {
+      const errors = validateStep(step);
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors(errors);
+        setSubmitError('Перевірте позначені поля.');
+        return;
+      }
+    }
+    setFieldErrors({});
+    setSubmitError(null);
+
     if (step < TOTAL_STEPS) {
       goStep(step + 1);
       return;
     }
 
-    const validation = validateRequired();
-    if (validation) {
-      setSubmitError(validation.message);
-      goStep(validation.step);
+    const allErrors = { ...validateStep1(), ...validateStep2(), ...validateStep3() };
+    if (Object.keys(allErrors).length > 0) {
+      setFieldErrors(allErrors);
+      setSubmitError('Перевірте позначені поля.');
+      goStep(firstInvalidStep(allErrors));
       return;
     }
 
-    setSubmitError(null);
+    const nominationSetError = validateNominationSet();
+    if (nominationSetError) {
+      setSubmitError(nominationSetError);
+      goStep(NOMINATIONS_STEP);
+      return;
+    }
+
     setSubmitting(true);
     try {
       // Значення осей, набрані руками на кроці категорій, досі жили лише в
@@ -302,11 +406,14 @@ export default function NewCompetitionPage() {
         registrationTo,
         contactNumber: contactNumber.trim(),
         contactEmail: contactEmail.trim(),
-        paymentRecipient: paymentRecipient.trim() || undefined,
-        paymentAccount: paymentAccount.trim() || undefined,
-        paymentBank: paymentBank.trim() || undefined,
-        paymentTaxId: paymentTaxId.trim() || undefined,
-        paymentPurpose: paymentPurpose.trim() || undefined,
+      });
+
+      await upsertPaymentDetails(competition.id, {
+        beneficiary: paymentRecipient.trim(),
+        account: paymentAccount.trim(),
+        bankName: paymentBank.trim() || undefined,
+        taxId: paymentTaxId.trim() || undefined,
+        destination: paymentPurpose.trim() || undefined,
       });
 
       const judgeResults = await Promise.allSettled(
@@ -324,7 +431,6 @@ export default function NewCompetitionPage() {
         ...venues
           .filter((v) => v.name.trim())
           .map((v) => createVenue(competition.id, v.name.trim(), v.note.trim())),
-        // Один запит на весь набір замість запиту на кожну номінацію.
         ...(saved.length > 0
           ? [
               createNominationsBulk(
@@ -387,8 +493,8 @@ export default function NewCompetitionPage() {
             <div className={styles.panel}>
               <p className={styles.sectionTitle}>Паролі суддів</p>
               <p className={styles.sectionNote}>
-                Кожен тимчасовий пароль показується лише один раз — перекажіть його
-                судді зараз, повторно він ніде не відображається.
+                Тимчасовий пароль показується тут лише один раз. Кому лист не надійшов —
+                перекажіть пароль самі.
               </p>
               <div className={styles.list}>
                 {createdJudges.map((j) => (
@@ -398,7 +504,12 @@ export default function NewCompetitionPage() {
                       <p className={styles.sub}>{j.email}</p>
                     </div>
                     <div className={styles.spacer} />
-                    <span className={`${styles.badge} ${styles.badgeOk}`}>
+                    <span
+                      className={`${styles.badge} ${j.emailSent ? styles.badgeOk : styles.badgeWarn}`}
+                    >
+                      {j.emailSent ? 'Лист надіслано' : 'Лист не надіслано'}
+                    </span>
+                    <span className={`${styles.badge} ${styles.badgeMuted}`}>
                       {j.tempPassword}
                     </span>
                   </div>
@@ -515,19 +626,33 @@ export default function NewCompetitionPage() {
                 <input
                   id="w-name"
                   type="text"
+                  className={fieldErrors.name ? styles.fieldInvalid : undefined}
                   placeholder='Кубок «Східна ніч» 2026'
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    clearFieldError('name');
+                  }}
                 />
+                {fieldErrors.name && <p className={styles.fieldError}>{fieldErrors.name}</p>}
               </div>
               <div className={styles.field}>
-                <label htmlFor="w-desc">Опис конкурсу</label>
+                <label htmlFor="w-desc">
+                  Опис конкурсу <span className={styles.req}>*</span>
+                </label>
                 <textarea
                   id="w-desc"
+                  className={fieldErrors.description ? styles.fieldInvalid : undefined}
                   placeholder="Короткий опис конкурсу для учасників"
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(e) => {
+                    setDescription(e.target.value);
+                    clearFieldError('description');
+                  }}
                 />
+                {fieldErrors.description && (
+                  <p className={styles.fieldError}>{fieldErrors.description}</p>
+                )}
               </div>
               <div className={styles.row}>
                 <div className={styles.field}>
@@ -537,9 +662,17 @@ export default function NewCompetitionPage() {
                   <input
                     id="w-date-from"
                     type="date"
+                    className={fieldErrors.dateFrom ? styles.fieldInvalid : undefined}
                     value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
+                    onChange={(e) => {
+                      setDateFrom(e.target.value);
+                      clearFieldError('dateFrom');
+                      clearFieldError('dateTo');
+                    }}
                   />
+                  {fieldErrors.dateFrom && (
+                    <p className={styles.fieldError}>{fieldErrors.dateFrom}</p>
+                  )}
                 </div>
                 <div className={styles.field}>
                   <label htmlFor="w-date-to">Дата завершення</label>
@@ -547,12 +680,20 @@ export default function NewCompetitionPage() {
                     id="w-date-to"
                     type="date"
                     min={dateFrom || undefined}
+                    className={fieldErrors.dateTo ? styles.fieldInvalid : undefined}
                     value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
+                    onChange={(e) => {
+                      setDateTo(e.target.value);
+                      clearFieldError('dateTo');
+                    }}
                   />
-                  <p className={styles.hint}>
-                    Залиште порожнім, якщо конкурс на один день.
-                  </p>
+                  {fieldErrors.dateTo ? (
+                    <p className={styles.fieldError}>{fieldErrors.dateTo}</p>
+                  ) : (
+                    <p className={styles.hint}>
+                      Залиште порожнім, якщо конкурс на один день.
+                    </p>
+                  )}
                 </div>
               </div>
               <div className={styles.field}>
@@ -561,12 +702,18 @@ export default function NewCompetitionPage() {
                 </label>
                 <input
                   id="w-place"
-                  className={styles.half}
+                  className={`${styles.half} ${fieldErrors.location ? styles.fieldInvalid : ''}`}
                   type="text"
                   placeholder="м. Львів, Палац культури"
                   value={location}
-                  onChange={(e) => setLocation(e.target.value)}
+                  onChange={(e) => {
+                    setLocation(e.target.value);
+                    clearFieldError('location');
+                  }}
                 />
+                {fieldErrors.location && (
+                  <p className={styles.fieldError}>{fieldErrors.location}</p>
+                )}
               </div>
               <div className={styles.field}>
                 <label htmlFor="w-org">
@@ -574,31 +721,56 @@ export default function NewCompetitionPage() {
                 </label>
                 <input
                   id="w-org"
-                  className={styles.half}
+                  className={`${styles.half} ${fieldErrors.organizer ? styles.fieldInvalid : ''}`}
                   type="text"
                   placeholder='Студія східного танцю «Джерело»'
                   value={organizer}
-                  onChange={(e) => setOrganizer(e.target.value)}
+                  onChange={(e) => {
+                    setOrganizer(e.target.value);
+                    clearFieldError('organizer');
+                  }}
                 />
+                {fieldErrors.organizer && (
+                  <p className={styles.fieldError}>{fieldErrors.organizer}</p>
+                )}
               </div>
               <div className={styles.row}>
                 <div className={styles.field}>
-                  <label htmlFor="w-from">Реєстрація з</label>
+                  <label htmlFor="w-from">
+                    Реєстрація з <span className={styles.req}>*</span>
+                  </label>
                   <input
                     id="w-from"
                     type="date"
+                    className={fieldErrors.registrationFrom ? styles.fieldInvalid : undefined}
                     value={registrationFrom}
-                    onChange={(e) => setRegistrationFrom(e.target.value)}
+                    onChange={(e) => {
+                      setRegistrationFrom(e.target.value);
+                      clearFieldError('registrationFrom');
+                      clearFieldError('registrationTo');
+                    }}
                   />
+                  {fieldErrors.registrationFrom && (
+                    <p className={styles.fieldError}>{fieldErrors.registrationFrom}</p>
+                  )}
                 </div>
                 <div className={styles.field}>
-                  <label htmlFor="w-to">Реєстрація до</label>
+                  <label htmlFor="w-to">
+                    Реєстрація до <span className={styles.req}>*</span>
+                  </label>
                   <input
                     id="w-to"
                     type="date"
+                    className={fieldErrors.registrationTo ? styles.fieldInvalid : undefined}
                     value={registrationTo}
-                    onChange={(e) => setRegistrationTo(e.target.value)}
+                    onChange={(e) => {
+                      setRegistrationTo(e.target.value);
+                      clearFieldError('registrationTo');
+                    }}
                   />
+                  {fieldErrors.registrationTo && (
+                    <p className={styles.fieldError}>{fieldErrors.registrationTo}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -614,13 +786,19 @@ export default function NewCompetitionPage() {
                   <label htmlFor="w-phone">
                     Контактний номер <span className={styles.req}>*</span>
                   </label>
-                  <input
+                  <PhoneField
                     id="w-phone"
-                    type="tel"
-                    placeholder="+380 67 123 45 67"
+                    ariaLabel="Контактний номер"
+                    invalid={Boolean(fieldErrors.contactNumber)}
                     value={contactNumber}
-                    onChange={(e) => setContactNumber(e.target.value)}
+                    onChange={(v) => {
+                      setContactNumber(v);
+                      clearFieldError('contactNumber');
+                    }}
                   />
+                  {fieldErrors.contactNumber && (
+                    <p className={styles.fieldError}>{fieldErrors.contactNumber}</p>
+                  )}
                 </div>
                 <div className={styles.field} style={{ marginBottom: 0 }}>
                   <label htmlFor="w-email">
@@ -629,10 +807,17 @@ export default function NewCompetitionPage() {
                   <input
                     id="w-email"
                     type="email"
+                    className={fieldErrors.contactEmail ? styles.fieldInvalid : undefined}
                     placeholder="contest@studio.ua"
                     value={contactEmail}
-                    onChange={(e) => setContactEmail(e.target.value)}
+                    onChange={(e) => {
+                      setContactEmail(e.target.value);
+                      clearFieldError('contactEmail');
+                    }}
                   />
+                  {fieldErrors.contactEmail && (
+                    <p className={styles.fieldError}>{fieldErrors.contactEmail}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -653,10 +838,17 @@ export default function NewCompetitionPage() {
                   <input
                     id="w-recip"
                     type="text"
+                    className={fieldErrors.paymentRecipient ? styles.fieldInvalid : undefined}
                     placeholder="ФОП Ковальчук О. М."
                     value={paymentRecipient}
-                    onChange={(e) => setPaymentRecipient(e.target.value)}
+                    onChange={(e) => {
+                      setPaymentRecipient(e.target.value);
+                      clearFieldError('paymentRecipient');
+                    }}
                   />
+                  {fieldErrors.paymentRecipient && (
+                    <p className={styles.fieldError}>{fieldErrors.paymentRecipient}</p>
+                  )}
                 </div>
                 <div className={styles.field}>
                   <label htmlFor="w-iban">
@@ -665,10 +857,17 @@ export default function NewCompetitionPage() {
                   <input
                     id="w-iban"
                     type="text"
+                    className={fieldErrors.paymentAccount ? styles.fieldInvalid : undefined}
                     placeholder="UA12 3456 7800 0002 6007 2335 6600 1"
                     value={paymentAccount}
-                    onChange={(e) => setPaymentAccount(e.target.value)}
+                    onChange={(e) => {
+                      setPaymentAccount(e.target.value);
+                      clearFieldError('paymentAccount');
+                    }}
                   />
+                  {fieldErrors.paymentAccount && (
+                    <p className={styles.fieldError}>{fieldErrors.paymentAccount}</p>
+                  )}
                 </div>
               </div>
               <div className={styles.row3} style={{ marginBottom: 0 }}>
@@ -750,10 +949,14 @@ export default function NewCompetitionPage() {
                 <input
                   ref={judgeEmailRef}
                   type="email"
+                  className={judgeEmailError ? styles.fieldInvalid : undefined}
                   placeholder="email судді"
                   aria-label="Email судді"
                   value={judgeEmailInput}
-                  onChange={(e) => setJudgeEmailInput(e.target.value)}
+                  onChange={(e) => {
+                    setJudgeEmailInput(e.target.value);
+                    setJudgeEmailError(null);
+                  }}
                   onKeyDown={(e) => e.key === 'Enter' && addJudge()}
                 />
                 <button
@@ -764,6 +967,7 @@ export default function NewCompetitionPage() {
                   Додати
                 </button>
               </div>
+              {judgeEmailError && <p className={styles.fieldError}>{judgeEmailError}</p>}
             </div>
           )}
 

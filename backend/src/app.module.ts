@@ -12,12 +12,14 @@ import { NominationsModule } from './nominations/nominations.module';
 import { CategoriesModule } from './categories/categories.module';
 import { CategoryTemplatesModule } from './category-templates/category-templates.module';
 import { PaymentDetailsModule } from './payment-details/payment-details.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    MailModule,
     SequelizeModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

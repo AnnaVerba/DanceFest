@@ -3,8 +3,6 @@ import { DataTypes } from 'sequelize';
 
 module.exports = {
   up: async (queryInterface: QueryInterface) => {
-    // Дозвіл від адміна. Не плутати з entries.improv — там позначка учасника,
-    // що його виступ саме імпровізація.
     await queryInterface.addColumn('nominations', 'allowsImprovisation', {
       type: DataTypes.BOOLEAN,
       allowNull: false,

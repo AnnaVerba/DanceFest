@@ -118,13 +118,7 @@ export default function CompetitionDetailPage() {
   }
 
   const isOwner = !!admin && !!competition && competition.ownerId === admin.id;
-  const hasPayment =
-    !!competition &&
-    (competition.paymentRecipient ||
-      competition.paymentAccount ||
-      competition.paymentBank ||
-      competition.paymentTaxId ||
-      competition.paymentPurpose);
+  const payment = competition?.paymentDetails ?? null;
 
   return (
     <>
@@ -282,55 +276,41 @@ export default function CompetitionDetailPage() {
 
                   <section className={styles.section}>
                     <h2 className={styles.sectionTitle}>Реквізити для оплати</h2>
-                    {hasPayment ? (
+                    {payment ? (
                       <>
                         <p className={styles.sectionNote}>
                           Оплата приймається лише переказом за реквізитами, без
                           оплати через застосунок.
                         </p>
                         <div className={`${styles.grid} ${styles.grid2}`}>
-                          {competition.paymentRecipient && (
-                            <div className={styles.item}>
-                              <div className={styles.itemLabel}>Отримувач</div>
-                              <div className={styles.itemValue}>
-                                {competition.paymentRecipient}
-                              </div>
-                            </div>
-                          )}
-                          {competition.paymentAccount && (
-                            <div className={styles.item}>
-                              <div className={styles.itemLabel}>Картка / IBAN</div>
-                              <div className={styles.itemValue}>
-                                {competition.paymentAccount}
-                              </div>
-                            </div>
-                          )}
-                          {competition.paymentBank && (
+                          <div className={styles.item}>
+                            <div className={styles.itemLabel}>Отримувач</div>
+                            <div className={styles.itemValue}>{payment.beneficiary}</div>
+                          </div>
+                          <div className={styles.item}>
+                            <div className={styles.itemLabel}>Картка / IBAN</div>
+                            <div className={styles.itemValue}>{payment.account}</div>
+                          </div>
+                          {payment.bankName && (
                             <div className={styles.item}>
                               <div className={styles.itemLabel}>Банк</div>
-                              <div className={styles.itemValue}>
-                                {competition.paymentBank}
-                              </div>
+                              <div className={styles.itemValue}>{payment.bankName}</div>
                             </div>
                           )}
-                          {competition.paymentTaxId && (
+                          {payment.taxId && (
                             <div className={styles.item}>
                               <div className={styles.itemLabel}>ЄДРПОУ / ІПН</div>
-                              <div className={styles.itemValue}>
-                                {competition.paymentTaxId}
-                              </div>
+                              <div className={styles.itemValue}>{payment.taxId}</div>
                             </div>
                           )}
                         </div>
-                        {competition.paymentPurpose && (
+                        {payment.destination && (
                           <div className={styles.grid} style={{ marginTop: 20 }}>
                             <div className={styles.item}>
                               <div className={styles.itemLabel}>
                                 Призначення платежу
                               </div>
-                              <div className={styles.itemValue}>
-                                {competition.paymentPurpose}
-                              </div>
+                              <div className={styles.itemValue}>{payment.destination}</div>
                             </div>
                           </div>
                         )}

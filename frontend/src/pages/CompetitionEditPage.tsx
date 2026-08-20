@@ -2,10 +2,31 @@ import { useEffect, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import AdminHeader from '../components/AdminHeader';
+import PhoneField from '../components/PhoneField';
 import { getToken } from '../lib/auth';
 import { CompetitionApiError, getCompetition, updateCompetition } from '../lib/competitions';
 import type { CompetitionInput } from '../lib/competitions';
+import {
+  PaymentDetailsApiError,
+  getPaymentDetails,
+  upsertPaymentDetails,
+} from '../lib/paymentDetails';
+import { isValidEmail, isValidPhone } from '../lib/validation';
 import styles from './CompetitionFormPage.module.css';
+
+interface ContactFieldErrors {
+  contactNumber?: string;
+  contactEmail?: string;
+  paymentAccount?: string;
+}
+
+interface PaymentForm {
+  beneficiary: string;
+  account: string;
+  bankName: string;
+  taxId: string;
+  destination: string;
+}
 
 const EMPTY_FORM: CompetitionInput = {
   image: '',
@@ -19,11 +40,14 @@ const EMPTY_FORM: CompetitionInput = {
   registrationTo: '',
   contactNumber: '',
   contactEmail: '',
-  paymentRecipient: '',
-  paymentAccount: '',
-  paymentBank: '',
-  paymentTaxId: '',
-  paymentPurpose: '',
+};
+
+const EMPTY_PAYMENT_FORM: PaymentForm = {
+  beneficiary: '',
+  account: '',
+  bankName: '',
+  taxId: '',
+  destination: '',
 };
 
 function toPayload(form: CompetitionInput): CompetitionInput {
@@ -39,16 +63,18 @@ export default function CompetitionEditPage() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState<CompetitionInput>(EMPTY_FORM);
+  const [paymentForm, setPaymentForm] = useState<PaymentForm>(EMPTY_PAYMENT_FORM);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<ContactFieldErrors>({});
 
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    getCompetition(id)
-      .then((c) => {
+    Promise.all([getCompetition(id), getPaymentDetails(id).catch(() => null)])
+      .then(([c, payment]) => {
         if (cancelled) return;
         setForm({
           image: c.image ?? '',
@@ -62,11 +88,13 @@ export default function CompetitionEditPage() {
           registrationTo: c.registrationTo,
           contactNumber: c.contactNumber,
           contactEmail: c.contactEmail,
-          paymentRecipient: c.paymentRecipient ?? '',
-          paymentAccount: c.paymentAccount ?? '',
-          paymentBank: c.paymentBank ?? '',
-          paymentTaxId: c.paymentTaxId ?? '',
-          paymentPurpose: c.paymentPurpose ?? '',
+        });
+        setPaymentForm({
+          beneficiary: payment?.beneficiary ?? '',
+          account: payment?.account ?? '',
+          bankName: payment?.bankName ?? '',
+          taxId: payment?.taxId ?? '',
+          destination: payment?.destination ?? '',
         });
       })
       .catch(() => {
@@ -80,6 +108,14 @@ export default function CompetitionEditPage() {
     };
   }, [id]);
 
+  const updatePayment =
+    (key: keyof PaymentForm) => (e: ChangeEvent<HTMLInputElement>) => {
+      setPaymentForm((prev) => ({ ...prev, [key]: e.target.value }));
+      if (key === 'beneficiary' || key === 'account') {
+        setFieldErrors((prev) => ({ ...prev, paymentAccount: undefined }));
+      }
+    };
+
   const update =
     (key: keyof CompetitionInput) =>
     (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -88,14 +124,46 @@ export default function CompetitionEditPage() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!id) return;
+
+    const errors: ContactFieldErrors = {};
+    if (!form.contactNumber.trim()) {
+      errors.contactNumber = 'Вкажіть контактний номер.';
+    } else if (!isValidPhone(form.contactNumber)) {
+      errors.contactNumber = 'Перевірте формат номера телефону.';
+    }
+    if (!form.contactEmail.trim()) {
+      errors.contactEmail = 'Вкажіть контактний email.';
+    } else if (!isValidEmail(form.contactEmail)) {
+      errors.contactEmail = 'Перевірте формат email.';
+    }
+    const hasBeneficiary = paymentForm.beneficiary.trim() !== '';
+    const hasAccount = paymentForm.account.trim() !== '';
+    if (hasBeneficiary !== hasAccount) {
+      errors.paymentAccount = 'Заповніть і отримувача, і номер картки/IBAN — або жодного з двох.';
+    }
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setSubmitError('Перевірте позначені поля.');
+      return;
+    }
+    setFieldErrors({});
     setSubmitError(null);
     setSubmitting(true);
     try {
       const saved = await updateCompetition(id, toPayload(form));
+      if (hasBeneficiary && hasAccount) {
+        await upsertPaymentDetails(id, {
+          beneficiary: paymentForm.beneficiary.trim(),
+          account: paymentForm.account.trim(),
+          bankName: paymentForm.bankName.trim() || undefined,
+          taxId: paymentForm.taxId.trim() || undefined,
+          destination: paymentForm.destination.trim() || undefined,
+        });
+      }
       navigate(`/competitions/${saved.id}`);
     } catch (err) {
       setSubmitError(
-        err instanceof CompetitionApiError
+        err instanceof CompetitionApiError || err instanceof PaymentDetailsApiError
           ? err.message
           : 'Не вдалося зберегти конкурс. Спробуйте ще раз.',
       );
@@ -249,25 +317,42 @@ export default function CompetitionEditPage() {
                 <h2 className={styles.sectionTitle}>Контакти</h2>
                 <div className={styles.grid2}>
                   <div className={styles.field}>
-                    <label htmlFor="contactNumber">Телефон</label>
-                    <input
+                    <label htmlFor="contactNumber">
+                      Телефон <span className={styles.req}>*</span>
+                    </label>
+                    <PhoneField
                       id="contactNumber"
-                      required
+                      ariaLabel="Телефон"
+                      invalid={Boolean(fieldErrors.contactNumber)}
                       value={form.contactNumber}
-                      onChange={update('contactNumber')}
-                      placeholder="+380501234567"
+                      onChange={(v) => {
+                        setForm((prev) => ({ ...prev, contactNumber: v }));
+                        setFieldErrors((prev) => ({ ...prev, contactNumber: undefined }));
+                      }}
                     />
+                    {fieldErrors.contactNumber && (
+                      <p className={styles.fieldError}>{fieldErrors.contactNumber}</p>
+                    )}
                   </div>
                   <div className={styles.field}>
-                    <label htmlFor="contactEmail">Email</label>
+                    <label htmlFor="contactEmail">
+                      Email <span className={styles.req}>*</span>
+                    </label>
                     <input
                       id="contactEmail"
                       type="email"
                       required
+                      className={fieldErrors.contactEmail ? styles.fieldInvalid : undefined}
                       value={form.contactEmail}
-                      onChange={update('contactEmail')}
+                      onChange={(e) => {
+                        update('contactEmail')(e);
+                        setFieldErrors((prev) => ({ ...prev, contactEmail: undefined }));
+                      }}
                       placeholder="admin@studio.ua"
                     />
+                    {fieldErrors.contactEmail && (
+                      <p className={styles.fieldError}>{fieldErrors.contactEmail}</p>
+                    )}
                   </div>
                 </div>
               </section>
@@ -279,8 +364,9 @@ export default function CompetitionEditPage() {
                     <label htmlFor="paymentRecipient">Отримувач</label>
                     <input
                       id="paymentRecipient"
-                      value={form.paymentRecipient}
-                      onChange={update('paymentRecipient')}
+                      className={fieldErrors.paymentAccount ? styles.fieldInvalid : undefined}
+                      value={paymentForm.beneficiary}
+                      onChange={updatePayment('beneficiary')}
                       placeholder="ФОП Ковальчук О. М."
                     />
                   </div>
@@ -288,8 +374,9 @@ export default function CompetitionEditPage() {
                     <label htmlFor="paymentAccount">Картка / IBAN</label>
                     <input
                       id="paymentAccount"
-                      value={form.paymentAccount}
-                      onChange={update('paymentAccount')}
+                      className={fieldErrors.paymentAccount ? styles.fieldInvalid : undefined}
+                      value={paymentForm.account}
+                      onChange={updatePayment('account')}
                       placeholder="UA123456780000026007233566001"
                     />
                   </div>
@@ -297,8 +384,8 @@ export default function CompetitionEditPage() {
                     <label htmlFor="paymentBank">Банк</label>
                     <input
                       id="paymentBank"
-                      value={form.paymentBank}
-                      onChange={update('paymentBank')}
+                      value={paymentForm.bankName}
+                      onChange={updatePayment('bankName')}
                       placeholder="АТ КБ «ПриватБанк»"
                     />
                   </div>
@@ -306,18 +393,21 @@ export default function CompetitionEditPage() {
                     <label htmlFor="paymentTaxId">ЄДРПОУ / ІПН</label>
                     <input
                       id="paymentTaxId"
-                      value={form.paymentTaxId}
-                      onChange={update('paymentTaxId')}
+                      value={paymentForm.taxId}
+                      onChange={updatePayment('taxId')}
                       placeholder="3214567890"
                     />
                   </div>
                 </div>
+                {fieldErrors.paymentAccount && (
+                  <p className={styles.fieldError}>{fieldErrors.paymentAccount}</p>
+                )}
                 <div className={styles.field}>
                   <label htmlFor="paymentPurpose">Призначення платежу</label>
                   <input
                     id="paymentPurpose"
-                    value={form.paymentPurpose}
-                    onChange={update('paymentPurpose')}
+                    value={paymentForm.destination}
+                    onChange={updatePayment('destination')}
                     placeholder="Організаційний внесок за участь у конкурсі «Зірки Танцполу 2026»"
                   />
                 </div>

@@ -224,9 +224,30 @@
   gap: 12px;
 }
 
-.axisAdd input {
+.axisAdd input,
+.newAxis input {
   flex: 1;
   min-width: 0;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.axisAdd input::placeholder,
+.newAxis input::placeholder {
+  color: #94a3b8;
+}
+
+.axisAdd input:focus,
+.newAxis input:focus {
+  outline: none;
+  background: #fff;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(176, 125, 30, 0.15);
 }
 
 .chips {
@@ -268,11 +289,6 @@
   display: flex;
   gap: 14px;
   margin-top: 20px;
-}
-
-.newAxis input {
-  flex: 1;
-  min-width: 0;
 }
 
 .hint {

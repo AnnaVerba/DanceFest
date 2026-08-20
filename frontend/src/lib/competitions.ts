@@ -1,5 +1,6 @@
 import { API_BASE_URL } from './api';
-import { getToken } from './auth';
+import { authorizedFetch } from './auth';
+import type { PaymentDetails } from './paymentDetails';
 
 export interface CompetitionOwner {
   id: string;
@@ -19,11 +20,7 @@ export interface Competition {
   registrationTo: string;
   contactNumber: string;
   contactEmail: string;
-  paymentRecipient: string | null;
-  paymentAccount: string | null;
-  paymentBank: string | null;
-  paymentTaxId: string | null;
-  paymentPurpose: string | null;
+  paymentDetails: PaymentDetails | null;
   ownerId: string;
   owner: CompetitionOwner | null;
 }
@@ -43,11 +40,6 @@ interface ErrorPayload {
 function extractMessage(payload: ErrorPayload | null, fallback: string): string {
   if (!payload?.message) return fallback;
   return Array.isArray(payload.message) ? payload.message.join(', ') : payload.message;
-}
-
-function authHeaders(): HeadersInit {
-  const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 export async function getCompetitions(): Promise<Competition[]> {
@@ -78,11 +70,6 @@ export interface CompetitionInput {
   registrationTo: string;
   contactNumber: string;
   contactEmail: string;
-  paymentRecipient?: string;
-  paymentAccount?: string;
-  paymentBank?: string;
-  paymentTaxId?: string;
-  paymentPurpose?: string;
 }
 
 async function submitCompetition(
@@ -92,9 +79,9 @@ async function submitCompetition(
 ): Promise<Competition> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await authorizedFetch(path, {
       method,
-      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     });
   } catch {
@@ -129,10 +116,7 @@ export function updateCompetition(
 export async function deleteCompetition(id: string): Promise<void> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}/competitions/${id}`, {
-      method: 'DELETE',
-      headers: authHeaders(),
-    });
+    response = await authorizedFetch(`/competitions/${id}`, { method: 'DELETE' });
   } catch {
     throw new CompetitionApiError("Не вдалося з'єднатися з сервером", 0);
   }
