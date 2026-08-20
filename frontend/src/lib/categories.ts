@@ -4,14 +4,12 @@ export type CategoryType =
   | 'participants_count'
   | 'age'
   | 'level'
-  | 'direction'
   | 'discipline';
 
 export const CATEGORY_TYPES: CategoryType[] = [
   'participants_count',
   'age',
   'level',
-  'direction',
   'discipline',
 ];
 
@@ -19,7 +17,6 @@ export const CATEGORY_TYPE_LABELS: Record<CategoryType, string> = {
   participants_count: 'Кількість учасників',
   age: 'Вік',
   level: 'Рівень',
-  direction: 'Напрямок',
   discipline: 'Дисципліна',
 };
 
@@ -86,5 +83,20 @@ export function createCategory(name: string, type: CategoryType): Promise<Catego
   return request<Category>('/categories', {
     method: 'POST',
     body: JSON.stringify({ name: name.trim(), type }),
+  });
+}
+
+/**
+ * Створення набору значень одним запитом перед збереженням. Порядок відповіді
+ * збігається з порядком запиту — по ньому підміняються тимчасові id.
+ */
+export function createCategoriesBulk(
+  categories: { name: string; type: CategoryType }[],
+): Promise<Category[]> {
+  return request<Category[]>('/categories/bulk', {
+    method: 'POST',
+    body: JSON.stringify({
+      categories: categories.map((c) => ({ name: c.name.trim(), type: c.type })),
+    }),
   });
 }

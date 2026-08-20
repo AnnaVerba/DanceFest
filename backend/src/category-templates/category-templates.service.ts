@@ -147,6 +147,8 @@ export class CategoryTemplatesService {
           price: n.price,
           allowsImprovisation: n.allowsImprovisation,
           categoryIds: n.categoryIds,
+          isSpecial: n.isSpecial,
+          exitMode: n.exitMode,
           sortOrder: n.sortOrder ?? index,
         })) as CreationAttributes<TemplateNomination>[],
       );
@@ -191,6 +193,8 @@ export class CategoryTemplatesService {
         price: n.price ?? null,
         allowsImprovisation: n.allowsImprovisation ?? false,
         categoryIds: n.categoryIds ?? [],
+        isSpecial: n.isSpecial ?? false,
+        exitMode: n.exitMode ?? 'single',
         sortOrder: n.sortOrder ?? index,
       })) as CreationAttributes<TemplateNomination>[],
     );
@@ -249,6 +253,8 @@ export class CategoryTemplatesService {
       price: nomination.price === null ? null : Number(nomination.price),
       allowsImprovisation: nomination.allowsImprovisation,
       categoryIds: nomination.categoryIds,
+      isSpecial: nomination.isSpecial,
+      exitMode: nomination.exitMode,
       sortOrder: nomination.sortOrder,
     };
   }

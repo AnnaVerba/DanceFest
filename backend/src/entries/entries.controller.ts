@@ -51,9 +51,14 @@ export class EntriesController {
     summary: 'Submit an entry to a competition',
     description:
       'Public — used by the participant registration form, no login required. ' +
-      'The nomination must match one already generated for this competition.',
+      'The nomination must be one already generated for this competition. ' +
+      'Returns an array: a special category with a separate stage exit per program ' +
+      'produces one entry per exit, each with its own running number.',
   })
-  @ApiResponse({ status: 201, description: 'Entry submitted.' })
+  @ApiResponse({
+    status: 201,
+    description: 'Entry submitted. One element per stage exit.',
+  })
   @ApiResponse({
     status: 400,
     description:

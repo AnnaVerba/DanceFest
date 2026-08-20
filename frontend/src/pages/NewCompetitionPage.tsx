@@ -9,7 +9,20 @@ import { createJudge } from '../lib/judges';
 import type { CreatedJudge } from '../lib/judges';
 import { createVenue } from '../lib/venues';
 import { createNominationsBulk } from '../lib/nominations';
-import { getCategoryTemplate, getCategoryTemplates } from '../lib/categoryTemplates';
+import NominationSetBuilder from '../components/nominations/NominationSetBuilder';
+import { CategoryApiError } from '../lib/categories';
+import {
+  pluralNominations,
+  resolveDraftCategories,
+  savedSignatureOf,
+} from '../lib/nominationSet';
+import type { AxisSelection, DraftNomination } from '../lib/nominationSet';
+import {
+  CategoryTemplateApiError,
+  createCategoryTemplate,
+  getCategoryTemplate,
+  getCategoryTemplates,
+} from '../lib/categoryTemplates';
 import type { CategoryTemplate } from '../lib/categoryTemplates';
 import { upsertPaymentDetails } from '../lib/paymentDetails';
 import { isValidEmail, isValidPhone } from '../lib/validation';
@@ -25,6 +38,7 @@ const STEP_LABELS = [
   'Розподіл',
 ] as const;
 const TOTAL_STEPS = STEP_LABELS.length;
+const NOMINATIONS_STEP = 5;
 
 let draftIdCounter = 0;
 function nextDraftId(): string {
@@ -32,17 +46,11 @@ function nextDraftId(): string {
   return `draft-${draftIdCounter}`;
 }
 
-function pluralNominations(n: number): string {
-  const d10 = n % 10;
-  const d100 = n % 100;
-  if (d10 === 1 && d100 !== 11) return 'номінацію';
-  if (d10 >= 2 && d10 <= 4 && (d100 < 12 || d100 > 14)) return 'номінації';
-  return 'номінацій';
-}
 
 interface StepFieldErrors {
   name?: string;
-  date?: string;
+  dateFrom?: string;
+  dateTo?: string;
   location?: string;
   organizer?: string;
   description?: string;
@@ -56,7 +64,8 @@ interface StepFieldErrors {
 
 const STEP_1_FIELDS = [
   'name',
-  'date',
+  'dateFrom',
+  'dateTo',
   'location',
   'organizer',
   'description',
@@ -72,13 +81,10 @@ interface DraftJudge {
   email: string;
 }
 
-interface DraftNomination {
-  id: string;
-  name: string;
-  price: string;
-  allowsImprovisation: boolean;
-  categoryIds: string[];
-}
+// Звідки беруться номінації конкурсу: готовий шаблон чи власний набір,
+// складений тут-таки. Власний завжди зберігається шаблоном — інакше наступного
+// року цю саму сітку довелося б набирати заново.
+type NominationSource = 'template' | 'custom';
 
 interface DraftVenue {
   id: string;
@@ -95,7 +101,10 @@ export default function NewCompetitionPage() {
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [date, setDate] = useState('');
+  // Конкурс триває від одного до кількох днів, тому дві дати, а не одна.
+  // Порожня dateTo означає одноденний конкурс і дорівнює dateFrom.
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [location, setLocation] = useState('');
   const [organizer, setOrganizer] = useState('');
   const [registrationFrom, setRegistrationFrom] = useState('');
@@ -121,7 +130,12 @@ export default function NewCompetitionPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState(
     searchParams.get('template') ?? '',
   );
+  const [nominationSource, setNominationSource] = useState<NominationSource>('template');
+  const [templateName, setTemplateName] = useState('');
   const [nominations, setNominations] = useState<DraftNomination[]>([]);
+  // Крок із категоріями зникає з дерева, щойно людина йде далі. Осі тримаємо
+  // тут, інакше на поверненні вони порожні, а таблиця вже повна.
+  const [axes, setAxes] = useState<AxisSelection | null>(null);
   const [loadingNominations, setLoadingNominations] = useState(false);
 
   useEffect(() => {
@@ -137,7 +151,7 @@ export default function NewCompetitionPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedTemplateId) return;
+    if (!selectedTemplateId || nominationSource !== 'template') return;
 
     let cancelled = false;
     setLoadingNominations(true);
@@ -146,11 +160,13 @@ export default function NewCompetitionPage() {
         if (cancelled) return;
         setNominations(
           detail.nominations.map((n) => ({
-            id: nextDraftId(),
+            signature: savedSignatureOf(n),
             name: n.name,
             price: n.price === null ? '' : String(n.price),
             allowsImprovisation: n.allowsImprovisation,
             categoryIds: n.categoryIds,
+            isSpecial: n.isSpecial,
+            exitMode: n.exitMode,
           })),
         );
       })
@@ -163,15 +179,15 @@ export default function NewCompetitionPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedTemplateId]);
+  }, [selectedTemplateId, nominationSource]);
 
-  const patchNomination = (id: string, patch: Partial<DraftNomination>) =>
+  const patchNomination = (signature: string, patch: Partial<DraftNomination>) =>
     setNominations((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, ...patch } : n)),
+      prev.map((n) => (n.signature === signature ? { ...n, ...patch } : n)),
     );
 
-  const removeNomination = (id: string) =>
-    setNominations((prev) => prev.filter((n) => n.id !== id));
+  const removeNomination = (signature: string) =>
+    setNominations((prev) => prev.filter((n) => n.signature !== signature));
 
   const [venues, setVenues] = useState<DraftVenue[]>([]);
   const [venueNameInput, setVenueNameInput] = useState('');
@@ -255,7 +271,10 @@ export default function NewCompetitionPage() {
   function validateStep1(): StepFieldErrors {
     const errors: StepFieldErrors = {};
     if (!name.trim()) errors.name = 'Вкажіть назву конкурсу.';
-    if (!date) errors.date = 'Вкажіть дату проведення.';
+    if (!dateFrom) errors.dateFrom = 'Вкажіть дату початку конкурсу.';
+    if (dateFrom && dateTo && dateTo < dateFrom) {
+      errors.dateTo = 'Дата завершення раніша за дату початку.';
+    }
     if (!location.trim()) errors.location = 'Вкажіть місце проведення.';
     if (!organizer.trim()) errors.organizer = 'Вкажіть організатора.';
     if (!description.trim()) errors.description = 'Додайте опис конкурсу.';
@@ -264,7 +283,7 @@ export default function NewCompetitionPage() {
     if (registrationFrom && registrationTo && registrationFrom > registrationTo) {
       errors.registrationTo = 'Кінець реєстрації не може бути раніше за початок.';
     }
-    if (!errors.registrationTo && date && registrationTo && registrationTo > date) {
+    if (!errors.registrationTo && dateFrom && registrationTo && registrationTo > dateFrom) {
       errors.registrationTo = 'Реєстрація має закінчитись не пізніше дати конкурсу.';
     }
     return errors;
@@ -290,6 +309,16 @@ export default function NewCompetitionPage() {
     if (!paymentRecipient.trim()) errors.paymentRecipient = 'Вкажіть отримувача платежу.';
     if (!paymentAccount.trim()) errors.paymentAccount = 'Вкажіть номер картки або IBAN.';
     return errors;
+  }
+
+  // Власний набір не має полів із помилками — крок валідується цілком.
+  function validateNominationSet(): string | null {
+    if (nominationSource !== 'custom') return null;
+    if (!templateName.trim()) return 'Вкажіть назву шаблону для власного набору.';
+    if (nominations.length === 0) {
+      return 'Складіть набір номінацій або оберіть готовий шаблон.';
+    }
+    return null;
   }
 
   function validateStep(n: number): StepFieldErrors {
@@ -331,15 +360,48 @@ export default function NewCompetitionPage() {
       return;
     }
 
+    const nominationSetError = validateNominationSet();
+    if (nominationSetError) {
+      setSubmitError(nominationSetError);
+      goStep(NOMINATIONS_STEP);
+      return;
+    }
+
     setSubmitting(true);
     try {
+      // Значення осей, набрані руками на кроці категорій, досі жили лише в
+      // браузері — заводимо їх у довіднику аж тут. Кинутий на півдорозі майстер
+      // не має лишати по собі рядків, які потім бачать усі організатори.
+      const saved =
+        nominationSource === 'custom'
+          ? await resolveDraftCategories(nominations)
+          : nominations;
+
+      // Шаблон зберігається до конкурсу навмисно: якщо збереження впаде,
+      // конкурс не створиться, а складений набір лишиться на екрані. У
+      // зворотному порядку людина втратила б сітку, яку набирала руками.
+      if (nominationSource === 'custom') {
+        await createCategoryTemplate({
+          name: templateName.trim(),
+          nominations: saved.map((n, index) => ({
+            name: n.name.trim(),
+            price: n.price.trim() === '' ? undefined : Number(n.price),
+            allowsImprovisation: n.allowsImprovisation,
+            categoryIds: n.categoryIds,
+            isSpecial: n.isSpecial,
+            exitMode: n.exitMode,
+            sortOrder: index,
+          })),
+        });
+      }
+
       const competition = await createCompetition({
         name: name.trim(),
         description: description.trim(),
         location: location.trim(),
         organizer: organizer.trim(),
-        dateFrom: date,
-        dateTo: date,
+        dateFrom,
+        dateTo: dateTo || dateFrom,
         registrationFrom,
         registrationTo,
         contactNumber: contactNumber.trim(),
@@ -369,15 +431,17 @@ export default function NewCompetitionPage() {
         ...venues
           .filter((v) => v.name.trim())
           .map((v) => createVenue(competition.id, v.name.trim(), v.note.trim())),
-        ...(nominations.length > 0
+        ...(saved.length > 0
           ? [
               createNominationsBulk(
                 competition.id,
-                nominations.map((n) => ({
+                saved.map((n) => ({
                   name: n.name,
                   price: n.price.trim() === '' ? undefined : Number(n.price),
                   allowsImprovisation: n.allowsImprovisation,
                   categoryIds: n.categoryIds,
+                  isSpecial: n.isSpecial,
+                  exitMode: n.exitMode,
                 })),
               ),
             ]
@@ -391,11 +455,21 @@ export default function NewCompetitionPage() {
         navigate(`/competitions/${competition.id}`);
       }
     } catch (err) {
-      setSubmitError(
-        err instanceof CompetitionApiError
-          ? err.message
-          : 'Не вдалося створити конкурс. Спробуйте ще раз.',
-      );
+      // Помилка шаблону приходить своїм класом і має інший текст: конкурсу ще
+      // немає, і казати «не вдалося створити конкурс» було б брехнею.
+      if (err instanceof CategoryApiError) {
+        setSubmitError(`Не вдалося зберегти значення категорій: ${err.message}`);
+        goStep(5);
+      } else if (err instanceof CategoryTemplateApiError) {
+        setSubmitError(`Не вдалося зберегти шаблон: ${err.message}`);
+        goStep(5);
+      } else {
+        setSubmitError(
+          err instanceof CompetitionApiError
+            ? err.message
+            : 'Не вдалося створити конкурс. Спробуйте ще раз.',
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -582,40 +656,64 @@ export default function NewCompetitionPage() {
               </div>
               <div className={styles.row}>
                 <div className={styles.field}>
-                  <label htmlFor="w-date">
-                    Дата проведення <span className={styles.req}>*</span>
+                  <label htmlFor="w-date-from">
+                    Дата початку <span className={styles.req}>*</span>
                   </label>
                   <input
-                    id="w-date"
+                    id="w-date-from"
                     type="date"
-                    className={fieldErrors.date ? styles.fieldInvalid : undefined}
-                    value={date}
+                    className={fieldErrors.dateFrom ? styles.fieldInvalid : undefined}
+                    value={dateFrom}
                     onChange={(e) => {
-                      setDate(e.target.value);
-                      clearFieldError('date');
+                      setDateFrom(e.target.value);
+                      clearFieldError('dateFrom');
+                      clearFieldError('dateTo');
                     }}
                   />
-                  {fieldErrors.date && <p className={styles.fieldError}>{fieldErrors.date}</p>}
-                </div>
-                <div className={styles.field}>
-                  <label htmlFor="w-place">
-                    Місце проведення <span className={styles.req}>*</span>
-                  </label>
-                  <input
-                    id="w-place"
-                    type="text"
-                    className={fieldErrors.location ? styles.fieldInvalid : undefined}
-                    placeholder="м. Львів, Палац культури"
-                    value={location}
-                    onChange={(e) => {
-                      setLocation(e.target.value);
-                      clearFieldError('location');
-                    }}
-                  />
-                  {fieldErrors.location && (
-                    <p className={styles.fieldError}>{fieldErrors.location}</p>
+                  {fieldErrors.dateFrom && (
+                    <p className={styles.fieldError}>{fieldErrors.dateFrom}</p>
                   )}
                 </div>
+                <div className={styles.field}>
+                  <label htmlFor="w-date-to">Дата завершення</label>
+                  <input
+                    id="w-date-to"
+                    type="date"
+                    min={dateFrom || undefined}
+                    className={fieldErrors.dateTo ? styles.fieldInvalid : undefined}
+                    value={dateTo}
+                    onChange={(e) => {
+                      setDateTo(e.target.value);
+                      clearFieldError('dateTo');
+                    }}
+                  />
+                  {fieldErrors.dateTo ? (
+                    <p className={styles.fieldError}>{fieldErrors.dateTo}</p>
+                  ) : (
+                    <p className={styles.hint}>
+                      Залиште порожнім, якщо конкурс на один день.
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className={styles.field}>
+                <label htmlFor="w-place">
+                  Місце проведення <span className={styles.req}>*</span>
+                </label>
+                <input
+                  id="w-place"
+                  className={`${styles.half} ${fieldErrors.location ? styles.fieldInvalid : ''}`}
+                  type="text"
+                  placeholder="м. Львів, Палац культури"
+                  value={location}
+                  onChange={(e) => {
+                    setLocation(e.target.value);
+                    clearFieldError('location');
+                  }}
+                />
+                {fieldErrors.location && (
+                  <p className={styles.fieldError}>{fieldErrors.location}</p>
+                )}
               </div>
               <div className={styles.field}>
                 <label htmlFor="w-org">
@@ -879,10 +977,69 @@ export default function NewCompetitionPage() {
                 Номінації конкурсу
               </p>
               <p className={styles.sectionNote}>
-                Номінації копіюються з шаблону в цей конкурс. Далі їх можна правити тут —
+                Номінації копіюються в цей конкурс. Далі їх можна правити тут —
                 на сам шаблон це не вплине.
               </p>
 
+              <div
+                className={styles.sourceSwitch}
+                role="group"
+                aria-label="Звідки взяти номінації"
+              >
+                <button
+                  type="button"
+                  className={styles.sourceOption}
+                  aria-pressed={nominationSource === 'template'}
+                  onClick={() => setNominationSource('template')}
+                >
+                  <strong>Обрати готовий шаблон</strong>
+                  <em>набір із ваших або публічних шаблонів</em>
+                </button>
+                <button
+                  type="button"
+                  className={styles.sourceOption}
+                  aria-pressed={nominationSource === 'custom'}
+                  onClick={() => {
+                    setNominationSource('custom');
+                    // Набір із шаблону не переносимо: людина обрала складати
+                    // свій, і чужі рядки в таблиці її тільки заплутають.
+                    setNominations([]);
+                  }}
+                >
+                  <strong>Скласти власний</strong>
+                  <em>набрати осі тут і зберегти як новий шаблон</em>
+                </button>
+              </div>
+
+              {nominationSource === 'custom' && (
+                <>
+                  <div className={styles.field}>
+                    <label htmlFor="w-tpl-name">
+                      Назва шаблону <span className={styles.req}>*</span>
+                    </label>
+                    <input
+                      id="w-tpl-name"
+                      type="text"
+                      placeholder="Східний танець — стандарт"
+                      value={templateName}
+                      onChange={(e) => setTemplateName(e.target.value)}
+                    />
+                    <p className={styles.hint}>
+                      Набір збережеться шаблоном, щоб наступного року не набирати
+                      його заново.
+                    </p>
+                  </div>
+
+                  <NominationSetBuilder
+                    nominations={nominations}
+                    onChange={setNominations}
+                    selection={axes}
+                    onSelectionChange={setAxes}
+                  />
+                </>
+              )}
+
+              {nominationSource === 'template' && (
               <div className={styles.field}>
                 <label htmlFor="w-tpl">Шаблон номінацій</label>
                 {categoryTemplates === null ? (
@@ -906,14 +1063,15 @@ export default function NewCompetitionPage() {
                   </select>
                 )}
               </div>
+              )}
 
-              {loadingNominations ? (
+              {nominationSource === 'template' && loadingNominations ? (
                 <p className={styles.hint}>Завантаження номінацій...</p>
-              ) : nominations.length === 0 ? (
+              ) : nominationSource === 'template' && nominations.length === 0 ? (
                 <p className={styles.empty}>
                   У цьому шаблоні немає номінацій — оберіть інший.
                 </p>
-              ) : (
+              ) : nominationSource === 'custom' ? null : (
                 <>
                   <p className={styles.hint}>
                     Буде створено {nominations.length}{' '}
@@ -931,14 +1089,14 @@ export default function NewCompetitionPage() {
                       </thead>
                       <tbody>
                         {nominations.map((n) => (
-                          <tr key={n.id}>
+                          <tr key={n.signature}>
                             <td>
                               <input
                                 type="text"
                                 aria-label="Назва номінації"
                                 value={n.name}
                                 onChange={(e) =>
-                                  patchNomination(n.id, { name: e.target.value })
+                                  patchNomination(n.signature, { name: e.target.value })
                                 }
                               />
                             </td>
@@ -951,7 +1109,7 @@ export default function NewCompetitionPage() {
                                 aria-label={`Ціна номінації «${n.name}»`}
                                 value={n.price}
                                 onChange={(e) =>
-                                  patchNomination(n.id, { price: e.target.value })
+                                  patchNomination(n.signature, { price: e.target.value })
                                 }
                               />
                             </td>
@@ -961,7 +1119,7 @@ export default function NewCompetitionPage() {
                                 aria-label={`Дозволити імпровізацію в «${n.name}»`}
                                 checked={n.allowsImprovisation}
                                 onChange={(e) =>
-                                  patchNomination(n.id, {
+                                  patchNomination(n.signature, {
                                     allowsImprovisation: e.target.checked,
                                   })
                                 }
@@ -972,7 +1130,7 @@ export default function NewCompetitionPage() {
                                 type="button"
                                 className={`${styles.btn} ${styles.btnSm} ${styles.btnGhost}`}
                                 aria-label={`Прибрати «${n.name}»`}
-                                onClick={() => removeNomination(n.id)}
+                                onClick={() => removeNomination(n.signature)}
                               >
                                 ✕
                               </button>
@@ -1079,15 +1237,15 @@ export default function NewCompetitionPage() {
               ) : (
                 <div className={styles.list}>
                   {nominations.map((n) => (
-                    <div className={styles.item} key={n.id}>
+                    <div className={styles.item} key={n.signature}>
                       <div style={{ flex: 1 }}>
                         <h3>{n.name}</h3>
                       </div>
                       <div style={{ width: 200 }}>
                         <select
                           aria-label="Майданчик для номінації"
-                          value={assignments[n.id] ?? venues[0]?.name ?? ''}
-                          onChange={(e) => setAssignment(n.id, e.target.value)}
+                          value={assignments[n.signature] ?? venues[0]?.name ?? ''}
+                          onChange={(e) => setAssignment(n.signature, e.target.value)}
                         >
                           {venues.map((v) => (
                             <option key={v.id} value={v.name}>

@@ -1,0 +1,408 @@
+.body {
+  padding: 18px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-height: calc(100svh - 180px);
+  overflow-y: auto;
+}
+
+.error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  font-size: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.req {
+  color: #dc2626;
+}
+
+.field input {
+  padding: 9px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 15px;
+  color: #0f172a;
+  background: #fff;
+}
+
+.field input:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+  border-color: #2563eb;
+}
+
+/* --- осі --- */
+
+.axis {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.axisHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.axisHead strong {
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.axisHint {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 10px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.chip button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px;
+}
+
+.chip button:hover {
+  color: #dc2626;
+}
+
+.axisAdd {
+  display: flex;
+  gap: 8px;
+}
+
+.axisAdd input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 11px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  color: #0f172a;
+  background: #fff;
+}
+
+.axisAdd input:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+  border-color: #2563eb;
+}
+
+/* --- кількість виходів --- */
+
+.exit {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exit legend {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  padding: 0 4px;
+}
+
+.exitOption {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #fff;
+}
+
+.exitOption:has(input:checked) {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.exitOption input {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+  flex-shrink: 0;
+}
+
+.exitOption span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.exitOption strong {
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.exitOption em {
+  font-style: normal;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+/* --- перегляд --- */
+
+.preview {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 12px 14px;
+}
+
+.previewHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.previewHead strong {
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.count {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2563eb;
+  font-variant-numeric: tabular-nums;
+}
+
+.previewEmpty {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.previewList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.previewList li {
+  font-size: 13px;
+  color: #334155;
+  padding: 5px 8px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.previewMore {
+  color: #64748b !important;
+  background: none !important;
+  border: none !important;
+  padding-left: 2px !important;
+}
+
+/* --- кнопки --- */
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.btn,
+.btnPrimary,
+.btnSm {
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #0f172a;
+}
+
+.btn,
+.btnPrimary {
+  padding: 10px 18px;
+  font-size: 15px;
+}
+
+.btnSm {
+  padding: 8px 14px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.btn:hover,
+.btnSm:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.btnPrimary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btnPrimary:disabled,
+.btnSm:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .body {
+    padding: 14px 16px 18px;
+  }
+
+  .axisAdd {
+    flex-direction: column;
+  }
+
+  .actions {
+    flex-direction: column-reverse;
+  }
+
+  .actions .btn,
+  .actions .btnPrimary {
+    width: 100%;
+  }
+}
+
+.limits {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.limitsHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.limitsHead strong {
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.limitRow {
+  display: grid;
+  grid-template-columns: 1fr 92px;
+  align-items: center;
+  gap: 12px;
+}
+
+.limitRow label {
+  font-size: 14px;
+  color: #334155;
+}
+
+.limitRow input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.limitRow input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.limitsTotal {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: #475569;
+}
+
+.previewExits {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.previewExits li {
+  position: relative;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.previewExits li::before {
+  content: '↳';
+  position: absolute;
+  left: -14px;
+  color: #94a3b8;
+}

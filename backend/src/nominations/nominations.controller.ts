@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -21,6 +22,7 @@ import type { AuthenticatedAdmin } from '../auth/current-user.decorator';
 import { NominationsService } from './nominations.service';
 import { CreateNominationDto } from './dto/create-nomination.dto';
 import { BulkCreateNominationsDto } from './dto/bulk-create-nominations.dto';
+import { UpdateNominationDto } from './dto/update-nomination.dto';
 
 @ApiTags('nominations')
 @Controller('competitions/:competitionId/nominations')
@@ -96,6 +98,43 @@ export class NominationsController {
     @Body() dto: BulkCreateNominationsDto,
   ) {
     return this.nominationsService.bulkCreate(competitionId, admin.id, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Update a nomination',
+    description:
+      'Partial. Used mostly to correct the price or the duration limits after the set was copied from a template.',
+  })
+  @ApiResponse({ status: 200, description: 'Nomination updated.' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Validation failed, or a duration limit points at a category the nomination does not have.',
+  })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'The caller has no access to this competition.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Competition or nomination not found.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Patch(':nominationId')
+  update(
+    @Param('competitionId') competitionId: string,
+    @Param('nominationId') nominationId: string,
+    @CurrentUser() admin: AuthenticatedAdmin,
+    @Body() dto: UpdateNominationDto,
+  ) {
+    return this.nominationsService.update(
+      competitionId,
+      nominationId,
+      admin.id,
+      dto,
+    );
   }
 
   @ApiOperation({ summary: 'Remove a nomination from a competition' })

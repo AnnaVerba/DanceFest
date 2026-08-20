@@ -6,9 +6,51 @@ import type { Competition } from '../lib/competitions';
 import { getNominations } from '../lib/nominations';
 import type { Nomination } from '../lib/nominations';
 import { EntryApiError, createEntry } from '../lib/entries';
+import { formatDuration, pluralExits } from '../lib/duration';
 import styles from './ApplyPage.module.css';
 
 type PayMethod = 'cash' | 'card';
+
+/**
+ * Скільки разів учасник вийде на сцену за цією заявкою і скільки часу має на
+ * кожен вихід. Для звичайної номінації — рядок про ліміт, для спецкатегорії з
+ * окремими виходами — перелік: інакше людина не розуміє, за що платить.
+ */
+function NominationExits({ nomination }: { nomination: Nomination }) {
+  const { exits } = nomination;
+  if (exits.length === 0) return null;
+
+  if (exits.length === 1) {
+    const limit = exits[0].durationLimitSeconds;
+    if (limit === null) return null;
+    return (
+      <p className={styles.hint}>
+        Один вихід на сцену, до {formatDuration(limit)}
+        {nomination.programs.length > 1 &&
+          ` — усі програми (${nomination.programs
+            .map((p) => p.name)
+            .join(', ')}) підряд, без сходження зі сцени`}
+        .
+      </p>
+    );
+  }
+
+  return (
+    <div className={styles.hint}>
+      {exits.length} {pluralExits(exits.length)} на сцену — окремий на кожну
+      програму:
+      <ul className={styles.exits}>
+        {exits.map((exit) => (
+          <li key={exit.programId ?? exit.label}>
+            {exit.programName}
+            {exit.durationLimitSeconds !== null &&
+              ` — до ${formatDuration(exit.durationLimitSeconds)}`}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export default function ApplyPage() {
   const { id } = useParams<{ id: string }>();
@@ -75,9 +117,9 @@ export default function ApplyPage() {
 
     setSubmitting(true);
     try {
-      await createEntry(id, {
+      const created = await createEntry(id, {
         routineName: title.trim(),
-        nomination: selectedNomination.name,
+        nominationId: selectedNomination.id,
         participantsCount: participantsCount ? Number(participantsCount) : undefined,
         studioName: studio.trim() || undefined,
         choreographer: choreographer.trim() || undefined,
@@ -85,8 +127,13 @@ export default function ApplyPage() {
         improv,
         paymentMethod: payMethod,
       });
+      const pay = payMethod === 'card' ? 'картка' : 'готівка';
       setSuccessMessage(
-        `Заявку надіслано. Спосіб оплати: ${payMethod === 'card' ? 'картка' : 'готівка'}.`,
+        created.length > 1
+          ? `Заявку надіслано: ${created.length} ${pluralExits(created.length)} на сцену, номери ${created
+              .map((e) => e.number)
+              .join(', ')}. Спосіб оплати: ${pay}.`
+          : `Заявку надіслано, номер ${created[0]?.number}. Спосіб оплати: ${pay}.`,
       );
       setTitle('');
       setNominationIndex('');
@@ -197,6 +244,7 @@ export default function ApplyPage() {
               Для цього конкурсу ще не згенеровано номінацій.
             </p>
           )}
+          {selectedNomination && <NominationExits nomination={selectedNomination} />}
         </div>
 
         {/* Позначку ставить учасник, але лише там, де адмін дозволив

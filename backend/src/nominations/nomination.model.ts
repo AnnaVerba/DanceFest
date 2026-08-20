@@ -8,6 +8,7 @@ import {
 } from 'sequelize-typescript';
 import { Competition } from '../competitions/competition.model';
 import { Venue } from '../venues/venue.model';
+import type { ExitMode } from './nomination-exits';
 
 @Table({ tableName: 'nominations' })
 export class Nomination extends Model<Nomination> {
@@ -41,6 +42,24 @@ export class Nomination extends Model<Nomination> {
     defaultValue: [],
   })
   declare categoryIds: string[];
+
+  // Спецкатегорія — «Кубок», «Корона», батл. Її дисципліни не розходяться по
+  // окремих номінаціях, а лишаються в одній.
+  @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
+  declare isSpecial: boolean;
+
+  @Column({
+    type: DataType.ENUM('single', 'per_program'),
+    allowNull: false,
+    defaultValue: 'single',
+  })
+  declare exitMode: ExitMode;
+
+  @Column({ type: DataType.INTEGER, allowNull: true })
+  declare durationLimitSeconds: number | null;
+
+  @Column({ type: DataType.JSONB, allowNull: false, defaultValue: {} })
+  declare programLimits: Record<string, number>;
 
   @BelongsTo(() => Competition)
   declare competition: Competition;

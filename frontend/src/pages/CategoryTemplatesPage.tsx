@@ -117,7 +117,6 @@ export default function CategoryTemplatesPage() {
     }
   };
 
-  const notReady = () => showToast('Цю дію ще не підключено до бекенду.');
 
   if (!getToken()) {
     return <Navigate to="/login" replace />;
@@ -253,13 +252,12 @@ export default function CategoryTemplatesPage() {
                         Номінації
                       </button>
                       {t.author?.id === admin?.id && (
-                        <button
-                          type="button"
+                        <Link
+                          to={`/category-templates/${t.id}/edit`}
                           className={styles.linkMuted}
-                          onClick={notReady}
                         >
                           Редагувати
-                        </button>
+                        </Link>
                       )}
                     </div>
                     <div className={styles.tplLinks}>

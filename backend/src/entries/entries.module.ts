@@ -3,6 +3,7 @@ import { SequelizeModule } from '@nestjs/sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Nomination } from '../nominations/nomination.model';
+import { NominationsModule } from '../nominations/nominations.module';
 import { Entry } from './entry.model';
 import { Score } from './score.model';
 import { EntriesController } from './entries.controller';
@@ -17,6 +18,7 @@ import { EntriesService } from './entries.service';
       Entry,
       Score,
     ]),
+    NominationsModule,
   ],
   controllers: [EntriesController],
   providers: [EntriesService],

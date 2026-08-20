@@ -49,6 +49,22 @@ export class CategoriesService {
     return this.toDto(created);
   }
 
+  /**
+   * Значення осей створюються не по одному в мить набору, а разом перед
+   * збереженням набору — інакше кинутий на півдорозі майстер лишає по собі
+   * сміття в спільному довіднику. Порядок відповіді збігається з порядком
+   * запиту: за ним фронт підміняє свої тимчасові id на справжні.
+   */
+  async findOrCreateMany(input: { name: string; type: CategoryType }[]) {
+    const created: Awaited<ReturnType<typeof this.findOrCreate>>[] = [];
+    // Послідовно, а не Promise.all: два однакові значення в одному запиті
+    // паралельно пройшли б повз findOne і впали на унікальному індексі.
+    for (const category of input) {
+      created.push(await this.findOrCreate(category.name, category.type));
+    }
+    return created;
+  }
+
   async findExistingIds(ids: string[]): Promise<string[]> {
     if (ids.length === 0) return [];
     const found = await this.categoryModel.findAll({
