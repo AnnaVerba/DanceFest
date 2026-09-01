@@ -11,7 +11,7 @@
 }
 
 .toast {
-  background: #0f172a;
+  background: var(--g-ink);
   color: #fff;
   font-size: 14px;
   padding: 14px 16px;

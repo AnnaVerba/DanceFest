@@ -11,7 +11,7 @@
 
 .note {
   margin: 0;
-  color: #64748b;
+  color: var(--g-muted);
   font-size: 14px;
   max-width: 62ch;
 }
@@ -24,9 +24,9 @@
   height: 36px;
   padding: 0 16px;
   border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  color: #0f172a;
+  border: 1px solid var(--g-line);
+  background: var(--g-surface);
+  color: var(--g-ink);
   font-family: inherit;
   font-size: 14px;
   font-weight: 600;
@@ -36,41 +36,41 @@
 }
 
 .btn:hover {
-  border-color: #cbd5e1;
-  background: #f8fafc;
+  border-color: var(--g-line-strong);
+  background: var(--g-field);
 }
 
 .status {
   margin: 16px 0 0;
-  color: #64748b;
+  color: var(--g-muted);
   font-style: italic;
 }
 
 .field {
   height: 38px;
   padding: 0 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--g-line);
   border-radius: 8px;
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--g-field);
+  color: var(--g-ink);
   font-family: inherit;
   font-size: 14px;
   transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
 .field:hover {
-  border-color: #d3dae4;
+  border-color: var(--g-line-strong);
 }
 
 .field:focus {
   outline: none;
-  background: #fff;
-  border-color: #2563eb;
+  background: var(--g-surface);
+  border-color: var(--g-accent);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
 input.field::placeholder {
-  color: #94a3b8;
+  color: var(--g-subtle);
 }
 
 select.field {
@@ -96,17 +96,17 @@ select.field {
 .empty {
   margin-top: 18px;
   padding: 26px 20px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--g-line);
   border-radius: 10px;
-  background: #f8fafc;
+  background: var(--g-field);
   text-align: center;
-  color: #64748b;
+  color: var(--g-muted);
   font-size: 14.5px;
 }
 
 .tableWrap {
   margin-top: 16px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--g-line);
   border-radius: 10px;
   overflow-x: auto;
 }
@@ -120,9 +120,9 @@ table {
 th {
   text-align: left;
   padding: 10px 12px;
-  background: #fafbfc;
-  border-bottom: 1px solid #e5e7eb;
-  color: #64748b;
+  background: var(--g-field-off);
+  border-bottom: 1px solid var(--g-line);
+  color: var(--g-muted);
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -131,7 +131,7 @@ th {
 
 td {
   padding: 12px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--g-line);
   font-size: 13px;
   vertical-align: middle;
 }
@@ -141,11 +141,11 @@ tbody tr:last-child td {
 }
 
 tbody tr:hover {
-  background: #fafbfc;
+  background: var(--g-field-off);
 }
 
 .num {
-  color: #64748b;
+  color: var(--g-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -159,13 +159,13 @@ tbody tr:hover {
 }
 
 .scoreEmpty {
-  color: #64748b;
+  color: var(--g-muted);
   font-weight: 400;
 }
 
 .noMatches {
   text-align: center;
-  color: #64748b;
+  color: var(--g-muted);
   padding: 20px 12px;
 }
 
@@ -178,14 +178,14 @@ tbody tr:hover {
   border: 0;
   padding: 5px;
   border-radius: 6px;
-  color: #ef4444;
+  color: var(--g-danger);
   cursor: pointer;
   line-height: 0;
   transition: background 0.15s ease;
 }
 
 .iconBtn:hover {
-  background: #fee2e2;
+  background: var(--g-danger-bg);
 }
 
 .pager {
@@ -197,7 +197,7 @@ tbody tr:hover {
 }
 
 .pagerInfo {
-  color: #64748b;
+  color: var(--g-muted);
   font-size: 13px;
 }
 
@@ -213,9 +213,9 @@ tbody tr:hover {
   height: 32px;
   padding: 0 12px;
   border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  color: #0f172a;
+  border: 1px solid var(--g-line);
+  background: var(--g-surface);
+  color: var(--g-ink);
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
@@ -224,8 +224,8 @@ tbody tr:hover {
 }
 
 .btnSm:hover:not(:disabled) {
-  border-color: #cbd5e1;
-  background: #f8fafc;
+  border-color: var(--g-line-strong);
+  background: var(--g-field);
 }
 
 .btnSm:disabled {

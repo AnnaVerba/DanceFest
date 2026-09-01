@@ -1,23 +1,23 @@
 .main {
-  --bg: #f1f5f9;
-  --surface: #fff;
-  --field: #f8fafc;
-  --line: #e5e7eb;
-  --line-strong: #cbd5e1;
-  --ink: #0f172a;
-  --ink-soft: #334155;
-  --muted: #64748b;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --accent-soft: #dbeafe;
-  --accent-ink: #1d4ed8;
-  --dark: #1e293b;
-  --dark-hover: #0f172a;
-  --danger: #dc2626;
-  --ok-bg: #dcfce7;
-  --ok-ink: #15803d;
-  --warn-bg: #fef3c7;
-  --warn-ink: #b45309;
+  --bg: var(--g-page-bg);
+  --surface: var(--g-surface);
+  --field: var(--g-field);
+  --line: var(--g-line);
+  --line-strong: var(--g-line-strong);
+  --ink: var(--g-ink);
+  --ink-soft: var(--g-ink-soft);
+  --muted: var(--g-muted);
+  --accent: var(--g-accent);
+  --accent-hover: var(--g-accent-hover);
+  --accent-soft: var(--g-accent-bg-soft);
+  --accent-ink: var(--g-accent-hover);
+  --dark: var(--g-dark-cta);
+  --dark-hover: var(--g-ink);
+  --danger: var(--g-danger);
+  --ok-bg: var(--g-success-bg);
+  --ok-ink: var(--g-success);
+  --warn-bg: var(--g-warning-bg);
+  --warn-ink: var(--g-warning);
   --r: 12px;
   --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.04);
 
@@ -103,15 +103,15 @@
 }
 
 .step:hover {
-  background: #e8edf4;
+  background: var(--g-field-off);
 }
 
 .dot {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: #e2e8f0;
-  color: #64748b;
+  background: var(--g-line);
+  color: var(--g-muted);
   display: grid;
   place-items: center;
   font-size: 11.5px;
@@ -250,14 +250,14 @@
 
 .field input::placeholder,
 .field textarea::placeholder {
-  color: #94a3b8;
+  color: var(--g-subtle);
 }
 
 .field input:focus,
 .field select:focus,
 .field textarea:focus {
   outline: none;
-  background: #fff;
+  background: var(--g-surface);
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
@@ -319,12 +319,12 @@
 }
 
 .inlineAdd input::placeholder {
-  color: #94a3b8;
+  color: var(--g-subtle);
 }
 
 .inlineAdd input:focus {
   outline: none;
-  background: #fff;
+  background: var(--g-surface);
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
@@ -401,7 +401,7 @@
 
 .mode {
   text-align: left;
-  background: #fff;
+  background: var(--g-surface);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 16px 18px;
@@ -451,7 +451,7 @@
   border-radius: 10px;
   padding: 14px 16px;
   margin-bottom: 14px;
-  background: #fff;
+  background: var(--g-surface);
 }
 
 .axisHead {
@@ -552,7 +552,7 @@
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 7px;
-  background: #fff;
+  background: var(--g-surface);
   color: var(--ink);
   font: inherit;
   font-size: 14px;
@@ -593,8 +593,8 @@
 }
 
 .badgeMuted {
-  background: #e2e8f0;
-  color: #475569;
+  background: var(--g-line);
+  color: var(--g-ink-soft);
 }
 
 .actions {
@@ -613,7 +613,7 @@
   font-size: 14px;
   font-weight: 500;
   border: 1px solid var(--line-strong);
-  background: #fff;
+  background: var(--g-surface);
   color: var(--ink);
   cursor: pointer;
   text-decoration: none;
@@ -623,8 +623,8 @@
 }
 
 .btn:hover {
-  background: #f8fafc;
-  border-color: #94a3b8;
+  background: var(--g-field);
+  border-color: var(--g-subtle);
 }
 
 .btn:disabled {
@@ -650,7 +650,7 @@
 }
 
 .btnGhost:hover {
-  background: #eef2f7;
+  background: var(--g-field-off);
 }
 
 .btnDark {
@@ -697,8 +697,8 @@
   margin: 0 0 18px;
   padding: 12px 14px;
   border-radius: 8px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--g-danger-bg);
+  border: 1px solid var(--g-danger-border);
   color: var(--danger);
   font-size: 14px;
 }

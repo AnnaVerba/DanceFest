@@ -1,18 +1,18 @@
 .main {
-  --bg: #f1f5f9;
-  --surface: #fff;
-  --field: #f8fafc;
-  --line: #e5e7eb;
-  --line-strong: #cbd5e1;
-  --ink: #0f172a;
-  --ink-soft: #334155;
-  --muted: #64748b;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --gold: #b07d1e;
-  --gold-hover: #96690f;
-  --gold-soft: #fdf3e0;
-  --danger: #ef4444;
+  --bg: var(--g-page-bg);
+  --surface: var(--g-surface);
+  --field: var(--g-field);
+  --line: var(--g-line);
+  --line-strong: var(--g-line-strong);
+  --ink: var(--g-ink);
+  --ink-soft: var(--g-ink-soft);
+  --muted: var(--g-muted);
+  --accent: var(--g-accent);
+  --accent-hover: var(--g-accent-hover);
+  --gold: var(--g-gold);
+  --gold-hover: var(--g-gold-hover);
+  --gold-soft: var(--g-gold-bg);
+  --danger: var(--g-danger);
   --r: 12px;
   --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.04);
 
@@ -102,7 +102,7 @@
   padding: 0 16px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--g-surface);
   color: var(--ink);
   font: inherit;
   font-size: 15px;
@@ -110,7 +110,7 @@
 }
 
 .search::placeholder {
-  color: #94a3b8;
+  color: var(--g-subtle);
 }
 
 .search:focus {
@@ -124,7 +124,7 @@
   border: 1px solid var(--line-strong);
   border-radius: 10px;
   overflow: hidden;
-  background: #fff;
+  background: var(--g-surface);
   flex: none;
 }
 
@@ -208,7 +208,7 @@
 }
 
 .badgePriv {
-  background: #eef2f7;
+  background: var(--g-field-off);
   color: var(--muted);
 }
 
@@ -271,7 +271,7 @@
   font-size: 14px;
   font-weight: 500;
   border: 1px solid var(--line-strong);
-  background: #fff;
+  background: var(--g-surface);
   color: var(--ink);
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
@@ -279,7 +279,7 @@
 
 .btn:hover {
   background: var(--field);
-  border-color: #94a3b8;
+  border-color: var(--g-subtle);
 }
 
 .btnGold {

@@ -4,8 +4,8 @@
 
 body {
   margin: 0;
-  background: #eff2f8;
-  color: #0f172a;
+  background: var(--g-page-bg);
+  color: var(--g-ink);
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
