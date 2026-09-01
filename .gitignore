@@ -11,3 +11,5 @@ backend/dist/
 *.png
 .playwright-mcp/
 graphify-out/
+
+.claude/

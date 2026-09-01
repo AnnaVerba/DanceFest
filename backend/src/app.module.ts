@@ -16,6 +16,12 @@ import { CompetitionRulesModule } from './competition-rules/competition-rules.mo
 import { MailModule } from './mail/mail.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { RedisModule } from './redis/redis.module';
+import { SchoolsModule } from './schools/schools.module';
+import { CoachesModule } from './coaches/coaches.module';
+import { ParticipantsModule } from './participants/participants.module';
+import { OrganizersModule } from './organizers/organizers.module';
+import { LeaguesModule } from './leagues/leagues.module';
+import { CompetitionApplicationsModule } from './competition-applications/competition-applications.module';
 
 @Module({
   imports: [
@@ -51,6 +57,12 @@ import { RedisModule } from './redis/redis.module';
     PaymentDetailsModule,
     UploadsModule,
     CompetitionRulesModule,
+    SchoolsModule,
+    CoachesModule,
+    ParticipantsModule,
+    OrganizersModule,
+    LeaguesModule,
+    CompetitionApplicationsModule,
   ],
 })
 export class AppModule {}

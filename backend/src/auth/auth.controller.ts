@@ -20,13 +20,16 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser } from './current-user.decorator';
 import type { AuthenticatedAdmin } from './current-user.decorator';
+import type { AuthenticatedUser } from './authenticated-user.interface';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @ApiOperation({ summary: 'Register a new admin account' })
+  @ApiOperation({
+    summary: 'Register a new account (ADMIN, PARTICIPANT, COACH, or ORGANIZER)',
+  })
   @ApiResponse({
     status: 201,
     description: 'Account created; returns an access/refresh token pair.',
@@ -37,14 +40,15 @@ export class AuthController {
   })
   @ApiResponse({
     status: 409,
-    description: 'An admin with this email already exists.',
+    description:
+      'An account with this email (or, for the new roles, phone) already exists.',
   })
   @Post('register')
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
-  @ApiOperation({ summary: 'Log in with email and password' })
+  @ApiOperation({ summary: 'Log in with email, password, and role' })
   @ApiResponse({
     status: 201,
     description: 'Login successful; returns an access/refresh token pair.',
@@ -53,7 +57,10 @@ export class AuthController {
     status: 400,
     description: 'Validation failed for one or more fields.',
   })
-  @ApiResponse({ status: 401, description: 'Invalid email or password.' })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid email, password, or role.',
+  })
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
@@ -93,13 +100,13 @@ export class AuthController {
     return this.authService.logout(dto);
   }
 
-  @ApiOperation({ summary: 'Get the currently authenticated admin' })
-  @ApiResponse({ status: 200, description: 'Current admin profile returned.' })
+  @ApiOperation({ summary: 'Get the currently authenticated user' })
+  @ApiResponse({ status: 200, description: 'Current user profile returned.' })
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  getProfile(@CurrentUser() admin: AuthenticatedAdmin) {
-    return admin;
+  getProfile(@CurrentUser() user: AuthenticatedAdmin | AuthenticatedUser) {
+    return user;
   }
 }
