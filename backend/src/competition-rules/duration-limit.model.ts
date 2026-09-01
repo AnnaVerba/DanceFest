@@ -26,9 +26,6 @@ export class DurationLimit extends Model<DurationLimit> {
   @Column({ type: DataType.UUID, allowNull: false })
   declare competitionId: string;
 
-  // Exactly one of nominationId / categoryId is set (enforced by a DB check
-  // constraint) — a limit targets either one exact nomination or one axis
-  // category (e.g. a "level" or "age" value), never both.
   @ForeignKey(() => Nomination)
   @Column({ type: DataType.UUID, allowNull: true })
   declare nominationId: string | null;

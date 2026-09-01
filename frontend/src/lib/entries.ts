@@ -82,10 +82,6 @@ export function getEntries(competitionId: string): Promise<Entry[]> {
   return request<Entry[]>(`/competitions/${competitionId}/entries`);
 }
 
-/**
- * Повертає масив: спецкатегорія з окремим виходом на кожну програму дає по
- * заявці на вихід, кожну зі своїм наскрізним номером.
- */
 export function createEntry(
   competitionId: string,
   input: EntryInput,

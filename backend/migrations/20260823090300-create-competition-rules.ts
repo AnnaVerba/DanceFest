@@ -76,8 +76,6 @@ module.exports = {
       unique: true,
     });
 
-    // Competitions created before this migration get a rules row with the
-    // defaults too, so "every competition has rules" holds for existing data.
     const competitions = await queryInterface.sequelize.query<{ id: string }>(
       `SELECT id FROM competitions`,
       { type: QueryTypes.SELECT },

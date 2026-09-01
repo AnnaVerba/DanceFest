@@ -16,11 +16,6 @@ import type { AxisSelection, DraftNomination } from '../lib/nominationSet';
 import { CategoryApiError } from '../lib/categories';
 import styles from './CategoryTemplateFormPage.module.css';
 
-/**
- * Один екран на два режими: `/category-templates/new` створює шаблон,
- * `/category-templates/:id/edit` править наявний. Різниця лише в тому, звідки
- * береться початковий стан і який запит іде на збереження — форма та сама.
- */
 export default function CategoryTemplateFormPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -50,8 +45,6 @@ export default function CategoryTemplateFormPage() {
         setIsPublic(detail.isPublic);
         setNominations(
           detail.nominations.map((n) => ({
-            // Підпис відновлюємо зі складу категорій — рівно так само, як його
-            // рахує конструктор, інакше регенерація не впізнає наявні рядки.
             signature: savedSignatureOf(n),
             name: n.name,
             price: n.price === null ? '' : String(n.price),
@@ -78,8 +71,6 @@ export default function CategoryTemplateFormPage() {
     };
   }, [id]);
 
-  // Осі беремо лише зі звичайних номінацій: програми спецкатегорії в декартів
-  // добуток не входять, і засіяні в осі вони наплодили б зайвих комбінацій.
   const seedCategoryIds = useMemo(
     () => [
       ...new Set(
@@ -112,8 +103,6 @@ export default function CategoryTemplateFormPage() {
 
     setSubmitting(true);
     try {
-      // Значення осей, набрані руками, досі жили лише в браузері — заводимо їх
-      // у довіднику саме тут, коли набір справді зберігається.
       const resolved = await resolveDraftCategories(nominations);
       await save(resolved);
     } catch (err) {

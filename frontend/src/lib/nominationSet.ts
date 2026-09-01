@@ -2,11 +2,6 @@ import { CATEGORY_TYPES, createCategoriesBulk } from './categories';
 import type { Category, CategoryType } from './categories';
 import type { ExitMode } from './categoryTemplates';
 
-/**
- * Обрані значення осей. Живе в сторінці, а не в конструкторі: у майстрі
- * створення конкурсу крок із категоріями розмонтовується, щойно людина йде
- * далі, і разом із ним гинули б усі щойно додані осі.
- */
 export type AxisSelection = Record<CategoryType, Category[]>;
 
 export function emptyAxisSelection(): AxisSelection {
@@ -16,18 +11,9 @@ export function emptyAxisSelection(): AxisSelection {
   }, {} as AxisSelection);
 }
 
-// Та сама стеля, що й на беку: п'ять типів по десять значень дають
-// 100 000 комбінацій, і без межі це кладе і браузер, і базу.
 export const MAX_NOMINATIONS = 2000;
 
-/**
- * Рядок набору номінацій, поки він ще не збережений — і в редакторі шаблону,
- * і на кроці категорій майстра створення конкурсу. Ціна тут рядком, бо це
- * сире значення поля вводу: порожнє означає «ціни немає», а не нуль.
- */
 export interface DraftNomination {
-  // Відсортовані categoryIds — за нею впізнаємо вже відредагований рядок
-  // при повторній генерації.
   signature: string;
   name: string;
   price: string;
@@ -41,11 +27,6 @@ export function signatureOf(ids: string[]): string {
   return [...ids].sort().join('|');
 }
 
-/**
- * Підпис для рядка, що приїхав із сервера. Спецкатегорії різняться не складом
- * осей, а власним рядком — дві «Корони» на різних програмах мають однакові
- * categoryIds і без id злиплися б в один підпис.
- */
 export function savedSignatureOf(nomination: {
   id: string;
   categoryIds: string[];
@@ -58,15 +39,6 @@ export function savedSignatureOf(nomination: {
 
 const DRAFT_PREFIX = 'draft:';
 
-/**
- * Значення осі, яке людина щойно набрала, живе лише в браузері до збереження
- * набору. Інакше кинутий на півдорозі майстер лишає по собі рядки в спільному
- * довіднику, які потім бачать усі організатори.
- *
- * Тип і назва закодовані в самому id, і це не прикраса: чернетку, використану
- * лише у спецкатегорії, більше нема звідки дістати — вибір осей про неї не
- * знає, а стан модалки зникає разом із нею.
- */
 export function draftCategory(name: string, type: CategoryType): Category {
   const trimmed = name.trim();
   return {
@@ -88,14 +60,12 @@ function parseDraftCategory(
   const rest = id.slice(DRAFT_PREFIX.length);
   const separator = rest.indexOf(':');
   if (separator === -1) return null;
-  // Назва може містити двокрапку, тип — ні, тому ріжемо лише по першій.
   return {
     type: rest.slice(0, separator) as CategoryType,
     name: rest.slice(separator + 1),
   };
 }
 
-/** Чернетка й наявне значення — те саме, якщо збігаються тип і назва без огляду на регістр. */
 export function sameCategoryValue(
   a: { name: string; type: CategoryType },
   b: { name: string; type: CategoryType },
@@ -106,10 +76,6 @@ export function sameCategoryValue(
   );
 }
 
-/**
- * Чернетки, які реально використані в наборі. Значення, додане на вісь і потім
- * прибране, до сервера не їде — воно нікуди не потрапило.
- */
 export function usedDraftCategories(
   nominations: DraftNomination[],
 ): { id: string; name: string; type: CategoryType }[] {
@@ -125,11 +91,6 @@ export function usedDraftCategories(
   return drafts;
 }
 
-/**
- * Заводить у спільному довіднику всі чернетки набору й повертає той самий
- * набір зі справжніми id. Викликається рівно перед збереженням: до цієї миті
- * набрані значення нікуди не записані.
- */
 export async function resolveDraftCategories(
   nominations: DraftNomination[],
 ): Promise<DraftNomination[]> {
@@ -146,7 +107,6 @@ export async function resolveDraftCategories(
     return {
       ...n,
       categoryIds,
-      // Підпис рахується зі складу осей, тож після підміни він інший.
       signature: n.isSpecial ? n.signature : signatureOf(categoryIds),
     };
   });

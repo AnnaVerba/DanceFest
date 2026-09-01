@@ -42,8 +42,6 @@ module.exports = {
       name: 'overlimit_tariffs_competition_id_idx',
     });
 
-    // One tariff per (competition, uptoSeconds) bracket — no two rows pricing
-    // the same overrun window.
     await queryInterface.addIndex(TABLE, {
       fields: ['competitionId', 'uptoSeconds'],
       name: 'overlimit_tariffs_competition_id_upto_seconds_unique',

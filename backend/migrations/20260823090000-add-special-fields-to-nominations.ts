@@ -1,10 +1,6 @@
 import type { QueryInterface } from 'sequelize';
 import { DataTypes } from 'sequelize';
 
-// Спецкатегорія («Кубок», «Корона», батл) — це одна номінація, у якої по осі
-// дисципліни обрано кілька значень. Вони не множаться в декартовому добутку,
-// а лишаються всередині номінації: exitMode вирішує, буде це один вихід на
-// сцену чи окремий вихід на кожну програму.
 module.exports = {
   up: async (queryInterface: QueryInterface) => {
     await queryInterface.addColumn('nominations', 'isSpecial', {
@@ -19,15 +15,11 @@ module.exports = {
       defaultValue: 'single',
     });
 
-    // Ліміт на один вихід. Для спецкатегорії з одним виходом — на всі
-    // програми разом; null означає «організатор ліміт не задав».
     await queryInterface.addColumn('nominations', 'durationLimitSeconds', {
       type: DataTypes.INTEGER,
       allowNull: true,
     });
 
-    // { [categoryId]: seconds } — ліміт кожної програми окремо. Читається лише
-    // при exitMode 'per_program'; при 'single' іде в суму.
     await queryInterface.addColumn('nominations', 'programLimits', {
       type: DataTypes.JSONB,
       allowNull: false,
@@ -46,8 +38,6 @@ module.exports = {
       defaultValue: 'single',
     });
 
-    // Заявка досі трималась за номінацію лише назвою-рядком, і з неї не дістати
-    // ні програм, ні лімітів. Nullable — у наявних заявок посилання немає.
     await queryInterface.addColumn('entries', 'nominationId', {
       type: DataTypes.UUID,
       allowNull: true,
@@ -74,7 +64,6 @@ module.exports = {
     await queryInterface.removeColumn('nominations', 'exitMode');
     await queryInterface.removeColumn('nominations', 'isSpecial');
 
-    // removeColumn лишає по собі тип enum — без цього повторний up падає.
     await queryInterface.sequelize.query(
       'DROP TYPE IF EXISTS "enum_nominations_exitMode";',
     );

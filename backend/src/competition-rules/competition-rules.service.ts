@@ -21,15 +21,8 @@ import { DurationLimit } from './duration-limit.model';
 import type { DurationRound } from './duration-limit.model';
 import { OverlimitTariff } from './overlimit-tariff.model';
 
-// Немає жодного налаштованого ліміту — 180 секунд і попередження в лог,
-// а не помилка (BE-9, крок 3 розв'язання ліміту).
 export const DEFAULT_DURATION_LIMIT_SECONDS = 180;
 
-// Порядок осей від найспецифічнішої до найзагальнішої, коли ліміт заданий і
-// на "рівень" (ліга), і на "вік" одночасно. Специфікація прямо каже лише
-// "level пріоритетніша за age" — рештa осей додана за тим самим принципом
-// (вужчі за складом, а не за розміром, йдуть першими), це припущення поза
-// текстом задачі.
 const AXIS_PRIORITY: CategoryType[] = [
   'level',
   'age',
@@ -57,11 +50,6 @@ export class CompetitionRulesService {
     private readonly nominationModel: typeof Nomination,
   ) {}
 
-  /**
-   * Every competition has a rules row from the moment it's created (see
-   * ensureDefaultsExist, wired into competition creation) — this only falls
-   * back to on-the-fly creation for rows from before this feature existed.
-   */
   async getRules(competitionId: string): Promise<CompetitionRule> {
     await this.assertCompetitionExists(competitionId);
     const [rules] = await this.competitionRuleModel.findOrCreate({
@@ -78,8 +66,6 @@ export class CompetitionRulesService {
   ): Promise<CompetitionRule> {
     await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
     const rules = await this.getRules(competitionId);
-    // A rule change never touches heats already built from the old values —
-    // that's an explicit recalculation action, tracked separately (BE-13).
     return rules.update(dto);
   }
 
@@ -186,15 +172,6 @@ export class CompetitionRulesService {
     await limit.destroy();
   }
 
-  /**
-   * The time limit that applies to a stage appearance in this nomination and
-   * round (BE-9's resolveLimit(performance), taken by nomination+round since
-   * Performance doesn't exist on this branch yet):
-   *   1. an exact nominationId+round limit wins outright;
-   *   2. otherwise the most specific axis (categoryId+round) limit found
-   *      among the nomination's own categories, ranked by AXIS_PRIORITY;
-   *   3. otherwise DEFAULT_DURATION_LIMIT_SECONDS, logged as a fallback.
-   */
   async resolveLimit(
     nominationId: string,
     round: DurationRound,
