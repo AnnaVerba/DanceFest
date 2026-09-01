@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import AdminHeader from '../components/AdminHeader';
+import CompetitionDetails from '../components/CompetitionDetails';
+import ContestIcon from '../components/ContestIcon';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import EntriesPanel from '../components/admin/EntriesPanel';
 import JudgesPanel from '../components/admin/JudgesPanel';
@@ -9,11 +11,7 @@ import VenuesPanel from '../components/admin/VenuesPanel';
 import { ToastStack } from '../components/admin/Toast';
 import { useToasts } from '../components/admin/useToasts';
 import { getStoredAdmin, getToken } from '../lib/auth';
-import {
-  deleteCompetition,
-  getCompetition,
-  getCompetitionStatus,
-} from '../lib/competitions';
+import { deleteCompetition, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { getMockCompetitionById } from '../lib/mockCompetitions';
 import styles from './CompetitionDetailPage.module.css';
@@ -22,39 +20,6 @@ const USE_MOCK_DATA = false;
 
 const TABS = ['Деталі', 'Номінації', 'Судді', 'Майданчики', 'Заявки'] as const;
 type Tab = (typeof TABS)[number];
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('uk-UA', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-}
-
-function formatDateRange(dateFrom: string, dateTo: string): string {
-  return dateFrom === dateTo
-    ? `${formatDate(dateFrom)} р.`
-    : `${formatDate(dateFrom)} – ${formatDate(dateTo)} р.`;
-}
-
-function ContestIcon() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M7 4h10v5a5 5 0 0 1-10 0V4z" />
-      <path d="M7 5H4.5v1.5A3.5 3.5 0 0 0 8 10M17 5h2.5v1.5A3.5 3.5 0 0 1 16 10" />
-      <path d="M12 14v3M9 20h6M10 17h4" />
-    </svg>
-  );
-}
 
 export default function CompetitionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -118,7 +83,6 @@ export default function CompetitionDetailPage() {
   }
 
   const isOwner = !!admin && !!competition && competition.ownerId === admin.id;
-  const payment = competition?.paymentDetails ?? null;
 
   return (
     <>
@@ -202,127 +166,7 @@ export default function CompetitionDetailPage() {
               )}
 
               {activeTab === 'Деталі' && (
-                <>
-                  <section className={styles.section}>
-                    <div className={`${styles.grid} ${styles.grid3}`}>
-                      <div className={styles.item}>
-                        <div className={styles.itemLabel}>Статус</div>
-                        <div className={styles.itemValue}>
-                          {getCompetitionStatus(competition)}
-                        </div>
-                      </div>
-                      <div className={styles.item}>
-                        <div className={styles.itemLabel}>Дата</div>
-                        <div className={styles.itemValue}>
-                          {formatDateRange(competition.dateFrom, competition.dateTo)}
-                        </div>
-                      </div>
-                      <div className={styles.item}>
-                        <div className={styles.itemLabel}>Місце</div>
-                        <div className={styles.itemValue}>
-                          {competition.location || '—'}
-                        </div>
-                      </div>
-                      <div className={styles.item}>
-                        <div className={styles.itemLabel}>Організатор</div>
-                        <div className={styles.itemValue}>
-                          {competition.organizer || '—'}
-                        </div>
-                      </div>
-                      <div className={styles.item}>
-                        <div className={styles.itemLabel}>Реєстрація</div>
-                        <div className={styles.itemValue}>
-                          {formatDateRange(
-                            competition.registrationFrom,
-                            competition.registrationTo,
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    {competition.description && (
-                      <p className={styles.description}>{competition.description}</p>
-                    )}
-                  </section>
-
-                  <section className={styles.section}>
-                    <h2 className={styles.sectionTitle}>Контакти</h2>
-                    <div className={`${styles.grid} ${styles.grid2}`}>
-                      <div className={styles.item}>
-                        <div className={styles.itemLabel}>Телефон</div>
-                        <div className={styles.itemValue}>
-                          {competition.contactNumber ? (
-                            <a href={`tel:${competition.contactNumber}`}>
-                              {competition.contactNumber}
-                            </a>
-                          ) : (
-                            '—'
-                          )}
-                        </div>
-                      </div>
-                      <div className={styles.item}>
-                        <div className={styles.itemLabel}>Email</div>
-                        <div className={styles.itemValue}>
-                          {competition.contactEmail ? (
-                            <a href={`mailto:${competition.contactEmail}`}>
-                              {competition.contactEmail}
-                            </a>
-                          ) : (
-                            '—'
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </section>
-
-                  <section className={styles.section}>
-                    <h2 className={styles.sectionTitle}>Реквізити для оплати</h2>
-                    {payment ? (
-                      <>
-                        <p className={styles.sectionNote}>
-                          Оплата приймається лише переказом за реквізитами, без
-                          оплати через застосунок.
-                        </p>
-                        <div className={`${styles.grid} ${styles.grid2}`}>
-                          <div className={styles.item}>
-                            <div className={styles.itemLabel}>Отримувач</div>
-                            <div className={styles.itemValue}>{payment.beneficiary}</div>
-                          </div>
-                          <div className={styles.item}>
-                            <div className={styles.itemLabel}>Картка / IBAN</div>
-                            <div className={styles.itemValue}>{payment.account}</div>
-                          </div>
-                          {payment.bankName && (
-                            <div className={styles.item}>
-                              <div className={styles.itemLabel}>Банк</div>
-                              <div className={styles.itemValue}>{payment.bankName}</div>
-                            </div>
-                          )}
-                          {payment.taxId && (
-                            <div className={styles.item}>
-                              <div className={styles.itemLabel}>ЄДРПОУ / ІПН</div>
-                              <div className={styles.itemValue}>{payment.taxId}</div>
-                            </div>
-                          )}
-                        </div>
-                        {payment.destination && (
-                          <div className={styles.grid} style={{ marginTop: 20 }}>
-                            <div className={styles.item}>
-                              <div className={styles.itemLabel}>
-                                Призначення платежу
-                              </div>
-                              <div className={styles.itemValue}>{payment.destination}</div>
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <p className={styles.sectionNote}>
-                        Організатор не вказав реквізити для оплати.
-                      </p>
-                    )}
-                  </section>
-
-                </>
+                <CompetitionDetails competition={competition} entriesCount={null} />
               )}
 
               {isOwner && (

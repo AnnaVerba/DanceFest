@@ -37,6 +37,15 @@ export class EntriesService {
     return entries.map((e) => this.toDto(e));
   }
 
+  async count(competitionId: string): Promise<{ count: number }> {
+    const competition = await this.competitionModel.findByPk(competitionId);
+    if (!competition) {
+      throw new NotFoundException('Конкурс не знайдено');
+    }
+    const count = await this.entryModel.count({ where: { competitionId } });
+    return { count };
+  }
+
   async create(competitionId: string, dto: CreateEntryDto) {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {

@@ -1,0 +1,74 @@
+.section {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--g-line);
+}
+
+.section:first-of-type {
+  padding-top: 26px;
+}
+
+.section:last-of-type {
+  border-bottom: 0;
+}
+
+.sectionTitle {
+  margin: 0 0 4px;
+  color: var(--g-accent);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.sectionNote {
+  margin: 0 0 16px;
+  color: var(--g-muted);
+  font-size: 14px;
+}
+
+.description {
+  margin: 20px 0 0;
+  color: var(--g-ink-soft);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.grid {
+  display: grid;
+  gap: 20px 32px;
+}
+
+.grid3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.grid2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.itemLabel {
+  color: var(--g-muted);
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.itemValue {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.itemValue a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.itemValue a:hover {
+  color: var(--g-accent);
+}
+
+@media (max-width: 760px) {
+  .grid3,
+  .grid2 {
+    grid-template-columns: 1fr;
+  }
+}
