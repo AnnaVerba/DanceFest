@@ -16,6 +16,16 @@ import { IsProgramLimits } from './is-program-limits.validator';
 import type { ExitMode } from '../nomination-exits';
 
 export class CreateNominationDto {
+  @ApiPropertyOptional({
+    example: 'e7c1a2b4-5d6f-4a8b-9c0d-1e2f3a4b5c6d',
+    description:
+      'Template this nomination was generated from. Marks the template as in use: ' +
+      'deleting it then returns 409 TEMPLATE_IN_USE.',
+  })
+  @IsOptional()
+  @IsUUID('4')
+  templateId?: string;
+
   @ApiProperty({ example: 'Соло · Діти · Дебют · Фрі Денс' })
   @IsString()
   @IsNotEmpty()

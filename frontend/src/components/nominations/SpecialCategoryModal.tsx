@@ -22,6 +22,7 @@ export interface SpecialNominationDraft {
   allowsImprovisation: boolean;
   categoryIds: string[];
   isSpecial: boolean;
+  specialName: string;
   exitMode: ExitMode;
   durationLimitSeconds?: number;
   programLimits: Record<string, number>;
@@ -185,6 +186,7 @@ export default function SpecialCategoryModal({
         allowsImprovisation: false,
         categoryIds: [...axisIds, ...programs.map((p) => p.id)],
         isSpecial: true,
+        specialName: trimmedName,
         exitMode,
         programLimits: parsedLimits,
         exitLabels:

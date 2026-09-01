@@ -1,4 +1,3 @@
-import { CATEGORY_TYPES } from './category.model';
 import type { CategoryType } from './category.model';
 
 // Підписи осей живуть тут, а не в таблиці: значень рівно стільки, скільки
@@ -11,5 +10,14 @@ export const CATEGORY_TYPE_LABELS: Record<CategoryType, string> = {
   direction: 'Напрямок',
 };
 
-// Порядок показу критеріїв у шаблоні — той самий, що й у назві номінації.
-export const CRITERIA_ORDER: CategoryType[] = [...CATEGORY_TYPES];
+// Порядок показу критеріїв — той самий, що й порядок частин у назві
+// номінації: Вік · Стиль · Ліга · Склад. Виводити його з CATEGORY_TYPES не
+// можна: там порядок оголошення enum, і Ліга стоїть попереду Стилю.
+// 'direction' — остання, бо не використовується жодним екраном.
+export const CRITERIA_ORDER: CategoryType[] = [
+  'age',
+  'style',
+  'level',
+  'lineup',
+  'direction',
+];

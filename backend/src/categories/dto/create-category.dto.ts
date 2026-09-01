@@ -8,7 +8,12 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { CATEGORY_TYPES, MIN_PARTICIPANT_AGE } from '../category.model';
+import {
+  AGE_CATEGORY_TYPE,
+  CATEGORY_TYPES,
+  MIN_PARTICIPANT_AGE,
+  MIN_SORT_ORDER,
+} from '../category.model';
 import type { CategoryType } from '../category.model';
 
 export class CreateCategoryDto {
@@ -27,7 +32,7 @@ export class CreateCategoryDto {
     example: 12,
     description: 'Required when type is age.',
   })
-  @ValidateIf((dto: CreateCategoryDto) => dto.type === 'age')
+  @ValidateIf((dto: CreateCategoryDto) => dto.type === AGE_CATEGORY_TYPE)
   @IsInt()
   @Min(MIN_PARTICIPANT_AGE)
   ageFrom?: number;
@@ -36,7 +41,7 @@ export class CreateCategoryDto {
     example: 15,
     description: 'Required when type is age.',
   })
-  @ValidateIf((dto: CreateCategoryDto) => dto.type === 'age')
+  @ValidateIf((dto: CreateCategoryDto) => dto.type === AGE_CATEGORY_TYPE)
   @IsInt()
   @Min(MIN_PARTICIPANT_AGE)
   ageTo?: number;
@@ -44,6 +49,6 @@ export class CreateCategoryDto {
   @ApiPropertyOptional({ example: 0 })
   @IsOptional()
   @IsInt()
-  @Min(0)
+  @Min(MIN_SORT_ORDER)
   sortOrder?: number;
 }

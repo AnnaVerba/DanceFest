@@ -17,6 +17,9 @@ export const AGE_CATEGORY_TYPE: CategoryType = 'age';
 // молодші за рік теж трапляються.
 export const MIN_PARTICIPANT_AGE = 0;
 
+// Найменший порядковий номер значення в межах осі.
+export const MIN_SORT_ORDER = 0;
+
 @Table({ tableName: 'categories' })
 export class Category extends Model<Category> {
   @Column({

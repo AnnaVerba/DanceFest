@@ -163,6 +163,7 @@ export default function NewCompetitionPage() {
             allowsImprovisation: n.allowsImprovisation,
             categoryIds: n.categoryIds,
             isSpecial: n.isSpecial,
+            specialName: n.specialName ?? undefined,
             exitMode: n.exitMode,
           })),
         );
@@ -394,10 +395,10 @@ export default function NewCompetitionPage() {
           name: templateName.trim(),
           nominations: saved.map((n, index) => ({
             name: n.name.trim(),
-            price: n.price.trim() === '' ? undefined : Number(n.price),
             allowsImprovisation: n.allowsImprovisation,
             categoryIds: n.categoryIds,
             isSpecial: n.isSpecial,
+            specialName: n.specialName,
             exitMode: n.exitMode,
             sortOrder: index,
           })),
@@ -446,6 +447,10 @@ export default function NewCompetitionPage() {
               createNominationsBulk(
                 competition.id,
                 saved.map((n) => ({
+                  templateId:
+                    nominationSource === 'template'
+                      ? selectedTemplateId || undefined
+                      : undefined,
                   name: n.name,
                   price: n.price.trim() === '' ? undefined : Number(n.price),
                   allowsImprovisation: n.allowsImprovisation,

@@ -145,6 +145,7 @@ export class NominationsService {
   ): CreationAttributes<Nomination> {
     return {
       competitionId,
+      templateId: dto.templateId ?? null,
       name: dto.name.trim(),
       price: dto.price ?? null,
       allowsImprovisation: dto.allowsImprovisation ?? false,
@@ -272,6 +273,7 @@ export class NominationsService {
   private toDto(nomination: Nomination, categories: Map<string, Category>) {
     return {
       id: nomination.id,
+      templateId: nomination.templateId,
       name: nomination.name,
       price: nomination.price === null ? null : Number(nomination.price),
       allowsImprovisation: nomination.allowsImprovisation,

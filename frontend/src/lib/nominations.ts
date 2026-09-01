@@ -18,6 +18,7 @@ export interface NominationExit {
 
 export interface Nomination {
   id: string;
+  templateId: string | null;
   name: string;
   price: number | null;
   allowsImprovisation: boolean;
@@ -32,6 +33,9 @@ export interface Nomination {
 }
 
 export interface NominationInput {
+  // Шаблон, з якого згенерована номінація: за ним сервер розуміє, що шаблон
+  // зайнятий, і не дає його видалити.
+  templateId?: string;
   name: string;
   price?: number;
   allowsImprovisation?: boolean;

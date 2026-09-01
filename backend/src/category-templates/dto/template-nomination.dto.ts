@@ -43,6 +43,16 @@ export class TemplateNominationDto {
   isSpecial?: boolean;
 
   @ApiPropertyOptional({
+    example: 'Корона Шехеризади',
+    description:
+      'Bare name of the special category, without axes. Only meaningful when isSpecial.',
+  })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  specialName?: string;
+
+  @ApiPropertyOptional({
     example: 'single',
     enum: EXIT_MODES,
     description:

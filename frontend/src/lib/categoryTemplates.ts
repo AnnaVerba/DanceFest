@@ -8,6 +8,7 @@ export interface TemplateNomination {
   allowsImprovisation: boolean;
   categoryIds: string[];
   isSpecial: boolean;
+  specialName: string | null;
   exitMode: ExitMode;
   sortOrder: number;
 }
@@ -17,6 +18,7 @@ export interface TemplateNominationInput {
   allowsImprovisation?: boolean;
   categoryIds?: string[];
   isSpecial?: boolean;
+  specialName?: string;
   exitMode?: ExitMode;
   sortOrder?: number;
 }

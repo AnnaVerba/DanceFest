@@ -38,6 +38,10 @@ export class TemplateNomination extends Model<TemplateNomination> {
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   declare isSpecial: boolean;
 
+  // Голе ім'я спецкатегорії, без осей і програми. `name` несе повну мітку.
+  @Column({ type: DataType.STRING, allowNull: true })
+  declare specialName: string | null;
+
   @Column({
     type: DataType.ENUM('single', 'per_program'),
     allowNull: false,

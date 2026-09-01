@@ -59,6 +59,8 @@ export class CategoryTemplatesService {
       order: [['createdAt', 'DESC']],
     });
 
+    if (templates.length === 0) return [];
+
     const templateIds = templates.map((t) => t.id);
     const nominations = await this.nominationModel.findAll({
       where: { templateId: { [Op.in]: templateIds } },
@@ -190,6 +192,15 @@ export class CategoryTemplatesService {
       ],
     });
 
+    // Копія проходить ту саму перевірку, що й ручне збереження: шаблони,
+    // створені до появи перевірки, інакше форкали б перетин далі.
+    await this.assertAgeRangesDoNotOverlap(
+      sourceNominations.map((n) => ({
+        name: n.name,
+        categoryIds: n.categoryIds,
+      })),
+    );
+
     if (sourceNominations.length > 0) {
       await this.nominationModel.bulkCreate(
         sourceNominations.map((n, index) => ({
@@ -198,6 +209,7 @@ export class CategoryTemplatesService {
           allowsImprovisation: n.allowsImprovisation,
           categoryIds: n.categoryIds,
           isSpecial: n.isSpecial,
+          specialName: n.specialName,
           exitMode: n.exitMode,
           sortOrder: n.sortOrder ?? index,
         })) as CreationAttributes<TemplateNomination>[],
@@ -255,6 +267,7 @@ export class CategoryTemplatesService {
         allowsImprovisation: n.allowsImprovisation ?? false,
         categoryIds: n.categoryIds ?? [],
         isSpecial: n.isSpecial ?? false,
+        specialName: n.specialName?.trim() || null,
         exitMode: n.exitMode ?? 'single',
         sortOrder: n.sortOrder ?? index,
       })) as CreationAttributes<TemplateNomination>[],
@@ -318,9 +331,13 @@ export class CategoryTemplatesService {
   }
 
   private buildSpecials(nominations: TemplateNomination[]) {
-    return nominations
-      .filter((n) => n.isSpecial)
-      .map((n) => ({ name: n.name }));
+    const names = new Set<string>();
+    for (const nomination of nominations) {
+      if (nomination.isSpecial && nomination.specialName) {
+        names.add(nomination.specialName);
+      }
+    }
+    return [...names].map((name) => ({ name }));
   }
 
   private async assertCategoriesExist(
@@ -359,6 +376,7 @@ export class CategoryTemplatesService {
       allowsImprovisation: nomination.allowsImprovisation,
       categoryIds: nomination.categoryIds,
       isSpecial: nomination.isSpecial,
+      specialName: nomination.specialName,
       exitMode: nomination.exitMode,
       sortOrder: nomination.sortOrder,
     };

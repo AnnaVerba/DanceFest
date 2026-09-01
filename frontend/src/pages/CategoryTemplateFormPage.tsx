@@ -51,6 +51,7 @@ export default function CategoryTemplateFormPage() {
             allowsImprovisation: n.allowsImprovisation,
             categoryIds: n.categoryIds,
             isSpecial: n.isSpecial,
+            specialName: n.specialName ?? undefined,
             exitMode: n.exitMode,
           })),
         );
@@ -126,10 +127,10 @@ export default function CategoryTemplateFormPage() {
       isPublic,
       nominations: nominations.map((n, index) => ({
         name: n.name.trim(),
-        price: n.price.trim() === '' ? undefined : Number(n.price),
         allowsImprovisation: n.allowsImprovisation,
         categoryIds: n.categoryIds,
         isSpecial: n.isSpecial,
+        specialName: n.specialName,
         exitMode: n.exitMode,
         sortOrder: index,
       })),

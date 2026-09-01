@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes, Op, col, fn, where } from 'sequelize';
 import { Category } from './category.model';
+import { AGE_CATEGORY_TYPE } from './category.model';
 import type { CategoryType } from './category.model';
 import { CreateCategoryDto } from './dto/create-category.dto';
 
@@ -44,7 +45,8 @@ export class CategoriesService {
         ),
       },
     });
-    if (existing) return this.toDto(existing);
+    if (existing)
+      return this.toDto(await this.reconcileAgeRange(existing, input));
 
     const created = await this.categoryModel.create({
       name: trimmed,
@@ -54,6 +56,41 @@ export class CategoriesService {
       sortOrder: input.sortOrder ?? DEFAULT_CATEGORY_SORT_ORDER,
     } as CreationAttributes<Category>);
     return this.toDto(created);
+  }
+
+  /**
+   * Категорія з такою назвою вже є. Мовчки повернути її, відкинувши прислані
+   * межі, не можна: користувач ввів «від» і «до», побачив успіх, а вікова
+   * категорія так і лишилась без діапазону — і заявка потім не визначить вік.
+   *
+   * Немає меж — доповнюємо. Межі є й інші — це справжній конфлікт довідника,
+   * а не дрібниця: `categories` спільна, і мовчазне перезаписування зсунуло б
+   * вікову сітку в чужих конкурсах.
+   */
+  private async reconcileAgeRange(
+    existing: Category,
+    input: CreateCategoryDto,
+  ): Promise<Category> {
+    if (input.type !== AGE_CATEGORY_TYPE) return existing;
+    if (input.ageFrom === undefined || input.ageTo === undefined) {
+      return existing;
+    }
+
+    const hasRange = existing.ageFrom !== null && existing.ageTo !== null;
+    if (!hasRange) {
+      existing.ageFrom = input.ageFrom;
+      existing.ageTo = input.ageTo;
+      await existing.save();
+      return existing;
+    }
+
+    if (existing.ageFrom !== input.ageFrom || existing.ageTo !== input.ageTo) {
+      throw new ConflictException(
+        `Вікова категорія «${existing.name}» уже існує з межами ` +
+          `${existing.ageFrom}–${existing.ageTo}. Змініть назву або приберіть розбіжність.`,
+      );
+    }
+    return existing;
   }
 
   async findOrCreateMany(input: CreateCategoryDto[]) {

@@ -21,6 +21,7 @@ export interface DraftNomination {
   allowsImprovisation: boolean;
   categoryIds: string[];
   isSpecial: boolean;
+  specialName?: string;
   exitMode: ExitMode;
 }
 
