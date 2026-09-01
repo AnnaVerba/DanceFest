@@ -1,5 +1,7 @@
 import { API_BASE_URL } from './api';
 import { authorizedFetch } from './auth';
+import { COMPETITION_STATUS } from './competitionStatus';
+import type { CompetitionStatus } from './competitionStatus';
 import type { PaymentDetails } from './paymentDetails';
 
 export interface CompetitionOwner {
@@ -130,16 +132,16 @@ export async function deleteCompetition(id: string): Promise<void> {
   );
 }
 
-export function getCompetitionStatus(c: Competition): string {
+export function getCompetitionStatus(c: Competition): CompetitionStatus {
   const now = new Date();
   const registrationFrom = new Date(c.registrationFrom);
   const registrationTo = new Date(c.registrationTo);
   const dateFrom = new Date(c.dateFrom);
   const dateTo = new Date(c.dateTo);
 
-  if (now < registrationFrom) return 'Заплановано';
-  if (now <= registrationTo) return 'Реєстрація відкрита';
-  if (now < dateFrom) return 'Реєстрація закрита';
-  if (now <= dateTo) return 'Триває';
-  return 'Завершено';
+  if (now < registrationFrom) return COMPETITION_STATUS.PLANNED;
+  if (now <= registrationTo) return COMPETITION_STATUS.REGISTRATION_OPEN;
+  if (now < dateFrom) return COMPETITION_STATUS.REGISTRATION_CLOSED;
+  if (now <= dateTo) return COMPETITION_STATUS.ONGOING;
+  return COMPETITION_STATUS.FINISHED;
 }

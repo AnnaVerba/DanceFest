@@ -48,9 +48,25 @@ export class EntriesController {
   }
 
   @ApiOperation({
+    summary: "Public — count a competition's entries",
+    description:
+      'No login required. Used by the public competition page to show how ' +
+      'many entries have been submitted.',
+  })
+  @ApiResponse({ status: 200, description: 'Entry count returned.' })
+  @ApiResponse({
+    status: 404,
+    description: 'No competition exists with the given id.',
+  })
+  @Get('count')
+  count(@Param('competitionId') competitionId: string) {
+    return this.entriesService.count(competitionId);
+  }
+
+  @ApiOperation({
     summary: 'Submit an entry to a competition',
     description:
-      'Public — used by the participant registration form, no login required. ' +
+      'Requires a logged-in account. ' +
       'The nomination must be one already generated for this competition. ' +
       'Returns an array: a special category with a separate stage exit per program ' +
       'produces one entry per exit, each with its own running number.',
@@ -64,10 +80,13 @@ export class EntriesController {
     description:
       'Validation failed, or the nomination does not exist for this competition.',
   })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
   @ApiResponse({
     status: 404,
     description: 'No competition exists with the given id.',
   })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @Post()
   create(
     @Param('competitionId') competitionId: string,

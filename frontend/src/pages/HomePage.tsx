@@ -1,30 +1,41 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getCompetitionStatus, getCompetitions } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
+import { COMPETITION_STATUS } from '../lib/competitionStatus';
+import type { CompetitionStatus } from '../lib/competitionStatus';
+import {
+  HOME_STATUS_FILTERS,
+  HOME_STATUS_FILTER_ID,
+  filterHomeContests,
+  formatContestDateRange,
+  groupContestsByMonth,
+  listContestYears,
+} from '../lib/homeContests';
+import type { HomeStatusFilterId } from '../lib/homeContests';
 import { mockCompetitions } from '../lib/mockCompetitions';
+import PublicTopBar from '../components/PublicTopBar';
 import styles from './HomePage.module.css';
 
 const USE_MOCK_DATA = false;
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('uk-UA', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-}
-
-function formatDateRange(dateFrom: string, dateTo: string): string {
-  return dateFrom === dateTo
-    ? `${formatDate(dateFrom)} р.`
-    : `${formatDate(dateFrom)} – ${formatDate(dateTo)} р.`;
-}
+const STATUS_PILL_CLASS: Record<CompetitionStatus, string> = {
+  [COMPETITION_STATUS.PLANNED]: styles.statusPlanned,
+  [COMPETITION_STATUS.REGISTRATION_OPEN]: styles.statusOpen,
+  [COMPETITION_STATUS.REGISTRATION_CLOSED]: styles.statusClosed,
+  [COMPETITION_STATUS.ONGOING]: styles.statusOngoing,
+  [COMPETITION_STATUS.FINISHED]: styles.statusFinished,
+};
 
 export default function HomePage() {
   const [competitions, setCompetitions] = useState<Competition[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [year, setYear] = useState('');
+  const [statusId, setStatusId] = useState<HomeStatusFilterId>(
+    HOME_STATUS_FILTER_ID.ALL,
+  );
 
   useEffect(() => {
     if (USE_MOCK_DATA) {
@@ -39,7 +50,8 @@ export default function HomePage() {
         if (!cancelled) setCompetitions(data);
       })
       .catch(() => {
-        if (!cancelled) setError('Не вдалося завантажити конкурси. Спробуйте оновити сторінку.');
+        if (!cancelled)
+          setError('Не вдалося завантажити конкурси. Спробуйте оновити сторінку.');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -49,63 +61,116 @@ export default function HomePage() {
     };
   }, []);
 
+  const years = useMemo(
+    () => (competitions ? listContestYears(competitions) : []),
+    [competitions],
+  );
+
+  const monthGroups = useMemo(() => {
+    if (!competitions) return [];
+    return groupContestsByMonth(
+      filterHomeContests(competitions, { search, year, statusId }),
+    );
+  }, [competitions, search, year, statusId]);
+
+  const ready = !loading && !error && competitions !== null;
+
   return (
-    <main className={styles.main}>
+    <div className={styles.page}>
+      <PublicTopBar />
+
       <div className={styles.container}>
-        <h1 className={styles.pageTitle}>Танцювальні конкурси</h1>
+        <h1 className={styles.pageTitle}>Конкурси східного танцю</h1>
         <p className={styles.pageSubtitle}>
-          Оберіть конкурс і подайте заявку на участь — реєстрація не потрібна.
+          Оберіть конкурс — заявка подається з кабінету тренера або учасника.
         </p>
+
+        <div className={styles.filters}>
+          <input
+            className={styles.search}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Пошук за назвою, містом або організатором…"
+          />
+          <select
+            className={styles.yearSelect}
+            value={year}
+            onChange={(e) => setYear(e.target.value)}
+          >
+            <option value="">Усі роки</option>
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className={styles.chips}>
+          {HOME_STATUS_FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              className={
+                statusId === f.id ? `${styles.chip} ${styles.chipActive}` : styles.chip
+              }
+              onClick={() => setStatusId(f.id)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
 
         {loading && <p className={styles.status}>Завантаження...</p>}
         {error && <p className={styles.status}>{error}</p>}
-        {!loading && !error && competitions?.length === 0 && (
-          <p className={styles.status}>Поки що немає запланованих конкурсів</p>
-        )}
 
-        {!loading && !error && competitions && competitions.length > 0 && (
-          <ul className={styles.contests}>
-            {competitions.map((c) => (
-              <li key={c.id}>
-                <Link to={`/competitions/${c.id}`} className={styles.card}>
-                  <div className={styles.cardBanner}>
-                    {c.image ? (
-                      <img src={c.image} alt="" />
-                    ) : (
-                      <>
-                        <svg
-                          width="24"
-                          height="24"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.7"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
+        {ready &&
+          monthGroups.map((g) => (
+            <section key={g.key} className={styles.monthGroup}>
+              <div className={styles.monthHead}>
+                <span className={styles.monthLabel}>{g.label}</span>
+                <span className={styles.monthRule} />
+                <span className={styles.monthCount}>{g.countLabel}</span>
+              </div>
+              <div className={styles.grid}>
+                {g.competitions.map((c) => {
+                  const status = getCompetitionStatus(c);
+                  return (
+                    <Link
+                      key={c.id}
+                      to={`/competitions/${c.id}`}
+                      className={styles.card}
+                    >
+                      <div className={styles.cardBanner}>
+                        {c.image ? (
+                          <img src={c.image} alt="" />
+                        ) : (
+                          <span>Банер конкурсу</span>
+                        )}
+                      </div>
+                      <div className={styles.cardBody}>
+                        <span
+                          className={`${styles.statusPill} ${STATUS_PILL_CLASS[status]}`}
                         >
-                          <rect x="3" y="3" width="18" height="18" rx="2" />
-                          <circle cx="8.8" cy="8.8" r="1.6" />
-                          <path d="M21 15.5l-5-5L5 21" />
-                        </svg>
-                        <span>Банер конкурсу</span>
-                      </>
-                    )}
-                  </div>
-                  <div className={styles.cardBody}>
-                    <span className={styles.badge}>{getCompetitionStatus(c)}</span>
-                    <h2 className={styles.cardTitle}>{c.name}</h2>
-                    <p className={styles.cardMeta}>
-                      {formatDateRange(c.dateFrom, c.dateTo)}
-                      {c.location && ` · ${c.location}`}
-                    </p>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
+                          {status}
+                        </span>
+                        <span className={styles.cardTitle}>{c.name}</span>
+                        <span className={styles.cardMeta}>
+                          {formatContestDateRange(c.dateFrom, c.dateTo)}
+                          {c.location && ` · ${c.location}`}
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+
+        {ready && monthGroups.length === 0 && (
+          <div className={styles.empty}>За цими умовами конкурсів не знайдено.</div>
         )}
       </div>
-    </main>
+    </div>
   );
 }
