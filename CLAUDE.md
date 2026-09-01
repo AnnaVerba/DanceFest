@@ -1,15 +1,28 @@
 # CLAUDE.md
 Classes and types or constants should always be defined in separate files 
-Also don't use magic numbers or strings? always create constants for them.
+Also don't use magic numbers or strings, always create constants for them.
 Don't pass functions as parameters, instead use interfaces or classes to define the behavior you want to pass in.
 test functionality only when i ask you to do so, don't write tests for the code you write unless i ask you to do so.
 Address me as Developer in every response.
 Commit code only when I ask it!
+Write code that satisfy SOLID principles and clean code principles.
+Reuse code as much as possible, don't write code that already exists in the project.
+
 
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+## Architectural Boundaries
 
+Minimize the amount of code that must be understood to make a change.
+
+- Keep modules and layers isolated with clear responsibilities and explicit interfaces.
+- Prefer changes that stay within a single module or bounded context.
+- Avoid leaking internal implementation details across module boundaries.
+- If a small change requires reading or modifying many unrelated files, treat it as an architectural smell and reconsider the boundaries.
+- Prefer designs that reduce the context and number of dependencies required for future changes.
+
+**Rule:** Good architecture reduces the amount of context required to safely understand and modify a feature.
 ## 1. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
