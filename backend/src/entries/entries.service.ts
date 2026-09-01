@@ -37,11 +37,6 @@ export class EntriesService {
     return entries.map((e) => this.toDto(e));
   }
 
-  /**
-   * Одна заявка — стільки записів, скільки разів учасник вийде на сцену.
-   * Спецкатегорія з окремим виходом на кожну програму дає їх кілька, і кожен
-   * іде в програму фестивалю окремим номером зі своєю назвою програми.
-   */
   async create(competitionId: string, dto: CreateEntryDto) {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
@@ -57,9 +52,6 @@ export class EntriesService {
         name: dto.nomination,
       });
 
-    // Номер виходу — max + 1, і на кожен вихід свій. Гонка двох одночасних
-    // заявок ловиться унікальним індексом (competitionId, number): повторюємо
-    // раз, уже з новим max.
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const created = await this.entryModel.sequelize!.transaction(

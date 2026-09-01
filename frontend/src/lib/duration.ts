@@ -1,7 +1,3 @@
-/**
- * Тривалість у положеннях пишуть і як «2:30», і як «150». Форма приймає обидва
- * записи, а показує завжди перший.
- */
 export function formatDuration(seconds: number | null): string {
   if (seconds === null) return '';
   const minutes = Math.floor(seconds / 60);

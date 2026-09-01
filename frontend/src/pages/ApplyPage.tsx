@@ -11,11 +11,6 @@ import styles from './ApplyPage.module.css';
 
 type PayMethod = 'cash' | 'card';
 
-/**
- * Скільки разів учасник вийде на сцену за цією заявкою і скільки часу має на
- * кожен вихід. Для звичайної номінації — рядок про ліміт, для спецкатегорії з
- * окремими виходами — перелік: інакше людина не розуміє, за що платить.
- */
 function NominationExits({ nomination }: { nomination: Nomination }) {
   const { exits } = nomination;
   if (exits.length === 0) return null;
@@ -247,8 +242,6 @@ export default function ApplyPage() {
           {selectedNomination && <NominationExits nomination={selectedNomination} />}
         </div>
 
-        {/* Позначку ставить учасник, але лише там, де адмін дозволив
-            імпровізацію для цієї номінації. */}
         <label className={styles.check}>
           <input
             type="checkbox"

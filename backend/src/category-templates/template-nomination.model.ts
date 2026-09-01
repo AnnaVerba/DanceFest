@@ -38,8 +38,6 @@ export class TemplateNomination extends Model<TemplateNomination> {
   })
   declare categoryIds: string[];
 
-  // Спецкатегорія — «Кубок», «Корона», батл. Ліміти тривалості сюди не
-  // потрапляють: вони налаштовуються під конкретний конкурс, не під шаблон.
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   declare isSpecial: boolean;
 

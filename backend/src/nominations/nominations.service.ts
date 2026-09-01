@@ -36,8 +36,6 @@ export class NominationsService {
       order: [['createdAt', 'ASC']],
     });
 
-    // Один запит на весь список: програми потрібні кожній номінації, і по
-    // запиту на кожну це сотні звернень на одному відкритті форми заявки.
     const categories = await this.loadCategories(nominations);
     return nominations.map((n) => this.toDto(n, categories));
   }
@@ -82,8 +80,6 @@ export class NominationsService {
     await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
     const nomination = await this.loadNomination(competitionId, nominationId);
 
-    // Ліміти можуть приїхати без categoryIds — перевіряємо проти того складу,
-    // який номінація матиме після оновлення, а не проти присланого шматка.
     this.assertLimitsBelongToNomination({
       categoryIds: dto.categoryIds ?? nomination.categoryIds,
       programLimits: dto.programLimits ?? nomination.programLimits,
@@ -118,11 +114,6 @@ export class NominationsService {
     await nomination.destroy();
   }
 
-  /**
-   * Усе, що потрібно заявці: скільки виходів вона породить, як вони звуться і
-   * які осі підставити в поля виступу. Право тут учасника, не адміна — форма
-   * заявки публічна.
-   */
   async resolveForEntry(
     competitionId: string,
     ref: { nominationId?: string; name?: string },
@@ -165,10 +156,6 @@ export class NominationsService {
     } as CreationAttributes<Nomination>;
   }
 
-  /**
-   * Ліміт програми, якої в номінації немає, не помилка бази — він просто
-   * ніколи не спрацює, і організатор не зрозуміє, чому виступ рахується не так.
-   */
   private assertLimitsBelongToNomination(input: {
     categoryIds?: string[];
     programLimits?: Record<string, number>;
@@ -205,7 +192,6 @@ export class NominationsService {
       .filter((c): c is Category => c !== undefined && c.type === type);
   }
 
-  /** Програми — це категорії номінації з типом «дисципліна», окремого поля немає. */
   private programsFor(
     nomination: Nomination,
     categories: Map<string, Category>,
@@ -296,8 +282,6 @@ export class NominationsService {
       exitMode: nomination.exitMode,
       durationLimitSeconds: nomination.durationLimitSeconds,
       programLimits: nomination.programLimits ?? {},
-      // Похідне від складу номінації: скільки разів учасник вийде на сцену і
-      // з яким лімітом кожного разу. Форма заявки рахувати це сама не мусить.
       programs: this.programsFor(nomination, categories),
       exits: this.exitsOf(nomination, categories),
       createdAt: nomination.createdAt,

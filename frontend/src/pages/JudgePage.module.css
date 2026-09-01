@@ -1,20 +1,20 @@
 .main {
-  --bg: #f1f5f9;
-  --surface: #fff;
-  --field: #f8fafc;
-  --line: #e5e7eb;
-  --line-strong: #cbd5e1;
-  --ink: #0f172a;
-  --ink-soft: #334155;
-  --muted: #64748b;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --c-nom: #b45309;
-  --c-age: #7c3aed;
-  --c-league: #0f766e;
-  --c-prog: #4f46e5;
-  --c-num: #2563eb;
-  --c-studio: #c2410c;
+  --bg: var(--g-page-bg);
+  --surface: var(--g-surface);
+  --field: var(--g-field);
+  --line: var(--g-line);
+  --line-strong: var(--g-line-strong);
+  --ink: var(--g-ink);
+  --ink-soft: var(--g-ink-soft);
+  --muted: var(--g-muted);
+  --accent: var(--g-accent);
+  --accent-hover: var(--g-accent-hover);
+  --c-nom: var(--g-warning);
+  --c-age: var(--g-cat-age);
+  --c-league: var(--g-cat-league);
+  --c-prog: var(--g-cat-prog);
+  --c-num: var(--g-accent);
+  --c-studio: var(--g-cat-studio);
   --r: 12px;
   --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.04);
 
@@ -88,7 +88,7 @@
   font-size: 14px;
   font-weight: 500;
   border: 1px solid var(--line-strong);
-  background: #fff;
+  background: var(--g-surface);
   color: var(--ink);
   cursor: pointer;
   text-decoration: none;
@@ -98,8 +98,8 @@
 }
 
 .btn:hover {
-  background: #f8fafc;
-  border-color: #94a3b8;
+  background: var(--g-field);
+  border-color: var(--g-subtle);
 }
 
 .btnPrimary {
@@ -157,7 +157,7 @@
 }
 
 .card tbody tr:hover {
-  background: #f8fafc;
+  background: var(--g-field);
 }
 
 /* ширини колонок — сума 100% */
@@ -247,20 +247,20 @@ td.cStudio {
 }
 
 .score::placeholder {
-  color: #94a3b8;
+  color: var(--g-subtle);
   font-weight: 400;
 }
 
 .score:focus {
   outline: none;
-  background: #fff;
+  background: var(--g-surface);
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
 
 .scoreFilled {
   border-color: var(--accent);
-  background: #fff;
+  background: var(--g-surface);
 }
 
 .score::-webkit-outer-spin-button,
@@ -374,7 +374,7 @@ td.cStudio {
 
 .field input:focus {
   outline: none;
-  background: #fff;
+  background: var(--g-surface);
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
@@ -383,9 +383,9 @@ td.cStudio {
   margin: 0 0 16px;
   padding: 10px 12px;
   border-radius: 8px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #dc2626;
+  background: var(--g-danger-bg);
+  border: 1px solid var(--g-danger-border);
+  color: var(--g-danger);
   font-size: 13.5px;
 }
 

@@ -81,7 +81,6 @@ describe('planNominationExits', () => {
       programLimits: { p1: 90, p3: 60 },
     });
 
-    // p2 власного ліміту не має — падає на ліміт номінації.
     expect(exits.map((e) => e.durationLimitSeconds)).toEqual([90, 200, 60]);
   });
 

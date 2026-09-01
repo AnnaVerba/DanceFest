@@ -4,11 +4,6 @@ import type { ValidationOptions } from 'class-validator';
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-/**
- * `programLimits` — вільний словник, а не поле з фіксованою формою, тож
- * @IsObject пропустив би туди будь-що. Сюди йде арифметика тривалості
- * виступу, і сміття в значеннях далі не відловиться нічим.
- */
 export function IsProgramLimits(options?: ValidationOptions) {
   return function (object: object, propertyName: string) {
     registerDecorator({

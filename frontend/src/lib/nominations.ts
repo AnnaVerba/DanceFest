@@ -4,14 +4,11 @@ import type { ExitMode } from './categoryTemplates';
 
 export type { ExitMode };
 
-// Програма виступу — категорія номінації з типом «дисципліна». Окремого поля
-// під програми немає: це ті самі categoryIds.
 export interface NominationProgram {
   id: string;
   name: string;
 }
 
-// Один вихід на сцену. Похідне від складу номінації, рахує бек.
 export interface NominationExit {
   programId: string | null;
   programName: string | null;

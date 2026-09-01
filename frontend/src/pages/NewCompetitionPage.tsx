@@ -25,6 +25,7 @@ import {
 } from '../lib/categoryTemplates';
 import type { CategoryTemplate } from '../lib/categoryTemplates';
 import { upsertPaymentDetails } from '../lib/paymentDetails';
+import { UploadApiError, uploadImage } from '../lib/uploads';
 import { isValidEmail, isValidPhone } from '../lib/validation';
 import styles from './NewCompetitionPage.module.css';
 
@@ -81,9 +82,6 @@ interface DraftJudge {
   email: string;
 }
 
-// Звідки беруться номінації конкурсу: готовий шаблон чи власний набір,
-// складений тут-таки. Власний завжди зберігається шаблоном — інакше наступного
-// року цю саму сітку довелося б набирати заново.
 type NominationSource = 'template' | 'custom';
 
 interface DraftVenue {
@@ -101,8 +99,6 @@ export default function NewCompetitionPage() {
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  // Конкурс триває від одного до кількох днів, тому дві дати, а не одна.
-  // Порожня dateTo означає одноденний конкурс і дорівнює dateFrom.
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [location, setLocation] = useState('');
@@ -110,6 +106,9 @@ export default function NewCompetitionPage() {
   const [registrationFrom, setRegistrationFrom] = useState('');
   const [registrationTo, setRegistrationTo] = useState('');
   const [bannerName, setBannerName] = useState<string | null>(null);
+  const [bannerUrl, setBannerUrl] = useState<string | null>(null);
+  const [bannerUploading, setBannerUploading] = useState(false);
+  const [bannerError, setBannerError] = useState<string | null>(null);
 
   const [contactNumber, setContactNumber] = useState('');
   const [contactEmail, setContactEmail] = useState('');
@@ -133,8 +132,6 @@ export default function NewCompetitionPage() {
   const [nominationSource, setNominationSource] = useState<NominationSource>('template');
   const [templateName, setTemplateName] = useState('');
   const [nominations, setNominations] = useState<DraftNomination[]>([]);
-  // Крок із категоріями зникає з дерева, щойно людина йде далі. Осі тримаємо
-  // тут, інакше на поверненні вони порожні, а таблиця вже повна.
   const [axes, setAxes] = useState<AxisSelection | null>(null);
   const [loadingNominations, setLoadingNominations] = useState(false);
 
@@ -217,9 +214,25 @@ export default function NewCompetitionPage() {
     window.scrollTo(0, 0);
   };
 
-  const handleBannerPick = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleBannerPick = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    setBannerName(file ? file.name : null);
+    if (!file) return;
+
+    setBannerName(file.name);
+    setBannerUrl(null);
+    setBannerError(null);
+    setBannerUploading(true);
+    try {
+      const url = await uploadImage(file);
+      setBannerUrl(url);
+    } catch (err) {
+      setBannerError(
+        err instanceof UploadApiError ? err.message : 'Не вдалося завантажити банер.',
+      );
+      setBannerName(null);
+    } finally {
+      setBannerUploading(false);
+    }
   };
 
   const addJudge = () => {
@@ -311,7 +324,6 @@ export default function NewCompetitionPage() {
     return errors;
   }
 
-  // Власний набір не має полів із помилками — крок валідується цілком.
   function validateNominationSet(): string | null {
     if (nominationSource !== 'custom') return null;
     if (!templateName.trim()) return 'Вкажіть назву шаблону для власного набору.';
@@ -369,17 +381,11 @@ export default function NewCompetitionPage() {
 
     setSubmitting(true);
     try {
-      // Значення осей, набрані руками на кроці категорій, досі жили лише в
-      // браузері — заводимо їх у довіднику аж тут. Кинутий на півдорозі майстер
-      // не має лишати по собі рядків, які потім бачать усі організатори.
       const saved =
         nominationSource === 'custom'
           ? await resolveDraftCategories(nominations)
           : nominations;
 
-      // Шаблон зберігається до конкурсу навмисно: якщо збереження впаде,
-      // конкурс не створиться, а складений набір лишиться на екрані. У
-      // зворотному порядку людина втратила б сітку, яку набирала руками.
       if (nominationSource === 'custom') {
         await createCategoryTemplate({
           name: templateName.trim(),
@@ -396,6 +402,7 @@ export default function NewCompetitionPage() {
       }
 
       const competition = await createCompetition({
+        image: bannerUrl ?? undefined,
         name: name.trim(),
         description: description.trim(),
         location: location.trim(),
@@ -455,8 +462,6 @@ export default function NewCompetitionPage() {
         navigate(`/competitions/${competition.id}`);
       }
     } catch (err) {
-      // Помилка шаблону приходить своїм класом і має інший текст: конкурсу ще
-      // немає, і казати «не вдалося створити конкурс» було б брехнею.
       if (err instanceof CategoryApiError) {
         setSubmitError(`Не вдалося зберегти значення категорій: ${err.message}`);
         goStep(5);
@@ -591,33 +596,47 @@ export default function NewCompetitionPage() {
               </p>
               <div className={styles.field}>
                 <label htmlFor="w-name">Банер конкурсу</label>
-                <button
-                  type="button"
-                  className={styles.dropzone}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <svg
-                    width="26"
-                    height="26"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    aria-hidden="true"
+                {bannerUrl ? (
+                  <button
+                    type="button"
+                    className={styles.dropzone}
+                    onClick={() => fileInputRef.current?.click()}
                   >
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <circle cx="8.5" cy="8.5" r="1.5" />
-                    <path d="M21 15l-5-5L5 21" />
-                  </svg>
-                  {bannerName ?? 'Перетягніть банер конкурсу'}
-                </button>
+                    <img src={bannerUrl} alt="" className={styles.bannerPreview} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.dropzone}
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={bannerUploading}
+                  >
+                    <svg
+                      width="26"
+                      height="26"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      aria-hidden="true"
+                    >
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <path d="M21 15l-5-5L5 21" />
+                    </svg>
+                    {bannerUploading
+                      ? 'Завантаження...'
+                      : (bannerName ?? 'Перетягніть банер конкурсу')}
+                  </button>
+                )}
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
-                  onChange={handleBannerPick}
+                  onChange={(e) => void handleBannerPick(e)}
                   style={{ display: 'none' }}
                 />
+                {bannerError && <p className={styles.fieldError}>{bannerError}</p>}
               </div>
               <div className={styles.field}>
                 <label htmlFor="w-name">
@@ -1001,8 +1020,6 @@ export default function NewCompetitionPage() {
                   aria-pressed={nominationSource === 'custom'}
                   onClick={() => {
                     setNominationSource('custom');
-                    // Набір із шаблону не переносимо: людина обрала складати
-                    // свій, і чужі рядки в таблиці її тільки заплутають.
                     setNominations([]);
                   }}
                 >

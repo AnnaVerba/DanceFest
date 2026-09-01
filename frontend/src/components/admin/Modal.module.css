@@ -11,15 +11,15 @@
 }
 
 .panel {
-  --ink: #0f172a;
-  --muted: #64748b;
-  --line: #e2e8f0;
+  --ink: var(--g-ink);
+  --muted: var(--g-muted);
+  --line: var(--g-line);
 
   width: 100%;
   max-width: 460px;
   max-height: min(640px, 90vh);
   overflow-y: auto;
-  background: #fff;
+  background: var(--g-surface);
   border-radius: 16px;
   padding: 28px 28px 24px;
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
@@ -65,7 +65,7 @@
 }
 
 .closeBtn:hover {
-  background: #f1f5f9;
+  background: var(--g-page-bg);
   color: var(--ink);
 }
 

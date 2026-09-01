@@ -9,7 +9,7 @@
   border-radius: 8px;
   border: none;
   background: transparent;
-  color: #64748b;
+  color: var(--g-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -18,8 +18,8 @@
 
 .trigger:hover,
 .trigger[aria-expanded='true'] {
-  background: #f1f5f9;
-  color: #0f172a;
+  background: var(--g-page-bg);
+  color: var(--g-ink);
 }
 
 .menu {
@@ -27,8 +27,8 @@
   top: calc(100% + 6px);
   right: 0;
   min-width: 200px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--g-surface);
+  border: 1px solid var(--g-line);
   border-radius: 10px;
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
   padding: 6px;
@@ -44,18 +44,18 @@
   background: transparent;
   border: none;
   border-radius: 7px;
-  color: #0f172a;
+  color: var(--g-ink);
   cursor: pointer;
 }
 
 .item:hover {
-  background: #f8fafc;
+  background: var(--g-field);
 }
 
 .item.destructive {
-  color: #dc2626;
+  color: var(--g-danger);
 }
 
 .item.destructive:hover {
-  background: #fef2f2;
+  background: var(--g-danger-bg);
 }

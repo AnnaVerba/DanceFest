@@ -34,8 +34,6 @@ export class Entry extends Model<Entry> {
   @Column({ type: DataType.UUID, allowNull: true })
   declare nominationId: string | null;
 
-  // Знімок назви виходу на момент подачі — з програмою в кінці, якщо
-  // спецкатегорія дає окремий вихід на кожну програму.
   @Column({ type: DataType.STRING, allowNull: false })
   declare nomination: string;
 

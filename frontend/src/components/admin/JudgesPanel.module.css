@@ -4,14 +4,14 @@
 
 .note {
   margin: 0;
-  color: #64748b;
+  color: var(--g-muted);
   font-size: 14.5px;
   max-width: 70ch;
 }
 
 .status {
   margin: 16px 0 0;
-  color: #64748b;
+  color: var(--g-muted);
   font-style: italic;
 }
 
@@ -19,27 +19,27 @@
   width: 100%;
   height: 42px;
   padding: 0 14px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--g-line);
   border-radius: 8px;
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--g-field);
+  color: var(--g-ink);
   font-family: inherit;
   font-size: 14.5px;
   transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
 .input::placeholder {
-  color: #94a3b8;
+  color: var(--g-subtle);
 }
 
 .input:hover {
-  border-color: #d3dae4;
+  border-color: var(--g-line-strong);
 }
 
 .input:focus {
   outline: none;
-  background: #fff;
-  border-color: #2563eb;
+  background: var(--g-surface);
+  border-color: var(--g-accent);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
@@ -53,8 +53,8 @@
 }
 
 .judge {
-  background: #f8fafc;
-  border: 1px solid #e5e7eb;
+  background: var(--g-field);
+  border: 1px solid var(--g-line);
   border-radius: 10px;
   padding: 14px 16px;
 }
@@ -67,20 +67,20 @@
 }
 
 .judge .input {
-  background: #fff;
+  background: var(--g-surface);
 }
 
 .pass {
   margin: 8px 0 0;
   font-size: 13px;
-  color: #64748b;
+  color: var(--g-muted);
 }
 
 .pass code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 13px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--g-ink);
   letter-spacing: 0.03em;
 }
 
@@ -89,7 +89,7 @@
   background: none;
   height: auto;
   padding: 4px 6px;
-  color: #ef4444;
+  color: var(--g-danger);
   font-family: inherit;
   font-size: 14px;
   font-weight: 600;
@@ -98,7 +98,7 @@
 }
 
 .btnLink:hover {
-  background: #fef2f2;
+  background: var(--g-danger-bg);
 }
 
 .addJudge {
@@ -114,7 +114,7 @@
   padding: 0 22px;
   border-radius: 8px;
   border: 0;
-  background: #2563eb;
+  background: var(--g-accent);
   color: #fff;
   font-family: inherit;
   font-size: 14px;
@@ -124,7 +124,7 @@
 }
 
 .btnPrimary:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: var(--g-accent-hover);
 }
 
 .btnPrimary:disabled {

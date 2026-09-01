@@ -43,8 +43,6 @@ export class Nomination extends Model<Nomination> {
   })
   declare categoryIds: string[];
 
-  // Спецкатегорія — «Кубок», «Корона», батл. Її дисципліни не розходяться по
-  // окремих номінаціях, а лишаються в одній.
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   declare isSpecial: boolean;
 

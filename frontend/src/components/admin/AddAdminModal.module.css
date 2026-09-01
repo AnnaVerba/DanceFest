@@ -7,12 +7,12 @@
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 6px;
-  color: #0f172a;
+  color: var(--g-ink);
 }
 
 .hint {
   font-size: 12.5px;
-  color: #64748b;
+  color: var(--g-muted);
   margin: 4px 0 0;
 }
 
@@ -22,9 +22,9 @@
   padding: 0 14px;
   font-size: 15px;
   font-family: inherit;
-  color: #0f172a;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  color: var(--g-ink);
+  background: var(--g-field);
+  border: 1px solid var(--g-line);
   border-radius: 9px;
   outline: none;
   transition:
@@ -33,17 +33,17 @@
 }
 
 .field input::placeholder {
-  color: #94a3b8;
+  color: var(--g-subtle);
 }
 
 .field input:focus {
-  border-color: #2563eb;
+  border-color: var(--g-accent);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-  background: #fff;
+  background: var(--g-surface);
 }
 
 .field input.invalid {
-  border-color: #dc2626;
+  border-color: var(--g-danger);
 }
 
 .field input:disabled {
@@ -54,7 +54,7 @@
 .fieldError {
   margin: 6px 0 0;
   font-size: 13px;
-  color: #dc2626;
+  color: var(--g-danger);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -64,7 +64,7 @@
 .inlineResend {
   border: none;
   background: transparent;
-  color: #2563eb;
+  color: var(--g-accent);
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
@@ -89,7 +89,7 @@
   font-weight: 700;
   font-family: inherit;
   color: #fff;
-  background: #2563eb;
+  background: var(--g-accent);
   border: 0;
   border-radius: 9px;
   cursor: pointer;
@@ -101,7 +101,7 @@
 }
 
 .submit:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: var(--g-accent-hover);
 }
 
 .submit:disabled {

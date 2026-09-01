@@ -9,6 +9,7 @@ import { Competition } from './competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Admin } from '../admins/admin.model';
 import { PaymentDetails } from '../payment-details/payment-details.model';
+import { CompetitionRule } from '../competition-rules/competition-rule.model';
 import { CreateCompetitionDto } from './dto/create-competition.dto';
 import { UpdateCompetitionDto } from './dto/update-competition.dto';
 
@@ -24,6 +25,8 @@ export class CompetitionsService {
     private readonly competitionModel: typeof Competition,
     @InjectModel(CompetitionAdmin)
     private readonly competitionAdminModel: typeof CompetitionAdmin,
+    @InjectModel(CompetitionRule)
+    private readonly competitionRuleModel: typeof CompetitionRule,
   ) {}
 
   findAll(): Promise<Competition[]> {
@@ -40,11 +43,20 @@ export class CompetitionsService {
     return competition;
   }
 
-  create(dto: CreateCompetitionDto, ownerId: string): Promise<Competition> {
-    return this.competitionModel.create({
+  async create(
+    dto: CreateCompetitionDto,
+    ownerId: string,
+  ): Promise<Competition> {
+    const competition = await this.competitionModel.create({
       ...dto,
       ownerId,
     } as CreationAttributes<Competition>);
+
+    await this.competitionRuleModel.create({
+      competitionId: competition.id,
+    } as CreationAttributes<CompetitionRule>);
+
+    return competition;
   }
 
   async update(

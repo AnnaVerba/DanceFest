@@ -12,7 +12,10 @@ import { NominationsModule } from './nominations/nominations.module';
 import { CategoriesModule } from './categories/categories.module';
 import { CategoryTemplatesModule } from './category-templates/category-templates.module';
 import { PaymentDetailsModule } from './payment-details/payment-details.module';
+import { CompetitionRulesModule } from './competition-rules/competition-rules.module';
 import { MailModule } from './mail/mail.module';
+import { UploadsModule } from './uploads/uploads.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -20,6 +23,7 @@ import { MailModule } from './mail/mail.module';
       isGlobal: true,
     }),
     MailModule,
+    RedisModule,
     SequelizeModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -45,6 +49,8 @@ import { MailModule } from './mail/mail.module';
     CategoriesModule,
     CategoryTemplatesModule,
     PaymentDetailsModule,
+    UploadsModule,
+    CompetitionRulesModule,
   ],
 })
 export class AppModule {}
