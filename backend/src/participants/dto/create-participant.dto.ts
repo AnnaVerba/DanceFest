@@ -4,6 +4,8 @@ import {
   IsEmail,
   IsEmpty,
   IsNotEmpty,
+  IsOptional,
+  IsUUID,
   MinLength,
 } from 'class-validator';
 import {
@@ -35,6 +37,16 @@ export class CreateParticipantDto {
   @ApiProperty({ example: '2010-05-20' })
   @IsDateString()
   birthDate: string;
+
+  @ApiProperty({
+    description:
+      'Required when the caller is an ORGANIZER; ignored when the caller is a COACH (forced to the caller).',
+    example: 'a1b2c3d4-...',
+    required: false,
+  })
+  @IsOptional()
+  @IsUUID()
+  coachId?: string;
 
   @ApiProperty({
     description:

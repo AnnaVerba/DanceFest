@@ -13,21 +13,21 @@ export class RefreshTokenStoreService {
     private readonly config: ConfigService,
   ) {}
 
-  async save(adminId: string, tokenId: string): Promise<void> {
-    await this.redis.set(this.buildKey(adminId, tokenId), '1', this.ttl());
+  async save(userId: string, tokenId: string): Promise<void> {
+    await this.redis.set(this.buildKey(userId, tokenId), '1', this.ttl());
   }
 
-  async isActive(adminId: string, tokenId: string): Promise<boolean> {
-    const value = await this.redis.get(this.buildKey(adminId, tokenId));
+  async isActive(userId: string, tokenId: string): Promise<boolean> {
+    const value = await this.redis.get(this.buildKey(userId, tokenId));
     return value !== null;
   }
 
-  async revoke(adminId: string, tokenId: string): Promise<void> {
-    await this.redis.del(this.buildKey(adminId, tokenId));
+  async revoke(userId: string, tokenId: string): Promise<void> {
+    await this.redis.del(this.buildKey(userId, tokenId));
   }
 
-  private buildKey(adminId: string, tokenId: string): string {
-    return `${REFRESH_TOKEN_KEY_PREFIX}${adminId}:${tokenId}`;
+  private buildKey(userId: string, tokenId: string): string {
+    return `${REFRESH_TOKEN_KEY_PREFIX}${userId}:${tokenId}`;
   }
 
   private ttl(): number {

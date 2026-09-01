@@ -1,1287 +1,554 @@
-# DanseFest Backend — план реалізації
+# DanseFest Backend — таски
 
-> **Для агентів:** ОБОВ'ЯЗКОВИЙ САБ-СКІЛ: використовуй `superpowers:subagent-driven-development` (рекомендовано) або `superpowers:executing-plans`, щоб виконувати план задача за задачею. Кроки позначені чекбоксами (`- [ ]`).
+**Мета:** серверна частина ядра змагання — від акаунтів і довідника номінацій до розщеплення плоскої заявки, програми фестивалю, оплат і публічного каталогу. Суддівство й результати винесені у відкладену хвилю.
 
-**Мета:** Побудувати серверну частину ядра змагання — від розщеплення плоскої заявки до програми фестивалю, суддівства через бригади й зведення результатів.
-
-**Архітектура:** NestJS-модуль на кожну межу з §5 бачення. Модуль ніколи не імпортує сервіс модуля, що стоїть правіше в схемі залежностей. Уся арифметика часу, кворуму й зведення результатів винесена в чисті функції без доступу до БД — саме вони покриті тестами.
-
-**Стек:** NestJS 11, Sequelize 6 + sequelize-typescript, PostgreSQL, sequelize-cli (міграції в `backend/migrations/`, конфіг `backend/src/config/database.js`), Jest (`*.spec.ts` поруч із кодом, `rootDir: src`), class-validator для DTO, passport-jwt.
+**Стек:** NestJS 11, Sequelize 6 + sequelize-typescript, PostgreSQL, sequelize-cli (міграції в `backend/migrations/`, конфіг `backend/src/config/database.js`), class-validator для DTO, passport-jwt.
 
 **Spec:** `docs/superpowers/specs/2026-08-18-danse-fest-technical-vision-design.md`
+**Парний план:** `docs/superpowers/plans/2026-08-18-danse-fest-frontend.md`
+
+**Як читати таск:** `should contain` — перелік колонок таблиці. `Related to` — з якими таблицями зв'язок. `Готово, коли` — критерії приймання: те, що перевіряється кліком або запитом, а не станом коду.
 
 ## Глобальні обмеження
 
-- Усі первинні ключі — `UUID` з `defaultValue: DataTypes.UUIDV4`.
-- Кожна міграція має робочий `down`. Міграції створюються вручну у форматі
-  `YYYYMMDDHHmmss-опис.ts`, за зразком `20260822090100-create-template-nominations.ts`.
-- Іменування: таблиці — `snake_case` множина, поля — `camelCase` (так уже в проєкті).
+- PK — `UUID` з `defaultValue: DataTypes.UUIDV4`.
+- Кожна міграція має робочий `down`. Формат імені: `YYYYMMDDHHmmss-опис.ts`, за зразком `20260822090100-create-template-nominations.ts`.
+- Таблиці — `snake_case` множина, поля — `camelCase` (так уже в проєкті).
 - Кожна таблиця має `createdAt` і `updatedAt` (`allowNull: false`).
-- Зовнішні ключі — з `onDelete: 'CASCADE', onUpdate: 'CASCADE'`, крім явно
-  зазначених випадків.
-- DTO валідуються через class-validator; `main.ts` уже має глобальний `ValidationPipe`.
+- FK — з `onDelete: 'CASCADE', onUpdate: 'CASCADE'`, крім явно зазначених.
 - Гроші — `DECIMAL(10, 2)`. Тривалості — цілі **секунди** (`INTEGER`), ніколи не float.
-- Час у розкладі зберігається як `TIME` або обчислюється; **час виступу ніколи не приймається з клієнта** (інваріант 2 бачення).
-- Команди: `npm run migrate`, `npm test`, `npm run lint` з теки `backend/`.
-- Коментарі в коді — українською, лише там, де пояснюють *чому*, а не *що*
-  (так уже в проєкті).
+- **Час виступу ніколи не приймається з клієнта** — тільки обчислюється (інваріант 2).
+- Ніяких magic numbers і magic strings: усі пороги, ліміти й ключі — іменовані константи в окремих файлах.
+- Коментарі — українською, лише там, де пояснюють *чому*.
 
 ---
 
-## Фаза 1 — Ролі й акаунти
+## Фаза 1 — Акаунти
 
-### Task 1: Єдина таблиця користувачів із ролями
+### BE-1 (було BE-1): Merge admins into users with roles
 
-Зараз `admins` — єдина таблиця людей із паролем, а `judges` живе окремо зі своїм JWT. З'являються керівник і учасник, тож потрібна спільна основа.
+**Table `users`** (перейменування з `admins`) should contain:
+{id, name, email, password, role, city, studioName, phone, phoneVerified}
 
-**Files:**
-- Create: `backend/migrations/20260823090000-rename-admins-to-users.ts`
-- Modify: `backend/src/admins/admin.model.ts` → перейменувати у `backend/src/users/user.model.ts`
-- Modify: `backend/src/admins/admins.service.ts` → `backend/src/users/users.service.ts`
-- Modify: `backend/src/admins/admins.module.ts` → `backend/src/users/users.module.ts`
-- Modify: `backend/src/auth/auth.service.ts`, `backend/src/auth/dto/register.dto.ts`, `backend/src/auth/jwt.strategy.ts`
-- Modify: усі файли, що імпортують `Admin` (competitions, team, category-templates)
-- Test: `backend/src/users/users.service.spec.ts`
+- `role` — `ENUM('superadmin','organizer','coach','participant')`, not null, default `'organizer'`.
+- `phone` — not null для нових записів, **unique**: за ним учасник входить у кабінет.
+- `phoneVerified` — BOOLEAN, default `false`.
+- `studioName` — обов'язкова для `organizer` і `coach`, nullable для решти.
 
-**Interfaces:**
-- Produces: `User` модель із полем `role: 'superadmin' | 'organizer' | 'coach' | 'participant'`; `UsersService.findByEmail(email)`, `UsersService.create({name, email, password, role})`.
+**Related to:** `competitions` через `competition_admins` (`adminId` → `userId`); `judges` отримує `userId` (null, `SET NULL`) і далі не чіпається.
+
+**Правила:** `POST /auth/register` приймає лише `organizer | coach | participant`. Пароль лишається — OTP його не заміняє, а додається.
+
+**Готово, коли:**
+- [ ] Реєстрація з роллю `coach` без `studioName` → `400`.
+- [ ] Спроба зареєструватись як `superadmin` → `400`.
+- [ ] Наявні адміни після міграції — `organizer`, доступ до конкурсів не втрачено.
+- [ ] Другий користувач із тим самим телефоном відхиляється БД.
+
+### BE-2 (нове): Phone verification via SMS OTP
+
+**Table `otp_codes`** should contain:
+{id, userId, phone, codeHash, expiresAt, attempts, consumedAt}
+
+**Endpoints:**
+- `POST /auth/register` → `201 { userId, otpRequired: true }` — токенів не видає.
+- `POST /auth/otp/send { userId, phone }` → `{ sentAt, expiresIn: 300, retryAfter: 60 }`
+- `POST /auth/otp/verify { userId, code }` → `{ token, refreshToken, user }`
+
+**Правила:** код 4 цифри, у БД лише хеш, TTL 5 хв; не більше 3 надсилань на номер за 15 хв (`429` з `retryAfter`); 5 невдалих спроб — код згорає (`400 OTP_EXPIRED`); успішна перевірка ставить `phoneVerified = true` і `consumedAt`; провайдер SMS — за інтерфейсом `SmsSender`, у dev-режимі пише код у лог.
+
+**Готово, коли:**
+- [ ] Без підтвердження номера логін віддає `{ otpRequired, userId }`, а не токени.
+- [ ] Четверте надсилання за 15 хв → `429`.
+- [ ] Прострочений код → `400 OTP_EXPIRED`, у БД не лишається чистого коду.
+
+### BE-3 (нове): Login by email or phone, password reset
+
+**Endpoints:** `POST /auth/login { login, password }` (email або телефон) → `{ token, refreshToken, user }` або `{ otpRequired, userId }`; `POST /auth/refresh`; `POST /auth/password/reset { email }`; `POST /auth/password/confirm { token, password }`; `GET /me` → `{ id, name, email, phone, role, studioName, personId?, permissions[] }`.
+
+**Правила:** `login` розпізнається за наявністю `@`; телефон нормалізується до E.164 перед пошуком; `GET /me` віддає `personId` прив'язаної Особи — з нього кабінет учасника розуміє, чи заповнений профіль.
+
+**Готово, коли:**
+- [ ] Вхід тим самим паролем працює і за email, і за телефоном у будь-якому форматі запису.
+- [ ] `GET /me` для учасника без Особи віддає `personId: null`, не помилку.
+
+---
+
+## Фаза 2 — Довідник номінацій
+
+### BE-4 (нове): Axis catalogue with age ranges and lineup axis
+
+**Table `axes`** (осі довідника) should contain:
+{id, code, name, sortOrder}
+
+- `code` — `ENUM('age','style','level','lineup')`: Вік, Стиль, Ліга, Склад.
+
+**Table `axis_values`** should contain:
+{id, axisId, label, ageFrom, ageTo, sortOrder}
+
+- `ageFrom`, `ageTo` — INTEGER, null для всіх осей, крім `age`; для `age` — not null.
+
+**Table `nomination_templates`** should contain: {id, name, ownerId}
+
+**Table `template_axis_values`** should contain: {id, templateId, axisValueId} — unique `(templateId, axisValueId)`.
+
+**Table `template_specials`** should contain: {id, templateId, name}
+
+**Endpoints:** `GET /templates?q`, `GET /templates/:id`, `POST /templates`, `PUT /templates/:id`, `DELETE /templates/:id` (`409 TEMPLATE_IN_USE`).
 
 **Правила:**
-- Таблиця `admins` перейменовується на `users`; додається колонка `role`
-  (`ENUM('superadmin','organizer','coach','participant')`, `allowNull: false`,
-  `defaultValue: 'organizer'` — усі наявні записи є організаторами).
-- Додаються необов'язкові поля профілю, потрібні за §8.14 бачення:
-  `city` (STRING, null), `studioName` (STRING, null), `phone` (STRING, null).
-- `competition_admins.adminId` перейменовується на `userId`.
-- Модель `Judge` **не зливається** з `User` — вхід судді лишається окремим
-  (JWT з іншим payload). Але `judges` отримує колонку `userId` (UUID, null,
-  `onDelete: 'SET NULL'`) на випадок, коли суддя має і звичайний акаунт.
-- Реєстрація через `POST /auth/register` приймає `role`, але дозволяє лише
-  `'organizer' | 'coach' | 'participant'`. Спроба зареєструватись як
-  `superadmin` → `400`.
+- У шаблоні немає цін — жодної колонки. Ціни живуть у конкурсі (BE-5).
+- Валідація осі `age`: `ageFrom <= ageTo`, діапазони значень одного шаблону не перетинаються → `400` з переліком конфліктних пар. Без цього автовизначення категорії неоднозначне.
+- Вісь `lineup` завжди отримує чотири значення за замовчуванням: Соло, Дуо, Тріо, Групові.
+- Чиста функція `resolveAgeCategory(birthDate, templateAgeValues, referenceDate) → axisValue | null`: повний вік на `referenceDate` (дату початку конкурсу, не «сьогодні»), потім перше значення, де `ageFrom <= age <= ageTo`. Немає збігу → `null` і повідомлення `'Вік учасника не підпадає під жодну вікову категорію цього конкурсу'`.
 
-- [ ] **Крок 1: Написати падаючий тест** у `users.service.spec.ts`: `create()` з роллю `'coach'` повертає користувача з `role === 'coach'`; `create()` з роллю `'superadmin'` кидає `BadRequestException`.
-- [ ] **Крок 2: Запустити** `npm test -- users.service` — має впасти (модуля немає).
-- [ ] **Крок 3: Написати міграцію** перейменування + нові колонки, з робочим `down`.
-- [ ] **Крок 4: Перейменувати модель і сервіс**, оновити всі імпорти. Перевірити: `npx tsc --noEmit`.
-- [ ] **Крок 5: Прогнати** `npm run migrate` і `npm test` — усе зелене.
-- [ ] **Крок 6: Коміт** `refactor(backend): merge admins into users with roles`
+**Готово, коли:**
+- [ ] Шаблон із діапазонами 9–12 і 12–15 → `400` про перетин.
+- [ ] Дитина 2018 р. н. на конкурс 2026-09-20 отримує категорію 8 років, а не 7.
+- [ ] Видалення використаного шаблону → `409`.
 
----
+### BE-5 (нове): Generate contest nominations with prices
 
-## Фаза 2 — Розщеплення заявки
+**Нові поля `nominations`:** {templateId, parts, price, isSpecial, venueId, sortOrder}
 
-Найважча й найважливіша частина. Поточна `Entry` несе одночасно людину, заявку й виступ (§11 бачення). Без розщеплення не працюють ні спецкатегорії, ні наскрізний номер, ні дедуплікація.
+- `parts` — JSONB `{ age, style, level, lineup }` з `label` кожної осі; за ним працює підбір у заявці.
 
-### Task 2: Модель Person
+**Endpoints:**
 
-**Files:**
-- Create: `backend/migrations/20260823090100-create-persons.ts`
-- Create: `backend/src/persons/person.model.ts`
-- Create: `backend/src/persons/persons.module.ts`
-- Test: (модель без логіки — тестів немає, покривається в Task 6)
-
-**Interfaces:**
-- Produces: модель `Person`.
-
-**Поля:** `id`, `lastName` (STRING, not null), `firstName` (STRING, not null),
-`middleName` (STRING, null), `birthDate` (DATEONLY, **null** — рішення Р5:
-поле необов'язкове), `city` (STRING, null), `studioName` (STRING, null),
-`userId` (UUID, null, unique, FK → `users`, `onDelete: 'SET NULL'`) —
-заповнюється, коли людина завела власний акаунт і прив'язалась до цього запису.
-
-**Індекси:** по `(lastName, firstName)` — для пошуку кандидатів у Task 8;
-по `studioName` — другий складник ключа збігу; унікальний по `userId`.
-
-**Чому `userId` унікальний:** один акаунт прив'язується рівно до однієї Особи.
-Інакше при злитті (Task 8) можна отримати Особу з двома акаунтами, і незрозуміло,
-чиї це «Мої результати».
-
-**Чому `birthDate` не обов'язковий:** див. §12-Р5 бачення. Вікова категорія
-береться з номінації, не з дати народження.
-
-- [ ] **Крок 1:** написати міграцію.
-- [ ] **Крок 2:** написати модель за зразком `venue.model.ts`.
-- [ ] **Крок 3:** зареєструвати `PersonsModule` в `app.module.ts`.
-- [ ] **Крок 4:** `npm run migrate` — таблиця створена, `npm run migrate:undo` — знята, потім знову `migrate`.
-- [ ] **Крок 5: Коміт** `feat(backend): add person model`
-
-### Task 3: Моделі Registration і Performance
-
-**Files:**
-- Create: `backend/migrations/20260823090200-create-registrations.ts`
-- Create: `backend/migrations/20260823090300-create-performances.ts`
-- Create: `backend/src/registrations/registration.model.ts`
-- Create: `backend/src/registrations/registration-participant.model.ts`
-- Create: `backend/src/performances/performance.model.ts`
-
-**Interfaces:**
-- Consumes: `Person` (Task 2), `Nomination`, `Competition`.
-- Produces: моделі `Registration`, `RegistrationParticipant`, `Performance`.
-
-**`Registration` (заявка) — намір виступити в номінації:**
-`id`, `competitionId` (FK), `nominationId` (FK), `routineName` (STRING, null —
-назва номера), `coachId` (UUID, null, FK → users — хто подав, якщо тренер),
-`submittedByUserId` (UUID, not null — хто натиснув кнопку),
-`choreographer` (STRING, null), `studioName` (STRING, null), `city` (STRING, null),
-`improv` (BOOLEAN, default false — це імпровізаційна заявка),
-`status` (`ENUM('draft','submitted','confirmed','cancelled')`, default `'submitted'`).
-
-**`RegistrationParticipant` — склад заявки (соло = один рядок):**
-`id`, `registrationId` (FK), `personId` (FK). Унікальний індекс на
-`(registrationId, personId)` — одну людину не можна додати двічі в один номер.
-
-**`Performance` (вихід на сцену) — одиниця програми й суддівства:**
-`id`, `registrationId` (FK), `competitionId` (FK — денормалізація заради
-фільтрів), `programName` (STRING, null — заповнено лише для спецкатегорій із
-кількома виходами, Task 16), `round` (`ENUM('final','semifinal')`, default
-`'final'` — Task 22), `status` (`ENUM('scheduled','absent','withdrawn')`,
-default `'scheduled'`).
-
-**Ключове правило:** одна `Registration` породжує **один або кілька**
-`Performance`. Кількість задає номінація (Task 16). Для звичайного соло — один.
-
-- [ ] **Крок 1:** написати обидві міграції з індексами.
-- [ ] **Крок 2:** написати три моделі з зв'язками (`@HasMany`, `@BelongsTo`).
-- [ ] **Крок 3:** `npm run migrate`, потім `npm run migrate:undo:all` і `npm run migrate` — обидва напрямки робочі.
-- [ ] **Крок 4: Коміт** `feat(backend): add registration and performance models`
-
-### Task 4: Наскрізний номер учасника
-
-Інваріант 6 бачення: особа має рівно один номер у межах конкурсу, на всі свої виступи.
-
-**Files:**
-- Create: `backend/migrations/20260823090400-create-competition-participant-numbers.ts`
-- Create: `backend/src/persons/competition-participant-number.model.ts`
-- Create: `backend/src/persons/participant-numbers.service.ts`
-- Test: `backend/src/persons/participant-numbers.service.spec.ts`
-
-**Interfaces:**
-- Produces: `ParticipantNumbersService.assign(competitionId, personId): Promise<number>` — повертає наявний номер або видає наступний вільний.
-
-**Таблиця `competition_participant_numbers`:** `id`, `competitionId` (FK),
-`personId` (FK), `number` (INTEGER, not null).
-**Унікальні індекси:** `(competitionId, personId)` і `(competitionId, number)`.
-
-**Алгоритм видачі:**
-1. Шукаємо наявний запис за `(competitionId, personId)` → якщо є, повертаємо `number`.
-2. Якщо немає — беремо `MAX(number) + 1` у межах конкурсу (перший номер — 1).
-3. Уся операція — в транзакції з `SELECT ... FOR UPDATE` на рядках конкурсу,
-   щоб дві паралельні реєстрації не отримали однаковий номер.
-4. При конфлікті унікального індексу — одна повторна спроба, потім `ConflictException`.
-
-- [ ] **Крок 1: Падаючі тести:** (а) двічі викликати `assign` для тієї самої особи → однаковий номер; (б) для двох різних осіб → 1 і 2; (в) для тієї самої особи у двох різних конкурсах → номери незалежні.
-- [ ] **Крок 2:** `npm test -- participant-numbers` — падає.
-- [ ] **Крок 3:** міграція + модель + сервіс.
-- [ ] **Крок 4:** `npm test -- participant-numbers` — зелено.
-- [ ] **Крок 5: Коміт** `feat(backend): assign per-competition participant numbers`
-
-### Task 5: Міграція даних із entries
-
-**Files:**
-- Create: `backend/migrations/20260823090500-migrate-entries-to-registrations.ts`
-
-**Правила перетворення** кожного рядка `entries`:
-1. **Person:** розібрати `Entry` на особу. Поточна `Entry` не має окремих полів
-   ПІБ — прізвище й ім'я лежать у `routineName` або відсутні. Тому:
-   беремо `routineName` як `lastName + firstName`, розділивши по першому пробілу;
-   якщо пробілу немає — усе йде в `lastName`, `firstName` = `'—'`.
-   `city`, `studioName` копіюються з `Entry`.
-2. **Дедуплікація в межах конкурсу:** якщо особа з такими `lastName`,
-   `firstName` і `studioName` уже створена цією міграцією для цього конкурсу —
-   перевикористати її. **Між конкурсами не зливати** (рішення Р7).
-3. **Registration:** одна на `Entry`. `nominationId` шукається за збігом
-   `nominations.name` з `entries.nomination` у межах конкурсу; якщо збігу немає —
-   створити номінацію з цією назвою і `price: null`.
-   `improv`, `choreographer`, `studioName`, `city` копіюються. `status = 'confirmed'`.
-4. **RegistrationParticipant:** один рядок, особа з кроку 1.
-5. **Performance:** рівно один, `round = 'final'`, `status = 'scheduled'`.
-6. **Номери:** `entries.number` переноситься в `competition_participant_numbers`.
-   Якщо у двох `Entry` тієї самої особи різні номери — перемагає найменший,
-   решта відкидається (наскрізний номер один — інваріант 6).
-7. `entries` **не видаляється** цією міграцією. Її дропне Task 21, коли всі
-   споживачі перемкнуться.
-
-**`down`:** видаляє всі створені `registrations`, `performances`,
-`registration_participants`, `persons`, `competition_participant_numbers`.
-`entries` лишалась недоторканою, тож відкат безпечний.
-
-- [ ] **Крок 1:** написати міграцію.
-- [ ] **Крок 2:** засіяти локальну БД кількома `entries` вручну (SQL або через існуючий API).
-- [ ] **Крок 3:** `npm run migrate` → перевірити SQL-запитом, що кількість `registrations` дорівнює кількості `entries`, а `persons` — кількості унікальних людей.
-- [ ] **Крок 4:** `npm run migrate:undo` → усі нові таблиці порожні, `entries` на місці.
-- [ ] **Крок 5: Коміт** `feat(backend): migrate entries into persons and registrations`
-
-### Task 6: RegistrationsService — подання заявки
-
-**Files:**
-- Create: `backend/src/registrations/registrations.service.ts`
-- Create: `backend/src/registrations/registrations.controller.ts`
-- Create: `backend/src/registrations/registrations.module.ts`
-- Create: `backend/src/registrations/dto/create-registration.dto.ts`
-- Test: `backend/src/registrations/registrations.service.spec.ts`
-
-**Interfaces:**
-- Consumes: `ParticipantNumbersService.assign` (Task 4).
-- Produces: `RegistrationsService.create(competitionId, userId, dto)`.
-
-**DTO (`CreateRegistrationDto`) — ключова форма, §8.4 бачення:**
+`POST /competitions/:id/nominations/generate`
 ```ts
-export class RegistrationParticipantDto {
-  @IsOptional() @IsUUID() personId?: string;   // наявна особа з ростера
-  @IsOptional() @IsString() lastName?: string; // або нова особа
-  @IsOptional() @IsString() firstName?: string;
-  @IsOptional() @IsDateString() birthDate?: string; // необов'язково (Р5)
-}
-
-export class CreateRegistrationDto {
-  @IsArray() @ValidateNested({ each: true }) @Type(() => RegistrationParticipantDto)
-  participants: RegistrationParticipantDto[];
-
-  @IsArray() @IsUUID('4', { each: true }) @ArrayNotEmpty()
-  nominationIds: string[];      // кілька номінацій за одну дію
-
-  @IsOptional() @IsString() routineName?: string;
-  @IsOptional() @IsString() choreographer?: string;
-  @IsOptional() @IsString() studioName?: string;
-  @IsOptional() @IsString() city?: string;
-  @IsOptional() @IsBoolean() improv?: boolean;
-}
+{ templateId,
+  selected: { [axisCode]: axisValueId[] },
+  prices: { "level:<id>": 450, "lineup:<id>": 700 } }
+→ { nominations: [{ id, label, parts, price }] }
 ```
 
-**Правила `create`:**
-1. Конкурс існує і його реєстрація відкрита: `registrationFrom <= сьогодні <= registrationTo`. Інакше `403` з повідомленням `'Реєстрація на цей конкурс закрита'`.
-2. Кожен елемент `participants` або має `personId` (тоді особа береться з БД),
-   або `lastName` (тоді створюється нова особа). Якщо немає ні того, ні того — `400`.
-3. **Створюється одна `Registration` на кожну номінацію** зі списку
-   `nominationIds`, з тим самим складом учасників. Це і є «кілька номінацій в
-   одному вікні»: один запит замість семи.
-4. Кожній особі складу видається наскрізний номер через `ParticipantNumbersService.assign`.
-5. Для кожної `Registration` створюються `Performance` (кількість — Task 16;
-   поки що завжди один).
-6. Уся операція — в **одній транзакції**. Часткової заявки не буває.
-7. **Два шляхи подання (§4 бачення):**
-   - роль `'coach'` → `coachId` заповнюється ним же;
-   - роль `'participant'` → `coachId` лишається `null`, а `participants`
-     ігнорується: складом завжди є Особа, прив'язана до цього акаунта
-     (`persons.userId`). Якщо акаунт ще не прив'язаний до жодної Особи —
-     `409` з повідомленням `'Спочатку заповніть свій профіль учасника'`.
-     Це прямо впливає на гроші: див. Task 21, відсоток керівника.
-8. **Дублікати не блокуються.** Перевірки на вже подану заявку з тим самим
-   складом **немає** — жодного `409`, жодного унікального індексу на
-   `(nominationId, склад)`. Якщо тренер заявив дитину, а вона подала ще й сама,
-   створюються дві заявки й два виходи на сцену.
-
-   **Не додавай таку перевірку «про всяк випадок».** Вона мусила б вгадувати,
-   чи «Іваненко Марія» з двох заявок — одна людина, і помилялась би в обидва
-   боки: блокувала б тезок і пропускала б справжні дублікати. Плутанину
-   розгрібає організатор видаленням учасника — так само, як будь-яку іншу.
-   Внесок за обидві заявки нараховується й вважається сплаченим (§8.5 бачення).
-
-**Правила `cancel(registrationId, userId)` і будь-якого редагування заявки:**
-- Дозволено **лише автору** (`submittedByUserId`), плюс організатору й адміну
-  конкурсу. Більше нікому: тренер не чіпає самостійну заявку учня, учень не
-  чіпає заявку тренера. Спроба → `403` з поясненням, хто може.
-- Це та сама перевірка, що й для завантаження треку (Task 10) і для рахунку
-  (Task 21). Винеси її в один метод `assertRegistrationOwner(registration,
-  userId)` і використовуй у всіх трьох місцях — правило одне, і копій його
-  бути не повинно.
-- `status → 'cancelled'`, усі її `Performance` → `status: 'withdrawn'`.
-- Якщо хоч один `Performance` уже стоїть у відділенні (Task 12) — заявка
-  скасовується, але у відповідь додається прапорець
-  `{ requiresScheduleRecalculation: true }` (інваріант 10).
-
-**Ендпоінти:**
-- `POST /competitions/:competitionId/registrations` — створити (JWT).
-- `GET /competitions/:competitionId/registrations` — список. Обсяг залежить від ролі:
-  - організатор і адмін конкурсу — усі;
-  - тренер — подані ним;
-  - учасник — **усі заявки, у складі яких є його Особа, незалежно від того, хто
-    їх подав**. Це те, «де передивитись, чи його немає в списках» (§8.5
-    бачення), тому обмежувати вибірку автором тут не можна.
-
-  Кожен рядок має `canEdit: boolean` (обчислюється як
-  `submittedByUserId === поточний` або роль організатора) і `submittedByName` —
-  щоб клієнт міг показати «Заявив тренер Іваненко О.» і сховати кнопки.
-- `DELETE /registrations/:id` — скасувати.
-
-- [ ] **Крок 1: Падаючі тести:** (а) одна заявка на 3 номінації створює 3 `Registration` і 3 `Performance`; (б) обидва учасники групового номера отримали номери; (в) **повторна ідентична заявка створюється успішно** — дві заявки, два виходи, два нарахування; (г) заявка після `registrationTo` → `403`; (д) помилка на третій номінації відкочує перші дві; (е) заявка від ролі `participant` має `coachId === null` і склад із власної Особи; (ж) учасник не може скасувати заявку тренера → `403`; (з) тренер не може скасувати самостійну заявку учня → `403`; (и) організатор може скасувати обидві.
-- [ ] **Крок 2:** `npm test -- registrations.service` — падає.
-- [ ] **Крок 3:** реалізувати сервіс, контролер, DTO, модуль.
-- [ ] **Крок 4:** `npm test -- registrations.service` — зелено.
-- [ ] **Крок 5: Коміт** `feat(backend): submit one registration across many nominations`
-
----
-
-## Фаза 3 — Ростер керівника й дедуплікація
-
-### Task 7: Ростер керівника
-
-**Files:**
-- Create: `backend/migrations/20260823090600-create-coach-roster.ts`
-- Create: `backend/src/persons/coach-roster-entry.model.ts`
-- Modify: `backend/src/persons/persons.service.ts` (створити, якщо ще немає)
-- Test: `backend/src/persons/coach-roster.service.spec.ts`
-
-**Таблиця `coach_roster_entries`:** `id`, `coachId` (FK → users), `personId`
-(FK → persons). Унікальний індекс `(coachId, personId)`.
+- `PUT /competitions/:id/nominations` — ручні правки: назва, ціна, майданчик, порядок.
+- `POST /competitions/:id/nominations/specials { name, price, programIds?, exitMode? }`
+- `DELETE /competitions/:id/nominations/:nominationId` → `409 NOMINATION_HAS_REGISTRATIONS`.
 
 **Правила:**
-- Особа потрапляє в ростер автоматично при першій заявці від цього тренера
-  (виклик з `RegistrationsService.create`).
-- `DELETE /roster/:personId` **видаляє лише рядок ростера**, не `Person`
-  (§8.4: «хрестик прибирає особу з ростера цього керівника, не видаляючи її з
-  системи» — дитина могла перейти до іншого тренера).
-- Видалення заборонено, якщо в цієї особи є неcкасована заявка від цього тренера
-  в конкурсі, реєстрація якого ще відкрита → `409` з поясненням.
-- `GET /roster` повертає осіб, відсортованих за прізвищем, з полем
-  `lastRegisteredAt` — коли тренер останній раз їх заявляв.
+- Генерація — декартів добуток вибраних значень. Порядок частин у назві: Вік · Стиль · Ліга · Склад, роздільник `·`, порожні частини відкидаються.
+- Ціни приходять разом із генерацією, до її виконання. Чиста функція `resolvePrice(parts, priceMap)`: ціна за `lineup` перемагає ціну за `level`; немає ні тієї, ні тієї → `null`.
+- Організатор не може створювати нові значення осей — `selected` приймає лише `axisValueId`, що входять у `template_axis_values` цього шаблону, інакше `400 VALUE_NOT_IN_TEMPLATE`.
+- Повторна генерація не дублює: наявні номінації з тим самим `parts` оновлюють ціну, нові додаються, зайві без заявок видаляються, зайві із заявками лишаються з попередженням у відповіді.
 
-**Ендпоінти:** `GET /roster`, `DELETE /roster/:personId` (обидва — роль `coach`).
-
-- [ ] **Крок 1: Падаючі тести:** (а) після заявки особа з'явилась у ростері; (б) `DELETE` прибирає з ростера, але `Person` лишається в БД; (в) `DELETE` при активній заявці → `409`.
-- [ ] **Крок 2:** `npm test -- coach-roster` — падає.
-- [ ] **Крок 3:** міграція, модель, сервіс, ендпоінти.
-- [ ] **Крок 4:** `npm test -- coach-roster` — зелено.
-- [ ] **Крок 5: Коміт** `feat(backend): add coach roster`
-
-### Task 8: Пошук кандидатів і ручне злиття осіб
-
-Реалізує §8.5 бачення після відмови від обов'язкової дати народження.
-
-**Files:**
-- Create: `backend/src/persons/person-matching.ts` (чиста функція, без БД)
-- Modify: `backend/src/persons/persons.service.ts`
-- Modify: `backend/src/persons/persons.controller.ts`
-- Test: `backend/src/persons/person-matching.spec.ts`
-
-**Interfaces:**
-- Produces: `scoreCandidate(query, candidate): number` — 0..100; `PersonsService.findCandidates(query)`, `PersonsService.merge(targetId, sourceId, requesterId)`.
-
-**Прив'язка акаунта — окремий, найсильніший шлях.** Коли людина реєструється як
-`participant`, при першому вході їй показуються кандидати на збіг за ПІБ.
-`POST /persons/:id/claim` прив'язує акаунт до Особи: `persons.userId = поточний
-користувач`. Обмеження:
-- Особа з непорожнім `userId` → `409` `'Цей учасник уже прив'язаний до акаунта'`;
-- акаунт, що вже прив'язаний до іншої Особи → `409`;
-- прив'язка незворотна для самого учасника; відв'язати може лише організатор.
-
-Після прив'язки пошук за ПІБ для цієї людини більше не потрібен — акаунт
-однозначно визначає Особу в усіх подальших заявках.
-
-**Алгоритм `scoreCandidate` (чиста функція):**
-```
-базa = 0
-ПІБ збігається (без урахування регістру, після trim)      → +50
-studioName збігається (без регістру)                       → +30
-coachId збігається (особа є в ростері того самого тренера)  → +30
-birthDate вказана в обох і збігається                       → +20
-birthDate вказана в обох і НЕ збігається                    → -60
-city збігається                                             → +5
-результат = clamp(база, 0, 100)
-```
-Кандидати з результатом `>= 60` показуються користувачеві. Автоматичне
-злиття **не робиться ніколи** (рішення Р7) — навіть при 100.
-
-**`merge(targetId, sourceId)`:**
-- Дозволено лише ролі `organizer`/`superadmin` або адміну конкурсу.
-- Усі `registration_participants`, `coach_roster_entries` і
-  `competition_participant_numbers` джерела перевішуються на ціль.
-- **Конфлікт номерів:** якщо в одному конкурсі обидві особи мають номер —
-  лишається номер цілі, номер джерела звільняється.
-- **Конфлікт складу:** якщо після злиття в одній заявці опиняться дві копії
-  однієї особи — дублікат видаляється (унікальний індекс із Task 3).
-- **Конфлікт акаунтів:** якщо `userId` непорожній в обох Осіб — злиття
-  **забороняється**, `409` `'Обидва записи прив'язані до різних акаунтів.
-  Спершу відв'яжіть один із них'`. Мовчки відкинути чийсь акаунт не можна:
-  людина втратить доступ до своїх результатів. Якщо `userId` є лише в джерела —
-  він переноситься на ціль.
-- `Person` джерела видаляється. Операція в транзакції, незворотна —
-  контролер вимагає підтвердження прапорцем `confirm: true` у тілі, інакше `400`.
-
-**Ендпоінти:**
-- `GET /persons/candidates?lastName=&firstName=&studioName=&birthDate=` → відсортований за спаданням `score` список.
-- `POST /persons/:id/claim` — прив'язка акаунта учасника до Особи.
-- `DELETE /persons/:id/claim` — відв'язка, **лише організатор або суперадмін**.
-- `POST /persons/:targetId/merge` з тілом `{ sourceId, confirm }`.
-
-- [ ] **Крок 1: Падаючі тести `person-matching.spec.ts`:** однакові ПІБ + студія → 80; однакові ПІБ, різні студії → 50 (нижче порогу); різні дати народження при однакових ПІБ і студії → 20; порожній запит → 0.
-- [ ] **Крок 2:** `npm test -- person-matching` — падає.
-- [ ] **Крок 3:** реалізувати чисту функцію.
-- [ ] **Крок 4:** `npm test -- person-matching` — зелено.
-- [ ] **Крок 5:** реалізувати `findCandidates`, `claim` і `merge`. Тести: перевішування номерів при злитті; `claim` на вже прив'язану Особу → `409`; злиття двох Осіб з різними акаунтами → `409`; злиття, де акаунт лише в джерела, переносить `userId` на ціль; `DELETE /persons/:id/claim` для ролі `participant` → `403`.
-- [ ] **Крок 6: Коміт** `feat(backend): person candidate matching and manual merge`
+**Готово, коли:**
+- [ ] 2 віки × 3 стилі × 2 ліги × 4 склади дають 48 номінацій із цінами.
+- [ ] Номінація «Дуо» у лізі Debut отримує ціну складу, не ліги.
+- [ ] `axisValueId` поза шаблоном → `400`.
+- [ ] Повторна генерація зі зміненими цінами не створює других копій.
 
 ---
 
-## Фаза 4 — Правила конкурсу
+## Фаза 3 — Розщеплення заявки
 
-### Task 9: Сутність правил конкурсу
+### BE-6 (було BE-2): Create Person table
 
-Це те місце, куди дописуються всі майбутні налаштування, не чіпаючи решту системи (§5.2 бачення).
+**Table `persons`** should contain:
+{id, lastName, firstName, middleName, birthDate, city, studioName, phone, userId}
 
-**Files:**
-- Create: `backend/migrations/20260823090700-create-competition-rules.ts`
-- Create: `backend/src/competition-rules/competition-rules.model.ts`
-- Create: `backend/src/competition-rules/duration-limit.model.ts`
-- Create: `backend/src/competition-rules/competition-rules.service.ts`
-- Create: `backend/src/competition-rules/competition-rules.controller.ts`
-- Create: `backend/src/competition-rules/competition-rules.module.ts`
-- Create: `backend/src/competition-rules/dto/update-competition-rules.dto.ts`
-- Test: `backend/src/competition-rules/competition-rules.service.spec.ts`
+- `lastName`, `firstName`, `birthDate` — обов'язкові при створенні через API. У БД `birthDate` лишається nullable лише щоб пережити міграцію старих `entries` (BE-9); сервіс на створення вимагає її завжди.
+- `phone` — null, **unique**: за ним учасник згодом прив'язує акаунт.
+- `userId` — null, **unique**, `SET NULL`.
+- Поля `league` не існує — ліга живе в заявці.
 
-**`competition_rules` (один рядок на конкурс, `competitionId` унікальний):**
+**Індекси:** `(lastName, firstName)`, `studioName`, unique на `userId`, unique на `phone`.
+
+**Готово, коли:**
+- [ ] `POST` без `birthDate` → `400` (без неї не визначити вікову категорію).
+- [ ] Другий `userId` або другий `phone` з тим самим значенням відхиляється БД.
+- [ ] Міграція старих даних без дати народження проходить.
+
+### BE-7 (було BE-3): Registration, participants and performances
+
+**Table `registrations`** should contain:
+{id, competitionId, nominationId, routineName, coachId, submittedByUserId, choreographer, studioName, city, level, ageCategory, improv, status}
+
+- `level` — рядок, not null: ліга цієї заявки, скопійована з `nomination.parts.level` на момент подання. Денормалізація свідома: ліміти часу, доплати й фільтри читають її мільйон разів, а історична ліга не має змінитись від правок довідника.
+- `ageCategory` — рядок, not null: вікова категорія, обчислена `resolveAgeCategory` при поданні. Зберігається з тієї ж причини.
+- `status` — `ENUM('draft','submitted','confirmed','cancelled')`, default `'submitted'`.
+
+**Table `registration_participants`** should contain: {id, registrationId, personId} — unique `(registrationId, personId)`.
+
+**Table `performances`** should contain: {id, registrationId, competitionId, programName, round, status} — `round` default `'final'`, `status` default `'scheduled'`.
+
+**Готово, коли:**
+- [ ] Груповий номер із 5 осіб — одна заявка з п'ятьма рядками складу.
+- [ ] Заявка несе лігу й вікову категорію рядками; зміна довідника після подання їх не змінює.
+- [ ] Повний цикл міграцій робочий в обидва боки.
+
+### BE-8 (було BE-4): Per-competition participant number
+
+Без змін. `competition_participant_numbers` {id, competitionId, personId, number}, unique `(competitionId, personId)` і `(competitionId, number)`, видача в транзакції з `FOR UPDATE`, одна повторна спроба при конфлікті, потім `409`.
+
+**Готово, коли:**
+- [ ] Одна особа, дві заявки в одному конкурсі → один номер.
+- [ ] Дві особи → 1 і 2. Та сама особа у двох конкурсах → номери незалежні.
+
+### BE-9 (було BE-5): Migrate entries into persons and registrations
+
+Правила ті самі, з трьома поправками:
+
+- `entries.league` → `registrations.level`. На `persons` не переноситься.
+- `registrations.ageCategory` — з `nominations.parts.age`, якщо номінацію знайдено; інакше `'—'`.
+- `persons.birthDate` лишається `null` для перенесених — це єдине джерело записів без дати.
+
+**Готово, коли:**
+- [ ] `count(registrations) = count(entries)`; `count(persons)` = кількість унікальних людей.
+- [ ] Жоден перенесений `person` не має ліги.
+- [ ] `migrate:undo` лишає `entries` недоторканою.
+
+### BE-10 (було BE-6): Submit one registration across many nominations
+
+Найважливіший ендпоінт. Змінено вхід: клієнт передає **стилі**, не номінації.
+
+**Крок 1 — опції форми.** `GET /competitions/:id/registration-options?personId=`
+
+```ts
+{ levels: [{id,label}],            // ліги цього конкурсу
+  styles: [{id,label}],            // стилі цього конкурсу
+  lineups: [{id,label}],
+  ageCategory: { id, label } | null,   // обчислена з birthDate
+  studioName, coachName,               // автопідстановка з тренера особи
+  matched: [{ styleId, nominationId, label, price }] }
+```
+
+`matched` перераховується під передану `level` (query `?level=`): для кожного стилю знаходиться номінація з тими самими лігою, віковою категорією і складом. Це те, що дає інтерфейсу підставити номінації самому.
+
+**Крок 2 — створення.** `POST /competitions/:competitionId/registrations`
+
+```ts
+{ participants: [{ personId } | { lastName, firstName, birthDate, phone? }],
+  level: string,                  // ліга — обов'язково, обирається в заявці
+  styleIds: string[],             // кілька стилів за одну дію
+  lineupId: string,
+  routineName?, choreographer?, studioName?, city?, improv? }
+→ 201 { registrations: [{ id, nominationId, label, number, price }], totalDue }
+```
+
+**Правила:**
+- Реєстрація відкрита (`registrationFrom <= сьогодні <= registrationTo` і статус конкурсу дозволяє), інакше `403 REGISTRATION_CLOSED`.
+- `level` обов'язковий → без нього `400 'Оберіть лігу для цієї заявки'`. Ліга не підтягується з Особи — її там немає.
+- Вікова категорія обчислюється `resolveAgeCategory` за `birthDate` і датою початку конкурсу. Для групового складу береться **найстарший** учасник. Категорії не знайдено → `422` з повідомленням про вік.
+- Номінація на кожен стиль знаходиться за (стиль + `level` + вікова категорія + склад). Немає такої номінації → `422 'У цьому конкурсі немає номінації для обраного поєднання'` зі списком стилів, що не зійшлись.
+- Одна `Registration` на кожен знайдений стиль, з тим самим складом — одна дитина в 3 стилі одним запитом.
+- `price` — з номінації. `studioName` і `choreographer` — з тренера Особи, якщо клієнт їх не передав.
+- Наскрізний номер кожній особі складу (BE-8); виходи — за `exitMode` номінації (BE-22).
+- Уся операція в **одній транзакції**.
+- **Два шляхи подання:** `coach` → `coachId` = він сам; `participant` → `coachId = null`, `participants` ігнорується, складом є Особа з `persons.userId = поточний`; без прив'язаної Особи → `409 'Спочатку заповніть свій профіль учасника'`.
+- **Дублікати не блокуються.** Жодного унікального індексу на `(nominationId, склад)` і жодної перевірки «про всяк випадок»: вона мусила б вгадувати, чи тезки — одна людина, і помилялась би в обидва боки. Розгрібає організатор, обидва внески нараховуються.
+
+**Право власності** — одна функція `assertRegistrationOwner(registration, user)`, спільна для цього таска, BE-15 (трек) і BE-23 (рахунок). Редагують автор, організатор і адмін конкурсу. Тренер не чіпає самостійну заявку учня, учень — заявку тренера.
+
+**Скасування** `DELETE /registrations/:id`: `status → 'cancelled'`, виходи → `'withdrawn'`; якщо якийсь уже у відділенні — у відповіді `{ requiresScheduleRecalculation: true }`.
+
+**Читання** `GET /competitions/:id/registrations?q=&level=&nominationId=&status=&page=`: організатор — усі; тренер — подані ним; учасник — усі, де є його Особа, незалежно від того, хто подав. Рядок несе `canEdit`, `submittedByName`, `level`, `ageCategory`, `price`, `hasTrack`.
+
+**Готово, коли:**
+- [ ] Одна дитина, 3 стилі, одна ліга → 3 заявки, 3 виходи, 3 номери, один запит.
+- [ ] Та сама дитина з іншою лігою в іншій заявці — обидві живуть, ліги різні.
+- [ ] Запит без `level` → `400` з читабельним повідомленням.
+- [ ] Дитина 7 років на конкурс, де мінімальна категорія 9–12 → `422`, не тихий `null`.
+- [ ] Помилка на третьому стилі відкочує перші два.
+- [ ] Заявка від `participant` має `coachId = null` і склад із власної Особи.
+- [ ] Ціна в заявці збігається з ціною номінації, навіть якщо клієнт прислав свою.
+
+---
+
+## Фаза 4 — Ростер і дедуплікація
+
+### BE-11 (було BE-7): Coach roster
+
+Без змін. `coach_roster_entries` {id, coachId, personId}, unique `(coachId, personId)`; поповнення автоматичне при першій заявці; `DELETE /roster/:personId` знімає лише рядок ростера; заборона видалення при активній заявці → `409`; `GET /roster` із `lastRegisteredAt`.
+
+**Додано:** `GET /roster` віддає `age` кожної особи — інтерфейс показує його поруч із іменем при виборі учасника.
+
+### BE-12 (було BE-8): Candidate matching, account claim, manual merge
+
+Ваги перераховані — дата народження тепер є завжди, тож вона важить більше за студію:
+
+```
+ПІБ збігається (trim, без регістру)                 → +50
+birthDate збігається                                 → +30
+birthDate НЕ збігається                              → -60
+studioName збігається                                → +20
+coachId збігається (особа в ростері того тренера)    → +20
+city збігається                                      →  +5
+результат = clamp(0, 100), показуємо score >= 60
+```
+
+Автоматичне злиття не робиться **ніколи**, навіть при 100.
+
+Решта без змін: `POST /persons/:id/claim` (`409`, якщо Особа або акаунт уже прив'язані), `DELETE /persons/:id/claim` — лише організатор і суперадмін, `POST /persons/:targetId/merge { sourceId, confirm }` із перевішуванням складу, ростера й номерів, конфлікт номерів на користь цілі, злиття двох Осіб з різними акаунтами → `409`.
+
+**Готово, коли:**
+- [ ] Однакові ПІБ і дата → 80 (показується); однакові ПІБ, різна дата → нижче порогу.
+- [ ] `claim` на прив'язану Особу → `409`; відв'язка недоступна `participant`.
+- [ ] Після злиття номер, ростер і всі заявки джерела в цілі.
+
+---
+
+## Фаза 5 — Конкурс: правила й майстер
+
+### BE-13 (було BE-9): Competition rules entity
+
+**Table `competition_rules`** (один рядок на конкурс):
 
 | Поле | Тип | Default | Що означає |
 |---|---|---|---|
-| `pauseSeconds` | INTEGER | `20` | пауза після виступу (§8.6) |
-| `timeSource` | ENUM(`track`,`limit`) | `limit` | як рахувати час при вимкнених доплатах |
-| `surchargesEnabled` | BOOLEAN | `false` | глобальний вимикач доплат за переліміт |
-| `coachPercent` | DECIMAL(5,2) | `0` | відсоток керівника, один на конкурс (Р3) |
-| `semifinalThreshold` | INTEGER | `12` | понад скільки заявок вмикається півфінал |
-| `improvGroupSeconds` | INTEGER | `60` | тривалість загального заходу імпровізації |
-| `improvIndividualSeconds` | INTEGER | `30` | тривалість індивідуального заходу |
-| `quorum` | INTEGER | `3` | скільки суддів мають надіслати аркуш |
+| `pauseSeconds` | INTEGER | 20 | технічна пауза після виступу |
+| `timeSource` | ENUM(track,limit) | limit | як рахувати час при вимкнених доплатах |
+| `surchargesEnabled` | BOOLEAN | false | вимикач доплат за переліміт |
+| `coachPercent` | DECIMAL(5,2) | 0 | відсоток керівника |
+| `improvGroupSeconds` | INTEGER | 60 | загальний захід імпровізації |
+| `improvIndividualSeconds` | INTEGER | 30 | індивідуальний захід |
+| `trackUploadUntil` | DATEONLY | null | дедлайн завантаження музики |
+| `semifinalThreshold` | INTEGER | 12 | (для відкладеної фази) |
+| `quorum` | INTEGER | 3 | (для відкладеної фази) |
 
-**`overlimit_tariffs` (тарифи перелімітів, багато на конкурс):**
-`id`, `competitionId`, `uptoSeconds` (INTEGER — переліміт **до** скількох секунд),
-`price` (DECIMAL(10,2)). Приклад із документа: `{30, 150}`, `{60, 200}`.
+**Table `overlimit_tariffs`**: {id, competitionId, uptoSeconds, price} — сходинки {30, 150}, {60, 200}.
 
-**`duration_limits` (ліміти тривалості):**
-`id`, `competitionId`, `nominationId` (UUID, null), `categoryId` (UUID, null —
-ліга або номінація як вісь), `round` (ENUM(`final`,`semifinal`), default `final`),
-`seconds` (INTEGER).
+**Table `duration_limits`**: {id, competitionId, nominationId, level, round, seconds} — `level` замінив `categoryId`: ліміт задається за лігою (Debut 90 / Rising 120 / Pro 180), як в інтерфейсі.
 
-**Розв'язання ліміту для виступу — `resolveLimit(performance)`:**
-1. Точний збіг `nominationId` + `round` → він.
-2. Збіг `categoryId` (будь-яка з осей номінації) + `round` → найспецифічніший
-   (той, чия вісь має тип `level`, тобто ліга — пріоритетніший за `age`).
-3. Немає нічого → `180` секунд і попередження в лог.
+`resolveLimit(performance)`: точний `nominationId` + `round` → він; інакше `level` заявки + `round`; інакше 180 і попередження в лог.
 
-**Правила сервісу:**
-- Рядок правил створюється **автоматично зі значеннями за замовчуванням** при
-  створенні конкурсу — організатор може ніколи в них не заходити (§8.1, крок 5).
-  Для цього `CompetitionsService.create` викликає `CompetitionRulesService.ensureDefaults`.
-- `PATCH /competitions/:id/rules` — часткове оновлення, доступ організатору й адміну.
-- Зміна `pauseSeconds` або лімітів **не перераховує** вже сформовані відділення
-  автоматично — це робить явна дія в Task 13. Причина: непередбачуваний зсув
-  часу посеред фестивалю гірший за застарілий розклад.
+**Стан коду (2026-09-01):** `competition_rules`, `overlimit_tariffs` і `duration_limits` уже змігровані (`20260823090300`…`20260823090500`), модуль `backend/src/competition-rules/` існує. Але `duration_limits` шипнувся з `categoryId`, а не з `level` — разом із CHECK-обмеженням і двома частковими унікальними індексами на нього. Заміна на `level` — **окрема міграція**, не правка наявної.
 
-- [ ] **Крок 1: Падаючі тести:** (а) створення конкурсу створює правила з `pauseSeconds === 20`; (б) `resolveLimit` віддає перевагу точному `nominationId` над `categoryId`; (в) при повній відсутності лімітів повертає 180.
-- [ ] **Крок 2:** `npm test -- competition-rules` — падає.
-- [ ] **Крок 3:** міграції, моделі, сервіс, контролер.
-- [ ] **Крок 4:** `npm test -- competition-rules` — зелено.
-- [ ] **Крок 5: Коміт** `feat(backend): add competition rules entity`
+**Правила:** рядок правил і базові ліміти лігам створюються автоматично при створенні конкурсу; `PATCH /competitions/:id/rules` — часткове оновлення; зміна `pauseSeconds` або лімітів не перераховує вже сформовані відділення — це явна дія в BE-18.
 
----
+**Готово, коли:**
+- [ ] Новий конкурс уже має `pauseSeconds = 20` і ліміти лігам без дій організатора.
+- [ ] Ліміт номінації перемагає ліміт ліги.
+- [ ] Конкурс без лімітів дає 180 с, не помилку.
 
-## Фаза 5 — Треки й переліміти
+### BE-14 (нове): Competition creation wizard
 
-### Task 10: Завантаження треку й вимірювання тривалості
+Майстер — шість кроків: загальне й банер → контакти → реквізити → номінації → майданчики → розподіл. Кроку суддів немає.
 
-**Files:**
-- Create: `backend/migrations/20260823090800-create-tracks.ts`
-- Create: `backend/src/tracks/track.model.ts`
-- Create: `backend/src/tracks/track-duration.ts` (вимірювання)
-- Create: `backend/src/tracks/tracks.service.ts`
-- Create: `backend/src/tracks/tracks.controller.ts`
-- Create: `backend/src/tracks/tracks.module.ts`
-- Modify: `backend/package.json` — додати `music-metadata` і `@types/multer`
-- Test: `backend/src/tracks/tracks.service.spec.ts`
+**Нові поля `competitions`:** {dateFrom, dateTo, bannerPath, contactPhone, contactEmail, registrationFrom, registrationTo, payRecipient, payAccount, payBank, payEdrpou, payPurpose}
 
-**Таблиця `tracks`:** `id`, `performanceId` (FK, унікальний — один трек на вихід),
-`originalFileName` (STRING), `storedPath` (STRING), `mimeType` (STRING),
-`durationSeconds` (INTEGER, not null), `sizeBytes` (INTEGER),
-`uploadedByUserId` (UUID FK).
+**Endpoints:**
+- `POST /competitions { name, dateFrom, dateTo?, location, organizer, contactPhone, contactEmail, registrationFrom, registrationTo, description? }` → `201` зі статусом `draft`
+- `PATCH /competitions/:id` — автозбереження будь-якого кроку
+- `PUT /competitions/:id/payment` — усі п'ять полів опційні
+- `POST /competitions/:id/banner` — multipart, jpg/png ≤5 МБ → `{ bannerPath }`
+- `PUT /competitions/:id/venues [{ id?, name, note? }]`
 
 **Правила:**
-- **Формати не обмежуються mp3** (пряма вимога документа замовника). Приймаються
-  `audio/mpeg`, `audio/wav`, `audio/x-wav`, `audio/mp4`, `audio/aac`,
-  `audio/ogg`, `audio/flac`, `audio/x-m4a`. Інший тип → `415` з переліком
-  дозволених.
-- Максимальний розмір — 50 МБ; більше → `413`.
-- Тривалість вимірюється на сервері бібліотекою `music-metadata`
-  (`parseFile` → `format.duration`), округлюється **вгору** до цілої секунди.
-  Клієнтське значення тривалості не приймається взагалі.
-- Якщо метадані не читаються → `422` з повідомленням
-  `'Не вдалося визначити тривалість треку. Спробуйте інший файл або формат'`.
-- Завантаження дозволене, доки не минув **термін завантаження треків** конкурсу
-  (окремий від терміну реєстрації, §8.1). Після — `403`.
-- **Хто може вантажити:** автор заявки (`submittedByUserId`), плюс організатор
-  і адмін конкурсу. Та сама перевірка, що й для скасування — через
-  `assertRegistrationOwner` (Task 6). Заявка належить тому, хто її подав, і
-  трек до неї теж.
-- Повторне завантаження **замінює** попередній трек: старий файл видаляється,
-  нарахування за переліміт перераховується (Task 18).
-- Файли лягають у `backend/uploads/tracks/<competitionId>/<performanceId>.<ext>`.
-  Тека в `.gitignore`.
-- Для заявок з `improv: true` трек не потрібен: спроба завантажити → `400`
-  з повідомленням `'Для імпровізації трек не потрібен — музику вмикає організатор'`.
+- `dateTo` null → одноденний конкурс; `dateTo >= dateFrom`, інакше `400`.
+- Реквізити **ніколи** не блокують перехід між кроками й публікацію. Порожній блок реквізитів не віддається в публічній відповіді взагалі — інтерфейс його ховає.
+- `POST /competitions/:id/publish` вимагає `name`, `dateFrom`, `location`, `organizer`, `contactPhone`, `contactEmail` і хоча б одну номінацію → інакше `422 { fields }` з читабельними назвами полів для модального вікна.
 
-**Ендпоінти:** `POST /performances/:id/track` (multipart), `DELETE /performances/:id/track`.
-
-- [ ] **Крок 1: Падаючі тести:** (а) wav-файл приймається; (б) `application/pdf` → `415`; (в) тривалість 72.3 с зберігається як 73; (г) завантаження на імпровізаційну заявку → `400`; (д) учасник на заявку, яку подав його тренер → `403`; (е) організатор на будь-яку заявку — дозволено.
-- [ ] **Крок 2:** `npm test -- tracks.service` — падає.
-- [ ] **Крок 3:** `npm i music-metadata @types/multer`, міграція, модель, сервіс.
-- [ ] **Крок 4:** `npm test -- tracks.service` — зелено.
-- [ ] **Крок 5: Коміт** `feat(backend): accept multi-format tracks and measure duration`
-
-### Task 11: Розрахунок тривалості виступу
-
-Чиста функція. Це серце програми фестивалю — уся неоднозначність документа замовника зведена сюди в один детермінований алгоритм.
-
-**Files:**
-- Create: `backend/src/program/performance-duration.ts`
-- Test: `backend/src/program/performance-duration.spec.ts`
-
-**Interfaces:**
-- Produces:
-```ts
-export interface DurationInput {
-  improv: boolean;
-  isGroupImprov: boolean;      // заявка з кількох осіб
-  trackDurationSeconds: number | null;
-  limitSeconds: number;         // з resolveLimit (Task 9)
-  surchargesEnabled: boolean;
-  overlimitPaid: boolean;
-  timeSource: 'track' | 'limit';
-  improvGroupSeconds: number;
-  improvIndividualSeconds: number;
-}
-
-export function performanceDuration(input: DurationInput): number;
-```
-
-**Алгоритм — рівно в такому порядку:**
-```
-1. improv → return isGroupImprov ? improvGroupSeconds : improvIndividualSeconds
-2. trackDurationSeconds === null → return limitSeconds   // трек ще не залили
-3. trackDurationSeconds <= limitSeconds → return trackDurationSeconds
-   // далі — переліміт
-4. surchargesEnabled  → return overlimitPaid ? trackDurationSeconds : limitSeconds
-5. інакше             → return timeSource === 'track' ? trackDurationSeconds : limitSeconds
-```
-
-**Звідки взяті кроки 4 і 5:** документ каже «якщо треки проплачені —
-рахується повна тривалість, якщо ні — рахується максимальний час, вказаний у
-положенні» (крок 4), і окремо «якщо конкурс без доплат, треба дати два
-варіанти: рахувати по тривалості треків або по часу, який вказаний у
-положенні» (крок 5).
-
-- [ ] **Крок 1: Падаючі тести** — по одному на кожен із п'яти кроків, плюс граничний випадок `trackDuration === limitSeconds` (не переліміт).
-- [ ] **Крок 2:** `npm test -- performance-duration` — падає.
-- [ ] **Крок 3:** реалізувати функцію (10 рядків, без залежностей).
-- [ ] **Крок 4:** `npm test -- performance-duration` — зелено.
-- [ ] **Крок 5: Коміт** `feat(backend): deterministic performance duration`
+**Готово, коли:**
+- [ ] Конкурс публікується з повністю порожніми реквізитами.
+- [ ] `dateTo < dateFrom` → `400`.
+- [ ] Публікація без номінацій → `422` зі згадкою кроку «Номінації».
+- [ ] Дводенний конкурс отримує два `competition_days` автоматично (BE-26).
 
 ---
 
-## Фаза 6 — Програма фестивалю
+## Фаза 6 — Треки
 
-### Task 12: Дні, відділення й позиції
+### BE-15 (було BE-10): Accept multi-format tracks and measure duration
 
-**Files:**
-- Create: `backend/migrations/20260823090900-create-competition-days.ts`
-- Create: `backend/migrations/20260823091000-create-sections.ts`
-- Create: `backend/src/program/competition-day.model.ts`
-- Create: `backend/src/program/section.model.ts`
-- Create: `backend/src/program/section-item.model.ts`
+Без змін по суті. `tracks` {id, performanceId (unique), originalFileName, storedPath, mimeType, durationSeconds, sizeBytes, uploadedByUserId}; формати не обмежені mp3 (mpeg, wav, x-wav, mp4, aac, ogg, flac, x-m4a), інше → `415` з переліком; ≤50 МБ, інакше `413`; тривалість вимірює сервер (`music-metadata`), округлення вгору; метадані не читаються → `422`; повторне завантаження замінює файл і перераховує перелімітне нарахування; для `improv: true` → `400`.
 
-**`competition_days`:** `id`, `competitionId` (FK), `date` (DATEONLY),
-`label` (STRING, null). Унікальний індекс `(competitionId, date)`.
+**Змінено:** дедлайн береться з `competition_rules.trackUploadUntil` (окремий від дедлайну реєстрації); після нього завантаження, заміна й видалення → `403 MUSIC_LOCKED`. Хто вантажить — `assertRegistrationOwner` із BE-10.
 
-**`sections` (відділення):** `id`, `competitionId` (FK), `dayId` (FK),
-`venueId` (FK → venues), `name` (STRING — «Відділення 1»),
-`startTime` (TIME, not null), `sortOrder` (INTEGER).
+**Готово, коли:**
+- [ ] WAV приймається нарівні з MP3; PDF → `415`.
+- [ ] Трек 72.3 с зберігається як 73.
+- [ ] Після `trackUploadUntil` заміна → `403`, читання лишається доступним.
+- [ ] Учасник не заливає трек на заявку тренера; організатор — на будь-яку.
 
-**`section_items` (позиція у відділенні):** `id`, `sectionId` (FK),
-`performanceId` (FK, null), `type` (ENUM(`performance`,`award`)),
-`nominationGroupKey` (STRING — ключ групування, Task 13),
-`sortOrder` (INTEGER, not null).
+### BE-16 (було BE-11): Deterministic performance duration
 
-**Інваріант 1 бачення:** унікальний індекс на `section_items.performanceId`
-(`WHERE performanceId IS NOT NULL`) — один вихід належить рівно одному відділенню.
+Чиста функція, без змін:
 
-**Інваріант 9:** позиція типу `award` завжди має найбільший `sortOrder` у
-відділенні. Перевіряється в сервісі (Task 13), не в БД.
-
-- [ ] **Крок 1:** три міграції з індексами, включно з частковим унікальним індексом на `performanceId`.
-- [ ] **Крок 2:** три моделі зі зв'язками.
-- [ ] **Крок 3:** `npm run migrate`, перевірити, що вставка двох `section_items` з одним `performanceId` падає з помилкою унікальності.
-- [ ] **Крок 4: Коміт** `feat(backend): add days, sections and section items`
-
-### Task 13: Формування відділення й розрахунок розкладу
-
-**Files:**
-- Create: `backend/src/program/schedule-calculator.ts` (чиста функція)
-- Create: `backend/src/program/program.service.ts`
-- Create: `backend/src/program/program.controller.ts`
-- Create: `backend/src/program/program.module.ts`
-- Create: `backend/src/program/dto/create-section.dto.ts`
-- Test: `backend/src/program/schedule-calculator.spec.ts`
-- Test: `backend/src/program/program.service.spec.ts`
-
-**Interfaces:**
-- Consumes: `performanceDuration` (Task 11), `resolveLimit` (Task 9).
-- Produces:
-```ts
-export interface ScheduleItemInput {
-  itemId: string;
-  type: 'performance' | 'award';
-  nominationGroupKey: string;
-  durationSeconds: number;
-  isImprovisationGroup: boolean;
-}
-
-export interface ScheduleItemOutput {
-  itemId: string;
-  startAtSeconds: number;   // від опівночі
-  durationSeconds: number;
-}
-
-export function calculateSchedule(
-  startTimeSeconds: number,
-  items: ScheduleItemInput[],
-  pauseSeconds: number,
-): ScheduleItemOutput[];
+```
+1. improv                        → isGroupImprov ? improvGroupSeconds : improvIndividualSeconds
+2. trackDurationSeconds === null → limitSeconds
+3. trackDuration <= limit        → trackDurationSeconds
+4. surchargesEnabled             → overlimitPaid ? trackDuration : limitSeconds
+5. інакше                        → timeSource === 'track' ? trackDuration : limitSeconds
 ```
 
-**Алгоритм `calculateSchedule`:**
-```
-cursor = startTimeSeconds
-out = []
-for each сусідня група позицій з однаковим nominationGroupKey:
-    for each item у групі:
-        if item.type === 'award':
-            out.push({ item, startAt: cursor, duration: 0 })
-            continue
-        out.push({ item, startAt: cursor, duration: item.duration })
-        cursor += item.duration
-        if (!group.isImprovisationGroup) cursor += pauseSeconds   // пауза після виступу
-    if (group.isImprovisationGroup) cursor += pauseSeconds        // пауза після номінації
-return out
-```
-
-**Чому дві гілки паузи:** документ прямо каже — «пауза додається після кожного
-виступу, а не номінації, але якщо можна, там де імпровізація, додавати паузу
-навпаки після номінації, а не кожного виступу» (§8.6 бачення).
-
-**Правила `ProgramService.createSection(competitionId, userId, dto)`:**
-1. Доступ — організатор або адмін конкурсу, інакше `403`.
-2. `dto`: `{ dayId, venueId, name, startTime, performanceIds[] }`.
-3. Кожен `performanceId` має бути **нерозподіленим** (не мати `section_item`).
-   Інакше `409` зі списком уже розподілених.
-4. Виходи групуються за номінацією; порядок груп — за `nominations.createdAt`,
-   порядок усередині групи — за наскрізним номером учасника (за зростанням).
-5. **Останнім рядком автоматично додається позиція `award`** (нагородження)
-   з найбільшим `sortOrder` — інваріант 9.
-6. Час не зберігається в `section_items`. Він обчислюється `calculateSchedule`
-   при кожному читанні програми. Це інваріант 2: час ніколи не вводиться.
-7. `GET /competitions/:id/program?dayId=&venueId=` повертає відділення з
-   обчисленим часом кожної позиції і **часом нагородження = час старту +
-   сума всіх виступів і пауз**.
-
-**Ендпоінти:**
-- `GET /competitions/:id/performances/unassigned?ageCategoryId=&levelId=` — пул для фільтра (§8.7, крок 2).
-- `POST /competitions/:id/sections` — сформувати відділення.
-- `GET /competitions/:id/program` — програма з часом.
-
-- [ ] **Крок 1: Падаючі тести `schedule-calculator.spec.ts`:** (а) три виступи по 60 с із паузою 20 с від 09:00:00 → 09:00:00, 09:01:20, 09:02:40, нагородження о 09:04:00; (б) імпровізаційна група з трьох виступів по 30 с → пауза додається один раз, не тричі; (в) порожнє відділення → лише нагородження в час старту.
-- [ ] **Крок 2:** `npm test -- schedule-calculator` — падає.
-- [ ] **Крок 3:** реалізувати чисту функцію.
-- [ ] **Крок 4:** `npm test -- schedule-calculator` — зелено.
-- [ ] **Крок 5: Падаючі тести `program.service.spec.ts`:** (а) повторне додавання вже розподіленого виходу → `409`; (б) нагородження завжди останнє; (в) фільтр за лігою повертає лише відповідні виходи.
-- [ ] **Крок 6:** реалізувати сервіс і контролер, прогнати тести.
-- [ ] **Крок 7: Коміт** `feat(backend): build sections and calculate schedule`
-
-### Task 14: Ручне перевпорядкування, перенесення й об'єднання категорій
-
-**Files:**
-- Modify: `backend/src/program/program.service.ts`
-- Modify: `backend/src/program/program.controller.ts`
-- Create: `backend/src/program/dto/reorder-section.dto.ts`
-- Create: `backend/src/program/dto/merge-groups.dto.ts`
-- Test: `backend/src/program/program-reorder.spec.ts`
-
-**`PATCH /sections/:id/order`** з тілом `{ itemIds: string[] }`:
-- Список має містити **рівно ті самі** `itemId`, що вже у відділенні —
-  інакше `400` з повідомленням `'Список позицій не збігається зі складом відділення'`.
-  Це захист від гонки, коли двоє адмінів тягають рядки одночасно.
-- Позиція `award` мовчки переставляється в кінець, навіть якщо клієнт прислав її в середині (інваріант 9).
-- Час перераховується при наступному читанні — зберігати нічого не треба.
-
-**`POST /performances/:id/move`** з тілом `{ sectionId, afterItemId? }`:
-- Переносить вихід в інше відділення, знімаючи стару позицію.
-- `afterItemId: null` → у початок.
-
-**`POST /sections/:id/merge-groups`** з тілом `{ groupKeys: string[], mergedLabel: string }`:
-- Реалізує §8.7, крок 7 — ручне об'єднання категорій (Юніори 1 + Юніори 2).
-- Усім `section_items` перелічених груп присвоюється спільний
-  `nominationGroupKey = 'merged:' + uuid`, а `mergedLabel` зберігається в
-  новій таблиці `merged_group_labels` (`id`, `sectionId`, `groupKey`, `label`).
-- **Об'єднання діє лише в межах цього конкурсу і не змінює довідник осей**
-  (§8.7). Номінації самі лишаються незмінними — це важливо, бо судять і
-  рахують результати досі по вихідних номінаціях, а об'єднана лише подача в програмі.
-- Розділити назад: `DELETE /sections/:id/merge-groups/:groupKey` — повертає
-  вихідні `nominationGroupKey` кожного виходу.
-
-- [ ] **Крок 1: Падаючі тести:** (а) перевпорядкування з чужим `itemId` → `400`; (б) `award` опиняється в кінці, навіть якщо переданий першим; (в) після об'єднання двох груп `calculateSchedule` бачить одну групу, тож пауза між ними лишається звичайною; (г) розділення повертає вихідні ключі.
-- [ ] **Крок 2:** `npm test -- program-reorder` — падає.
-- [ ] **Крок 3:** реалізувати три ендпоінти + міграцію `merged_group_labels`.
-- [ ] **Крок 4:** `npm test -- program-reorder` — зелено.
-- [ ] **Крок 5: Коміт** `feat(backend): reorder, move and merge program groups`
-
-### Task 15: Дві проєкції програми
-
-**Files:**
-- Modify: `backend/src/program/program.service.ts`
-- Create: `backend/src/program/program-projections.ts`
-- Test: `backend/src/program/program-projections.spec.ts`
-
-**Публічна проєкція (`GET /competitions/:id/program`)** — доступна без авторизації:
-номер учасника, ПІБ, студія, керівник, назва номінації, час.
-Якщо запит авторизований, кожна позиція отримує прапорці:
-- `isMine: true` — серед учасників виходу є Особа з `userId === поточний користувач`;
-- `isMyStudent: true` — серед учасників є особа з ростера цього тренера.
-
-Це і є «підсвічування своїх виступів» із §8.7 бачення — сервер віддає ознаку,
-клієнт лише фарбує. Неавторизований запит не отримує жодного з прапорців.
-
-**Розширена проєкція (`GET /competitions/:id/program/extended`)** — лише
-організатор і адмін конкурсу. Додає до кожної позиції:
-- `trackDurationSeconds` — фактична тривалість;
-- `limitSeconds` — ліміт положення;
-- `overlimitSeconds` — наскільки перевищено (0, якщо ні);
-- `overlimitPaid` — чи оплачена доплата;
-- `effectiveDurationSeconds` — що реально пішло в розрахунок.
-
-**Чому це важливо:** саме за цією проєкцією друкують програму для
-звукорежисера — він має бачити, який трек вимикати за лімітом, а який
-оплачений і має грати повністю (§8.7).
-
-- [ ] **Крок 1: Падаючі тести:** (а) неавторизований запит не містить ні `isMine`, ні `isMyStudent`; (б) учасник бачить `isMine: true` рівно на своїх виходах; (в) тренер бачить `isMyStudent: true` на виходах своїх учнів і `false` на чужих; (г) розширена проєкція для тренера → `403`; (д) виступ із перелімітом 15 с і оплатою має `overlimitSeconds: 15, overlimitPaid: true`.
-- [ ] **Крок 2:** `npm test -- program-projections` — падає.
-- [ ] **Крок 3:** реалізувати обидві проєкції.
-- [ ] **Крок 4:** `npm test -- program-projections` — зелено.
-- [ ] **Крок 5: Коміт** `feat(backend): public and extended program projections`
+**Готово, коли:** кожна з п'яти гілок дає задокументоване значення; `trackDuration === limit` не переліміт; функція без доступу до БД.
 
 ---
 
-## Фаза 7 — Спеціальні категорії
+## Фаза 7 — Програма
 
-### Task 16: Номінація з набором програм і кількістю виходів
+### BE-17 (було BE-12): Days, sections and section items
 
-Реалізує §8.3 бачення. Після Task 3 і Task 13 ця задача дешева — саме в цьому й був сенс принципу П2.
+Без змін. `competition_days` {id, competitionId, date, label} unique `(competitionId, date)`; `sections` {id, competitionId, dayId, venueId, name, startTime, sortOrder}; `section_items` {id, sectionId, performanceId, type ENUM(performance,award), nominationGroupKey, sortOrder}; частковий unique index на `performanceId WHERE NOT NULL`; `award` завжди останній — перевірка в сервісі.
 
-**Files:**
-- Create: `backend/migrations/20260823091100-add-programs-to-nominations.ts`
-- Modify: `backend/src/nominations/nomination.model.ts`
-- Modify: `backend/src/nominations/dto/create-nomination.dto.ts`
-- Modify: `backend/src/registrations/registrations.service.ts`
-- Create: `backend/src/nominations/nomination-naming.ts` (чиста функція)
-- Test: `backend/src/nominations/nomination-naming.spec.ts`
+### BE-18 (було BE-13): Build sections and calculate schedule
 
-**Нові поля `nominations`:**
-- `programIds` (ARRAY(UUID), default `[]`) — обрані програми/стилі з довідника осей.
-- `exitMode` (ENUM(`single`,`per_program`), default `single`) — кількість виходів на сцену.
-- `isSpecial` (BOOLEAN, default `false`) — спецкатегорія (Кубок, Корона, батл).
+Без змін. `calculateSchedule(startTimeSeconds, items, pauseSeconds)`; пауза після кожного виступу, а для імпровізаційної групи — один раз після номінації; формування відділення з нерозподілених виходів (`409` зі списком уже розподілених), групування за номінацією, всередині — за наскрізним номером; автоматичний рядок `award` останнім; час не зберігається, обчислюється при читанні.
 
-**Правило генерації виходів у `RegistrationsService.create`:**
-```
-exitMode === 'single'      → один Performance, programName = null
-exitMode === 'per_program' → по одному Performance на кожен programId,
-                             programName = назва програми
-```
+**Змінено:** `GET /competitions/:id/performances/unassigned?level=&ageCategory=&nominationId=` — фільтри перейменовані під нові поля заявки.
 
-**Чиста функція `buildNominationLabel`:**
-```ts
-export function buildNominationLabel(input: {
-  axisNames: string[];        // ['Юніори 1', 'Перші кроки']
-  specialName: string | null; // 'Корона Шехеризади'
-  programName: string | null; // 'Табла' або null
-}): string;
-```
-Правила (прямо з документа замовника):
-- `single`: `'Юніори 1 · Перші кроки · Корона Шехеризади'` — програма не згадується.
-- `per_program`: `'Юніори 1 · Перші кроки · Корона Шехеризади · Імпровізація межансе'`,
-  і нижче та сама категорія з наступною програмою — `'… · Табла'`.
-- Роздільник — ` · `. Порожні частини відкидаються.
+**Готово, коли:**
+- [ ] Три виступи по 60 с із паузою 20 с від 09:00 → 09:00, 09:01:20, 09:02:40, нагородження 09:04.
+- [ ] Імпровізаційна група з трьох по 30 с отримує паузу один раз.
+- [ ] Повторне додавання розподіленого виходу → `409`; нагородження завжди останнє.
 
-**Тривалість спецкатегорії:**
-- `single` → сума `resolveLimit` по всіх `programIds`.
-- `per_program` → ліміт кожної програми окремо для свого виходу.
-Ця логіка додається в `resolveLimit` (Task 9) як окрема гілка.
+### BE-19 (було BE-14): Reorder, move and merge program groups
 
-**Ціна:** спецкатегорія має власну `price` на рівні номінації — окремого механізму не треба (§8.3, крок 6).
+Без змін. `PATCH /sections/:id/order` із перевіркою повного збігу складу (`400`), `award` мовчки в кінець; `POST /performances/:id/move`; `POST /sections/:id/merge-groups` + `merged_group_labels`, об'єднання діє лише в межах конкурсу й не змінює довідник; `DELETE …/merge-groups/:groupKey`.
 
-- [ ] **Крок 1: Падаючі тести `nomination-naming.spec.ts`:** три випадки з правил вище + випадок з порожнім `specialName`.
-- [ ] **Крок 2:** `npm test -- nomination-naming` — падає.
-- [ ] **Крок 3:** реалізувати чисту функцію.
-- [ ] **Крок 4:** міграція + поля моделі + гілка генерації виходів.
-- [ ] **Крок 5: Тест інтеграції:** заявка на спецкатегорію з `exitMode: 'per_program'` і трьома програмами створює 3 `Performance` з різними `programName`.
-- [ ] **Крок 6:** `npm test -- nomination` — зелено.
-- [ ] **Крок 7: Коміт** `feat(backend): special categories with programs and exit modes`
+### BE-20 (було BE-15): Program projections
 
----
+Три проєкції замість двох.
 
-## Фаза 8 — Суддівство через бригади
+1. **Публічна** `GET /competitions/:id/program` — без авторизації, лише службові рядки з часом: початок відділення, нагородження, перерва, назва блоку номінацій і його час початку. Прізвищ, номерів і студій тут немає — це афіша для глядача, а не робочий документ.
+2. **Своя** `GET /competitions/:id/program/mine` — для `participant` і `coach`: службові рядки плюс лише власні виходи (`isMine` — серед складу Особа цього акаунта; `isMyStudent` — особа з ростера цього тренера) з часом, номером і номінацією.
+3. **Розширена** `GET /competitions/:id/program/extended` — організатор і адмін конкурсу: усі позиції з `number`, ПІБ, студією, тренером, `trackDurationSeconds`, `limitSeconds`, `overlimitSeconds`, `overlimitPaid`, `effectiveDurationSeconds`, `hasTrack`. За нею друкують програму для звукорежисера.
 
-### Task 17: Бригади, склад і призначення
+**Готово, коли:**
+- [ ] Публічна відповідь не містить жодного прізвища.
+- [ ] Учасник у `/mine` бачить рівно свої виходи; тренер — виходи своїх учнів.
+- [ ] Розширена проєкція для тренера → `403`.
+- [ ] Виступ із перелімітом 15 с і оплатою віддає `overlimitSeconds: 15`, `overlimitPaid: true`.
 
-Реалізує П4 — головний операційний виграш продукту.
+### BE-21 (нове): ZIP music export in schedule order
 
-**Files:**
-- Create: `backend/migrations/20260823091200-create-judging-panels.ts`
-- Create: `backend/src/judging/judging-panel.model.ts`
-- Create: `backend/src/judging/panel-membership.model.ts`
-- Create: `backend/src/judging/panel-assignment.model.ts`
-- Create: `backend/src/judging/judging.service.ts`
-- Create: `backend/src/judging/judging.controller.ts`
-- Create: `backend/src/judging/judging.module.ts`
-- Test: `backend/src/judging/judging.service.spec.ts`
+**Table `export_jobs`** should contain: {id, competitionId, type, status, progress, filePath, payload, missing, createdAt}
 
-**`judging_panels`:** `id`, `competitionId` (FK), `name` (STRING),
-`venueId` (UUID, null, FK — бригада зазвичай відповідає майданчику),
-`quorum` (INTEGER, null — якщо null, береться з правил конкурсу).
-
-**`panel_memberships`:** `id`, `panelId` (FK), `judgeId` (FK → judges),
-`isTrainee` (BOOLEAN, default false), `joinedAt` (DATE),
-`leftAt` (DATE, null — заміна судді не видаляє рядок, а закриває його).
-
-**`panel_assignments`:** `id`, `panelId` (FK), `nominationId` (FK).
-Унікальний індекс `(panelId, nominationId)`.
-
-**Ключове правило:** номінація призначається **бригаді**, ніколи не судді
-напряму. Ендпоінта «призначити номінацію судді» не існує взагалі — саме це й
-знімає біль із документа («в Юевенті адмін вручну виділяє категорії для кожного
-судді»).
+**Endpoints:** `POST /competitions/:id/music/export { dayId?, venueId?, sectionId? }` → `202 { jobId }`; `GET /export-jobs/:jobId` → `{ status: 'queued|running|done|failed', progress: 0..100, fileUrl?, missing: [{ number, personName, nomination }] }`.
 
 **Правила:**
-- Одна номінація може бути призначена **не більш ніж одній** бригаді →
-  спроба призначити другій дає `409` з назвою бригади, яка вже її має.
-- Суддів у бригаді може бути **більше за кворум** (§8.9, крок 3) — обмеження зверху немає.
-- Видалення бригади заборонене, якщо в неї є хоч один надісланий аркуш → `409`.
+- Порядок файлів — **за таймінгами**: `section.sortOrder` → `section_items.sortOrder`. Не за номером і не за номінацією.
+- Імена всередині: `{number}_{Ім'я}_{Прізвище}_{Ліга}_{Стиль}.{ext}`; транслітерація не робиться, службові символи файлової системи замінюються на `_`; колізія імен → суфікс `_2`.
+- Архів стрімиться у файл на диску пачками, не збирається в пам'яті: 300 треків не мають з'їсти інстанс.
+- Виходи без треку не ламають збірку — потрапляють у `missing`, `status` лишається `done`.
+- `progress` оновлюється не рідше, ніж кожні 10 файлів — з нього фронт малює прогрес-бар.
+- Готовий архів живе 24 год, далі прибирається cron-джобою; повторний запит на той самий скоуп із живим архівом віддає наявний `fileUrl` без перезбірки.
 
-**Ендпоінти:**
-- `POST /competitions/:id/panels`, `GET /competitions/:id/panels`, `DELETE /panels/:id`
-- `POST /panels/:id/members` `{ judgeId, isTrainee }`
-- `POST /panels/:id/assignments` `{ nominationIds: string[] }`
-- `DELETE /panels/:id/assignments/:nominationId`
+**Готово, коли:**
+- [ ] Порядок файлів у архіві збігається з порядком у розширеній програмі.
+- [ ] Відділення на 300 треків збирається без падіння пам'яті, `progress` доходить до 100.
+- [ ] Дві заявки без музики попадають у `missing`, архів приходить `done`.
+- [ ] Повторний запит протягом 24 год не запускає збірку вдруге.
 
-- [ ] **Крок 1: Падаючі тести:** (а) призначення номінації двом бригадам → `409`; (б) у бригаду можна додати 6 суддів при кворумі 3; (в) видалення бригади з надісланим аркушем → `409`.
-- [ ] **Крок 2:** `npm test -- judging.service` — падає.
-- [ ] **Крок 3:** міграції, моделі, сервіс, контролер.
-- [ ] **Крок 4:** `npm test -- judging.service` — зелено.
-- [ ] **Крок 5: Коміт** `feat(backend): judging panels with membership and assignments`
+---
 
-### Task 18: Кабінет судді, аркуш і кворум
+## Фаза 8 — Спецкатегорії
 
-**Files:**
-- Create: `backend/migrations/20260823091300-create-score-sheets.ts`
-- Create: `backend/src/judging/score-sheet.model.ts`
-- Create: `backend/src/judging/score-entry.model.ts`
-- Create: `backend/src/judging/sheet-validation.ts` (чиста функція)
-- Modify: `backend/src/judging/judging.service.ts`
-- Test: `backend/src/judging/sheet-validation.spec.ts`
-- Test: `backend/src/judging/quorum.spec.ts`
+### BE-22 (було BE-16): Special categories with programs and exit modes
 
-**`score_sheets`:** `id`, `panelId` (FK), `judgeId` (FK), `nominationId` (FK),
-`round` (ENUM(`final`,`semifinal`)), `status` (ENUM(`draft`,`submitted`)),
-`isTrainee` (BOOLEAN), `submittedAt` (DATE, null).
-Унікальний індекс `(judgeId, nominationId, round)`.
+**Поля `nominations`:** {programIds, exitMode ENUM(single, per_program), isSpecial}
 
-**`score_entries`:** `id`, `sheetId` (FK), `performanceId` (FK),
-`score` (DECIMAL(4,1), null), `place` (INTEGER, null),
-`absent` (BOOLEAN, default false).
+Генерація виходів, `buildNominationLabel` і гілка тривалості — без змін.
 
-**Чиста функція `validateSheet(entries, performanceCount)` — правила §8.10:**
-```
-1. Кожен неабсентний виступ має score в діапазоні [1, 10]. Інакше:
-   'Бали обов'язкові для всіх учасників і мають бути від 1 до 10'
-2. Місця (place) — необов'язкові. Але виставлені місця мають бути унікальними
-   в межах аркуша. Інакше: 'Місце N вже виставлено іншому учаснику'  (інваріант 3)
-3. Виступи з absent: true не мають ні score, ні place.
-4. Кількість записів дорівнює кількості виходів у номінації.
-```
+**Змінено:** ціну спецкатегорії ставить організатор при створенні конкурсу — `POST /competitions/:id/nominations/specials { name, price, programIds?, exitMode? }`. У шаблоні спецкатегорія — лише назва, без ціни; при генерації вона підтягується як заготовка з `price: null`, і публікація конкурсу з null-ціною спецкатегорії → `422 'Вкажіть ціну для спеціальної номінації «…»'`.
 
-**Чому бали обов'язкові, а місця ні:** рішення Р1 бачення — бали первинні,
-місця лише тайбрейк.
+**Готово, коли:**
+- [ ] `per_program` із трьома програмами створює 3 виходи з різними `programName`.
+- [ ] Назва в `single` не містить програми, у `per_program` — рівно одну.
+- [ ] Публікація конкурсу зі спецкатегорією без ціни → `422` з її назвою.
 
-**Правила надсилання (`POST /judge/sheets/:id/submit`):**
-1. `validateSheet` має пройти, інакше `400` з конкретним повідомленням.
-2. **Перевірка кворуму перед записом:** якщо кількість уже надісланих
-   **не-стажерських** аркушів по цій `(nominationId, round)` `>= quorum` —
-   `409` з повідомленням `'Кворум по цій номінації вже досягнуто'` (інваріант 4).
-   Перевірка й запис — в одній транзакції з блокуванням, інакше двоє суддів
-   проскочать одночасно.
-3. Аркуші стажерів **ніколи не враховуються в кворумі** (інваріант 5) і не
-   блокуються цією перевіркою — стажер може надіслати завжди.
-4. Після досягнення кворуму номінація отримує похідний статус `judged` —
-   він обчислюється, а не зберігається.
+---
 
-**Кабінет судді (`GET /judge/nominations`):**
-- Повертає номінації, призначені бригадам, у яких цей суддя має **відкрите**
-  членство (`leftAt IS NULL`).
-- Кожна номінація — **згорнута**: `{ id, label, performanceCount, sheetStatus }`.
-  Виходи не віддаються (§8.10, крок 1: «не розгорнуті, щоб не губитись»).
-- `sheetStatus`: `'none' | 'draft' | 'submitted'`. Клієнт фарбує `'draft'`
-  червоним — це ознака «затупив», §8.10, крок 7.
-- `GET /judge/nominations/:id/sheet` — розгортає конкретну номінацію з переліком
-  виходів (номер, ПІБ, студія) і чернеткою оцінок, якщо вона є.
+## Фаза 9 — Оплати
 
-**Автозбереження чернетки:** `PUT /judge/sheets/:id` зберігає `draft` без
-валідації — суддя може заповнити половину й піти. Валідація лише при `submit`.
+### BE-23 (було BE-21): Charges, manual payment status and coach payouts
 
-- [ ] **Крок 1: Падаючі тести `sheet-validation.spec.ts`:** бал 0 → помилка; бал 11 → помилка; два перших місця → помилка; місця взагалі не виставлені → валідно; absent зі скором → помилка.
-- [ ] **Крок 2:** `npm test -- sheet-validation` — падає.
-- [ ] **Крок 3:** реалізувати чисту функцію.
-- [ ] **Крок 4: Падаючі тести `quorum.spec.ts`:** третій аркуш при кворумі 3 проходить; четвертий → `409`; аркуш стажера проходить і при досягнутому кворумі та не збільшує лічильник.
-- [ ] **Крок 5:** реалізувати надсилання з транзакцією.
-- [ ] **Крок 6:** `npm test -- judging` — зелено.
-- [ ] **Крок 7: Коміт** `feat(backend): score sheets with quorum and trainee isolation`
+**Table `charges`** should contain: {id, competitionId, registrationId, performanceId, type ENUM(participation, overlimit), amount, status ENUM(pending, paid, waived), paidAt, markedByUserId}
 
-### Task 19: Заміна судді посеред конкурсу
+`overlimitPrice(overlimitSeconds, tariffs)` — сходинками, без пропорції, зі стелею найбільшого тарифу.
 
-Окрема задача, бо це головний сценарій, заради якого існує бригада (§8.11).
+**Правила без змін:** нарахування за участь при поданні (`amount = nomination.price ?? 0`); перелімітне лише при `surchargesEnabled`; перезавантаження треку перераховує (`pending` видаляється, оплачене → `waived`); `PATCH /charges/:id { status }` вручну організатором із записом `markedByUserId` і `paidAt`; вимкнення доплат не переписує минуле; дублікати оплачуються обидва.
 
-**Files:**
-- Modify: `backend/src/judging/judging.service.ts`
-- Modify: `backend/src/judging/judging.controller.ts`
-- Test: `backend/src/judging/judge-replacement.spec.ts`
+**Змінено:** оплата лише переказом за реквізитами — жодного платіжного шлюзу, жодного вебхука. Статус ставить організатор руками, і це не тимчасове рішення, а рішення продукту.
 
-**Interfaces:**
-- Produces: `JudgingService.replaceJudge(panelId, outgoingJudgeId, incomingJudgeId, requesterId)`.
+`GET /competitions/:id/charges` — зведений список: учасник, номер, номінація, ліга, обидва види нарахувань, статуси, `totalDue` і `totalPaid` по конкурсу. `GET /me/charges` — за заявками, де `submittedByUserId` — поточний користувач. `GET /competitions/:id/coach-payouts` — сума оплачених `participation` × `coachPercent / 100`, лише заявки з непорожнім `coachId`; заявка, яку учасник подав за себе, частки не приносить навіть якщо він у ростері; перелімітні нарахування у частку не входять.
+
+**Дроп `entries`** — окремою міграцією останнім кроком фази, після `grep -r "entries/entry.model" backend/src` порожньо.
+
+**Готово, коли:**
+- [ ] 15 с і 30 с → 150; 45 с → 200; 90 с → 200 (стеля); 0 с → 0.
+- [ ] Заміна треку на коротший прибирає `pending`, оплачене переводить у `waived`.
+- [ ] Заявка, подана учасником за себе, не потрапляє у виплати тренера.
+- [ ] Таблиці `entries` і теки `backend/src/entries/` більше не існує.
+
+---
+
+## Фаза 10 — Публічна частина й кабінети
+
+### BE-24 (нове): Public catalogue with search, filters and month grouping
+
+**Endpoint** `GET /public/competitions?q=&year=&month=&status=open|upcoming|past&page=` → `{ items: [{ id, name, dateFrom, dateTo, location, organizer, bannerUrl, status, registrationFrom, registrationTo }], total, years: number[] }`
 
 **Правила:**
-1. Доступ — організатор або адмін конкурсу.
-2. Членство того, хто виходить, **не видаляється**: йому проставляється
-   `leftAt = now()`. Історія хто коли судив має лишитись.
-3. Новому судді створюється членство з `joinedAt = now()`.
-4. **Призначення номінацій не чіпаються взагалі** — вони на бригаді.
-   Це вся суть задачі: жодних дій із категоріями.
-5. **Уже надіслані аркуші того, хто вийшов, лишаються дійсними** (§8.11, крок 4)
-   і далі рахуються в кворумі відсуджених номінацій.
-6. Чернетки того, хто вийшов, лишаються його чернетками й **не переходять**
-   до нового судді — оцінки персональні.
-7. Новий суддя одразу бачить актуальний список у `GET /judge/nominations`,
-   без жодних додаткових дій адміна.
+- `q` шукає по назві, місту й організатору, без регістру, від 2 символів; коротший запит — просто ігнорується, не помилка.
+- `status`: `open` — сьогодні в межах реєстрації і конкурс не завершений; `past` — `dateTo` (або `dateFrom`) < сьогодні; `upcoming` — решта.
+- Сортування — за `dateFrom` за зростанням: клієнт групує по місяцях і роках, тому порядок мусить бути стабільним і без розривів.
+- `years` віддається разом зі списком — з нього будується фільтр за роком, щоб фронт не збирав його з поточної сторінки.
+- Лише `published` і далі по життєвому циклу; без авторизації; кеш 60 с.
+- `GET /public/competitions/:id` → конкурс, номінації з цінами, майданчики; блок реквізитів **відсутній** у відповіді, якщо всі поля порожні.
 
-**Ендпоінт:** `POST /panels/:id/replace-judge` `{ outgoingJudgeId, incomingJudgeId }`.
+**Готово, коли:**
+- [ ] Пошук «Київ» знаходить конкурси за містом і за назвою.
+- [ ] `status=open` не показує конкурс, у якого реєстрація закрилась учора.
+- [ ] `years` містить усі роки з БД, а не лише з поточної сторінки.
+- [ ] Конкурс без реквізитів не має ключа `payInfo` у відповіді.
 
-- [ ] **Крок 1: Падаючі тести:** (а) після заміни новий суддя бачить ті самі номінації, що бачив попередній; (б) надіслані аркуші попереднього далі враховуються в кворумі; (в) чернетка попереднього не видима новому; (г) `panel_assignments` не змінились (порівняти до і після).
-- [ ] **Крок 2:** `npm test -- judge-replacement` — падає.
-- [ ] **Крок 3:** реалізувати метод і ендпоінт.
-- [ ] **Крок 4:** `npm test -- judge-replacement` — зелено.
-- [ ] **Крок 5: Коміт** `feat(backend): replace judge without touching assignments`
+### BE-25 (нове): Role cabinets
 
----
+**Endpoints:**
+- `GET /coach/summary` → `{ persons, registrations, totalDue, totalPaid, upcomingCompetitions }` — цифри для кабінету тренера.
+- `GET /participant/registrations` → заявки Особи цього акаунта з конкурсом, номінацією, лігою, статусом, ціною, `hasTrack`, `submittedByName`.
+- `GET /admin/dashboard` — лише `superadmin` і `organizer`: конкурси, заявки, сума нарахувань, оплачено, кількість користувачів за ролями. Тренер і учасник → `403`: дашборду в їхніх кабінетах немає.
 
-## Фаза 9 — Результати
+**Правила:** усі три ендпоінти читають ті самі правила видимості, що BE-10, — тренер бачить подані ним, учасник бачить усі, де є його Особа.
 
-### Task 20: Зведення результатів
-
-**Files:**
-- Create: `backend/src/results/results-aggregation.ts` (чиста функція)
-- Create: `backend/src/results/results.service.ts`
-- Create: `backend/src/results/results.controller.ts`
-- Create: `backend/src/results/results.module.ts`
-- Test: `backend/src/results/results-aggregation.spec.ts`
-
-**Interfaces:**
-```ts
-export interface JudgeVote { judgeId: string; score: number; place: number | null; }
-export interface PerformanceVotes { performanceId: string; absent: boolean; votes: JudgeVote[]; }
-export interface RankedResult {
-  performanceId: string;
-  totalScore: number;
-  placesSum: number | null;
-  finalPlace: number | null;   // null для absent
-  judgeVotes: JudgeVote[];
-}
-export function aggregateResults(input: PerformanceVotes[]): RankedResult[];
-```
-
-**Алгоритм — рішення Р1 бачення:**
-```
-1. Виступи з absent: true виключаються з ранжування, finalPlace = null,
-   у відповіді лишаються з позначкою.
-2. totalScore = сума score усіх суддів (аркуші стажерів сюди НЕ потрапляють —
-   їх відсіює сервіс до виклику функції, інваріант 5).
-3. Сортування за totalScore за спаданням.
-4. ТАЙБРЕЙК при рівних totalScore: менша сума виставлених суддями місць
-   (placesSum) вище. Виступи без жодного місця отримують placesSum = null і
-   при рівності стають нижче за тих, у кого місця є.
-5. Якщо після тайбрейку виступи досі рівні — вони ділять місце:
-   обидва отримують те саме finalPlace, наступний пропускає номер
-   (1, 2, 2, 4 — стандартна змагальна нумерація).
-```
-
-**Ендпоінти:**
-- `GET /competitions/:id/results` — публічно, лише по номінаціях, що досягли
-  кворуму. Формат рядка: `{ participant, judgePlaces: {judgeId: place}, finalPlace }`
-  — саме така таблиця описана в документі: колонка на кожного суддю з місцем,
-  вкінці загальне місце (§8.13).
-- `GET /competitions/:id/results/:nominationId/scores?judgeId=` — бали
-  конкретного судді. Це те, що розкривається при кліку на місце (§8.13, крок 4).
-- `GET /competitions/:id/results/search?q=` — **публічно**, пошук за прізвищем
-  або наскрізним номером по всіх відсуджених номінаціях конкурсу. Ним
-  користуються глядачі й батьки без акаунта (§8.13, крок 5).
-  Пошук за `q` коротшим за 2 символи → порожній результат, без помилки.
-- `GET /me/results?competitionId=` — **лише роль `participant`**: усі виступи
-  Особи, прив'язаної до цього акаунта, з місцями й сумою балів, плюс посилання
-  на загальні результати конкурсу (§8.13, крок 6). Без `competitionId` —
-  список конкурсів, у яких людина брала участь.
-- `GET /coach/results?competitionId=` — **лише роль `coach`**: зведення по всіх
-  учасниках із ростера цього тренера в цьому конкурсі, згруповане за учнем
-  (§8.13, крок 7).
-- `GET /competitions/:id/results/trainees` — **лише організатор**: аркуші
-  стажерів поруч із основними, щоб порівняти збіг (§8.10).
-
-- [ ] **Крок 1: Падаючі тести `results-aggregation.spec.ts`:** (а) три судді, різні бали → порядок за сумою; (б) рівні бали, різні суми місць → тайбрейк спрацював; (в) повна рівність → обидва отримали 2-ге місце, наступний 4-те; (г) absent не потрапив у ранжування; (д) порожній вхід → порожній вихід.
-- [ ] **Крок 2:** `npm test -- results-aggregation` — падає.
-- [ ] **Крок 3:** реалізувати чисту функцію.
-- [ ] **Крок 4:** `npm test -- results-aggregation` — зелено.
-- [ ] **Крок 5:** реалізувати сервіс і шість ендпоінтів. Тести: стажери відсіяні з підсумку; пошук за прізвищем знаходить усі виступи людини; пошук за `q` з одного символу → порожньо; `GET /me/results` для ролі `coach` → `403`; `GET /coach/results` для ролі `participant` → `403`; `GET /me/results` для акаунта без прив'язаної Особи → порожній список, не помилка.
-- [ ] **Крок 6: Коміт** `feat(backend): aggregate results with score-first ranking`
+**Готово, коли:**
+- [ ] `GET /admin/dashboard` для `coach` → `403`.
+- [ ] `totalDue` тренера збігається зі сумою по `GET /me/charges`.
+- [ ] Учасник бачить заявку, яку подав тренер, із `canEdit: false`.
 
 ---
 
-## Фаза 10 — Оплати
+## Фаза 11 — Життєвий цикл і огляд
 
-### Task 21: Нарахування, статуси й частка керівника
+### BE-26 (було BE-23): Competition lifecycle and days
 
-**Files:**
-- Create: `backend/migrations/20260823091400-create-charges.ts`
-- Create: `backend/migrations/20260823091500-drop-entries.ts`
-- Create: `backend/src/billing/charge.model.ts`
-- Create: `backend/src/billing/billing.service.ts`
-- Create: `backend/src/billing/billing.controller.ts`
-- Create: `backend/src/billing/billing.module.ts`
-- Create: `backend/src/billing/overlimit-pricing.ts` (чиста функція)
-- Delete: `backend/src/entries/` (уся тека)
-- Test: `backend/src/billing/overlimit-pricing.spec.ts`
-- Test: `backend/src/billing/billing.service.spec.ts`
+`competitions.status` `ENUM('draft','published','registration_open','registration_closed','scheduled','running','finished')`, default `draft`; переходи лише вперед, плюс дозволений `registration_closed → registration_open`; будь-що → `draft` заборонено.
 
-**`charges`:** `id`, `competitionId` (FK), `registrationId` (FK),
-`performanceId` (UUID, null — заповнено лише для перелімітних),
-`type` (ENUM(`participation`,`overlimit`)), `amount` (DECIMAL(10,2)),
-`status` (ENUM(`pending`,`paid`,`waived`), default `'pending'`),
-`paidAt` (DATE, null), `markedByUserId` (UUID, null).
+**Змінено:** перехід у `published` вимагає ще й хоча б однієї номінації (узгоджено з BE-14), а реквізити — ні. Дні конкурсу створюються автоматично на кожну дату `dateFrom..dateTo` при створенні; `POST|GET /competitions/:id/days`, `DELETE /days/:id` (`409`, якщо є відділення).
 
-**Чиста функція `overlimitPrice(overlimitSeconds, tariffs)`:**
-```
-tariffs відсортовані за uptoSeconds за зростанням, напр. [{30,150},{60,200}]
-overlimitSeconds <= 0            → 0
-знайти перший тариф з uptoSeconds >= overlimitSeconds → його price
-перевищує найбільший тариф       → price найбільшого тарифу
-                                   (пропорційно НЕ множимо — документ дає
-                                    сходинки, не формулу)
-```
+**Готово, коли:**
+- [ ] `draft → running` заборонено; `registration_closed → registration_open` дозволено.
+- [ ] Публікація без `location` або без номінацій → `422` з переліком полів.
+- [ ] Перехід у `scheduled` при нерозподілених виходах → `409` з їх кількістю.
+- [ ] Дводенний конкурс отримує 2 дні автоматично.
 
-**Правила `BillingService`:**
-1. Нарахування за участь створюється при подачі заявки, `amount = nomination.price ?? 0`.
-2. Нарахування за переліміт створюється/оновлюється при завантаженні треку
-   (Task 10) і **лише якщо `rules.surchargesEnabled === true`**.
-3. Перезавантаження треку **перераховує** перелімітне нарахування. Якщо новий
-   трек уміщається в ліміт — нарахування видаляється, але **лише якщо воно ще
-   `pending`**. Уже оплачене → переводиться в `waived` зі слідом, гроші не зникають самі.
-4. `PATCH /charges/:id` `{ status }` — ручна зміна статусу організатором
-   (§8.8, крок 4: гроші часто приходять поза системою). Записує `markedByUserId` і `paidAt`.
-5. Вимкнення `surchargesEnabled` **не видаляє** вже створені перелімітні
-   нарахування — лише припиняє створення нових (інваріант 8: заднім числом не переписуємо).
-6. `GET /competitions/:id/charges` — зведений список для організатора:
-   учасник, номер, номінація, обидва види нарахувань, статуси. Це «загальний
-   список учасників, де видно всі оплати» з документа.
-7. `GET /competitions/:id/coach-payouts` — частка кожного тренера:
-   `сума оплачених participation-нарахувань × rules.coachPercent / 100`.
-   Два обмеження, обидва з бачення:
-   - **до бази входять лише заявки з непорожнім `coachId`** — тобто ті, які
-     подав сам тренер (рішення Р10). Заявка, яку учасник подав
-     за себе, тренеру частки не приносить, **навіть якщо цей учасник є в його
-     ростері**. Це найлегша річ у всьому модулі, яку можна зробити неправильно,
-     тож на неї потрібен окремий тест;
-   - перелімітні нарахування у частку **не входять** — це компенсація витрат
-     організатора, а не внесок.
-8. **Чий рахунок.** `GET /me/charges` віддає нарахування за заявками, де
-   `submittedByUserId` — поточний користувач. Те саме правило власності
-   (Task 6). Організатор бачить усі через `GET /competitions/:id/charges`.
-9. **Дублікати оплачуються обидва.** Дві заявки на ту саму людину й номінацію
-   дають два нарахування. Автоматичного повернення чи списання немає: внесок
-   сплачено (§8.5 бачення). Організатор може вручну перевести зайве в `waived`,
-   якщо вирішить піти назустріч — це його рішення, не системи.
+### BE-27 (було BE-24): Superadmin overview
 
-**Дроп `entries`:** окремою міграцією, останнім кроком фази. До неї —
-переконатись, що жоден файл у `backend/src` не імпортує `Entry`:
-`grep -r "entries/entry.model" backend/src` має бути порожнім.
-
-- [ ] **Крок 1: Падаючі тести `overlimit-pricing.spec.ts`:** 0 с → 0; 15 с → 150; 30 с → 150; 45 с → 200; 90 с → 200 (стеля).
-- [ ] **Крок 2:** `npm test -- overlimit-pricing` — падає.
-- [ ] **Крок 3:** реалізувати чисту функцію.
-- [ ] **Крок 4: Падаючі тести `billing.service.spec.ts`:** (а) заявка створює participation-нарахування; (б) переліміт при вимкнених доплатах не створює нарахування; (в) заміна треку на коротший видаляє `pending`-нарахування; (г) оплачене нарахування при заміні треку стає `waived`, не зникає; (д) `coach-payouts` не враховує перелімітні; (е) **заявка, подана учасником за себе, не потрапляє в `coach-payouts` тренера, у чиєму ростері він є**; (ж) `GET /me/charges` тренера не показує нарахувань за самостійними заявками його учнів.
-- [ ] **Крок 5:** реалізувати сервіс і ендпоінти.
-- [ ] **Крок 6:** видалити теку `entries`, оновити `app.module.ts`, перевірити `grep`, написати міграцію дропу.
-- [ ] **Крок 7:** `npm test && npm run lint && npx tsc --noEmit` — усе зелене.
-- [ ] **Крок 8: Коміт** `feat(backend): charges, manual payment status and coach payouts`
+Без змін. `RolesGuard` за `@Roles('superadmin')`; `GET /admin/competitions` (усі конкурси всіх організаторів із лічильниками, пагінація 25, сортування за `dateFrom` спадно); `GET /admin/coaches?q=` (прізвище, місто, студія, телефон, кількість конкурсів і учасників). Модуль тільки читає.
 
 ---
 
-## Фаза 11 — Тури й відбори
+## Відкладено (суддівство й результати)
 
-### Task 22: Півфінал і формування фіналу
+Виводяться з активного плану — у інтерфейсі суддів приховано, функціонал робиться окремою хвилею. Тексти задач лишаються без змін, беруться в роботу після BE-27:
 
-Реалізує §8.12 бачення. **Увага:** механізм відбору позначений як У1 — потребує підтвердження замовника. Реалізуємо запропонований варіант, лишаючи точку розширення.
+- **BE-S1** (старий BE-17) — бригади: `judging_panels`, `panel_memberships`, `panel_assignments`. Ендпоінта «призначити номінацію судді» не існує.
+- **BE-S2** (BE-18) — аркуші, кворум, ізоляція стажерів.
+- **BE-S3** (BE-19) — заміна судді без дотику до призначень.
+- **BE-S4** (BE-20) — зведення результатів, бали первинні, місця як тайбрейк.
+- **BE-S5** (BE-22) — півфінал і відбір у фінал.
 
-**Files:**
-- Create: `backend/src/rounds/rounds.service.ts`
-- Create: `backend/src/rounds/rounds.controller.ts`
-- Create: `backend/src/rounds/rounds.module.ts`
-- Create: `backend/src/rounds/qualification.ts` (чиста функція)
-- Test: `backend/src/rounds/qualification.spec.ts`
-
-**Interfaces:**
-```ts
-export function selectQualifiers(
-  ranked: RankedResult[],   // з Task 20
-  topK: number,
-): string[];                // performanceIds, що проходять у фінал
-```
-
-**Правила:**
-1. При подачі заявки нічого не змінюється — усі виходи створюються з `round: 'final'`.
-2. **Увімкнення півфіналу — явна дія організатора**, не автоматична:
-   `POST /competitions/:id/nominations/:nominationId/enable-semifinal`.
-   Система підказує це робити, коли кількість заявок перевищила
-   `rules.semifinalThreshold`, але не робить сама. Причина: автоматичне
-   переведення посеред відкритої реєстрації несподівано подвоїло б програму.
-3. При увімкненні всі наявні виходи цієї номінації переводяться на
-   `round: 'semifinal'`. Ліміти тривалості беруться з `duration_limits`
-   із `round: 'semifinal'` (Task 9).
-4. Півфінальні виходи ставляться в програму й судяться **звичайним флоу** —
-   ні `ProgramService`, ні `JudgingService` не мають жодної гілки «якщо півфінал».
-   Це і є перевірка П6.
-5. `POST /competitions/:id/nominations/:nominationId/build-final` `{ topK, performanceIds? }`:
-   - якщо `performanceIds` не передано — беруться `selectQualifiers(ranked, topK)`;
-   - якщо передано — беруться вони (організатор скоригував склад вручну);
-   - для кожного створюється **новий** `Performance` з `round: 'final'`,
-     тією самою `registrationId` і тим самим треком;
-   - півфінальні виходи лишаються з їхніми результатами — історія не переписується.
-6. `selectQualifiers` бере перших `topK` за `finalPlace`. **При поділеному
-   місці на межі проходять усі, хто його поділив** — тобто фактична кількість
-   може бути більшою за `topK`. Інше рішення (відсікати за жеребом) було б
-   несправедливим.
-
-**Позначка в коді:** над `selectQualifiers` — коментар з посиланням на §13-У1
-бачення і переліком трьох невирішених питань (топ-K чи поріг балів; чи той
-самий склад бригади; чи враховуються бали півфіналу в підсумку).
-
-- [ ] **Крок 1: Падаючі тести `qualification.spec.ts`:** (а) topK=6 з 12 учасників → 6; (б) на 6-му місці двоє поділили → проходять 7; (в) topK більший за кількість учасників → проходять усі; (г) absent не проходить ніколи.
-- [ ] **Крок 2:** `npm test -- qualification` — падає.
-- [ ] **Крок 3:** реалізувати чисту функцію.
-- [ ] **Крок 4:** реалізувати сервіс і два ендпоінти.
-- [ ] **Крок 5: Тест П6:** сформувати відділення з півфінальних виходів і переконатись, що `ProgramService` не має жодної згадки `semifinal` — `grep -c "semifinal" backend/src/program/` має дати 0.
-- [ ] **Крок 6:** `npm test` — усе зелене.
-- [ ] **Крок 7: Коміт** `feat(backend): semifinal round and final qualification`
-
----
-
-## Фаза 12 — Життєвий цикл і огляд
-
-### Task 23: Дні конкурсу і стани конкурсу
-
-Закриває §7 бачення (наскрізні стани) і дає CRUD для `competition_days`, таблиця яких створена в Task 12, але без ендпоінтів.
-
-**Files:**
-- Create: `backend/migrations/20260823091600-add-status-to-competitions.ts`
-- Create: `backend/src/program/competition-days.controller.ts`
-- Create: `backend/src/program/competition-days.service.ts`
-- Modify: `backend/src/competitions/competition.model.ts`
-- Modify: `backend/src/competitions/competitions.service.ts`
-- Create: `backend/src/competitions/competition-status.ts` (чиста функція)
-- Test: `backend/src/competitions/competition-status.spec.ts`
-
-**Нове поле `competitions.status`:**
-`ENUM('draft','published','registration_open','registration_closed','scheduled','running','finished')`,
-default `'draft'`.
-
-**Чиста функція переходів:**
-```ts
-export function canTransition(from: Status, to: Status): boolean;
-```
-Дозволені переходи — рівно ті, що в §7 бачення, і тільки вперед:
-```
-draft → published → registration_open → registration_closed
-      → scheduled → running → finished
-```
-Плюс два винятки, потрібні на практиці:
-- `registration_closed → registration_open` (організатор відкрив прийом ще раз);
-- будь-який стан → `draft` **заборонено** — опублікований конкурс не ховається.
-
-**Що змінює кожен перехід:**
-- `published` — конкурс з'являється в публічному списку. Вимагає заповнених
-  `name`, `dateFrom`, `dateTo`, `location`; інакше `400` з переліком порожніх полів.
-- `registration_open` — `POST /registrations` починає приймати заявки.
-  Перевірка дат із Task 6 лишається додатковою, не замість статусу.
-- `registration_closed` — склад заявок заморожений; нові заявки → `403`.
-- `scheduled` — вимагає, щоб не лишилось нерозподілених виходів; інакше `409`
-  з лічильником: `'Не розподілено 12 виступів'`.
-- `finished` — відкриває публічні результати (Task 20 перевіряє цей статус).
-
-**Дні конкурсу:**
-- `POST /competitions/:id/days` `{ date, label? }` — дата має потрапляти в
-  діапазон `dateFrom..dateTo`, інакше `400`.
-- `GET /competitions/:id/days`, `DELETE /days/:id`.
-- Видалення дня з відділеннями → `409`.
-- При створенні конкурсу дні **створюються автоматично** на кожну дату
-  діапазону `dateFrom..dateTo` — організатор із одноденним конкурсом ніколи
-  не має думати про це поняття.
-
-- [ ] **Крок 1: Падаючі тести `competition-status.spec.ts`:** `draft → running` заборонено; `registration_closed → registration_open` дозволено; будь-що → `draft` заборонено.
-- [ ] **Крок 2:** `npm test -- competition-status` — падає.
-- [ ] **Крок 3:** реалізувати чисту функцію.
-- [ ] **Крок 4: Падаючі тести сервісу:** публікація без `location` → `400`; перехід у `scheduled` з нерозподіленими → `409`; створення дводенного конкурсу створює 2 дні.
-- [ ] **Крок 5:** міграція, ендпоінти днів, `PATCH /competitions/:id/status`.
-- [ ] **Крок 6:** `npm test` — зелено.
-- [ ] **Крок 7: Коміт** `feat(backend): competition lifecycle and days`
-
-### Task 24: Огляд суперадміна
-
-Закриває §8.14 бачення.
-
-**Files:**
-- Create: `backend/src/admin-overview/admin-overview.controller.ts`
-- Create: `backend/src/admin-overview/admin-overview.service.ts`
-- Create: `backend/src/admin-overview/admin-overview.module.ts`
-- Create: `backend/src/auth/roles.guard.ts`
-- Test: `backend/src/admin-overview/admin-overview.service.spec.ts`
-
-**`RolesGuard`:** читає роль із JWT, порівнює з метаданими `@Roles('superadmin')`.
-Усі ендпоінти цього модуля закриті `@Roles('superadmin')`.
-
-**Ендпоінти:**
-- `GET /admin/competitions` — усі конкурси всіх організаторів: назва, організатор,
-  дати, статус, кількість заявок, кількість відсуджених номінацій,
-  сума нарахувань. Пагінація `?page=&limit=` (default 25), сортування за `dateFrom` спадно.
-- `GET /admin/coaches` — усі керівники: прізвище, ім'я, місто, студія, телефон,
-  кількість конкурсів і учасників. Це дослівно перелік із документа замовника.
-  Пошук `?q=` по прізвищу і студії.
-
-**Обмеження:** модуль **тільки читає**. Жодних мутацій — суперадмін не
-редагує чужі конкурси. Якщо це знадобиться, це буде окреме рішення з окремим
-слідом у логах.
-
-- [ ] **Крок 1: Падаючі тести:** роль `organizer` на `/admin/competitions` → `403`; `superadmin` бачить конкурси всіх організаторів; пошук по студії звужує список керівників.
-- [ ] **Крок 2:** `npm test -- admin-overview` — падає.
-- [ ] **Крок 3:** реалізувати guard, сервіс, контролер.
-- [ ] **Крок 4:** `npm test` — зелено.
-- [ ] **Крок 5: Коміт** `feat(backend): superadmin overview`
+Одне обмеження, яке треба тримати вже зараз: `quorum` і `semifinalThreshold` лишаються в `competition_rules` (BE-13), щоб потім не міняти таблицю правил.
 
 ---
 
 ## Фінальна перевірка
 
-- [ ] `npm test` — усі спеки зелені.
-- [ ] `npm run lint` — без помилок.
-- [ ] `npx tsc --noEmit` — без помилок.
+- [ ] `npm run lint` і `npx tsc --noEmit` — без помилок.
 - [ ] `npm run migrate:undo:all && npm run migrate` — повний цикл міграцій робочий в обидва боки.
 - [ ] `grep -r "entries/entry.model" backend/src` — порожньо.
-- [ ] Перевірити кожен інваріант із §9 бачення проти коду; для кожного має існувати або обмеження БД, або тест.
+- [ ] Кожен інваріант із §9 бачення має або обмеження БД, або явну перевірку в сервісі.

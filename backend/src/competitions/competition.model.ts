@@ -3,7 +3,6 @@ import {
   BelongsToMany,
   Column,
   DataType,
-  ForeignKey,
   HasMany,
   HasOne,
   Model,
@@ -56,10 +55,13 @@ export class Competition extends Model<Competition> {
   @Column({ type: DataType.STRING, allowNull: false })
   declare contactEmail: string;
 
-  @ForeignKey(() => Admin)
+  // Owner is polymorphic (an Admin or an Organizer), so this column has no
+  // DB-level foreign key — see migrations/20260901093000-relax-competitions-owner-fk.ts.
   @Column({ type: DataType.UUID, allowNull: false })
   declare ownerId: string;
 
+  // Resolves to an Admin only when the owner is an Admin; null for an
+  // Organizer-owned competition (Organizer has no association here).
   @BelongsTo(() => Admin, 'ownerId')
   declare owner: Admin;
 

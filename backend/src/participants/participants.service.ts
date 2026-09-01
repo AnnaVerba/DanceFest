@@ -5,6 +5,9 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes, Op, UniqueConstraintError } from 'sequelize';
+import { EMAIL_OR_PHONE_TAKEN_MESSAGE } from '../auth/auth.constants';
+import { CoachesService } from '../coaches/coaches.service';
+import { OrganizersService } from '../organizers/organizers.service';
 import { Participant } from './participant.model';
 import { CreateParticipantData } from './create-participant.data';
 import {
@@ -17,6 +20,8 @@ export class ParticipantsService {
   constructor(
     @InjectModel(Participant)
     private readonly participantModel: typeof Participant,
+    private readonly coachesService: CoachesService,
+    private readonly organizersService: OrganizersService,
   ) {}
 
   findAll(): Promise<Participant[]> {
@@ -54,6 +59,7 @@ export class ParticipantsService {
   }
 
   async create(data: CreateParticipantData): Promise<Participant> {
+    await this.assertEmailAndPhoneAvailable(data.email, data.phone);
     try {
       return await this.participantModel.create(
         data as CreationAttributes<Participant>,
@@ -63,6 +69,19 @@ export class ParticipantsService {
         throw new ConflictException(PARTICIPANT_EMAIL_OR_PHONE_TAKEN_MESSAGE);
       }
       throw error;
+    }
+  }
+
+  private async assertEmailAndPhoneAvailable(
+    email: string,
+    phone: string,
+  ): Promise<void> {
+    const [takenByCoach, takenByOrganizer] = await Promise.all([
+      this.coachesService.existsByEmailOrPhone(email, phone),
+      this.organizersService.existsByEmailOrPhone(email, phone),
+    ]);
+    if (takenByCoach || takenByOrganizer) {
+      throw new ConflictException(EMAIL_OR_PHONE_TAKEN_MESSAGE);
     }
   }
 }

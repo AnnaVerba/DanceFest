@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SequelizeModule } from '@nestjs/sequelize';
+import { RedisModule } from './redis/redis.module';
 import { CompetitionsModule } from './competitions/competitions.module';
 import { AdminsModule } from './admins/admins.module';
 import { AuthModule } from './auth/auth.module';
@@ -15,7 +16,6 @@ import { PaymentDetailsModule } from './payment-details/payment-details.module';
 import { CompetitionRulesModule } from './competition-rules/competition-rules.module';
 import { MailModule } from './mail/mail.module';
 import { UploadsModule } from './uploads/uploads.module';
-import { RedisModule } from './redis/redis.module';
 import { SchoolsModule } from './schools/schools.module';
 import { CoachesModule } from './coaches/coaches.module';
 import { ParticipantsModule } from './participants/participants.module';
@@ -28,8 +28,8 @@ import { CompetitionApplicationsModule } from './competition-applications/compet
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    MailModule,
     RedisModule,
+    MailModule,
     SequelizeModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

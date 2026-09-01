@@ -16,12 +16,13 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtPayload, RefreshTokenPayload } from './jwt-payload.interface';
-import { RefreshTokenStoreService } from './refresh-token-store.service';
 import { Role } from './roles.enum';
+import { RefreshTokenStoreService } from './refresh-token-store.service';
 import {
   DEFAULT_REFRESH_EXPIRES_IN_SECONDS,
   EMAIL_OR_PHONE_TAKEN_MESSAGE,
   INVALID_CREDENTIALS_MESSAGE,
+  REFRESH_TOKEN_REVOKED_MESSAGE,
   SALT_ROUNDS,
 } from './auth.constants';
 import { AuthResult } from './auth-result.interface';
@@ -101,18 +102,13 @@ export class AuthService {
     const payload = await this.verifyRefreshToken(dto.refreshToken);
 
     const isActive = await this.refreshTokenStore.isActive(
-      this.storeKey(payload.role, payload.sub),
+      payload.sub,
       payload.jti,
     );
     if (!isActive) {
-      throw new UnauthorizedException(
-        'Refresh-токен відкликаний або вже використаний',
-      );
+      throw new UnauthorizedException(REFRESH_TOKEN_REVOKED_MESSAGE);
     }
-    await this.refreshTokenStore.revoke(
-      this.storeKey(payload.role, payload.sub),
-      payload.jti,
-    );
+    await this.refreshTokenStore.revoke(payload.sub, payload.jti);
 
     switch (payload.role) {
       case Role.ADMIN: {
@@ -158,10 +154,7 @@ export class AuthService {
 
   async logout(dto: RefreshTokenDto): Promise<void> {
     const payload = await this.verifyRefreshToken(dto.refreshToken);
-    await this.refreshTokenStore.revoke(
-      this.storeKey(payload.role, payload.sub),
-      payload.jti,
-    );
+    await this.refreshTokenStore.revoke(payload.sub, payload.jti);
   }
 
   private async registerAdmin(dto: RegisterDto): Promise<AuthResult> {
@@ -329,17 +322,13 @@ export class AuthService {
       secret: this.refreshSecret(),
       expiresIn: refreshExpiresIn,
     });
-    await this.refreshTokenStore.save(this.storeKey(role, id), jti);
+    await this.refreshTokenStore.save(id, jti);
 
     return {
       accessToken: this.jwtService.sign(payload),
       refreshToken,
       ...profile,
     };
-  }
-
-  private storeKey(role: Role, id: string): string {
-    return `${role}:${id}`;
   }
 
   private async verifyRefreshToken(

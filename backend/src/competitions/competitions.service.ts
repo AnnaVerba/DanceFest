@@ -10,6 +10,7 @@ import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Admin } from '../admins/admin.model';
 import { PaymentDetails } from '../payment-details/payment-details.model';
 import { CompetitionRule } from '../competition-rules/competition-rule.model';
+import { Role } from '../auth/roles.enum';
 import { CreateCompetitionDto } from './dto/create-competition.dto';
 import { UpdateCompetitionDto } from './dto/update-competition.dto';
 
@@ -63,9 +64,10 @@ export class CompetitionsService {
     id: string,
     dto: UpdateCompetitionDto,
     requesterId: string,
+    requesterRole: Role,
   ): Promise<Competition> {
     const competition = await this.findOne(id);
-    await this.assertCanEdit(competition, requesterId);
+    await this.assertCanEdit(competition, requesterId, requesterRole);
     return competition.update(dto);
   }
 
@@ -78,7 +80,11 @@ export class CompetitionsService {
   private async assertCanEdit(
     competition: Competition,
     requesterId: string,
+    requesterRole: Role,
   ): Promise<void> {
+    // An organizer can edit any competition (see roles-task.md section 9:
+    // "Редагування конкурсу" carries no ownership qualifier for Organizer).
+    if (requesterRole === Role.ORGANIZER) return;
     if (competition.ownerId === requesterId) return;
     const membership = await this.competitionAdminModel.findOne({
       where: { competitionId: competition.id, adminId: requesterId },

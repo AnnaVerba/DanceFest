@@ -34,7 +34,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       case Role.ADMIN: {
         const admin = await this.adminsService.findById(payload.sub);
         if (!admin) throw new UnauthorizedException();
-        return { id: admin.id, name: admin.name, email: admin.email };
+        return {
+          id: admin.id,
+          name: admin.name,
+          email: admin.email,
+          role: Role.ADMIN,
+        };
       }
       case Role.PARTICIPANT: {
         const participant = await this.participantsService.findById(

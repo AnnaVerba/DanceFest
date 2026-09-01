@@ -1,10 +1,12 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import { Request } from 'express';
+import { Role } from './roles.enum';
 
 export interface AuthenticatedAdmin {
   id: string;
   name: string;
   email: string;
+  role: Role.ADMIN;
 }
 
 // The factory's return type isn't enforced against the annotated parameter
