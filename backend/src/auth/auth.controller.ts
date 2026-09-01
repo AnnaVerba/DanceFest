@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -67,6 +75,22 @@ export class AuthController {
   @Post('refresh')
   refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refresh(dto);
+  }
+
+  @ApiOperation({ summary: 'Revoke a refresh token (log out of this session)' })
+  @ApiResponse({ status: 204, description: 'Refresh token revoked.' })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation failed for one or more fields.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Refresh token is missing, invalid, or expired.',
+  })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Post('logout')
+  logout(@Body() dto: RefreshTokenDto) {
+    return this.authService.logout(dto);
   }
 
   @ApiOperation({ summary: 'Get the currently authenticated admin' })

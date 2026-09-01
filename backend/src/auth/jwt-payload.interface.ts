@@ -5,4 +5,5 @@ export interface JwtPayload {
 
 export interface RefreshTokenPayload extends JwtPayload {
   type: 'refresh';
+  jti: string;
 }

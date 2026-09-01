@@ -24,7 +24,8 @@
     "migrate:generate": "sequelize-cli migration:generate --name",
     "seed": "sequelize-cli db:seed:all",
     "seed:undo": "sequelize-cli db:seed:undo:all",
-    "seed:generate": "sequelize-cli seed:generate --name"
+    "seed:generate": "sequelize-cli seed:generate --name",
+    "redis:playground": "ts-node -r tsconfig-paths/register"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1113.0",
@@ -40,6 +41,7 @@
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "ioredis": "^6.0.0",
     "multer": "^2.2.0",
     "nodemailer": "^9.0.5",
     "passport": "^0.7.0",
