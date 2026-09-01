@@ -175,7 +175,10 @@ export class AuthService {
 
   private async registerParticipant(dto: RegisterDto): Promise<AuthResult> {
     await this.assertEmailAndPhoneAvailable(dto.email, dto.phone);
-    await this.coachesService.findByIdOrFail(dto.coachId);
+    // A participant may self-register without a coach and pick one later.
+    if (dto.coachId) {
+      await this.coachesService.findByIdOrFail(dto.coachId);
+    }
 
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
     const participant = await this.participantsService.create({
@@ -185,7 +188,7 @@ export class AuthService {
       email: dto.email,
       passwordHash,
       birthDate: dto.birthDate,
-      coachId: dto.coachId,
+      coachId: dto.coachId ?? null,
     });
     return this.issueSession(
       participant.id,
@@ -259,7 +262,7 @@ export class AuthService {
     lastName: string;
     email: string;
     birthDate: string;
-    coachId: string;
+    coachId: string | null;
   }) {
     return {
       id: participant.id,

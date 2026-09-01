@@ -5,5 +5,5 @@ export interface CreateParticipantData {
   email: string;
   passwordHash: string;
   birthDate: string;
-  coachId: string;
+  coachId: string | null;
 }

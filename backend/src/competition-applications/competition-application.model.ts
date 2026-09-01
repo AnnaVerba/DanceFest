@@ -35,12 +35,14 @@ export class CompetitionApplication extends Model<CompetitionApplication> {
   @BelongsTo(() => Participant)
   declare participant: Participant;
 
+  // Null when the application was submitted by a participant who has no
+  // coach — a coach can only see applications where this matches them.
   @ForeignKey(() => Coach)
-  @Column({ type: DataType.UUID, allowNull: false })
-  declare coachId: string;
+  @Column({ type: DataType.UUID, allowNull: true })
+  declare coachId: string | null;
 
   @BelongsTo(() => Coach)
-  declare coach: Coach;
+  declare coach: Coach | null;
 
   @ForeignKey(() => League)
   @Column({ type: DataType.UUID, allowNull: false })

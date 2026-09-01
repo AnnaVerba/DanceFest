@@ -5,7 +5,7 @@ export interface ParticipantSummary {
   phone: string;
   email: string;
   birthDate: string;
-  coachId: string;
+  coachId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

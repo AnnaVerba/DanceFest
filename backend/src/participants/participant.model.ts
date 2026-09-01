@@ -36,9 +36,9 @@ export class Participant extends Model<Participant> {
   declare birthDate: string;
 
   @ForeignKey(() => Coach)
-  @Column({ type: DataType.UUID, allowNull: false })
-  declare coachId: string;
+  @Column({ type: DataType.UUID, allowNull: true })
+  declare coachId: string | null;
 
   @BelongsTo(() => Coach)
-  declare coach: Coach;
+  declare coach: Coach | null;
 }

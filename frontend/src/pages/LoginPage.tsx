@@ -2,10 +2,13 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthError, login, saveSession } from '../lib/auth';
+import { LOGINABLE_ROLES, ROLE_LABELS } from '../lib/roles';
+import type { Role } from '../lib/roles';
 import styles from './LoginPage.module.css';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [role, setRole] = useState<Role>('PARTICIPANT');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -17,9 +20,9 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      const auth = await login(email, password);
-      saveSession(auth);
-      navigate('/dashboard', { replace: true });
+      const session = await login(email, password, role);
+      saveSession(session);
+      navigate(role === 'ADMIN' ? '/dashboard' : '/', { replace: true });
     } catch (err) {
       setError(
         err instanceof AuthError
@@ -61,18 +64,36 @@ export default function LoginPage() {
         </div>
 
         <h1 className={styles.title}>Вхід</h1>
-        <p className={styles.subtitle}>Увійдіть у свій акаунт адміністратора</p>
+        <p className={styles.subtitle}>Увійдіть у свій акаунт</p>
 
         {error && <p className={styles.error}>{error}</p>}
 
         <form onSubmit={handleSubmit}>
+          <div className={styles.field}>
+            <label>Вхід як</label>
+            <div className={styles.roleTabs} role="tablist" aria-label="Роль">
+              {LOGINABLE_ROLES.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  role="tab"
+                  aria-selected={role === r}
+                  className={`${styles.roleTab} ${role === r ? styles.roleTabActive : ''}`}
+                  onClick={() => setRole(r)}
+                >
+                  {ROLE_LABELS[r]}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className={styles.field}>
             <label htmlFor="email">Email</label>
             <input
               type="email"
               id="email"
               name="email"
-              placeholder="admin@studio.ua"
+              placeholder="user@example.com"
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}

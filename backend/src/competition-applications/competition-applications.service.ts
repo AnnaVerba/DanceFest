@@ -118,7 +118,7 @@ export class CompetitionApplicationsService {
   private async resolveSubmitter(
     dto: CreateCompetitionApplicationDto,
     user: AuthenticatedUser,
-  ): Promise<{ participantId: string; coachId: string }> {
+  ): Promise<{ participantId: string; coachId: string | null }> {
     if (user.role === Role.PARTICIPANT) {
       const participant = await this.participantsService.findByIdOrFail(
         user.id,

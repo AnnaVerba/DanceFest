@@ -1,19 +1,57 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthError, register, saveSession } from '../lib/auth';
+import { MIN_PASSWORD_LENGTH } from '../lib/auth.constants';
+import { REGISTERABLE_ROLES, ROLE_LABELS } from '../lib/roles';
+import type { Role } from '../lib/roles';
+import { createSchool, getSchools } from '../lib/schools';
+import type { School } from '../lib/schools';
+import PhoneField from '../components/PhoneField';
 import styles from './LoginPage.module.css';
-
-const MIN_PASSWORD_LENGTH = 6;
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const [name, setName] = useState('');
+  const [role, setRole] = useState<Role>('ORGANIZER');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [birthDate, setBirthDate] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const [schools, setSchools] = useState<School[]>([]);
+  const [schoolId, setSchoolId] = useState('');
+  const [creatingSchool, setCreatingSchool] = useState(false);
+  const [newSchoolName, setNewSchoolName] = useState('');
+  const [schoolBusy, setSchoolBusy] = useState(false);
+
+  useEffect(() => {
+    if (role !== 'COACH') return;
+    getSchools()
+      .then(setSchools)
+      .catch(() => setSchools([]));
+  }, [role]);
+
+  const handleCreateSchool = async () => {
+    if (!newSchoolName.trim()) return;
+    setSchoolBusy(true);
+    setError(null);
+    try {
+      const school = await createSchool(newSchoolName.trim());
+      setSchools((prev) => [...prev, school]);
+      setSchoolId(school.id);
+      setCreatingSchool(false);
+      setNewSchoolName('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не вдалося створити школу');
+    } finally {
+      setSchoolBusy(false);
+    }
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -27,11 +65,24 @@ export default function RegisterPage() {
       setError('Паролі не збігаються');
       return;
     }
+    if (role === 'COACH' && !schoolId) {
+      setError('Оберіть або створіть школу/студію');
+      return;
+    }
 
     setSubmitting(true);
     try {
-      const auth = await register(name, email, password);
-      saveSession(auth);
+      const session = await register({
+        role,
+        firstName,
+        lastName,
+        phone,
+        email,
+        password,
+        ...(role === 'PARTICIPANT' ? { birthDate } : {}),
+        ...(role === 'COACH' ? { schoolId } : {}),
+      });
+      saveSession(session);
       navigate('/');
     } catch (err) {
       setError(
@@ -74,23 +125,61 @@ export default function RegisterPage() {
         </div>
 
         <h1 className={styles.title}>Реєстрація</h1>
-        <p className={styles.subtitle}>Створіть акаунт адміністратора конкурсів</p>
+        <p className={styles.subtitle}>Створіть акаунт</p>
 
         {error && <p className={styles.error}>{error}</p>}
 
         <form onSubmit={handleSubmit}>
           <div className={styles.field}>
-            <label htmlFor="name">ПІБ</label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              placeholder="Анна Верба"
-              autoComplete="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
+            <label>Хто ви</label>
+            <div className={styles.roleTabs} role="tablist" aria-label="Роль">
+              {REGISTERABLE_ROLES.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  role="tab"
+                  aria-selected={role === r}
+                  className={`${styles.roleTab} ${role === r ? styles.roleTabActive : ''}`}
+                  onClick={() => setRole(r)}
+                >
+                  {ROLE_LABELS[r]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.row}>
+            <div className={styles.field}>
+              <label htmlFor="firstName">Ім'я</label>
+              <input
+                type="text"
+                id="firstName"
+                name="firstName"
+                placeholder="Іван"
+                autoComplete="given-name"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                required
+              />
+            </div>
+            <div className={styles.field}>
+              <label htmlFor="lastName">Прізвище</label>
+              <input
+                type="text"
+                id="lastName"
+                name="lastName"
+                placeholder="Іванов"
+                autoComplete="family-name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+
+          <div className={styles.field}>
+            <label htmlFor="phone">Телефон</label>
+            <PhoneField id="phone" value={phone} onChange={setPhone} />
           </div>
 
           <div className={styles.field}>
@@ -99,13 +188,71 @@ export default function RegisterPage() {
               type="email"
               id="email"
               name="email"
-              placeholder="admin@studio.ua"
+              placeholder="user@example.com"
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
           </div>
+
+          {role === 'PARTICIPANT' && (
+            <div className={styles.field}>
+              <label htmlFor="birthDate">Дата народження</label>
+              <input
+                type="date"
+                id="birthDate"
+                name="birthDate"
+                value={birthDate}
+                onChange={(e) => setBirthDate(e.target.value)}
+                required
+              />
+              <p className={styles.hint}>
+                Ліга не закріплюється при реєстрації — її обирають при подачі кожної заявки.
+              </p>
+            </div>
+          )}
+
+          {role === 'COACH' && (
+            <div className={styles.field}>
+              <label htmlFor="schoolId">Школа / студія</label>
+              <select
+                id="schoolId"
+                value={schoolId}
+                onChange={(e) => setSchoolId(e.target.value)}
+                required={!creatingSchool}
+                disabled={creatingSchool}
+              >
+                <option value="">Оберіть школу…</option>
+                {schools.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              {!creatingSchool ? (
+                <button
+                  type="button"
+                  className={styles.inlineAction}
+                  onClick={() => setCreatingSchool(true)}
+                >
+                  + Немає потрібної школи — створити
+                </button>
+              ) : (
+                <div className={styles.inlineRow}>
+                  <input
+                    type="text"
+                    placeholder="Назва школи/студії"
+                    value={newSchoolName}
+                    onChange={(e) => setNewSchoolName(e.target.value)}
+                  />
+                  <button type="button" onClick={handleCreateSchool} disabled={schoolBusy}>
+                    {schoolBusy ? '...' : 'Додати'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className={styles.field}>
             <label htmlFor="password">Пароль</label>

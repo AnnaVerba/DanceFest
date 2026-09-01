@@ -5,6 +5,7 @@ import {
   IsEmpty,
   IsEnum,
   IsNotEmpty,
+  IsOptional,
   IsUUID,
   MinLength,
   ValidateIf,
@@ -74,13 +75,15 @@ export class RegisterDto {
   birthDate: string;
 
   @ApiProperty({
-    description: 'Required for role=PARTICIPANT only.',
+    description:
+      'Optional for role=PARTICIPANT — a participant can self-register without a coach and pick one later.',
     example: 'a1b2c3d4-...',
     required: false,
   })
   @ValidateIf((dto: RegisterDto) => dto.role === Role.PARTICIPANT)
+  @IsOptional()
   @IsUUID()
-  coachId: string;
+  coachId?: string;
 
   @ApiProperty({
     description: 'Required for role=COACH only.',
