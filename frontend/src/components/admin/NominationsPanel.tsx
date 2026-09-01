@@ -62,8 +62,6 @@ export default function NominationsPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [competitionId]);
 
-  // Довідник осей потрібен лише для конструктора спецкатегорії — тягнемо його
-  // тоді, коли організатор справді відкриває модалку.
   useEffect(() => {
     if (!specialOpen || categories.length > 0) return;
     let cancelled = false;
@@ -252,8 +250,6 @@ export default function NominationsPanel({
               inputMode="numeric"
               placeholder="2:30"
               aria-label={`Тривалість номінації ${nomination.name}`}
-              // Спецкатегорія з окремими виходами бере ліміт із кожної програми,
-              // тож спільне поле тут нічим не керує.
               disabled={nomination.exitMode === 'per_program'}
               value={
                 nomination.exitMode === 'per_program'

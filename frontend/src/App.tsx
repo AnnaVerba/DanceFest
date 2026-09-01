@@ -32,7 +32,6 @@ function App() {
         />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        {/* TODO: обгорнути AuthGuard, коли підключимо реальну авторизацію адмінів */}
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/competitions/preview" element={<CompetitionPreviewRedirect />} />
         <Route path="/competitions/:id" element={<CompetitionDetailPage />} />

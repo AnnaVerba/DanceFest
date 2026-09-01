@@ -22,25 +22,12 @@ import styles from './NominationSetBuilder.module.css';
 interface NominationSetBuilderProps {
   nominations: DraftNomination[];
   onChange: (next: DraftNomination[]) => void;
-  // Обрані осі належать сторінці: у майстрі крок із категоріями зникає з
-  // дерева, щойно людина йде далі, і власний стан конструктора не пережив би
-  // повернення назад. null означає «людина осей ще не чіпала».
   selection: AxisSelection | null;
   onSelectionChange: (next: AxisSelection) => void;
   onNotice?: (message: string) => void;
-  // Осі збереженого набору. Без них редактор відкривався б із порожніми осями
-  // над повною таблицею, і «Згенерувати» стерло б усе, що там уже є.
   seedCategoryIds?: string[];
 }
 
-/**
- * Конструктор набору номінацій: осі зі спільного довідника, декартів добуток
- * по них і спецкатегорії поверх. Стоїть у двох місцях — у редакторі шаблону і
- * на кроці категорій майстра створення конкурсу.
- *
- * Набір належить власнику компонента: тут живуть лише осі та довідник, а самі
- * номінації приходять і йдуть пропсами. Інакше сторінка не змогла б їх зберегти.
- */
 export default function NominationSetBuilder({
   nominations,
   onChange,
@@ -49,8 +36,6 @@ export default function NominationSetBuilder({
   onNotice,
   seedCategoryIds,
 }: NominationSetBuilderProps) {
-  // Помилка живе тут, а не в сторінці: раніше вона їхала нагору документа, а
-  // кнопка «Згенерувати» стоїть унизу — натиснув, і здається, що нічого не сталося.
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Category[]>([]);
   const [inputs, setInputs] = useState<Record<string, string>>({});
@@ -76,8 +61,6 @@ export default function NominationSetBuilder({
   const selection = picked ?? seededSelection;
 
   const updateSelection = (next: (current: AxisSelection) => AxisSelection) => {
-    // Будь-яка зміна осей знімає попередню скаргу: інакше «Додайте хоча б одне
-    // значення категорії» висить над уже доданими значеннями.
     setError(null);
     onSelectionChange(next(selection));
   };
@@ -90,11 +73,6 @@ export default function NominationSetBuilder({
     return active.reduce((acc, values) => acc * values.length, 1);
   }, [selection]);
 
-  /**
-   * Значення осі нікуди не летить: воно лишається чернеткою до моменту, коли
-   * людина збереже набір. Кинутий на півдорозі майстер не має лишати по собі
-   * рядки в спільному довіднику.
-   */
   const addValue = (type: CategoryType) => {
     const raw = (inputs[type] ?? '').trim();
     if (!raw) return;
@@ -107,9 +85,6 @@ export default function NominationSetBuilder({
       return;
     }
 
-    // Збіг із довідником шукаємо тут, а не лишаємо на бек: інакше набране
-    // «профі» стане окремою чернеткою, і те, що воно склеїться з наявним
-    // «ПРОФІ», людина побачить аж після збереження.
     const existing = suggestions.find((s) => sameCategoryValue(s, candidate));
     const category = existing ?? draftCategory(raw, type);
 
@@ -148,10 +123,7 @@ export default function NominationSetBuilder({
     );
 
     const edited = new Map(nominations.map((n) => [n.signature, n]));
-    // Спецкатегорії не входять у декартів добуток осей — регенерація їх
-    // не перебирає й не має права затерти.
     const specials = nominations.filter((n) => n.isSpecial);
-    // Наявні рядки зберігають ціну й галочку, нові комбінації додаються.
     const generated = combos.map((combo) => {
       const categoryIds = combo.map((c) => c.id);
       const signature = signatureOf(categoryIds);
@@ -184,8 +156,6 @@ export default function NominationSetBuilder({
         ? `Додано ${fresh.length} із ${drafts.length}: решта вже є в наборі`
         : `Додано ${fresh.length} ${pluralNominations(fresh.length)}`,
     );
-    // Ліміти тривалості й перелік виходів сюди не йдуть: перше налаштовується
-    // під конкретний конкурс, друге — похідне від складу номінації.
     onChange([
       ...nominations,
       ...fresh.map((d) => ({

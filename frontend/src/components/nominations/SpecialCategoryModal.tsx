@@ -19,11 +19,8 @@ export interface SpecialNominationDraft {
   categoryIds: string[];
   isSpecial: boolean;
   exitMode: ExitMode;
-  // Ліміт виходу. При 'single' лишається порожнім — тоді бек складає ліміти
-  // програм, бо всі вони танцюються за один вихід.
   durationLimitSeconds?: number;
   programLimits: Record<string, number>;
-  // Тільки для перегляду: що саме побачить учасник у розкладі.
   exitLabels: string[];
 }
 
@@ -34,14 +31,9 @@ interface SpecialCategoryModalProps {
   onCategoryCreated: (category: Category) => void;
   onSubmit: (nominations: SpecialNominationDraft[]) => void;
   submitLabel?: string;
-  // Як завести нове значення осі. За замовчуванням — одразу в спільний
-  // довідник; конструктор набору підставляє сюди чернетку.
   createCategoryValue?: (name: string, type: CategoryType) => Promise<Category>;
 }
 
-// Осі, з якими перетинається спецкатегорія. Кількість учасників сюди не
-// входить: «Корона» для соло й для групи — це різні спецкатегорії, а не
-// один рядок з обома значеннями.
 const AXES: CategoryType[] = ['age', 'level'];
 
 function pluralNominations(n: number): string {
@@ -69,7 +61,6 @@ export default function SpecialCategoryModal({
   });
   const [exitMode, setExitMode] = useState<ExitMode>('single');
   const [price, setPrice] = useState('');
-  // Ключ — id програми, значення — сирий ввід «1:30» або «90».
   const [limits, setLimits] = useState<Record<string, string>>({});
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [addingType, setAddingType] = useState<CategoryType | null>(null);
@@ -112,9 +103,6 @@ export default function SpecialCategoryModal({
     setAddingType(type);
     setError(null);
     try {
-      // Чи піде значення в довідник одразу, чи почекає до збереження набору,
-      // вирішує батько: в готовому конкурсі відкладати нема куди, а в майстрі
-      // й редакторі шаблону — навпаки, не можна створювати наперед.
       const category = await createCategoryValue(raw, type);
       setValuesOf(type, [...current, category]);
       onCategoryCreated(category);
@@ -145,13 +133,6 @@ export default function SpecialCategoryModal({
     return parsed;
   }, [programs, limits]);
 
-  // Живий перегляд: рівно те, що буде створено. Без нього організатор не
-  // розуміє, що натворить, доки не збереже.
-  //
-  // Спецкатегорія — одна номінація з усіма програмами всередині, а не по
-  // номінації на програму: судять і нагороджують її цілком, а exitMode лише
-  // вирішує, скільки разів учасник вийде на сцену в межах цієї однієї
-  // номінації. Тому перелік осей множиться, а перелік програм — ні.
   const preview = useMemo<SpecialNominationDraft[]>(() => {
     const trimmedName = specialName.trim();
     if (!trimmedName || programs.length === 0) return [];
@@ -196,7 +177,6 @@ export default function SpecialCategoryModal({
 
   const exitsTotal = preview.reduce((sum, n) => sum + n.exitLabels.length, 0);
 
-  // Один вихід — усі програми підряд, тож ліміт виходу це їхня сума.
   const singleExitLimit = Object.values(parsedLimits).reduce(
     (sum, seconds) => sum + seconds,
     0,

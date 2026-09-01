@@ -52,8 +52,6 @@ export class CompetitionsService {
       ownerId,
     } as CreationAttributes<Competition>);
 
-    // Every competition has a rules row from the moment it exists, with
-    // defaults the organizer never has to touch (BE-9, §8.1 step 5).
     await this.competitionRuleModel.create({
       competitionId: competition.id,
     } as CreationAttributes<CompetitionRule>);

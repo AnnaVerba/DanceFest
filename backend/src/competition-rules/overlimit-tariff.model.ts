@@ -21,7 +21,6 @@ export class OverlimitTariff extends Model<OverlimitTariff> {
   @Column({ type: DataType.UUID, allowNull: false })
   declare competitionId: string;
 
-  // Overrun-up-to-N-seconds bracket, e.g. {30, 150} or {60, 200}.
   @Column({ type: DataType.INTEGER, allowNull: false })
   declare uptoSeconds: number;
 

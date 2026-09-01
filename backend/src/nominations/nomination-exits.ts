@@ -1,7 +1,5 @@
 import { buildNominationLabel } from './nomination-naming';
 
-// Скільки разів учасник виходить на сцену. Має сенс лише для спецкатегорій:
-// 'single' — усі програми танцюються підряд, без сходження зі сцени.
 export type ExitMode = 'single' | 'per_program';
 
 export const EXIT_MODES: ExitMode[] = ['single', 'per_program'];
@@ -12,7 +10,6 @@ export interface NominationProgram {
 }
 
 export interface NominationExitPlanInput {
-  // Назва номінації як вона збережена: осі плюс назва спецкатегорії.
   label: string;
   exitMode: ExitMode;
   programs: NominationProgram[];
@@ -38,14 +35,6 @@ function sumProgramLimits(
   return known.reduce((sum, seconds) => sum + seconds, 0);
 }
 
-/**
- * Скільки разів учасник вийде на сцену за однією заявкою і що буде написано
- * в програмі проти кожного виходу.
- *
- * Один вихід — усі програми танцюються підряд, тому й ліміт один на всіх:
- * сума лімітів програм, якщо організатор не задав власний. Окремий вихід —
- * кожна програма зі своїм лімітом.
- */
 export function planNominationExits(
   input: NominationExitPlanInput,
 ): NominationExit[] {

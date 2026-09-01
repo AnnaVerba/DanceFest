@@ -3,9 +3,6 @@ import { QueryTypes } from 'sequelize';
 import type { Transaction } from 'sequelize';
 import { randomUUID } from 'crypto';
 
-// Демо-набір номінацій: звичайна сітка з декартового добутку осей плюс дві
-// спецкатегорії — по одній на кожен режим виходу. Без них ні exitMode, ні
-// programLimits, ні розкладка заявки на кілька виходів не видно наживо.
 
 const MOCK_ADMIN_ID = '11111111-1111-4111-8111-111111111111';
 const COMPETITION_ID = '22222222-2222-4222-8222-222222222222';
@@ -43,8 +40,6 @@ interface NominationRow {
 }
 
 module.exports = {
-  // Усе в одній транзакції: сід ставить рядки в чотири таблиці, і падіння на
-  // півдорозі лишало б по собі конкурс без номінацій, який далі блокує повтор.
   up: async (queryInterface: QueryInterface) => {
     const now = new Date();
     const transaction = await queryInterface.sequelize.transaction();
@@ -58,8 +53,6 @@ module.exports = {
   },
 
   down: async (queryInterface: QueryInterface) => {
-    // Категорії не чіпаємо: довідник спільний, і після сіда ним могли
-    // скористатися інші конкурси.
     await queryInterface.bulkDelete('entries', {
       competitionId: COMPETITION_ID,
     });
@@ -75,8 +68,6 @@ async function seed(
   now: Date,
   transaction: Transaction,
 ): Promise<void> {
-  // Довідник категорій спільний на всю систему, і потрібні значення в ньому
-  // вже можуть бути. Тому вставка мовчить на конфлікті, а id читаються назад.
   for (const category of CATEGORIES) {
     await queryInterface.sequelize.query(
       `INSERT INTO categories (id, name, "type", "createdAt", "updatedAt")
@@ -155,7 +146,6 @@ async function seed(
     updatedAt: now,
   };
 
-  // Звичайна сітка: одна дисципліна на номінацію, один вихід, спільний ліміт.
   for (const count of ['Соло', 'Дует']) {
     for (const age of ['Діти', 'Юніори 1']) {
       for (const level of ['Дебют', 'Перші кроки']) {
@@ -177,8 +167,6 @@ async function seed(
     }
   }
 
-  // Спецкатегорія з одним виходом: три програми танцюються підряд, без
-  // сходження зі сцени, тож ліміт виходу — сума лімітів програм (270 с).
   const crownPrograms = ['Табла', 'Класика', 'Імпровізація межансе'];
   const crownLimits = { Табла: 90, Класика: 120, 'Імпровізація межансе': 60 };
   for (const age of ['Юніори 1', 'Дорослі']) {
@@ -205,8 +193,6 @@ async function seed(
     }
   }
 
-  // Спецкатегорія з окремим виходом на кожну програму: одна заявка сюди
-  // породить дві заявки-виходи, кожну зі своїм номером і своїм лімітом.
   const cupPrograms = ['Табла', 'Класика'];
   const cupId = randomUUID();
   nominations.push({
@@ -225,8 +211,6 @@ async function seed(
     }),
   });
 
-  // Не bulkInsert: він шле categoryIds як text[], а колонка uuid[] —
-  // потрібен явний каст, а вставити його туди нема куди.
   for (const nomination of nominations) {
     await queryInterface.sequelize.query(
       `INSERT INTO nominations
@@ -266,8 +250,6 @@ async function seed(
         createdAt: now,
         updatedAt: now,
       },
-      // Дві заявки з однієї подачі: та сама пара, той самий «Кубок Сходу»,
-      // два виходи на сцену — по одному на програму.
       ...cupPrograms.map((program, index) => ({
         id: randomUUID(),
         competitionId: COMPETITION_ID,

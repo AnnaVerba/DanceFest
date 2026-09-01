@@ -8,8 +8,6 @@ import {
 } from 'class-validator';
 import { CreateCategoryDto } from './create-category.dto';
 
-// Один набір осей — це десятки значень, не сотні. Стеля тут лише щоб запит
-// не став вектором навантаження.
 export const MAX_CATEGORIES_PER_REQUEST = 200;
 
 export class BulkCreateCategoriesDto {

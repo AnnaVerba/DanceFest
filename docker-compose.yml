@@ -8,8 +8,6 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-Dance-Fest-Local}
     ports:
-      # Порт назовні — щоб можна було підключитися з WebStorm / DataGrip / psql.
-      # 5433, а не 5432: 5432 зазвичай уже зайнятий локальним Postgres.
       - '${DB_EXTERNAL_PORT:-5433}:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -23,6 +21,20 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    container_name: dansefest-redis
+    restart: unless-stopped
+    ports:
+      - '${REDIS_EXTERNAL_PORT:-6380}:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
     build: ./backend
     container_name: dansefest-backend
@@ -30,15 +42,17 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
-      # Ці значення перекривають backend/.env: і @nestjs/config, і dotenv
-      # не перетирають змінні, які вже є в оточенні процесу.
       PORT: 4000
       DB_HOST: db
       DB_PORT: 5432
       DB_USERNAME: ${DB_USERNAME:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       DB_NAME: ${DB_NAME:-Dance-Fest-Local}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       JWT_SECRET: ${JWT_SECRET:-dev-access-secret-change-me}
       JWT_EXPIRES_IN_SECONDS: ${JWT_EXPIRES_IN_SECONDS:-86400}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-me}
@@ -56,8 +70,6 @@ services:
       - '4000:4000'
     volumes:
       - ./backend:/app
-      # Анонімний том: node_modules залишаються тими, що зібрані в образі під
-      # Linux. Без цього bind mount підсунув би збірку bcrypt з-під Windows.
       - /app/node_modules
     command: sh -c "npm run migrate && npm run start:dev"
 
@@ -76,3 +88,4 @@ services:
 
 volumes:
   pgdata:
+  redisdata:

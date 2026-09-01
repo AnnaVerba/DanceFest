@@ -52,9 +52,6 @@ module.exports = {
       },
     });
 
-    // A limit is set either on one exact nomination or on one axis category —
-    // never both, never neither (§BE-9: "nominationId — null, якщо ліміт
-    // заданий на вісь").
     await queryInterface.sequelize.query(`
       ALTER TABLE ${TABLE}
       ADD CONSTRAINT duration_limits_scope_check

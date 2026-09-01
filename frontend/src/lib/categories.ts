@@ -86,10 +86,6 @@ export function createCategory(name: string, type: CategoryType): Promise<Catego
   });
 }
 
-/**
- * Створення набору значень одним запитом перед збереженням. Порядок відповіді
- * збігається з порядком запиту — по ньому підміняються тимчасові id.
- */
 export function createCategoriesBulk(
   categories: { name: string; type: CategoryType }[],
 ): Promise<Category[]> {
