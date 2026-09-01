@@ -15,7 +15,7 @@ import { PaymentDetailsModule } from './payment-details/payment-details.module';
 import { CompetitionRulesModule } from './competition-rules/competition-rules.module';
 import { MailModule } from './mail/mail.module';
 import { UploadsModule } from './uploads/uploads.module';
-import { RedisModule } from './redis/redis.module';
+
 
 @Module({
   imports: [
@@ -23,7 +23,6 @@ import { RedisModule } from './redis/redis.module';
       isGlobal: true,
     }),
     MailModule,
-    RedisModule,
     SequelizeModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

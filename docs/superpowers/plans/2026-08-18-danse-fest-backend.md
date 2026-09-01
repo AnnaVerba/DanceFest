@@ -1,13 +1,13 @@
 # DanseFest Backend — таски
 
-**Мета:** серверна частина ядра змагання — від розщеплення плоскої заявки до програми фестивалю, суддівства через бригади й зведення результатів.
+**Мета:** серверна частина ядра змагання — від акаунтів і довідника номінацій до розщеплення плоскої заявки, програми фестивалю, оплат і публічного каталогу. Суддівство й результати винесені у відкладену хвилю.
 
 **Стек:** NestJS 11, Sequelize 6 + sequelize-typescript, PostgreSQL, sequelize-cli (міграції в `backend/migrations/`, конфіг `backend/src/config/database.js`), class-validator для DTO, passport-jwt.
 
 **Spec:** `docs/superpowers/specs/2026-08-18-danse-fest-technical-vision-design.md`
 **Парний план:** `docs/superpowers/plans/2026-08-18-danse-fest-frontend.md`
 
-**Як читати таск:** `should contain` — перелік колонок таблиці. `Related to` — з якими таблицями зв'язок. `Готово, коли` — критерії приймання: те, що перевіряється клікам або запитом, а не станом коду.
+**Як читати таск:** `should contain` — перелік колонок таблиці. `Related to` — з якими таблицями зв'язок. `Готово, коли` — критерії приймання: те, що перевіряється кліком або запитом, а не станом коду.
 
 ## Глобальні обмеження
 
@@ -23,750 +23,526 @@
 
 ---
 
-## Фаза 1 — Ролі й акаунти
+## Фаза 1 — Акаунти
 
-### BE-1: Merge admins into users with roles
-
-Зараз `admins` — єдина таблиця людей із паролем, а `judges` живе окремо зі своїм JWT. З'являються керівник і учасник, тож потрібна спільна основа.
+### BE-1 (було BE-1): Merge admins into users with roles
 
 **Table `users`** (перейменування з `admins`) should contain:
-{id, name, email, password, **role**, city, studioName, phone}
+{id, name, email, password, role, city, studioName, phone, phoneVerified}
 
-- `role` — `ENUM('superadmin','organizer','coach','participant')`, not null, default `'organizer'` (усі наявні записи — організатори).
-- `city`, `studioName`, `phone` — nullable, потрібні для панелі суперадміна (BE-24).
+- `role` — `ENUM('superadmin','organizer','coach','participant')`, not null, default `'organizer'`.
+- `phone` — not null для нових записів, **unique**: за ним учасник входить у кабінет.
+- `phoneVerified` — BOOLEAN, default `false`.
+- `studioName` — обов'язкова для `organizer` і `coach`, nullable для решти.
 
-**Related to:** `competitions` через `competition_admins` (колонка `adminId` перейменовується на `userId`); `judges` отримує `userId` (UUID, null, `onDelete: 'SET NULL'`).
+**Related to:** `competitions` через `competition_admins` (`adminId` → `userId`); `judges` отримує `userId` (null, `SET NULL`) і далі не чіпається.
 
-**Правила:**
-- Модель `Judge` **не зливається** з `User` — вхід судді лишається окремим, зі своїм payload у JWT. `judges.userId` — лише на випадок, коли суддя має ще й звичайний акаунт.
-- `POST /auth/register` приймає `role`, але дозволяє лише `organizer | coach | participant`.
+**Правила:** `POST /auth/register` приймає лише `organizer | coach | participant`. Пароль лишається — OTP його не заміняє, а додається.
 
 **Готово, коли:**
-- [ ] Реєстрація з роллю `coach` створює користувача з цією роллю.
+- [ ] Реєстрація з роллю `coach` без `studioName` → `400`.
 - [ ] Спроба зареєструватись як `superadmin` → `400`.
-- [ ] Наявні адміни після міграції мають роль `organizer` і не втратили доступ до своїх конкурсів.
-- [ ] Вхід судді працює як раніше.
+- [ ] Наявні адміни після міграції — `organizer`, доступ до конкурсів не втрачено.
+- [ ] Другий користувач із тим самим телефоном відхиляється БД.
+
+### BE-2 (нове): Phone verification via SMS OTP
+
+**Table `otp_codes`** should contain:
+{id, userId, phone, codeHash, expiresAt, attempts, consumedAt}
+
+**Endpoints:**
+- `POST /auth/register` → `201 { userId, otpRequired: true }` — токенів не видає.
+- `POST /auth/otp/send { userId, phone }` → `{ sentAt, expiresIn: 300, retryAfter: 60 }`
+- `POST /auth/otp/verify { userId, code }` → `{ token, refreshToken, user }`
+
+**Правила:** код 4 цифри, у БД лише хеш, TTL 5 хв; не більше 3 надсилань на номер за 15 хв (`429` з `retryAfter`); 5 невдалих спроб — код згорає (`400 OTP_EXPIRED`); успішна перевірка ставить `phoneVerified = true` і `consumedAt`; провайдер SMS — за інтерфейсом `SmsSender`, у dev-режимі пише код у лог.
+
+**Готово, коли:**
+- [ ] Без підтвердження номера логін віддає `{ otpRequired, userId }`, а не токени.
+- [ ] Четверте надсилання за 15 хв → `429`.
+- [ ] Прострочений код → `400 OTP_EXPIRED`, у БД не лишається чистого коду.
+
+### BE-3 (нове): Login by email or phone, password reset
+
+**Endpoints:** `POST /auth/login { login, password }` (email або телефон) → `{ token, refreshToken, user }` або `{ otpRequired, userId }`; `POST /auth/refresh`; `POST /auth/password/reset { email }`; `POST /auth/password/confirm { token, password }`; `GET /me` → `{ id, name, email, phone, role, studioName, personId?, permissions[] }`.
+
+**Правила:** `login` розпізнається за наявністю `@`; телефон нормалізується до E.164 перед пошуком; `GET /me` віддає `personId` прив'язаної Особи — з нього кабінет учасника розуміє, чи заповнений профіль.
+
+**Готово, коли:**
+- [ ] Вхід тим самим паролем працює і за email, і за телефоном у будь-якому форматі запису.
+- [ ] `GET /me` для учасника без Особи віддає `personId: null`, не помилку.
 
 ---
 
-## Фаза 2 — Розщеплення заявки
+## Фаза 2 — Довідник номінацій
 
-Поточна `Entry` несе одночасно людину, заявку й виступ (§11 бачення). Без розщеплення не працюють ні спецкатегорії, ні наскрізний номер, ні дедуплікація.
+### BE-4 (нове): Axis catalogue with age ranges and lineup axis
 
-### BE-2: Create Person table
+**Table `axes`** (осі довідника) should contain:
+{id, code, name, sortOrder}
+
+- `code` — `ENUM('age','style','level','lineup')`: Вік, Стиль, Ліга, Склад.
+
+**Table `axis_values`** should contain:
+{id, axisId, label, ageFrom, ageTo, sortOrder}
+
+- `ageFrom`, `ageTo` — INTEGER, null для всіх осей, крім `age`; для `age` — not null.
+
+**Table `nomination_templates`** should contain: {id, name, ownerId}
+
+**Table `template_axis_values`** should contain: {id, templateId, axisValueId} — unique `(templateId, axisValueId)`.
+
+**Table `template_specials`** should contain: {id, templateId, name}
+
+**Endpoints:** `GET /templates?q`, `GET /templates/:id`, `POST /templates`, `PUT /templates/:id`, `DELETE /templates/:id` (`409 TEMPLATE_IN_USE`).
+
+**Правила:**
+- У шаблоні немає цін — жодної колонки. Ціни живуть у конкурсі (BE-5).
+- Валідація осі `age`: `ageFrom <= ageTo`, діапазони значень одного шаблону не перетинаються → `400` з переліком конфліктних пар. Без цього автовизначення категорії неоднозначне.
+- Вісь `lineup` завжди отримує чотири значення за замовчуванням: Соло, Дуо, Тріо, Групові.
+- Чиста функція `resolveAgeCategory(birthDate, templateAgeValues, referenceDate) → axisValue | null`: повний вік на `referenceDate` (дату початку конкурсу, не «сьогодні»), потім перше значення, де `ageFrom <= age <= ageTo`. Немає збігу → `null` і повідомлення `'Вік учасника не підпадає під жодну вікову категорію цього конкурсу'`.
+
+**Готово, коли:**
+- [ ] Шаблон із діапазонами 9–12 і 12–15 → `400` про перетин.
+- [ ] Дитина 2018 р. н. на конкурс 2026-09-20 отримує категорію 8 років, а не 7.
+- [ ] Видалення використаного шаблону → `409`.
+
+### BE-5 (нове): Generate contest nominations with prices
+
+**Нові поля `nominations`:** {templateId, parts, price, isSpecial, venueId, sortOrder}
+
+- `parts` — JSONB `{ age, style, level, lineup }` з `label` кожної осі; за ним працює підбір у заявці.
+
+**Endpoints:**
+
+`POST /competitions/:id/nominations/generate`
+```ts
+{ templateId,
+  selected: { [axisCode]: axisValueId[] },
+  prices: { "level:<id>": 450, "lineup:<id>": 700 } }
+→ { nominations: [{ id, label, parts, price }] }
+```
+
+- `PUT /competitions/:id/nominations` — ручні правки: назва, ціна, майданчик, порядок.
+- `POST /competitions/:id/nominations/specials { name, price, programIds?, exitMode? }`
+- `DELETE /competitions/:id/nominations/:nominationId` → `409 NOMINATION_HAS_REGISTRATIONS`.
+
+**Правила:**
+- Генерація — декартів добуток вибраних значень. Порядок частин у назві: Вік · Стиль · Ліга · Склад, роздільник `·`, порожні частини відкидаються.
+- Ціни приходять разом із генерацією, до її виконання. Чиста функція `resolvePrice(parts, priceMap)`: ціна за `lineup` перемагає ціну за `level`; немає ні тієї, ні тієї → `null`.
+- Організатор не може створювати нові значення осей — `selected` приймає лише `axisValueId`, що входять у `template_axis_values` цього шаблону, інакше `400 VALUE_NOT_IN_TEMPLATE`.
+- Повторна генерація не дублює: наявні номінації з тим самим `parts` оновлюють ціну, нові додаються, зайві без заявок видаляються, зайві із заявками лишаються з попередженням у відповіді.
+
+**Готово, коли:**
+- [ ] 2 віки × 3 стилі × 2 ліги × 4 склади дають 48 номінацій із цінами.
+- [ ] Номінація «Дуо» у лізі Debut отримує ціну складу, не ліги.
+- [ ] `axisValueId` поза шаблоном → `400`.
+- [ ] Повторна генерація зі зміненими цінами не створює других копій.
+
+---
+
+## Фаза 3 — Розщеплення заявки
+
+### BE-6 (було BE-2): Create Person table
 
 **Table `persons`** should contain:
-{id, lastName, firstName, middleName, birthDate, city, studioName, userId}
+{id, lastName, firstName, middleName, birthDate, city, studioName, phone, userId}
 
-- `lastName`, `firstName` — not null. `middleName`, `city`, `studioName` — nullable.
-- `birthDate` (DATEONLY) — **nullable**: вікова категорія береться з номінації, не з дати народження (§12-Р5).
-- `userId` — UUID, null, **unique**, FK → `users`, `onDelete: 'SET NULL'`. Заповнюється, коли людина завела акаунт і прив'язалась до цього запису.
+- `lastName`, `firstName`, `birthDate` — обов'язкові при створенні через API. У БД `birthDate` лишається nullable лише щоб пережити міграцію старих `entries` (BE-9); сервіс на створення вимагає її завжди.
+- `phone` — null, **unique**: за ним учасник згодом прив'язує акаунт.
+- `userId` — null, **unique**, `SET NULL`.
+- Поля `league` не існує — ліга живе в заявці.
 
-**Related to:** `users` (1:1, опційно).
-
-**Індекси:** `(lastName, firstName)` — пошук кандидатів у BE-8; `studioName`; unique на `userId`.
-
-**Правила:**
-- `userId` унікальний, бо один акаунт прив'язується рівно до однієї Особи. Інакше при злитті (BE-8) вийде Особа з двома акаунтами, і незрозуміло, чиї це «Мої результати».
+**Індекси:** `(lastName, firstName)`, `studioName`, unique на `userId`, unique на `phone`.
 
 **Готово, коли:**
-- [ ] Таблиця створюється й відкочується (`migrate` / `migrate:undo`).
-- [ ] Особу можна створити без дати народження.
-- [ ] Другий `userId` з тим самим значенням відхиляється БД.
+- [ ] `POST` без `birthDate` → `400` (без неї не визначити вікову категорію).
+- [ ] Другий `userId` або другий `phone` з тим самим значенням відхиляється БД.
+- [ ] Міграція старих даних без дати народження проходить.
 
-### BE-3: Create Registration and Performance tables
-
-Заявка (намір виступити) і вихід на сцену (одиниця програми й суддівства) — різні сутності.
+### BE-7 (було BE-3): Registration, participants and performances
 
 **Table `registrations`** should contain:
-{id, competitionId, nominationId, routineName, coachId, submittedByUserId, choreographer, studioName, city, improv, status}
+{id, competitionId, nominationId, routineName, coachId, submittedByUserId, choreographer, studioName, city, level, ageCategory, improv, status}
 
-- `coachId` — UUID, null, FK → `users`: хто подав, якщо тренер.
-- `submittedByUserId` — not null: хто натиснув кнопку.
-- `improv` — BOOLEAN, default false.
+- `level` — рядок, not null: ліга цієї заявки, скопійована з `nomination.parts.level` на момент подання. Денормалізація свідома: ліміти часу, доплати й фільтри читають її мільйон разів, а історична ліга не має змінитись від правок довідника.
+- `ageCategory` — рядок, not null: вікова категорія, обчислена `resolveAgeCategory` при поданні. Зберігається з тієї ж причини.
 - `status` — `ENUM('draft','submitted','confirmed','cancelled')`, default `'submitted'`.
 
-**Table `registration_participants`** (склад заявки; соло = один рядок) should contain:
-{id, registrationId, personId}
-- Unique index `(registrationId, personId)` — одну людину не можна додати двічі в один номер.
+**Table `registration_participants`** should contain: {id, registrationId, personId} — unique `(registrationId, personId)`.
 
-**Table `performances`** should contain:
-{id, registrationId, competitionId, programName, round, status}
-
-- `competitionId` — денормалізація заради фільтрів.
-- `programName` — null, заповнюється лише для спецкатегорій із кількома виходами (BE-16).
-- `round` — `ENUM('final','semifinal')`, default `'final'` (BE-22).
-- `status` — `ENUM('scheduled','absent','withdrawn')`, default `'scheduled'`.
-
-**Related to:** `competitions`, `nominations`, `users`, `persons`.
-
-**Правила:**
-- Одна `Registration` породжує **один або кілька** `Performance`. Кількість задає номінація (BE-16). Для звичайного соло — один.
+**Table `performances`** should contain: {id, registrationId, competitionId, programName, round, status} — `round` default `'final'`, `status` default `'scheduled'`.
 
 **Готово, коли:**
-- [ ] Груповий номер із 5 осіб — це одна заявка з п'ятьма рядками складу.
-- [ ] Повторне додавання тієї самої особи в ту саму заявку відхиляється.
+- [ ] Груповий номер із 5 осіб — одна заявка з п'ятьма рядками складу.
+- [ ] Заявка несе лігу й вікову категорію рядками; зміна довідника після подання їх не змінює.
 - [ ] Повний цикл міграцій робочий в обидва боки.
 
-### BE-4: Per-competition participant number
+### BE-8 (було BE-4): Per-competition participant number
 
-Інваріант 6: особа має рівно один номер у межах конкурсу, на всі свої виступи.
-
-**Table `competition_participant_numbers`** should contain:
-{id, competitionId, personId, number}
-- Unique indexes: `(competitionId, personId)` і `(competitionId, number)`.
-
-**Related to:** `competitions`, `persons`.
-
-**Алгоритм видачі (`assign(competitionId, personId)`):**
-1. Є запис за `(competitionId, personId)` → повернути наявний `number`.
-2. Немає → `MAX(number) + 1` у межах конкурсу (перший номер — 1).
-3. Уся операція — в транзакції з `SELECT … FOR UPDATE`, щоб дві паралельні реєстрації не отримали однаковий номер.
-4. Конфлікт унікального індексу → одна повторна спроба, потім `409`.
+Без змін. `competition_participant_numbers` {id, competitionId, personId, number}, unique `(competitionId, personId)` і `(competitionId, number)`, видача в транзакції з `FOR UPDATE`, одна повторна спроба при конфлікті, потім `409`.
 
 **Готово, коли:**
-- [ ] Одна особа, дві заявки в одному конкурсі → один і той самий номер.
-- [ ] Дві різні особи → 1 і 2.
-- [ ] Та сама особа у двох конкурсах → номери незалежні.
+- [ ] Одна особа, дві заявки в одному конкурсі → один номер.
+- [ ] Дві особи → 1 і 2. Та сама особа у двох конкурсах → номери незалежні.
 
-### BE-5: Migrate entries into persons and registrations
+### BE-9 (було BE-5): Migrate entries into persons and registrations
 
-Разова міграція даних. `entries` **не видаляється** — її дропне BE-21, коли всі споживачі перемкнуться.
+Правила ті самі, з трьома поправками:
 
-**Правила перетворення кожного рядка `entries`:**
-1. **Person:** ПІБ беремо з `routineName`, розділивши по першому пробілу (`lastName` + `firstName`); немає пробілу — усе в `lastName`, `firstName = '—'`. `city`, `studioName` копіюються.
-2. **Дедуплікація в межах конкурсу:** особа з тими самими `lastName`, `firstName`, `studioName` перевикористовується. **Між конкурсами не зливати** (Р7).
-3. **Registration:** одна на `Entry`. `nominationId` — за збігом `nominations.name` з `entries.nomination` у межах конкурсу; немає збігу — створити номінацію з `price: null`. `status = 'confirmed'`.
-4. **RegistrationParticipant:** один рядок.
-5. **Performance:** рівно один, `round = 'final'`, `status = 'scheduled'`.
-6. **Номери:** `entries.number` → `competition_participant_numbers`. Якщо у двох `Entry` тієї самої особи різні номери — перемагає найменший (інваріант 6).
-
-**`down`:** видаляє все створене; `entries` лишалась недоторканою, тож відкат безпечний.
+- `entries.league` → `registrations.level`. На `persons` не переноситься.
+- `registrations.ageCategory` — з `nominations.parts.age`, якщо номінацію знайдено; інакше `'—'`.
+- `persons.birthDate` лишається `null` для перенесених — це єдине джерело записів без дати.
 
 **Готово, коли:**
-- [ ] Кількість `registrations` дорівнює кількості `entries`.
-- [ ] Кількість `persons` дорівнює кількості унікальних людей, не рядків.
-- [ ] Після `migrate:undo` нові таблиці порожні, `entries` на місці.
+- [ ] `count(registrations) = count(entries)`; `count(persons)` = кількість унікальних людей.
+- [ ] Жоден перенесений `person` не має ліги.
+- [ ] `migrate:undo` лишає `entries` недоторканою.
 
-### BE-6: Submit one registration across many nominations
+### BE-10 (було BE-6): Submit one registration across many nominations
 
-Центральний ендпоінт продукту: одна дитина виступає 3–7 разів, і вводити дані заново на кожен вихід неприйнятно (§8.4).
+Найважливіший ендпоінт. Змінено вхід: клієнт передає **стилі**, не номінації.
 
-**`POST /competitions/:competitionId/registrations`**, тіло:
+**Крок 1 — опції форми.** `GET /competitions/:id/registration-options?personId=`
+
 ```ts
-{
-  participants: [{ personId? } | { lastName, firstName?, birthDate? }],
-  nominationIds: string[],        // кілька номінацій за одну дію
-  routineName?, choreographer?, studioName?, city?, improv?
-}
+{ levels: [{id,label}],            // ліги цього конкурсу
+  styles: [{id,label}],            // стилі цього конкурсу
+  lineups: [{id,label}],
+  ageCategory: { id, label } | null,   // обчислена з birthDate
+  studioName, coachName,               // автопідстановка з тренера особи
+  matched: [{ styleId, nominationId, label, price }] }
 ```
 
-**Правила створення:**
-1. Реєстрація конкурсу відкрита (`registrationFrom <= сьогодні <= registrationTo`), інакше `403` `'Реєстрація на цей конкурс закрита'`.
-2. Кожен учасник має або `personId`, або `lastName`. Немає ні того, ні того → `400`.
-3. **Одна `Registration` на кожну номінацію** зі списку, з тим самим складом. Один запит замість семи.
-4. Кожній особі складу видається наскрізний номер (BE-4).
-5. Для кожної `Registration` створюються `Performance` (кількість — BE-16; поки завжди один).
-6. Уся операція — в **одній транзакції**. Часткової заявки не буває.
-7. **Два шляхи подання (§4):** роль `coach` → `coachId` = він сам; роль `participant` → `coachId = null`, а `participants` ігнорується: складом завжди є Особа з `persons.userId = поточний`. Акаунт без прив'язаної Особи → `409` `'Спочатку заповніть свій профіль учасника'`. Це прямо впливає на гроші — див. BE-21.
-8. **Дублікати не блокуються.** Ніякого `409`, ніякого унікального індексу на `(nominationId, склад)`. Тренер заявив дитину, а вона подала ще й сама — дві заявки й два виходи.
+`matched` перераховується під передану `level` (query `?level=`): для кожного стилю знаходиться номінація з тими самими лігою, віковою категорією і складом. Це те, що дає інтерфейсу підставити номінації самому.
 
-   **Не додавай таку перевірку «про всяк випадок».** Вона мусила б вгадувати, чи «Іваненко Марія» з двох заявок — одна людина, і помилялась би в обидва боки: блокувала б тезок і пропускала б справжні дублікати. Плутанину розгрібає організатор видаленням учасника. Внесок за обидві заявки нараховується й вважається сплаченим (§8.5).
+**Крок 2 — створення.** `POST /competitions/:competitionId/registrations`
 
-**Право власності на заявку** — одна перевірка `assertRegistrationOwner(registration, userId)`, яка використовується тут, у BE-10 (трек) і BE-21 (рахунок). Копій бути не повинно.
-- Редагувати й скасовувати може **лише автор** (`submittedByUserId`), плюс організатор і адмін конкурсу. Тренер не чіпає самостійну заявку учня, учень не чіпає заявку тренера. Інакше `403` з поясненням, хто може.
-
-**Скасування (`DELETE /registrations/:id`):**
-- `status → 'cancelled'`, усі її `Performance` → `'withdrawn'`.
-- Якщо хоч один `Performance` уже у відділенні (BE-12) — у відповідь додається `{ requiresScheduleRecalculation: true }` (інваріант 10).
-
-**`GET /competitions/:competitionId/registrations`** — обсяг залежить від ролі:
-- організатор і адмін конкурсу — усі;
-- тренер — подані ним;
-- учасник — **усі заявки, у складі яких є його Особа, незалежно від того, хто подав**. Це те місце, де він передивляється, чи його вже не заявили (§8.5).
-
-Кожен рядок несе `canEdit: boolean` і `submittedByName` — щоб клієнт показав «Заявив тренер Іваненко О.» і сховав кнопки.
-
-**Готово, коли:**
-- [ ] Одна заявка на 3 номінації створює 3 заявки і 3 виходи одним запитом.
-- [ ] Обидва учасники групового номера отримали наскрізні номери.
-- [ ] Повторна ідентична заявка створюється успішно — дві заявки, два виходи, два нарахування.
-- [ ] Заявка після дати закриття реєстрації → `403`.
-- [ ] Помилка на третій номінації відкочує перші дві.
-- [ ] Заявка від ролі `participant` має `coachId = null` і склад із власної Особи.
-- [ ] Учасник не може скасувати заявку тренера, тренер — самостійну заявку учня, організатор — може обидві.
-
----
-
-## Фаза 3 — Ростер керівника й дедуплікація
-
-### BE-7: Coach roster
-
-**Table `coach_roster_entries`** should contain:
-{id, coachId, personId}
-- Unique index `(coachId, personId)`.
-
-**Related to:** `users` (тренер), `persons`.
+```ts
+{ participants: [{ personId } | { lastName, firstName, birthDate, phone? }],
+  level: string,                  // ліга — обов'язково, обирається в заявці
+  styleIds: string[],             // кілька стилів за одну дію
+  lineupId: string,
+  routineName?, choreographer?, studioName?, city?, improv? }
+→ 201 { registrations: [{ id, nominationId, label, number, price }], totalDue }
+```
 
 **Правила:**
-- Особа потрапляє в ростер **автоматично** при першій заявці від цього тренера.
-- `DELETE /roster/:personId` видаляє **лише рядок ростера**, не `Person`: дитина могла перейти до іншого тренера (§8.4).
-- Видалення заборонено, якщо в особи є нескасована заявка від цього тренера в конкурсі з відкритою реєстрацією → `409` з поясненням.
-- `GET /roster` — особи за прізвищем, з полем `lastRegisteredAt`.
+- Реєстрація відкрита (`registrationFrom <= сьогодні <= registrationTo` і статус конкурсу дозволяє), інакше `403 REGISTRATION_CLOSED`.
+- `level` обов'язковий → без нього `400 'Оберіть лігу для цієї заявки'`. Ліга не підтягується з Особи — її там немає.
+- Вікова категорія обчислюється `resolveAgeCategory` за `birthDate` і датою початку конкурсу. Для групового складу береться **найстарший** учасник. Категорії не знайдено → `422` з повідомленням про вік.
+- Номінація на кожен стиль знаходиться за (стиль + `level` + вікова категорія + склад). Немає такої номінації → `422 'У цьому конкурсі немає номінації для обраного поєднання'` зі списком стилів, що не зійшлись.
+- Одна `Registration` на кожен знайдений стиль, з тим самим складом — одна дитина в 3 стилі одним запитом.
+- `price` — з номінації. `studioName` і `choreographer` — з тренера Особи, якщо клієнт їх не передав.
+- Наскрізний номер кожній особі складу (BE-8); виходи — за `exitMode` номінації (BE-22).
+- Уся операція в **одній транзакції**.
+- **Два шляхи подання:** `coach` → `coachId` = він сам; `participant` → `coachId = null`, `participants` ігнорується, складом є Особа з `persons.userId = поточний`; без прив'язаної Особи → `409 'Спочатку заповніть свій профіль учасника'`.
+- **Дублікати не блокуються.** Жодного унікального індексу на `(nominationId, склад)` і жодної перевірки «про всяк випадок»: вона мусила б вгадувати, чи тезки — одна людина, і помилялась би в обидва боки. Розгрібає організатор, обидва внески нараховуються.
 
-**Endpoints:** `GET /roster`, `DELETE /roster/:personId` (роль `coach`).
+**Право власності** — одна функція `assertRegistrationOwner(registration, user)`, спільна для цього таска, BE-15 (трек) і BE-23 (рахунок). Редагують автор, організатор і адмін конкурсу. Тренер не чіпає самостійну заявку учня, учень — заявку тренера.
 
-**Готово, коли:**
-- [ ] Після заявки особа з'явилась у ростері без окремої дії.
-- [ ] Видалення з ростера лишає `Person` у системі.
-- [ ] Видалення при активній заявці → `409`.
+**Скасування** `DELETE /registrations/:id`: `status → 'cancelled'`, виходи → `'withdrawn'`; якщо якийсь уже у відділенні — у відповіді `{ requiresScheduleRecalculation: true }`.
 
-### BE-8: Person candidate matching, account claim and manual merge
-
-Реалізує §8.5 після відмови від обов'язкової дати народження.
-
-**Прив'язка акаунта — окремий, найсильніший шлях.** Учасник при першому вході бачить кандидатів за ПІБ і тисне «Це я».
-- `POST /persons/:id/claim` → `persons.userId = поточний користувач`.
-- Особа з непорожнім `userId` → `409` `'Цей учасник уже прив'язаний до акаунта'`.
-- Акаунт, уже прив'язаний до іншої Особи → `409`.
-- `DELETE /persons/:id/claim` — відв'язка, **лише організатор або суперадмін**.
-- Після прив'язки пошук за ПІБ для цієї людини більше не потрібен.
-
-**Пошук кандидатів — чиста функція `scoreCandidate(query, candidate) → 0..100`:**
-```
-ПІБ збігається (без регістру, після trim)          → +50
-studioName збігається                               → +30
-coachId збігається (особа в ростері того тренера)   → +30
-birthDate вказана в обох і збігається               → +20
-birthDate вказана в обох і НЕ збігається            → -60
-city збігається                                     → +5
-результат = clamp(0, 100)
-```
-Показуються кандидати з `score >= 60`. **Автоматичне злиття не робиться ніколи** (Р7) — навіть при 100.
-
-**Злиття `POST /persons/:targetId/merge` `{ sourceId, confirm }`:**
-- Лише `organizer`/`superadmin` або адмін конкурсу. Без `confirm: true` → `400`.
-- `registration_participants`, `coach_roster_entries` і `competition_participant_numbers` джерела перевішуються на ціль.
-- **Конфлікт номерів:** лишається номер цілі, номер джерела звільняється.
-- **Конфлікт складу:** дві копії однієї особи в одній заявці → дублікат видаляється.
-- **Конфлікт акаунтів:** `userId` є в обох → злиття **заборонене**, `409` `'Обидва записи прив'язані до різних акаунтів. Спершу відв'яжіть один із них'`. Мовчки відкинути чийсь акаунт не можна — людина втратить доступ до своїх результатів. `userId` лише в джерела → переноситься на ціль.
-- `Person` джерела видаляється, операція в транзакції, незворотна.
-
-**Endpoints:** `GET /persons/candidates?lastName=&firstName=&studioName=&birthDate=`, `POST /persons/:id/claim`, `DELETE /persons/:id/claim`, `POST /persons/:targetId/merge`.
+**Читання** `GET /competitions/:id/registrations?q=&level=&nominationId=&status=&page=`: організатор — усі; тренер — подані ним; учасник — усі, де є його Особа, незалежно від того, хто подав. Рядок несе `canEdit`, `submittedByName`, `level`, `ageCategory`, `price`, `hasTrack`.
 
 **Готово, коли:**
-- [ ] Однакові ПІБ + студія дають 80 (показується), однакові ПІБ при різних студіях — 50 (не показується).
-- [ ] Різні дати народження при однакових ПІБ і студії опускають кандидата нижче порогу.
-- [ ] `claim` на вже прив'язану Особу → `409`; відв'язка недоступна ролі `participant`.
-- [ ] Після злиття номер, ростер і всі заявки джерела опинились у цілі.
-- [ ] Злиття двох Осіб із різними акаунтами → `409`.
+- [ ] Одна дитина, 3 стилі, одна ліга → 3 заявки, 3 виходи, 3 номери, один запит.
+- [ ] Та сама дитина з іншою лігою в іншій заявці — обидві живуть, ліги різні.
+- [ ] Запит без `level` → `400` з читабельним повідомленням.
+- [ ] Дитина 7 років на конкурс, де мінімальна категорія 9–12 → `422`, не тихий `null`.
+- [ ] Помилка на третьому стилі відкочує перші два.
+- [ ] Заявка від `participant` має `coachId = null` і склад із власної Особи.
+- [ ] Ціна в заявці збігається з ціною номінації, навіть якщо клієнт прислав свою.
 
 ---
 
-## Фаза 4 — Правила конкурсу
+## Фаза 4 — Ростер і дедуплікація
 
-### BE-9: Competition rules entity
+### BE-11 (було BE-7): Coach roster
 
-Це те місце, куди дописуються всі майбутні налаштування, не чіпаючи решту системи (§5.2).
+Без змін. `coach_roster_entries` {id, coachId, personId}, unique `(coachId, personId)`; поповнення автоматичне при першій заявці; `DELETE /roster/:personId` знімає лише рядок ростера; заборона видалення при активній заявці → `409`; `GET /roster` із `lastRegisteredAt`.
 
-**Table `competition_rules`** (один рядок на конкурс, `competitionId` унікальний) should contain:
+**Додано:** `GET /roster` віддає `age` кожної особи — інтерфейс показує його поруч із іменем при виборі учасника.
+
+### BE-12 (було BE-8): Candidate matching, account claim, manual merge
+
+Ваги перераховані — дата народження тепер є завжди, тож вона важить більше за студію:
+
+```
+ПІБ збігається (trim, без регістру)                 → +50
+birthDate збігається                                 → +30
+birthDate НЕ збігається                              → -60
+studioName збігається                                → +20
+coachId збігається (особа в ростері того тренера)    → +20
+city збігається                                      →  +5
+результат = clamp(0, 100), показуємо score >= 60
+```
+
+Автоматичне злиття не робиться **ніколи**, навіть при 100.
+
+Решта без змін: `POST /persons/:id/claim` (`409`, якщо Особа або акаунт уже прив'язані), `DELETE /persons/:id/claim` — лише організатор і суперадмін, `POST /persons/:targetId/merge { sourceId, confirm }` із перевішуванням складу, ростера й номерів, конфлікт номерів на користь цілі, злиття двох Осіб з різними акаунтами → `409`.
+
+**Готово, коли:**
+- [ ] Однакові ПІБ і дата → 80 (показується); однакові ПІБ, різна дата → нижче порогу.
+- [ ] `claim` на прив'язану Особу → `409`; відв'язка недоступна `participant`.
+- [ ] Після злиття номер, ростер і всі заявки джерела в цілі.
+
+---
+
+## Фаза 5 — Конкурс: правила й майстер
+
+### BE-13 (було BE-9): Competition rules entity
+
+**Table `competition_rules`** (один рядок на конкурс):
 
 | Поле | Тип | Default | Що означає |
 |---|---|---|---|
-| `pauseSeconds` | INTEGER | `20` | пауза після виступу (§8.6) |
-| `timeSource` | ENUM(`track`,`limit`) | `limit` | як рахувати час при вимкнених доплатах |
-| `surchargesEnabled` | BOOLEAN | `false` | глобальний вимикач доплат за переліміт |
-| `coachPercent` | DECIMAL(5,2) | `0` | відсоток керівника, один на конкурс (Р3) |
-| `semifinalThreshold` | INTEGER | `12` | понад скільки заявок вмикається півфінал |
-| `improvGroupSeconds` | INTEGER | `60` | тривалість загального заходу імпровізації |
-| `improvIndividualSeconds` | INTEGER | `30` | тривалість індивідуального заходу |
-| `quorum` | INTEGER | `3` | скільки суддів мають надіслати аркуш |
+| `pauseSeconds` | INTEGER | 20 | технічна пауза після виступу |
+| `timeSource` | ENUM(track,limit) | limit | як рахувати час при вимкнених доплатах |
+| `surchargesEnabled` | BOOLEAN | false | вимикач доплат за переліміт |
+| `coachPercent` | DECIMAL(5,2) | 0 | відсоток керівника |
+| `improvGroupSeconds` | INTEGER | 60 | загальний захід імпровізації |
+| `improvIndividualSeconds` | INTEGER | 30 | індивідуальний захід |
+| `trackUploadUntil` | DATEONLY | null | дедлайн завантаження музики |
+| `semifinalThreshold` | INTEGER | 12 | (для відкладеної фази) |
+| `quorum` | INTEGER | 3 | (для відкладеної фази) |
 
-**Table `overlimit_tariffs`** (тарифи перелімітів, багато на конкурс) should contain:
-{id, competitionId, uptoSeconds, price}
-- `uptoSeconds` — переліміт **до** скількох секунд. Приклад із документа: `{30, 150}`, `{60, 200}`.
+**Table `overlimit_tariffs`**: {id, competitionId, uptoSeconds, price} — сходинки {30, 150}, {60, 200}.
 
-**Table `duration_limits`** should contain:
-{id, competitionId, nominationId, categoryId, round, seconds}
-- `nominationId` — null, якщо ліміт заданий на вісь; `categoryId` — ліга або вікова категорія; `round` — `ENUM('final','semifinal')`, default `final`.
+**Table `duration_limits`**: {id, competitionId, nominationId, level, round, seconds} — `level` замінив `categoryId`: ліміт задається за лігою (Debut 90 / Rising 120 / Pro 180), як в інтерфейсі.
 
-**Related to:** `competitions`, `nominations`, `categories`.
+`resolveLimit(performance)`: точний `nominationId` + `round` → він; інакше `level` заявки + `round`; інакше 180 і попередження в лог.
 
-**Розв'язання ліміту для виступу — `resolveLimit(performance)`:**
-1. Точний збіг `nominationId` + `round` → він.
-2. Збіг `categoryId` (будь-яка з осей номінації) + `round` → найспецифічніший (вісь типу `level`, тобто ліга, пріоритетніша за `age`).
-3. Немає нічого → `180` секунд і попередження в лог.
+**Стан коду (2026-09-01):** `competition_rules`, `overlimit_tariffs` і `duration_limits` уже змігровані (`20260823090300`…`20260823090500`), модуль `backend/src/competition-rules/` існує. Але `duration_limits` шипнувся з `categoryId`, а не з `level` — разом із CHECK-обмеженням і двома частковими унікальними індексами на нього. Заміна на `level` — **окрема міграція**, не правка наявної.
 
-**Правила:**
-- Рядок правил створюється **автоматично зі значеннями за замовчуванням** при створенні конкурсу — організатор може ніколи в них не заходити (§8.1, крок 5).
-- `PATCH /competitions/:id/rules` — часткове оновлення, організатор і адмін.
-- Зміна `pauseSeconds` або лімітів **не перераховує** вже сформовані відділення автоматично — це робить явна дія в BE-13. Непередбачуваний зсув часу посеред фестивалю гірший за застарілий розклад.
+**Правила:** рядок правил і базові ліміти лігам створюються автоматично при створенні конкурсу; `PATCH /competitions/:id/rules` — часткове оновлення; зміна `pauseSeconds` або лімітів не перераховує вже сформовані відділення — це явна дія в BE-18.
 
 **Готово, коли:**
-- [ ] Новостворений конкурс уже має правила з `pauseSeconds = 20` без жодної дії організатора.
-- [ ] Точний ліміт номінації перемагає ліміт осі.
-- [ ] Конкурс без жодного ліміту дає 180 секунд, а не помилку.
+- [ ] Новий конкурс уже має `pauseSeconds = 20` і ліміти лігам без дій організатора.
+- [ ] Ліміт номінації перемагає ліміт ліги.
+- [ ] Конкурс без лімітів дає 180 с, не помилку.
+
+### BE-14 (нове): Competition creation wizard
+
+Майстер — шість кроків: загальне й банер → контакти → реквізити → номінації → майданчики → розподіл. Кроку суддів немає.
+
+**Нові поля `competitions`:** {dateFrom, dateTo, bannerPath, contactPhone, contactEmail, registrationFrom, registrationTo, payRecipient, payAccount, payBank, payEdrpou, payPurpose}
+
+**Endpoints:**
+- `POST /competitions { name, dateFrom, dateTo?, location, organizer, contactPhone, contactEmail, registrationFrom, registrationTo, description? }` → `201` зі статусом `draft`
+- `PATCH /competitions/:id` — автозбереження будь-якого кроку
+- `PUT /competitions/:id/payment` — усі п'ять полів опційні
+- `POST /competitions/:id/banner` — multipart, jpg/png ≤5 МБ → `{ bannerPath }`
+- `PUT /competitions/:id/venues [{ id?, name, note? }]`
+
+**Правила:**
+- `dateTo` null → одноденний конкурс; `dateTo >= dateFrom`, інакше `400`.
+- Реквізити **ніколи** не блокують перехід між кроками й публікацію. Порожній блок реквізитів не віддається в публічній відповіді взагалі — інтерфейс його ховає.
+- `POST /competitions/:id/publish` вимагає `name`, `dateFrom`, `location`, `organizer`, `contactPhone`, `contactEmail` і хоча б одну номінацію → інакше `422 { fields }` з читабельними назвами полів для модального вікна.
+
+**Готово, коли:**
+- [ ] Конкурс публікується з повністю порожніми реквізитами.
+- [ ] `dateTo < dateFrom` → `400`.
+- [ ] Публікація без номінацій → `422` зі згадкою кроку «Номінації».
+- [ ] Дводенний конкурс отримує два `competition_days` автоматично (BE-26).
 
 ---
 
-## Фаза 5 — Треки й переліміти
+## Фаза 6 — Треки
 
-### BE-10: Accept multi-format tracks and measure duration
+### BE-15 (було BE-10): Accept multi-format tracks and measure duration
 
-**Table `tracks`** should contain:
-{id, performanceId, originalFileName, storedPath, mimeType, durationSeconds, sizeBytes, uploadedByUserId}
-- `performanceId` — **unique**: один трек на вихід.
+Без змін по суті. `tracks` {id, performanceId (unique), originalFileName, storedPath, mimeType, durationSeconds, sizeBytes, uploadedByUserId}; формати не обмежені mp3 (mpeg, wav, x-wav, mp4, aac, ogg, flac, x-m4a), інше → `415` з переліком; ≤50 МБ, інакше `413`; тривалість вимірює сервер (`music-metadata`), округлення вгору; метадані не читаються → `422`; повторне завантаження замінює файл і перераховує перелімітне нарахування; для `improv: true` → `400`.
 
-**Related to:** `performances`, `users`.
-
-**Правила:**
-- **Формати не обмежуються mp3** (пряма вимога замовника): `audio/mpeg`, `audio/wav`, `audio/x-wav`, `audio/mp4`, `audio/aac`, `audio/ogg`, `audio/flac`, `audio/x-m4a`. Інший тип → `415` з переліком дозволених.
-- Максимальний розмір — 50 МБ, більше → `413`.
-- Тривалість вимірюється **на сервері** (`music-metadata`), округлюється **вгору** до цілої секунди. Клієнтське значення не приймається взагалі.
-- Метадані не читаються → `422` `'Не вдалося визначити тривалість треку. Спробуйте інший файл або формат'`.
-- Завантаження дозволене до **терміну завантаження треків** конкурсу (окремий від терміну реєстрації, §8.1). Після — `403`.
-- Хто вантажить: автор заявки, організатор, адмін конкурсу — та сама `assertRegistrationOwner` з BE-6.
-- Повторне завантаження **замінює** трек: старий файл видаляється, перелімітне нарахування перераховується (BE-21).
-- Файли: `backend/uploads/tracks/<competitionId>/<performanceId>.<ext>`, тека в `.gitignore`.
-- Для `improv: true` трек не потрібен → `400` `'Для імпровізації трек не потрібен — музику вмикає організатор'`.
-
-**Endpoints:** `POST /performances/:id/track` (multipart), `DELETE /performances/:id/track`.
-
-**Питання:** зберігати файли на диску контейнера чи одразу в S3-сумісному сховищі? Поточне рішення — диск, бо цього досить для одного інстансу; винести шлях у конфіг, щоб перехід не зачепив сервіс.
+**Змінено:** дедлайн береться з `competition_rules.trackUploadUntil` (окремий від дедлайну реєстрації); після нього завантаження, заміна й видалення → `403 MUSIC_LOCKED`. Хто вантажить — `assertRegistrationOwner` із BE-10.
 
 **Готово, коли:**
-- [ ] WAV приймається нарівні з MP3.
-- [ ] PDF → `415` з переліком форматів.
+- [ ] WAV приймається нарівні з MP3; PDF → `415`.
 - [ ] Трек 72.3 с зберігається як 73.
-- [ ] Завантаження на імпровізаційну заявку → `400` з поясненням.
-- [ ] Учасник не може залити трек на заявку, яку подав його тренер; організатор може на будь-яку.
+- [ ] Після `trackUploadUntil` заміна → `403`, читання лишається доступним.
+- [ ] Учасник не заливає трек на заявку тренера; організатор — на будь-яку.
 
-### BE-11: Deterministic performance duration
+### BE-16 (було BE-11): Deterministic performance duration
 
-Чиста функція. Це серце програми фестивалю — уся неоднозначність документа замовника зведена сюди в один детермінований алгоритм.
+Чиста функція, без змін:
 
-**Вхід:** {improv, isGroupImprov, trackDurationSeconds, limitSeconds, surchargesEnabled, overlimitPaid, timeSource, improvGroupSeconds, improvIndividualSeconds} → **вихід:** секунди.
-
-**Алгоритм — рівно в такому порядку:**
 ```
 1. improv                        → isGroupImprov ? improvGroupSeconds : improvIndividualSeconds
-2. trackDurationSeconds === null → limitSeconds            // трек ще не залили
+2. trackDurationSeconds === null → limitSeconds
 3. trackDuration <= limit        → trackDurationSeconds
-   // далі — переліміт
 4. surchargesEnabled             → overlimitPaid ? trackDuration : limitSeconds
 5. інакше                        → timeSource === 'track' ? trackDuration : limitSeconds
 ```
 
-**Звідки кроки 4 і 5:** документ каже «якщо треки проплачені — рахується повна тривалість, якщо ні — рахується максимальний час, вказаний у положенні» (крок 4), і окремо «якщо конкурс без доплат, треба дати два варіанти: рахувати по тривалості треків або по часу, який вказаний у положенні» (крок 5).
-
-**Готово, коли:**
-- [ ] Кожна з п'яти гілок дає задокументоване значення.
-- [ ] `trackDuration === limitSeconds` не вважається перелімітом.
-- [ ] Функція не має доступу до БД і не залежить від жодного сервісу.
+**Готово, коли:** кожна з п'яти гілок дає задокументоване значення; `trackDuration === limit` не переліміт; функція без доступу до БД.
 
 ---
 
-## Фаза 6 — Програма фестивалю
+## Фаза 7 — Програма
 
-### BE-12: Days, sections and section items
+### BE-17 (було BE-12): Days, sections and section items
 
-**Table `competition_days`** should contain:
-{id, competitionId, date, label}
-- Unique index `(competitionId, date)`.
+Без змін. `competition_days` {id, competitionId, date, label} unique `(competitionId, date)`; `sections` {id, competitionId, dayId, venueId, name, startTime, sortOrder}; `section_items` {id, sectionId, performanceId, type ENUM(performance,award), nominationGroupKey, sortOrder}; частковий unique index на `performanceId WHERE NOT NULL`; `award` завжди останній — перевірка в сервісі.
 
-**Table `sections`** (відділення) should contain:
-{id, competitionId, dayId, venueId, name, startTime, sortOrder}
-- `startTime` — TIME, not null. `name` — «Відділення 1».
+### BE-18 (було BE-13): Build sections and calculate schedule
 
-**Table `section_items`** (позиція у відділенні) should contain:
-{id, sectionId, performanceId, type, nominationGroupKey, sortOrder}
-- `type` — `ENUM('performance','award')`; `performanceId` — null для нагородження.
+Без змін. `calculateSchedule(startTimeSeconds, items, pauseSeconds)`; пауза після кожного виступу, а для імпровізаційної групи — один раз після номінації; формування відділення з нерозподілених виходів (`409` зі списком уже розподілених), групування за номінацією, всередині — за наскрізним номером; автоматичний рядок `award` останнім; час не зберігається, обчислюється при читанні.
 
-**Related to:** `competitions`, `venues`, `performances`.
-
-**Інваріанти:**
-- Частковий unique index на `section_items.performanceId` (`WHERE performanceId IS NOT NULL`) — один вихід належить рівно одному відділенню (інваріант 1).
-- Позиція типу `award` завжди має найбільший `sortOrder` у відділенні (інваріант 9) — перевіряється в сервісі (BE-13), не в БД.
+**Змінено:** `GET /competitions/:id/performances/unassigned?level=&ageCategory=&nominationId=` — фільтри перейменовані під нові поля заявки.
 
 **Готово, коли:**
-- [ ] Вставка двох `section_items` з одним `performanceId` падає на рівні БД.
-- [ ] Два відділення в один день на одному майданчику створюються нормально.
+- [ ] Три виступи по 60 с із паузою 20 с від 09:00 → 09:00, 09:01:20, 09:02:40, нагородження 09:04.
+- [ ] Імпровізаційна група з трьох по 30 с отримує паузу один раз.
+- [ ] Повторне додавання розподіленого виходу → `409`; нагородження завжди останнє.
 
-### BE-13: Build sections and calculate schedule
+### BE-19 (було BE-14): Reorder, move and merge program groups
 
-**Чиста функція `calculateSchedule(startTimeSeconds, items, pauseSeconds)`:**
-```
-cursor = startTimeSeconds
-for кожна сусідня група позицій з однаковим nominationGroupKey:
-    for кожен item у групі:
-        if item.type === 'award': записати старт = cursor, тривалість 0; continue
-        записати старт = cursor, тривалість = item.duration
-        cursor += item.duration
-        if (!group.isImprovisationGroup) cursor += pauseSeconds   // пауза після виступу
-    if (group.isImprovisationGroup) cursor += pauseSeconds        // пауза після номінації
-```
+Без змін. `PATCH /sections/:id/order` із перевіркою повного збігу складу (`400`), `award` мовчки в кінець; `POST /performances/:id/move`; `POST /sections/:id/merge-groups` + `merged_group_labels`, об'єднання діє лише в межах конкурсу й не змінює довідник; `DELETE …/merge-groups/:groupKey`.
 
-**Чому дві гілки паузи:** документ прямо каже — «пауза додається після кожного виступу, а не номінації, але якщо можна, там де імпровізація, додавати паузу навпаки після номінації, а не кожного виступу» (§8.6).
+### BE-20 (було BE-15): Program projections
 
-**Правила формування відділення (`POST /competitions/:id/sections`, тіло `{ dayId, venueId, name, startTime, performanceIds[] }`):**
-1. Доступ — організатор або адмін конкурсу, інакше `403`.
-2. Кожен `performanceId` має бути **нерозподіленим**, інакше `409` зі списком уже розподілених.
-3. Виходи групуються за номінацією; порядок груп — за `nominations.createdAt`, всередині групи — за наскрізним номером за зростанням.
-4. **Останнім рядком автоматично додається позиція `award`** (нагородження).
-5. Час **не зберігається** в `section_items` — обчислюється при кожному читанні. Це інваріант 2.
+Три проєкції замість двох.
 
-**Endpoints:**
-- `GET /competitions/:id/performances/unassigned?ageCategoryId=&levelId=` — пул для фільтра (§8.7, крок 2).
-- `POST /competitions/:id/sections`
-- `GET /competitions/:id/program?dayId=&venueId=` — програма з обчисленим часом кожної позиції і часом нагородження = старт + сума виступів і пауз.
+1. **Публічна** `GET /competitions/:id/program` — без авторизації, лише службові рядки з часом: початок відділення, нагородження, перерва, назва блоку номінацій і його час початку. Прізвищ, номерів і студій тут немає — це афіша для глядача, а не робочий документ.
+2. **Своя** `GET /competitions/:id/program/mine` — для `participant` і `coach`: службові рядки плюс лише власні виходи (`isMine` — серед складу Особа цього акаунта; `isMyStudent` — особа з ростера цього тренера) з часом, номером і номінацією.
+3. **Розширена** `GET /competitions/:id/program/extended` — організатор і адмін конкурсу: усі позиції з `number`, ПІБ, студією, тренером, `trackDurationSeconds`, `limitSeconds`, `overlimitSeconds`, `overlimitPaid`, `effectiveDurationSeconds`, `hasTrack`. За нею друкують програму для звукорежисера.
 
 **Готово, коли:**
-- [ ] Три виступи по 60 с із паузою 20 с від 09:00:00 дають 09:00:00, 09:01:20, 09:02:40, нагородження о 09:04:00.
-- [ ] Імпровізаційна група з трьох виступів по 30 с отримує паузу один раз, не тричі.
-- [ ] Порожнє відділення показує лише нагородження в час старту.
-- [ ] Повторне додавання вже розподіленого виходу → `409`.
-- [ ] Нагородження завжди останнє.
-
-### BE-14: Reorder, move and merge program groups
-
-**`PATCH /sections/:id/order`** `{ itemIds: string[] }`:
-- Список має містити **рівно ті самі** `itemId`, що вже у відділенні, інакше `400` `'Список позицій не збігається зі складом відділення'`. Це захист від гонки, коли двоє адмінів тягають рядки одночасно.
-- Позиція `award` мовчки переставляється в кінець, навіть якщо клієнт прислав її в середині.
-- Час перераховується при наступному читанні — зберігати нічого не треба.
-
-**`POST /performances/:id/move`** `{ sectionId, afterItemId? }` — переносить вихід в інше відділення, знімаючи стару позицію. `afterItemId: null` → у початок.
-
-**`POST /sections/:id/merge-groups`** `{ groupKeys: string[], mergedLabel: string }` — ручне об'єднання категорій (Юніори 1 + Юніори 2, §8.7 крок 7):
-- Усім позиціям перелічених груп присвоюється спільний `nominationGroupKey = 'merged:' + uuid`.
-- **Table `merged_group_labels`** should contain: {id, sectionId, groupKey, label}.
-- **Об'єднання діє лише в межах цього конкурсу і не змінює довідник осей.** Судять і рахують результати досі по вихідних номінаціях — об'єднана лише подача в програмі.
-- `DELETE /sections/:id/merge-groups/:groupKey` — повертає вихідні ключі.
-
-**Готово, коли:**
-- [ ] Перевпорядкування з чужим `itemId` → `400`.
-- [ ] `award` опиняється в кінці, навіть якщо переданий першим.
-- [ ] Після об'єднання двох груп розклад бачить одну групу, і пауза між ними лишається звичайною.
-- [ ] Роз'єднання повертає вихідні категорії без втрати порядку.
-
-### BE-15: Public and extended program projections
-
-**Публічна (`GET /competitions/:id/program`)** — **без авторизації**: номер учасника, ПІБ, студія, керівник, назва номінації, час.
-Авторизований запит додатково отримує на кожній позиції:
-- `isMine: true` — серед учасників є Особа з `userId = поточний користувач`;
-- `isMyStudent: true` — серед учасників є особа з ростера цього тренера.
-
-Це «підсвічування своїх виступів» (§8.7): сервер віддає ознаку, клієнт лише фарбує. Неавторизований запит не отримує жодного прапорця.
-
-**Розширена (`GET /competitions/:id/program/extended`)** — лише організатор і адмін. Додає:
-`trackDurationSeconds`, `limitSeconds`, `overlimitSeconds` (0, якщо немає), `overlimitPaid`, `effectiveDurationSeconds`.
-
-**Чому це важливо:** за цією проєкцією друкують програму для звукорежисера — він має бачити, який трек вимикати за лімітом, а який оплачений і має грати повністю.
-
-**Готово, коли:**
-- [ ] Неавторизований запит не містить ні `isMine`, ні `isMyStudent`.
-- [ ] Учасник бачить `isMine` рівно на своїх виходах, тренер — `isMyStudent` на виходах своїх учнів і `false` на чужих.
+- [ ] Публічна відповідь не містить жодного прізвища.
+- [ ] Учасник у `/mine` бачить рівно свої виходи; тренер — виходи своїх учнів.
 - [ ] Розширена проєкція для тренера → `403`.
-- [ ] Виступ із перелімітом 15 с і оплатою віддає `overlimitSeconds: 15, overlimitPaid: true`.
+- [ ] Виступ із перелімітом 15 с і оплатою віддає `overlimitSeconds: 15`, `overlimitPaid: true`.
 
----
+### BE-21 (нове): ZIP music export in schedule order
 
-## Фаза 7 — Спеціальні категорії
+**Table `export_jobs`** should contain: {id, competitionId, type, status, progress, filePath, payload, missing, createdAt}
 
-### BE-16: Special categories with programs and exit modes
-
-Реалізує §8.3. Після BE-3 і BE-13 задача дешева — саме в цьому й був сенс розщеплення заявки.
-
-**Нові поля `nominations`:**
-{programIds, exitMode, isSpecial}
-- `programIds` — ARRAY(UUID), default `[]`: обрані програми/стилі з довідника осей.
-- `exitMode` — `ENUM('single','per_program')`, default `single`: кількість виходів на сцену.
-- `isSpecial` — BOOLEAN, default `false`: Кубок, Корона, батл.
-
-**Генерація виходів при заявці:**
-```
-exitMode === 'single'      → один Performance, programName = null
-exitMode === 'per_program' → по одному Performance на кожен programId,
-                             programName = назва програми
-```
-
-**Назва номінації — чиста функція `buildNominationLabel({ axisNames, specialName, programName })`:**
-- `single`: `Юніори 1 · Перші кроки · Корона Шехеризади` — програма не згадується.
-- `per_program`: `Юніори 1 · Перші кроки · Корона Шехеризади · Імпровізація межансе`, і нижче та сама категорія з наступною програмою — `… · Табла`.
-- Роздільник — ` · `, порожні частини відкидаються.
-
-**Тривалість спецкатегорії** (окрема гілка в `resolveLimit`, BE-9):
-- `single` → сума лімітів усіх `programIds`;
-- `per_program` → ліміт кожної програми окремо для свого виходу.
-
-**Ціна:** спецкатегорія має власну `price` на рівні номінації — окремого механізму не треба.
-
-**Готово, коли:**
-- [ ] Заявка на спецкатегорію з `per_program` і трьома програмами створює 3 виходи з різними `programName`.
-- [ ] Назва в режимі `single` не містить програми; у `per_program` — містить рівно одну.
-- [ ] Порожній `specialName` не лишає зайвого роздільника.
-
----
-
-## Фаза 8 — Суддівство через бригади
-
-### BE-17: Judging panels with membership and assignments
-
-Головний операційний виграш продукту: номінація призначається **бригаді**, ніколи не судді напряму.
-
-**Table `judging_panels`** should contain:
-{id, competitionId, name, venueId, quorum}
-- `venueId` — null: бригада зазвичай відповідає майданчику.
-- `quorum` — null: тоді береться з правил конкурсу (BE-9).
-
-**Table `panel_memberships`** should contain:
-{id, panelId, judgeId, isTrainee, joinedAt, leftAt}
-- `leftAt` — null: заміна судді **не видаляє рядок**, а закриває його.
-
-**Table `panel_assignments`** should contain:
-{id, panelId, nominationId}
-- Unique index `(panelId, nominationId)`.
-
-**Related to:** `competitions`, `venues`, `judges`, `nominations`.
+**Endpoints:** `POST /competitions/:id/music/export { dayId?, venueId?, sectionId? }` → `202 { jobId }`; `GET /export-jobs/:jobId` → `{ status: 'queued|running|done|failed', progress: 0..100, fileUrl?, missing: [{ number, personName, nomination }] }`.
 
 **Правила:**
-- **Ендпоінта «призначити номінацію судді» не існує взагалі** — саме це знімає біль із документа («в Юевенті адмін вручну виділяє категорії для кожного судді»).
-- Одна номінація може бути призначена **не більш ніж одній** бригаді → інакше `409` з назвою бригади, яка вже її має.
-- Суддів у бригаді може бути **більше за кворум** — обмеження зверху немає.
-- Видалення бригади заборонене, якщо є хоч один надісланий аркуш → `409`.
-
-**Endpoints:** `POST|GET /competitions/:id/panels`, `DELETE /panels/:id`, `POST /panels/:id/members` `{ judgeId, isTrainee }`, `POST /panels/:id/assignments` `{ nominationIds }`, `DELETE /panels/:id/assignments/:nominationId`.
-
-**Готово, коли:**
-- [ ] Призначення номінації другій бригаді → `409` з назвою першої.
-- [ ] У бригаду з кворумом 3 можна додати 6 суддів.
-- [ ] Видалення бригади з надісланим аркушем → `409`.
-
-### BE-18: Score sheets with quorum and trainee isolation
-
-**Table `score_sheets`** should contain:
-{id, panelId, judgeId, nominationId, round, status, isTrainee, submittedAt}
-- `status` — `ENUM('draft','submitted')`; unique index `(judgeId, nominationId, round)`.
-
-**Table `score_entries`** should contain:
-{id, sheetId, performanceId, score, place, absent}
-- `score` — DECIMAL(4,1), null; `place` — INTEGER, null; `absent` — BOOLEAN, default false.
-
-**Валідація аркуша (§8.10):**
-```
-1. Кожен неабсентний виступ має score в [1, 10], інакше:
-   'Бали обов'язкові для всіх учасників і мають бути від 1 до 10'
-2. Місця необов'язкові, але виставлені мають бути унікальними в межах аркуша:
-   'Місце N вже виставлено іншому учаснику'                    (інваріант 3)
-3. Виступи з absent: true не мають ні score, ні place.
-4. Кількість записів дорівнює кількості виходів у номінації.
-```
-**Чому бали обов'язкові, а місця ні:** Р1 — бали первинні, місця лише тайбрейк.
-
-**Надсилання (`POST /judge/sheets/:id/submit`):**
-1. Валідація має пройти, інакше `400` з конкретним повідомленням.
-2. **Перевірка кворуму перед записом:** якщо надісланих **не-стажерських** аркушів по `(nominationId, round)` вже `>= quorum` → `409` `'Кворум по цій номінації вже досягнуто'` (інваріант 4). Перевірка й запис — в одній транзакції з блокуванням, інакше двоє суддів проскочать одночасно.
-3. Аркуші стажерів **ніколи не враховуються в кворумі** (інваріант 5) і не блокуються — стажер може надіслати завжди.
-4. Після досягнення кворуму номінація отримує похідний статус `judged` — він обчислюється, а не зберігається.
-
-**Кабінет судді:**
-- `GET /judge/nominations` — номінації бригад, у яких суддя має **відкрите** членство (`leftAt IS NULL`). Кожна **згорнута**: `{ id, label, performanceCount, sheetStatus }`. Виходи не віддаються — §8.10 крок 1: «не розгорнуті, щоб не губитись».
-- `sheetStatus`: `'none' | 'draft' | 'submitted'`. Клієнт фарбує `'draft'` червоним — це ознака «затупив».
-- `GET /judge/nominations/:id/sheet` — розгортає одну номінацію з переліком виходів і чернеткою.
-- `PUT /judge/sheets/:id` — автозбереження чернетки **без валідації**: суддя може заповнити половину й піти. Валідація лише при `submit`.
+- Порядок файлів — **за таймінгами**: `section.sortOrder` → `section_items.sortOrder`. Не за номером і не за номінацією.
+- Імена всередині: `{number}_{Ім'я}_{Прізвище}_{Ліга}_{Стиль}.{ext}`; транслітерація не робиться, службові символи файлової системи замінюються на `_`; колізія імен → суфікс `_2`.
+- Архів стрімиться у файл на диску пачками, не збирається в пам'яті: 300 треків не мають з'їсти інстанс.
+- Виходи без треку не ламають збірку — потрапляють у `missing`, `status` лишається `done`.
+- `progress` оновлюється не рідше, ніж кожні 10 файлів — з нього фронт малює прогрес-бар.
+- Готовий архів живе 24 год, далі прибирається cron-джобою; повторний запит на той самий скоуп із живим архівом віддає наявний `fileUrl` без перезбірки.
 
 **Готово, коли:**
-- [ ] Бал 0 і бал 11 відхиляються, аркуш без жодного місця приймається.
-- [ ] Два перших місця в одному аркуші відхиляються.
-- [ ] Третій аркуш при кворумі 3 проходить, четвертий → `409`.
-- [ ] Аркуш стажера проходить і при досягнутому кворумі та не збільшує лічильник.
-- [ ] Список номінацій судді приходить згорнутим, без виходів.
-
-### BE-19: Replace judge without touching assignments
-
-Головний сценарій, заради якого існує бригада (§8.11).
-
-**`POST /panels/:id/replace-judge`** `{ outgoingJudgeId, incomingJudgeId }`:
-1. Доступ — організатор або адмін конкурсу.
-2. Членство того, хто виходить, **не видаляється**: `leftAt = now()`. Історія хто коли судив має лишитись.
-3. Новому судді створюється членство з `joinedAt = now()`.
-4. **Призначення номінацій не чіпаються взагалі** — вони на бригаді. Це вся суть задачі: жодних дій із категоріями.
-5. **Уже надіслані аркуші того, хто вийшов, лишаються дійсними** і далі рахуються в кворумі.
-6. Чернетки того, хто вийшов, лишаються його чернетками й **не переходять** до нового судді — оцінки персональні.
-7. Новий суддя одразу бачить актуальний список, без додаткових дій адміна.
-
-**Готово, коли:**
-- [ ] Після заміни новий суддя бачить ті самі номінації, що бачив попередній.
-- [ ] Надіслані аркуші попереднього далі враховуються в кворумі.
-- [ ] Чернетка попереднього не видима новому.
-- [ ] Склад `panel_assignments` до і після заміни ідентичний.
+- [ ] Порядок файлів у архіві збігається з порядком у розширеній програмі.
+- [ ] Відділення на 300 треків збирається без падіння пам'яті, `progress` доходить до 100.
+- [ ] Дві заявки без музики попадають у `missing`, архів приходить `done`.
+- [ ] Повторний запит протягом 24 год не запускає збірку вдруге.
 
 ---
 
-## Фаза 9 — Результати
+## Фаза 8 — Спецкатегорії
 
-### BE-20: Aggregate results with score-first ranking
+### BE-22 (було BE-16): Special categories with programs and exit modes
 
-**Чиста функція `aggregateResults(votes) → RankedResult[]`**, де голос судді — `{ judgeId, score, place }`.
+**Поля `nominations`:** {programIds, exitMode ENUM(single, per_program), isSpecial}
 
-**Алгоритм (Р1):**
-```
-1. Виступи з absent: true виключаються з ранжування, finalPlace = null,
-   але лишаються у відповіді з позначкою.
-2. totalScore = сума score усіх суддів. Аркуші стажерів сюди НЕ потрапляють —
-   їх відсіює сервіс до виклику функції (інваріант 5).
-3. Сортування за totalScore за спаданням.
-4. ТАЙБРЕЙК при рівних totalScore: менша сума виставлених місць (placesSum) вище.
-   Виступи без жодного місця мають placesSum = null і при рівності стають нижче.
-5. Якщо після тайбрейку досі рівні — ділять місце: обидва отримують те саме
-   finalPlace, наступний пропускає номер (1, 2, 2, 4).
-```
+Генерація виходів, `buildNominationLabel` і гілка тривалості — без змін.
+
+**Змінено:** ціну спецкатегорії ставить організатор при створенні конкурсу — `POST /competitions/:id/nominations/specials { name, price, programIds?, exitMode? }`. У шаблоні спецкатегорія — лише назва, без ціни; при генерації вона підтягується як заготовка з `price: null`, і публікація конкурсу з null-ціною спецкатегорії → `422 'Вкажіть ціну для спеціальної номінації «…»'`.
+
+**Готово, коли:**
+- [ ] `per_program` із трьома програмами створює 3 виходи з різними `programName`.
+- [ ] Назва в `single` не містить програми, у `per_program` — рівно одну.
+- [ ] Публікація конкурсу зі спецкатегорією без ціни → `422` з її назвою.
+
+---
+
+## Фаза 9 — Оплати
+
+### BE-23 (було BE-21): Charges, manual payment status and coach payouts
+
+**Table `charges`** should contain: {id, competitionId, registrationId, performanceId, type ENUM(participation, overlimit), amount, status ENUM(pending, paid, waived), paidAt, markedByUserId}
+
+`overlimitPrice(overlimitSeconds, tariffs)` — сходинками, без пропорції, зі стелею найбільшого тарифу.
+
+**Правила без змін:** нарахування за участь при поданні (`amount = nomination.price ?? 0`); перелімітне лише при `surchargesEnabled`; перезавантаження треку перераховує (`pending` видаляється, оплачене → `waived`); `PATCH /charges/:id { status }` вручну організатором із записом `markedByUserId` і `paidAt`; вимкнення доплат не переписує минуле; дублікати оплачуються обидва.
+
+**Змінено:** оплата лише переказом за реквізитами — жодного платіжного шлюзу, жодного вебхука. Статус ставить організатор руками, і це не тимчасове рішення, а рішення продукту.
+
+`GET /competitions/:id/charges` — зведений список: учасник, номер, номінація, ліга, обидва види нарахувань, статуси, `totalDue` і `totalPaid` по конкурсу. `GET /me/charges` — за заявками, де `submittedByUserId` — поточний користувач. `GET /competitions/:id/coach-payouts` — сума оплачених `participation` × `coachPercent / 100`, лише заявки з непорожнім `coachId`; заявка, яку учасник подав за себе, частки не приносить навіть якщо він у ростері; перелімітні нарахування у частку не входять.
+
+**Дроп `entries`** — окремою міграцією останнім кроком фази, після `grep -r "entries/entry.model" backend/src` порожньо.
+
+**Готово, коли:**
+- [ ] 15 с і 30 с → 150; 45 с → 200; 90 с → 200 (стеля); 0 с → 0.
+- [ ] Заміна треку на коротший прибирає `pending`, оплачене переводить у `waived`.
+- [ ] Заявка, подана учасником за себе, не потрапляє у виплати тренера.
+- [ ] Таблиці `entries` і теки `backend/src/entries/` більше не існує.
+
+---
+
+## Фаза 10 — Публічна частина й кабінети
+
+### BE-24 (нове): Public catalogue with search, filters and month grouping
+
+**Endpoint** `GET /public/competitions?q=&year=&month=&status=open|upcoming|past&page=` → `{ items: [{ id, name, dateFrom, dateTo, location, organizer, bannerUrl, status, registrationFrom, registrationTo }], total, years: number[] }`
+
+**Правила:**
+- `q` шукає по назві, місту й організатору, без регістру, від 2 символів; коротший запит — просто ігнорується, не помилка.
+- `status`: `open` — сьогодні в межах реєстрації і конкурс не завершений; `past` — `dateTo` (або `dateFrom`) < сьогодні; `upcoming` — решта.
+- Сортування — за `dateFrom` за зростанням: клієнт групує по місяцях і роках, тому порядок мусить бути стабільним і без розривів.
+- `years` віддається разом зі списком — з нього будується фільтр за роком, щоб фронт не збирав його з поточної сторінки.
+- Лише `published` і далі по життєвому циклу; без авторизації; кеш 60 с.
+- `GET /public/competitions/:id` → конкурс, номінації з цінами, майданчики; блок реквізитів **відсутній** у відповіді, якщо всі поля порожні.
+
+**Готово, коли:**
+- [ ] Пошук «Київ» знаходить конкурси за містом і за назвою.
+- [ ] `status=open` не показує конкурс, у якого реєстрація закрилась учора.
+- [ ] `years` містить усі роки з БД, а не лише з поточної сторінки.
+- [ ] Конкурс без реквізитів не має ключа `payInfo` у відповіді.
+
+### BE-25 (нове): Role cabinets
 
 **Endpoints:**
-- `GET /competitions/:id/results` — **публічно**, лише по номінаціях, що досягли кворуму. Рядок: `{ participant, judgePlaces: {judgeId: place}, finalPlace }` — колонка на кожного суддю з місцем, вкінці загальне місце (§8.13).
-- `GET /competitions/:id/results/:nominationId/scores?judgeId=` — бали конкретного судді; це те, що розкривається при кліку на місце.
-- `GET /competitions/:id/results/search?q=` — **публічно**, пошук за прізвищем або наскрізним номером по всіх відсуджених номінаціях. Ним користуються глядачі й батьки без акаунта. `q` коротший за 2 символи → порожній результат, без помилки.
-- `GET /me/results?competitionId=` — **лише роль `participant`**: усі виступи Особи цього акаунта з місцями й сумою балів. Без `competitionId` — список конкурсів, у яких людина брала участь.
-- `GET /coach/results?competitionId=` — **лише роль `coach`**: зведення по всіх учасниках із ростера, згруповане за учнем.
-- `GET /competitions/:id/results/trainees` — **лише організатор**: аркуші стажерів поруч із основними, щоб порівняти збіг.
+- `GET /coach/summary` → `{ persons, registrations, totalDue, totalPaid, upcomingCompetitions }` — цифри для кабінету тренера.
+- `GET /participant/registrations` → заявки Особи цього акаунта з конкурсом, номінацією, лігою, статусом, ціною, `hasTrack`, `submittedByName`.
+- `GET /admin/dashboard` — лише `superadmin` і `organizer`: конкурси, заявки, сума нарахувань, оплачено, кількість користувачів за ролями. Тренер і учасник → `403`: дашборду в їхніх кабінетах немає.
+
+**Правила:** усі три ендпоінти читають ті самі правила видимості, що BE-10, — тренер бачить подані ним, учасник бачить усі, де є його Особа.
 
 **Готово, коли:**
-- [ ] Три судді з різними балами дають порядок за сумою.
-- [ ] Рівні бали розводяться сумою місць; повна рівність дає 2, 2, 4.
-- [ ] `absent` не потрапляє в ранжування, але видимий у відповіді.
-- [ ] Оцінки стажерів не впливають на підсумок.
-- [ ] Пошук за прізвищем знаходить усі виступи людини по всіх номінаціях; за одним символом — порожньо, не помилка.
-- [ ] `GET /me/results` для акаунта без прив'язаної Особи → порожній список, не помилка.
+- [ ] `GET /admin/dashboard` для `coach` → `403`.
+- [ ] `totalDue` тренера збігається зі сумою по `GET /me/charges`.
+- [ ] Учасник бачить заявку, яку подав тренер, із `canEdit: false`.
 
 ---
 
-## Фаза 10 — Оплати
+## Фаза 11 — Життєвий цикл і огляд
 
-### BE-21: Charges, manual payment status and coach payouts
+### BE-26 (було BE-23): Competition lifecycle and days
 
-**Table `charges`** should contain:
-{id, competitionId, registrationId, performanceId, type, amount, status, paidAt, markedByUserId}
-- `performanceId` — null, заповнено лише для перелімітних.
-- `type` — `ENUM('participation','overlimit')`.
-- `status` — `ENUM('pending','paid','waived')`, default `'pending'`.
+`competitions.status` `ENUM('draft','published','registration_open','registration_closed','scheduled','running','finished')`, default `draft`; переходи лише вперед, плюс дозволений `registration_closed → registration_open`; будь-що → `draft` заборонено.
 
-**Related to:** `competitions`, `registrations`, `performances`, `users`.
-
-**Чиста функція `overlimitPrice(overlimitSeconds, tariffs)`:**
-```
-tariffs відсортовані за uptoSeconds, напр. [{30,150},{60,200}]
-overlimitSeconds <= 0                      → 0
-перший тариф з uptoSeconds >= overlimit    → його price
-перевищує найбільший тариф                 → price найбільшого
-   (пропорційно НЕ множимо — документ дає сходинки, не формулу)
-```
-
-**Правила:**
-1. Нарахування за участь створюється при подачі заявки, `amount = nomination.price ?? 0`.
-2. Перелімітне створюється/оновлюється при завантаженні треку і **лише якщо `surchargesEnabled = true`**.
-3. Перезавантаження треку **перераховує** перелімітне нарахування. Новий трек уміщається в ліміт → нарахування видаляється, **лише якщо ще `pending`**. Уже оплачене → `waived` зі слідом, гроші не зникають самі.
-4. `PATCH /charges/:id` `{ status }` — ручна зміна організатором: гроші часто приходять поза системою (§8.8 крок 4). Записує `markedByUserId` і `paidAt`.
-5. Вимкнення `surchargesEnabled` **не видаляє** вже створені перелімітні нарахування — лише припиняє створення нових (інваріант 8: заднім числом не переписуємо).
-6. **Дублікати оплачуються обидва.** Дві заявки на ту саму людину й номінацію дають два нарахування. Автоматичного повернення немає. Організатор може вручну перевести зайве в `waived` — це його рішення, не системи.
-
-**Endpoints:**
-- `GET /competitions/:id/charges` — зведений список для організатора: учасник, номер, номінація, обидва види нарахувань, статуси. Це «загальний список учасників, де видно всі оплати» з документа.
-- `GET /me/charges` — нарахування за заявками, де `submittedByUserId` — поточний користувач (те саме правило власності, що в BE-6).
-- `GET /competitions/:id/coach-payouts` — частка кожного тренера: `сума оплачених participation-нарахувань × coachPercent / 100`. Два обмеження:
-  - до бази входять **лише заявки з непорожнім `coachId`** — ті, які подав сам тренер (Р10). Заявка, яку учасник подав за себе, частки не приносить, **навіть якщо він у ростері цього тренера**. Це найлегша річ у модулі, яку можна зробити неправильно;
-  - перелімітні нарахування у частку **не входять** — це компенсація витрат організатора, а не внесок.
-
-**Дроп `entries`:** окремою міграцією, останнім кроком фази. До неї — переконатись, що жоден файл у `backend/src` не імпортує `Entry` (`grep -r "entries/entry.model" backend/src` порожній).
+**Змінено:** перехід у `published` вимагає ще й хоча б однієї номінації (узгоджено з BE-14), а реквізити — ні. Дні конкурсу створюються автоматично на кожну дату `dateFrom..dateTo` при створенні; `POST|GET /competitions/:id/days`, `DELETE /days/:id` (`409`, якщо є відділення).
 
 **Готово, коли:**
-- [ ] 0 с переліміту → 0 грн; 15 с і 30 с → 150; 45 с → 200; 90 с → 200 (стеля).
-- [ ] Заявка створює нарахування за участь автоматично.
-- [ ] Переліміт при вимкнених доплатах нарахування не створює.
-- [ ] Заміна треку на коротший прибирає `pending`-нарахування, а оплачене переводить у `waived`.
-- [ ] Заявка, подана учасником за себе, **не потрапляє** у виплати тренера, у чиєму ростері він є.
-- [ ] Перелімітні суми не входять у частку тренера.
-- [ ] Таблиця `entries` і тека `backend/src/entries/` більше не існують.
-
----
-
-## Фаза 11 — Тури й відбори
-
-### BE-22: Semifinal round and final qualification
-
-Реалізує §8.12.
-
-**Питання (У1, потребує підтвердження замовника):** топ-K чи поріг балів; чи той самий склад бригади в фіналі; чи враховуються бали півфіналу в підсумку. Реалізуємо топ-K, лишаючи точку розширення й коментар із цими трьома питаннями в коді.
-
-**Правила:**
-1. При подачі заявки нічого не змінюється — усі виходи створюються з `round: 'final'`.
-2. **Увімкнення півфіналу — явна дія організатора**, не автоматична: `POST /competitions/:id/nominations/:nominationId/enable-semifinal`. Система підказує це робити, коли заявок більше за `semifinalThreshold`, але не робить сама: автоматичне переведення посеред відкритої реєстрації несподівано подвоїло б програму.
-3. При увімкненні всі наявні виходи номінації переводяться на `round: 'semifinal'`, ліміти беруться з `duration_limits` із `round: 'semifinal'`.
-4. Півфінальні виходи ставляться в програму й судяться **звичайним флоу** — ні модуль програми, ні модуль суддівства не мають жодної гілки «якщо півфінал».
-5. `POST /competitions/:id/nominations/:nominationId/build-final` `{ topK, performanceIds? }`:
-   - `performanceIds` не передано → беруться перші `topK` за підсумковим місцем;
-   - передано → беруться вони (організатор скоригував склад вручну);
-   - для кожного створюється **новий** `Performance` з `round: 'final'`, тією самою заявкою і тим самим треком;
-   - півфінальні виходи лишаються з їхніми результатами — історія не переписується.
-6. **При поділеному місці на межі проходять усі, хто його поділив** — фактична кількість може бути більшою за `topK`. Відсікати за жеребом було б несправедливо.
-
-**Готово, коли:**
-- [ ] `topK = 6` з 12 учасників пропускає 6.
-- [ ] Двоє поділили 6-те місце → проходять 7, і це видно у відповіді.
-- [ ] `topK` більший за кількість учасників пропускає всіх, без помилки.
-- [ ] `absent` не проходить ніколи.
-- [ ] `grep -c "semifinal" backend/src/program/` дає 0 — програма не знає про тури.
-
----
-
-## Фаза 12 — Життєвий цикл і огляд
-
-### BE-23: Competition lifecycle and days
-
-**Нове поле `competitions.status`:**
-`ENUM('draft','published','registration_open','registration_closed','scheduled','running','finished')`, default `'draft'`.
-
-**Дозволені переходи — лише вперед:**
-```
-draft → published → registration_open → registration_closed
-      → scheduled → running → finished
-```
-Плюс два винятки: `registration_closed → registration_open` (організатор відкрив прийом ще раз) дозволено; будь-який стан → `draft` **заборонено** — опублікований конкурс не ховається.
-
-**Що змінює кожен перехід:**
-- `published` — конкурс з'являється в публічному списку. Вимагає заповнених `name`, `dateFrom`, `dateTo`, `location`; інакше `400` з переліком порожніх полів.
-- `registration_open` — заявки починають прийматись. Перевірка дат із BE-6 лишається додатковою, не замість статусу.
-- `registration_closed` — склад заявок заморожений, нові → `403`.
-- `scheduled` — вимагає, щоб не лишилось нерозподілених виходів, інакше `409` з лічильником: `'Не розподілено 12 виступів'`.
-- `finished` — відкриває публічні результати.
-
-**Дні конкурсу** (таблиця з BE-12, тут — ендпоінти):
-- `POST /competitions/:id/days` `{ date, label? }` — дата має бути в діапазоні `dateFrom..dateTo`, інакше `400`.
-- `GET /competitions/:id/days`, `DELETE /days/:id`. Видалення дня з відділеннями → `409`.
-- При створенні конкурсу дні **створюються автоматично** на кожну дату діапазону — організатор із одноденним конкурсом ніколи не має думати про це поняття.
-
-**Endpoints:** `PATCH /competitions/:id/status`, `POST|GET /competitions/:id/days`, `DELETE /days/:id`.
-
-**Готово, коли:**
-- [ ] `draft → running` заборонено; `registration_closed → registration_open` дозволено; будь-що → `draft` заборонено.
-- [ ] Публікація без `location` → `400` з переліком порожніх полів.
+- [ ] `draft → running` заборонено; `registration_closed → registration_open` дозволено.
+- [ ] Публікація без `location` або без номінацій → `422` з переліком полів.
 - [ ] Перехід у `scheduled` при нерозподілених виходах → `409` з їх кількістю.
-- [ ] Дводенний конкурс отримує 2 дні автоматично при створенні.
+- [ ] Дводенний конкурс отримує 2 дні автоматично.
 
-### BE-24: Superadmin overview
+### BE-27 (було BE-24): Superadmin overview
 
-Закриває §8.14.
+Без змін. `RolesGuard` за `@Roles('superadmin')`; `GET /admin/competitions` (усі конкурси всіх організаторів із лічильниками, пагінація 25, сортування за `dateFrom` спадно); `GET /admin/coaches?q=` (прізвище, місто, студія, телефон, кількість конкурсів і учасників). Модуль тільки читає.
 
-**`RolesGuard`:** читає роль із JWT, порівнює з метаданими `@Roles('superadmin')`. Усі ендпоінти модуля закриті цією роллю.
+---
 
-**Endpoints:**
-- `GET /admin/competitions` — усі конкурси всіх організаторів: назва, організатор, дати, статус, кількість заявок, кількість відсуджених номінацій, сума нарахувань. Пагінація `?page=&limit=` (default 25), сортування за `dateFrom` спадно.
-- `GET /admin/coaches` — усі керівники: прізвище, ім'я, місто, студія, телефон, кількість конкурсів і учасників (дослівно перелік із документа замовника). Пошук `?q=` по прізвищу і студії.
+## Відкладено (суддівство й результати)
 
-**Обмеження:** модуль **тільки читає**. Жодних мутацій — суперадмін не редагує чужі конкурси. Якщо знадобиться, це буде окреме рішення з окремим слідом у логах.
+Виводяться з активного плану — у інтерфейсі суддів приховано, функціонал робиться окремою хвилею. Тексти задач лишаються без змін, беруться в роботу після BE-27:
 
-**Готово, коли:**
-- [ ] Роль `organizer` на `/admin/competitions` → `403`.
-- [ ] Суперадмін бачить конкурси всіх організаторів, не лише своїх.
-- [ ] Пошук по студії звужує список керівників.
+- **BE-S1** (старий BE-17) — бригади: `judging_panels`, `panel_memberships`, `panel_assignments`. Ендпоінта «призначити номінацію судді» не існує.
+- **BE-S2** (BE-18) — аркуші, кворум, ізоляція стажерів.
+- **BE-S3** (BE-19) — заміна судді без дотику до призначень.
+- **BE-S4** (BE-20) — зведення результатів, бали первинні, місця як тайбрейк.
+- **BE-S5** (BE-22) — півфінал і відбір у фінал.
+
+Одне обмеження, яке треба тримати вже зараз: `quorum` і `semifinalThreshold` лишаються в `competition_rules` (BE-13), щоб потім не міняти таблицю правил.
 
 ---
 

@@ -6,7 +6,7 @@ import { AdminsModule } from '../admins/admins.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
-import { RefreshTokenStoreService } from './refresh-token-store.service';
+
 
 @Module({
   imports: [
@@ -25,6 +25,6 @@ import { RefreshTokenStoreService } from './refresh-token-store.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, RefreshTokenStoreService],
+  providers: [AuthService, JwtStrategy],
 })
 export class AuthModule {}
