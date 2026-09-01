@@ -27,8 +27,8 @@ const AXIS_PRIORITY: CategoryType[] = [
   'level',
   'age',
   'direction',
-  'discipline',
-  'participants_count',
+  'style',
+  'lineup',
 ];
 
 @Injectable()

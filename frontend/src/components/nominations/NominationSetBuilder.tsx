@@ -2,10 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import SpecialCategoryModal from './SpecialCategoryModal';
 import type { SpecialNominationDraft } from './SpecialCategoryModal';
 import {
+  AGE_CATEGORY_TYPE,
   CATEGORY_TYPES,
   CATEGORY_TYPE_LABELS,
   getCategories,
 } from '../../lib/categories';
+import AgeRangeFields from './AgeRangeFields';
+import { EMPTY_AGE_RANGE, parseAgeRange } from '../../lib/ageRange';
+import type { AgeRange } from '../../lib/ageRange';
 import type { Category, CategoryType } from '../../lib/categories';
 import type { ExitMode } from '../../lib/categoryTemplates';
 import {
@@ -39,6 +43,7 @@ export default function NominationSetBuilder({
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Category[]>([]);
   const [inputs, setInputs] = useState<Record<string, string>>({});
+  const [ageRange, setAgeRange] = useState(EMPTY_AGE_RANGE);
   const [specialOpen, setSpecialOpen] = useState(false);
 
   useEffect(() => {
@@ -77,7 +82,10 @@ export default function NominationSetBuilder({
     const raw = (inputs[type] ?? '').trim();
     if (!raw) return;
 
-    const clearInput = () => setInputs((prev) => ({ ...prev, [type]: '' }));
+    const clearInput = () => {
+      setInputs((prev) => ({ ...prev, [type]: '' }));
+      if (type === AGE_CATEGORY_TYPE) setAgeRange(EMPTY_AGE_RANGE);
+    };
     const candidate = { name: raw, type };
 
     if (selection[type].some((c) => sameCategoryValue(c, candidate))) {
@@ -86,7 +94,18 @@ export default function NominationSetBuilder({
     }
 
     const existing = suggestions.find((s) => sameCategoryValue(s, candidate));
-    const category = existing ?? draftCategory(raw, type);
+
+    let range: AgeRange | undefined;
+    if (type === AGE_CATEGORY_TYPE && !existing) {
+      const parsed = parseAgeRange(ageRange);
+      if (!parsed.ok) {
+        setError(parsed.message);
+        return;
+      }
+      range = parsed.range;
+    }
+
+    const category = existing ?? draftCategory(raw, type, range);
 
     updateSelection((current) => ({
       ...current,
@@ -200,6 +219,9 @@ export default function NominationSetBuilder({
                   {picked.map((category) => (
                     <span className={styles.chip} key={category.id}>
                       {category.name}
+                      {category.ageFrom !== null &&
+                        category.ageTo !== null &&
+                        ` (${category.ageFrom}–${category.ageTo})`}
                       <button
                         type="button"
                         aria-label={`Прибрати ${category.name}`}
@@ -228,6 +250,13 @@ export default function NominationSetBuilder({
                     }
                   }}
                 />
+                {type === AGE_CATEGORY_TYPE && (
+                  <AgeRangeFields
+                    value={ageRange}
+                    onChange={setAgeRange}
+                    inputClassName={styles.ageBound}
+                  />
+                )}
                 <datalist id={`suggestions-${type}`}>
                   {options.map((option) => (
                     <option key={option.id} value={option.name} />
@@ -364,10 +393,10 @@ export default function NominationSetBuilder({
         open={specialOpen}
         categories={suggestions}
         submitLabel="Додати до набору"
-        createCategoryValue={(name, type) =>
+        createCategoryValue={(name, type, range) =>
           Promise.resolve(
             suggestions.find((s) => sameCategoryValue(s, { name, type })) ??
-              draftCategory(name, type),
+              draftCategory(name, type, range),
           )
         }
         onClose={() => setSpecialOpen(false)}

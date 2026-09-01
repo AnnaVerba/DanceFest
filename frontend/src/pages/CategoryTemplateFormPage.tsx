@@ -47,7 +47,7 @@ export default function CategoryTemplateFormPage() {
           detail.nominations.map((n) => ({
             signature: savedSignatureOf(n),
             name: n.name,
-            price: n.price === null ? '' : String(n.price),
+            price: '',
             allowsImprovisation: n.allowsImprovisation,
             categoryIds: n.categoryIds,
             isSpecial: n.isSpecial,
@@ -103,7 +103,10 @@ export default function CategoryTemplateFormPage() {
 
     setSubmitting(true);
     try {
-      const resolved = await resolveDraftCategories(nominations);
+      const resolved = await resolveDraftCategories(
+        nominations,
+        Object.values(axes ?? {}).flat(),
+      );
       await save(resolved);
     } catch (err) {
       setSubmitError(

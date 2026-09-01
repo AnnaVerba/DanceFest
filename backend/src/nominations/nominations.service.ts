@@ -196,12 +196,10 @@ export class NominationsService {
     nomination: Nomination,
     categories: Map<string, Category>,
   ): NominationProgram[] {
-    return this.categoriesFor(nomination, categories, 'discipline').map(
-      (c) => ({
-        id: c.id,
-        name: c.name,
-      }),
-    );
+    return this.categoriesFor(nomination, categories, 'style').map((c) => ({
+      id: c.id,
+      name: c.name,
+    }));
   }
 
   private exitsOf(

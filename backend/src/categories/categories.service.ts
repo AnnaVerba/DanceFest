@@ -3,6 +3,9 @@ import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes, Op, col, fn, where } from 'sequelize';
 import { Category } from './category.model';
 import type { CategoryType } from './category.model';
+import { CreateCategoryDto } from './dto/create-category.dto';
+
+export const DEFAULT_CATEGORY_SORT_ORDER = 0;
 
 @Injectable()
 export class CategoriesService {
@@ -22,18 +25,19 @@ export class CategoriesService {
       where: conditions,
       order: [
         ['type', 'ASC'],
+        ['sortOrder', 'ASC'],
         ['name', 'ASC'],
       ],
     });
     return categories.map((c) => this.toDto(c));
   }
 
-  async findOrCreate(name: string, type: CategoryType) {
-    const trimmed = name.trim();
+  async findOrCreate(input: CreateCategoryDto) {
+    const trimmed = input.name.trim();
 
     const existing = await this.categoryModel.findOne({
       where: {
-        type,
+        type: input.type,
         [Op.and]: where(
           fn('lower', fn('btrim', col('name'))),
           trimmed.toLowerCase(),
@@ -44,17 +48,32 @@ export class CategoriesService {
 
     const created = await this.categoryModel.create({
       name: trimmed,
-      type,
+      type: input.type,
+      ageFrom: input.ageFrom ?? null,
+      ageTo: input.ageTo ?? null,
+      sortOrder: input.sortOrder ?? DEFAULT_CATEGORY_SORT_ORDER,
     } as CreationAttributes<Category>);
     return this.toDto(created);
   }
 
-  async findOrCreateMany(input: { name: string; type: CategoryType }[]) {
+  async findOrCreateMany(input: CreateCategoryDto[]) {
     const created: Awaited<ReturnType<typeof this.findOrCreate>>[] = [];
     for (const category of input) {
-      created.push(await this.findOrCreate(category.name, category.type));
+      created.push(await this.findOrCreate(category));
     }
     return created;
+  }
+
+  async findByIds(ids: string[]): Promise<Category[]> {
+    if (ids.length === 0) return [];
+    return this.categoryModel.findAll({
+      where: { id: { [Op.in]: ids } },
+      order: [
+        ['type', 'ASC'],
+        ['sortOrder', 'ASC'],
+        ['name', 'ASC'],
+      ],
+    });
   }
 
   async findExistingIds(ids: string[]): Promise<string[]> {
@@ -71,6 +90,9 @@ export class CategoriesService {
       id: category.id,
       name: category.name,
       type: category.type,
+      ageFrom: category.ageFrom,
+      ageTo: category.ageTo,
+      sortOrder: category.sortOrder,
       createdAt: category.createdAt,
     };
   }

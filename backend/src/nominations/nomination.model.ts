@@ -8,6 +8,7 @@ import {
 } from 'sequelize-typescript';
 import { Competition } from '../competitions/competition.model';
 import { Venue } from '../venues/venue.model';
+import { CategoryTemplate } from '../category-templates/category-template.model';
 import type { ExitMode } from './nomination-exits';
 
 @Table({ tableName: 'nominations' })
@@ -26,6 +27,11 @@ export class Nomination extends Model<Nomination> {
   @ForeignKey(() => Venue)
   @Column({ type: DataType.UUID, allowNull: true })
   declare venueId: string | null;
+
+  // Шаблон, з якого згенерована номінація. За ним видно, чи зайнятий шаблон.
+  @ForeignKey(() => CategoryTemplate)
+  @Column({ type: DataType.UUID, allowNull: true })
+  declare templateId: string | null;
 
   @Column({ type: DataType.STRING, allowNull: false })
   declare name: string;

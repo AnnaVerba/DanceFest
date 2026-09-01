@@ -83,6 +83,11 @@
   min-width: 0;
 }
 
+/* Межі віку — вузькі поля, щоб назва значення лишалась головною. */
+.axisAdd input.ageBound {
+  flex: 0 0 90px;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;

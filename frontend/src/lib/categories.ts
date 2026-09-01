@@ -1,31 +1,37 @@
 import { authorizedFetch } from './auth';
+import type { AgeRange } from './ageRange';
 
-export type CategoryType =
-  | 'participants_count'
-  | 'age'
-  | 'level'
-  | 'discipline';
+export type CategoryType = 'lineup' | 'age' | 'level' | 'style';
 
 export const CATEGORY_TYPES: CategoryType[] = [
-  'participants_count',
+  'lineup',
   'age',
   'level',
-  'discipline',
+  'style',
 ];
 
+// Єдина вісь, значення якої несуть числові межі: з них сервер визначає
+// вікову категорію учасника за датою народження.
+export const AGE_CATEGORY_TYPE: CategoryType = 'age';
+
 export const CATEGORY_TYPE_LABELS: Record<CategoryType, string> = {
-  participants_count: 'Кількість учасників',
+  lineup: 'Склад',
   age: 'Вік',
-  level: 'Рівень',
-  discipline: 'Дисципліна',
+  level: 'Ліга',
+  style: 'Стиль',
 };
 
 export interface Category {
   id: string;
   name: string;
   type: CategoryType;
+  ageFrom: number | null;
+  ageTo: number | null;
+  sortOrder: number;
   createdAt: string;
 }
+
+export const CATEGORY_API_BAD_REQUEST = 400;
 
 export class CategoryApiError extends Error {
   status: number;
@@ -79,20 +85,41 @@ export function getCategories(type?: CategoryType): Promise<Category[]> {
   return request<Category[]>(`/categories${query}`);
 }
 
-export function createCategory(name: string, type: CategoryType): Promise<Category> {
+export function createCategory(
+  name: string,
+  type: CategoryType,
+  range?: AgeRange,
+): Promise<Category> {
   return request<Category>('/categories', {
     method: 'POST',
-    body: JSON.stringify({ name: name.trim(), type }),
+    body: JSON.stringify({
+      name: name.trim(),
+      type,
+      ageFrom: range?.ageFrom,
+      ageTo: range?.ageTo,
+    }),
   });
 }
 
+export interface CreateCategoryInput {
+  name: string;
+  type: CategoryType;
+  ageFrom?: number;
+  ageTo?: number;
+}
+
 export function createCategoriesBulk(
-  categories: { name: string; type: CategoryType }[],
+  categories: CreateCategoryInput[],
 ): Promise<Category[]> {
   return request<Category[]>('/categories/bulk', {
     method: 'POST',
     body: JSON.stringify({
-      categories: categories.map((c) => ({ name: c.name.trim(), type: c.type })),
+      categories: categories.map((c) => ({
+        name: c.name.trim(),
+        type: c.type,
+        ageFrom: c.ageFrom,
+        ageTo: c.ageTo,
+      })),
     }),
   });
 }

@@ -1,6 +1,7 @@
 import { CATEGORY_TYPES, createCategoriesBulk } from './categories';
 import type { Category, CategoryType } from './categories';
 import type { ExitMode } from './categoryTemplates';
+import type { AgeRange } from './ageRange';
 
 export type AxisSelection = Record<CategoryType, Category[]>;
 
@@ -39,12 +40,19 @@ export function savedSignatureOf(nomination: {
 
 const DRAFT_PREFIX = 'draft:';
 
-export function draftCategory(name: string, type: CategoryType): Category {
+export function draftCategory(
+  name: string,
+  type: CategoryType,
+  range?: AgeRange,
+): Category {
   const trimmed = name.trim();
   return {
     id: `${DRAFT_PREFIX}${type}:${trimmed}`,
     name: trimmed,
     type,
+    ageFrom: range?.ageFrom ?? null,
+    ageTo: range?.ageTo ?? null,
+    sortOrder: 0,
     createdAt: '',
   };
 }
@@ -91,14 +99,27 @@ export function usedDraftCategories(
   return drafts;
 }
 
+/**
+ * Межі вікових значень у самому id чернетки не поміщаються, тому вони
+ * дістаються з обраних осей: там лежать повні об'єкти категорій.
+ */
 export async function resolveDraftCategories(
   nominations: DraftNomination[],
+  knownCategories: Category[] = [],
 ): Promise<DraftNomination[]> {
   const drafts = usedDraftCategories(nominations);
   if (drafts.length === 0) return nominations;
 
   const created = await createCategoriesBulk(
-    drafts.map(({ name, type }) => ({ name, type })),
+    drafts.map(({ id, name, type }) => {
+      const known = knownCategories.find((c) => c.id === id);
+      return {
+        name,
+        type,
+        ageFrom: known?.ageFrom ?? undefined,
+        ageTo: known?.ageTo ?? undefined,
+      };
+    }),
   );
   const resolved = new Map(drafts.map((d, i) => [d.id, created[i].id]));
 

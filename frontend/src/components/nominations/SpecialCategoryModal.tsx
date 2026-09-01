@@ -1,11 +1,15 @@
 import { useMemo, useState } from 'react';
 import Modal from '../admin/Modal';
 import {
+  AGE_CATEGORY_TYPE,
   CATEGORY_TYPE_LABELS,
   CategoryApiError,
   createCategory,
 } from '../../lib/categories';
 import type { Category, CategoryType } from '../../lib/categories';
+import AgeRangeFields from './AgeRangeFields';
+import { EMPTY_AGE_RANGE, parseAgeRange } from '../../lib/ageRange';
+import type { AgeRange } from '../../lib/ageRange';
 import { buildNominationLabel } from '../../lib/nominationNaming';
 import { formatDuration, parseDuration, pluralExits } from '../../lib/duration';
 import type { ExitMode } from '../../lib/categoryTemplates';
@@ -31,7 +35,11 @@ interface SpecialCategoryModalProps {
   onCategoryCreated: (category: Category) => void;
   onSubmit: (nominations: SpecialNominationDraft[]) => void;
   submitLabel?: string;
-  createCategoryValue?: (name: string, type: CategoryType) => Promise<Category>;
+  createCategoryValue?: (
+    name: string,
+    type: CategoryType,
+    range?: AgeRange,
+  ) => Promise<Category>;
 }
 
 const AXES: CategoryType[] = ['age', 'level'];
@@ -63,6 +71,7 @@ export default function SpecialCategoryModal({
   const [price, setPrice] = useState('');
   const [limits, setLimits] = useState<Record<string, string>>({});
   const [inputs, setInputs] = useState<Record<string, string>>({});
+  const [ageRange, setAgeRange] = useState(EMPTY_AGE_RANGE);
   const [addingType, setAddingType] = useState<CategoryType | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,6 +83,7 @@ export default function SpecialCategoryModal({
     setPrice('');
     setLimits({});
     setInputs({});
+    setAgeRange(EMPTY_AGE_RANGE);
     setError(null);
   };
 
@@ -83,10 +93,10 @@ export default function SpecialCategoryModal({
   };
 
   const valuesOf = (type: CategoryType): Category[] =>
-    type === 'discipline' ? programs : (picked[type] ?? []);
+    type === 'style' ? programs : (picked[type] ?? []);
 
   const setValuesOf = (type: CategoryType, next: Category[]) => {
-    if (type === 'discipline') setPrograms(next);
+    if (type === 'style') setPrograms(next);
     else setPicked((prev) => ({ ...prev, [type]: next }));
   };
 
@@ -100,13 +110,30 @@ export default function SpecialCategoryModal({
       return;
     }
 
+    // Нове вікове значення несе межі — ту саму перевірку робить майстер.
+    let range: AgeRange | undefined;
+    if (type === AGE_CATEGORY_TYPE) {
+      const known = categories.find(
+        (c) => c.type === type && c.name.trim().toLowerCase() === raw.toLowerCase(),
+      );
+      if (!known) {
+        const parsed = parseAgeRange(ageRange);
+        if (!parsed.ok) {
+          setError(parsed.message);
+          return;
+        }
+        range = parsed.range;
+      }
+    }
+
     setAddingType(type);
     setError(null);
     try {
-      const category = await createCategoryValue(raw, type);
+      const category = await createCategoryValue(raw, type, range);
       setValuesOf(type, [...current, category]);
       onCategoryCreated(category);
       setInputs((prev) => ({ ...prev, [type]: '' }));
+      if (type === AGE_CATEGORY_TYPE) setAgeRange(EMPTY_AGE_RANGE);
     } catch (err) {
       setError(
         err instanceof CategoryApiError
@@ -225,6 +252,9 @@ export default function SpecialCategoryModal({
             {current.map((category) => (
               <span className={styles.chip} key={category.id}>
                 {category.name}
+                {category.ageFrom !== null &&
+                  category.ageTo !== null &&
+                  ` (${category.ageFrom}–${category.ageTo})`}
                 <button
                   type="button"
                   aria-label={`Прибрати ${category.name}`}
@@ -251,6 +281,13 @@ export default function SpecialCategoryModal({
               }
             }}
           />
+          {type === AGE_CATEGORY_TYPE && (
+            <AgeRangeFields
+              value={ageRange}
+              onChange={setAgeRange}
+              inputClassName={styles.ageBound}
+            />
+          )}
           <datalist id={`special-suggestions-${type}`}>
             {options.map((option) => (
               <option key={option.id} value={option.name} />
@@ -287,7 +324,7 @@ export default function SpecialCategoryModal({
           />
         </div>
 
-        {renderPicker('discipline', 'програми, які входять у категорію')}
+        {renderPicker('style', 'програми, які входять у категорію')}
 
         <fieldset className={styles.exit}>
           <legend>Скільки разів учасник виходить на сцену</legend>

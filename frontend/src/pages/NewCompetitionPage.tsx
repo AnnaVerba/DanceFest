@@ -159,7 +159,7 @@ export default function NewCompetitionPage() {
           detail.nominations.map((n) => ({
             signature: savedSignatureOf(n),
             name: n.name,
-            price: n.price === null ? '' : String(n.price),
+            price: '',
             allowsImprovisation: n.allowsImprovisation,
             categoryIds: n.categoryIds,
             isSpecial: n.isSpecial,
@@ -383,7 +383,10 @@ export default function NewCompetitionPage() {
     try {
       const saved =
         nominationSource === 'custom'
-          ? await resolveDraftCategories(nominations)
+          ? await resolveDraftCategories(
+              nominations,
+              Object.values(axes ?? {}).flat(),
+            )
           : nominations;
 
       if (nominationSource === 'custom') {

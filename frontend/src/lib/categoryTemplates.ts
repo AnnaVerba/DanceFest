@@ -5,7 +5,6 @@ export type ExitMode = 'single' | 'per_program';
 export interface TemplateNomination {
   id: string;
   name: string;
-  price: number | null;
   allowsImprovisation: boolean;
   categoryIds: string[];
   isSpecial: boolean;
@@ -15,7 +14,6 @@ export interface TemplateNomination {
 
 export interface TemplateNominationInput {
   name: string;
-  price?: number;
   allowsImprovisation?: boolean;
   categoryIds?: string[];
   isSpecial?: boolean;
