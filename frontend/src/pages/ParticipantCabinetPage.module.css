@@ -1,0 +1,148 @@
+.page {
+  min-height: 100vh;
+  background: var(--g-field);
+  color: var(--g-ink);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Arial, sans-serif;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.page *,
+.page *::before,
+.page *::after {
+  box-sizing: border-box;
+}
+
+.main {
+  padding: 32px 0 64px;
+}
+
+.wrap {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  margin: 4px 0 24px;
+  font-size: 13px;
+  color: var(--g-muted);
+}
+
+.card {
+  background: var(--g-surface);
+  border: 1px solid var(--g-line);
+  border-radius: 14px;
+  padding: 22px;
+  margin-bottom: 20px;
+}
+
+.cardLabel {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--g-accent);
+  margin-bottom: 14px;
+}
+
+.note {
+  margin: 0;
+  color: var(--g-muted);
+  font-size: 13px;
+}
+
+.openList {
+  display: grid;
+  gap: 10px;
+}
+
+.openRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--g-field);
+  border: 1px solid var(--g-line);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.openInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.openName {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.openMeta {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--g-muted);
+}
+
+.applyButton {
+  flex: none;
+  padding: 9px 16px;
+  border-radius: 10px;
+  background: var(--g-accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.applyButton:hover {
+  background: var(--g-accent-hover);
+}
+
+.tableCard {
+  background: var(--g-surface);
+  border: 1px solid var(--g-line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.tableHead {
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--g-line);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--g-accent);
+}
+
+.empty {
+  margin: 0;
+  padding: 24px;
+  text-align: center;
+  color: var(--g-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 680px) {
+  .wrap {
+    padding: 0 16px;
+  }
+
+  .openRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .applyButton {
+    text-align: center;
+  }
+}
