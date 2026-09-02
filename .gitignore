@@ -13,3 +13,4 @@ backend/dist/
 graphify-out/
 
 .claude/
+.mcp.json
