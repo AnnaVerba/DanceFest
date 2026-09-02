@@ -47,10 +47,11 @@ export default function CategoryTemplateFormPage() {
           detail.nominations.map((n) => ({
             signature: savedSignatureOf(n),
             name: n.name,
-            price: n.price === null ? '' : String(n.price),
+            price: '',
             allowsImprovisation: n.allowsImprovisation,
             categoryIds: n.categoryIds,
             isSpecial: n.isSpecial,
+            specialName: n.specialName ?? undefined,
             exitMode: n.exitMode,
           })),
         );
@@ -103,7 +104,10 @@ export default function CategoryTemplateFormPage() {
 
     setSubmitting(true);
     try {
-      const resolved = await resolveDraftCategories(nominations);
+      const resolved = await resolveDraftCategories(
+        nominations,
+        Object.values(axes ?? {}).flat(),
+      );
       await save(resolved);
     } catch (err) {
       setSubmitError(
@@ -123,10 +127,10 @@ export default function CategoryTemplateFormPage() {
       isPublic,
       nominations: nominations.map((n, index) => ({
         name: n.name.trim(),
-        price: n.price.trim() === '' ? undefined : Number(n.price),
         allowsImprovisation: n.allowsImprovisation,
         categoryIds: n.categoryIds,
         isSpecial: n.isSpecial,
+        specialName: n.specialName,
         exitMode: n.exitMode,
         sortOrder: index,
       })),

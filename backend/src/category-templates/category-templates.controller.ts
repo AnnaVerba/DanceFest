@@ -8,11 +8,13 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -36,13 +38,22 @@ export class CategoryTemplatesController {
   @ApiOperation({
     summary: 'List category templates',
     description:
-      "Returns every public template plus the caller's own private ones, each with its nomination count.",
+      "Returns every public template plus the caller's own private ones, each with its " +
+      'nomination count, its criteria grouped by axis, and its special nominations.',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Case-insensitive substring of the template name.',
   })
   @ApiResponse({ status: 200, description: 'Templates returned.' })
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
   @Get()
-  list(@CurrentUser() admin: AuthenticatedAdmin) {
-    return this.categoryTemplatesService.list(admin.id);
+  list(
+    @CurrentUser() admin: AuthenticatedAdmin,
+    @Query('search') search?: string,
+  ) {
+    return this.categoryTemplatesService.list(admin.id, search);
   }
 
   @ApiOperation({
@@ -127,6 +138,11 @@ export class CategoryTemplatesController {
   @ApiResponse({
     status: 404,
     description: 'No template exists with the given id.',
+  })
+  @ApiResponse({
+    status: 409,
+    description:
+      'TEMPLATE_IN_USE — a competition already has nominations generated from this template.',
   })
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
