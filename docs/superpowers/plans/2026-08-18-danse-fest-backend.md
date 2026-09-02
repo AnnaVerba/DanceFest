@@ -76,35 +76,36 @@
 
 ## Фаза 2 — Довідник номінацій
 
-### BE-4 (нове): Axis catalogue with age ranges and lineup axis
+### BE-4 (нове, скорочено): Age ranges on categories and the lineup axis
 
-**Table `axes`** (осі довідника) should contain:
-{id, code, name, sortOrder}
+**Свідоме відхилення від початкового формулювання BE-4.** Замість чотирьох нових таблиць (`axes`, `axis_values`, `nomination_templates`, `template_axis_values`) розширюється наявна `categories`, а `category_templates` / `template_nominations` лишаються як є.
 
-- `code` — `ENUM('age','style','level','lineup')`: Вік, Стиль, Ліга, Склад.
+Чому:
+- `axes` — це рівно чотири фіксовані рядки з підписом і порядком, тобто enum із декорацією. Підписи й порядок живуть у файлі констант, як вимагають глобальні обмеження, а не в таблиці.
+- `category_templates` / `template_nominations` не зламані: працюють, мають форк (`forkedFromId`), публічність і бекфіл `20260822090400`. Перейменування на `nomination_templates` не змінює поведінки, зате переписує ~2 200 рядків фронту навколо `NominationSetBuilder`.
+- Шаблон лишається **розгорнутим** (`template_nominations` = готові комбінації), а не набором вибраних значень. Бекфіл `20260822090400` уже зробив цей перехід один раз — розвертати його немає причини.
+- Єдина справжня суперечність, яку треба усунути, — **ціни в шаблоні**. Їх забираємо: ціна приходить при генерації (BE-5).
 
-**Table `axis_values`** should contain:
-{id, axisId, label, ageFrom, ageTo, sortOrder}
+**Зміни в `categories`:**
+- `ageFrom`, `ageTo` — INTEGER, null для всіх типів, крім `age`; для `age` — not null. Єдине джерело для `resolveAgeCategory`.
+- `sortOrder` — INTEGER, not null, default `0`.
+- Значення enum `type`: `discipline` → `style`, `participants_count` → `lineup`, щоб ключі `parts` (BE-5) і коди осей збігались.
+- `direction` лишається в enum і не чіпається. Він не використовується жодним екраном, але бекфіл `20260822090400` мапив на нього вісь «Напрямок», тож рядки могли лишитись. Прибирати його — окрема задача з перевіркою даних, не частина цієї.
 
-- `ageFrom`, `ageTo` — INTEGER, null для всіх осей, крім `age`; для `age` — not null.
+**Зміни в `template_nominations`:** колонка `price` видаляється — ціна приходить при генерації (BE-5).
 
-**Table `nomination_templates`** should contain: {id, name, ownerId}
-
-**Table `template_axis_values`** should contain: {id, templateId, axisValueId} — unique `(templateId, axisValueId)`.
-
-**Table `template_specials`** should contain: {id, templateId, name}
-
-**Endpoints:** `GET /templates?q`, `GET /templates/:id`, `POST /templates`, `PUT /templates/:id`, `DELETE /templates/:id` (`409 TEMPLATE_IN_USE`).
+**Осі як константи** (окремий файл, без БД): коди `age | style | level | lineup`, їхні підписи й порядок показу.
 
 **Правила:**
-- У шаблоні немає цін — жодної колонки. Ціни живуть у конкурсі (BE-5).
 - Валідація осі `age`: `ageFrom <= ageTo`, діапазони значень одного шаблону не перетинаються → `400` з переліком конфліктних пар. Без цього автовизначення категорії неоднозначне.
 - Вісь `lineup` завжди отримує чотири значення за замовчуванням: Соло, Дуо, Тріо, Групові.
-- Чиста функція `resolveAgeCategory(birthDate, templateAgeValues, referenceDate) → axisValue | null`: повний вік на `referenceDate` (дату початку конкурсу, не «сьогодні»), потім перше значення, де `ageFrom <= age <= ageTo`. Немає збігу → `null` і повідомлення `'Вік учасника не підпадає під жодну вікову категорію цього конкурсу'`.
+- Чиста функція `resolveAgeCategory(birthDate, ageCategories, referenceDate) → Category | null`: повний вік на `referenceDate` (дату початку конкурсу, не «сьогодні»), потім перше значення, де `ageFrom <= age <= ageTo`. Немає збігу → `null` і повідомлення `'Вік учасника не підпадає під жодну вікову категорію цього конкурсу'`.
 
 **Готово, коли:**
 - [ ] Шаблон із діапазонами 9–12 і 12–15 → `400` про перетин.
 - [ ] Дитина 2018 р. н. на конкурс 2026-09-20 отримує категорію 8 років, а не 7.
+- [ ] `resolveAgeCategory` без збігу віддає `null`, не кидає.
+- [ ] Наявні категорії типів `discipline` і `participants_count` після міграції мають типи `style` і `lineup`, і жодна не загублена.
 - [ ] Видалення використаного шаблону → `409`.
 
 ### BE-5 (нове): Generate contest nominations with prices
@@ -118,10 +119,12 @@
 `POST /competitions/:id/nominations/generate`
 ```ts
 { templateId,
-  selected: { [axisCode]: axisValueId[] },
+  selected: { [axisCode]: categoryId[] },   // axisCode = age | style | level | lineup
   prices: { "level:<id>": 450, "lineup:<id>": 700 } }
 → { nominations: [{ id, label, parts, price }] }
 ```
+
+`selected` посилається на `categories.id` — окремих `axis_values` немає (BE-4, скорочено). Генерація переїжджає з клієнта на сервер: зараз декартів добуток рахує `nominationSet.ts` і шле `bulkCreate`.
 
 - `PUT /competitions/:id/nominations` — ручні правки: назва, ціна, майданчик, порядок.
 - `POST /competitions/:id/nominations/specials { name, price, programIds?, exitMode? }`
@@ -130,13 +133,13 @@
 **Правила:**
 - Генерація — декартів добуток вибраних значень. Порядок частин у назві: Вік · Стиль · Ліга · Склад, роздільник `·`, порожні частини відкидаються.
 - Ціни приходять разом із генерацією, до її виконання. Чиста функція `resolvePrice(parts, priceMap)`: ціна за `lineup` перемагає ціну за `level`; немає ні тієї, ні тієї → `null`.
-- Організатор не може створювати нові значення осей — `selected` приймає лише `axisValueId`, що входять у `template_axis_values` цього шаблону, інакше `400 VALUE_NOT_IN_TEMPLATE`.
+- Організатор не може створювати нові значення осей — `selected` приймає лише `categoryId`, що зустрічаються в `template_nominations.categoryIds` цього шаблону, інакше `400 VALUE_NOT_IN_TEMPLATE`.
 - Повторна генерація не дублює: наявні номінації з тим самим `parts` оновлюють ціну, нові додаються, зайві без заявок видаляються, зайві із заявками лишаються з попередженням у відповіді.
 
 **Готово, коли:**
 - [ ] 2 віки × 3 стилі × 2 ліги × 4 склади дають 48 номінацій із цінами.
 - [ ] Номінація «Дуо» у лізі Debut отримує ціну складу, не ліги.
-- [ ] `axisValueId` поза шаблоном → `400`.
+- [ ] `categoryId` поза шаблоном → `400 VALUE_NOT_IN_TEMPLATE`.
 - [ ] Повторна генерація зі зміненими цінами не створює других копій.
 
 ---

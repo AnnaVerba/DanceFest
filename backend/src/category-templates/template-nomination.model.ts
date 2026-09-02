@@ -25,9 +25,6 @@ export class TemplateNomination extends Model<TemplateNomination> {
   @Column({ type: DataType.STRING, allowNull: false })
   declare name: string;
 
-  @Column({ type: DataType.DECIMAL(10, 2), allowNull: true })
-  declare price: number | null;
-
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   declare allowsImprovisation: boolean;
 
@@ -40,6 +37,10 @@ export class TemplateNomination extends Model<TemplateNomination> {
 
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   declare isSpecial: boolean;
+
+  // Голе ім'я спецкатегорії, без осей і програми. `name` несе повну мітку.
+  @Column({ type: DataType.STRING, allowNull: true })
+  declare specialName: string | null;
 
   @Column({
     type: DataType.ENUM('single', 'per_program'),

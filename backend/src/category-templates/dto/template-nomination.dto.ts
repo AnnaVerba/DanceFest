@@ -5,7 +5,6 @@ import {
   IsIn,
   IsInt,
   IsNotEmpty,
-  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -19,12 +18,6 @@ export class TemplateNominationDto {
   @IsString()
   @IsNotEmpty()
   name: string;
-
-  @ApiPropertyOptional({ example: 350 })
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  price?: number;
 
   @ApiPropertyOptional({
     example: false,
@@ -48,6 +41,16 @@ export class TemplateNominationDto {
   @IsOptional()
   @IsBoolean()
   isSpecial?: boolean;
+
+  @ApiPropertyOptional({
+    example: 'Корона Шехеризади',
+    description:
+      'Bare name of the special category, without axes. Only meaningful when isSpecial.',
+  })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  specialName?: string;
 
   @ApiPropertyOptional({
     example: 'single',

@@ -73,7 +73,9 @@ export class JudgesService {
       } as CreationAttributes<Judge>);
     } catch (err) {
       if (err instanceof UniqueConstraintError) {
-        throw new ConflictException('Суддя з таким email вже доданий до конкурсу');
+        throw new ConflictException(
+          'Суддя з таким email вже доданий до конкурсу',
+        );
       }
       throw err;
     }

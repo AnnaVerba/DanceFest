@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -8,6 +9,19 @@ import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes, Op } from 'sequelize';
 import { Admin } from '../admins/admin.model';
 import { CategoriesService } from '../categories/categories.service';
+import { AGE_CATEGORY_TYPE } from '../categories/category.model';
+import type { Category } from '../categories/category.model';
+import {
+  CATEGORY_TYPE_LABELS,
+  CRITERIA_ORDER,
+} from '../categories/category-type-labels';
+import { findAgeRangeOverlaps } from '../categories/resolve-age-category';
+import { Nomination } from '../nominations/nomination.model';
+import {
+  AGE_RANGES_OVERLAP_MESSAGE,
+  TEMPLATE_IN_USE,
+  TEMPLATE_IN_USE_MESSAGE,
+} from './template-error-codes';
 import { CategoryTemplate } from './category-template.model';
 import { TemplateNomination } from './template-nomination.model';
 import { CreateCategoryTemplateDto } from './dto/create-category-template.dto';
@@ -26,22 +40,55 @@ export class CategoryTemplatesService {
     private readonly templateModel: typeof CategoryTemplate,
     @InjectModel(TemplateNomination)
     private readonly nominationModel: typeof TemplateNomination,
+    @InjectModel(Nomination)
+    private readonly contestNominationModel: typeof Nomination,
     private readonly categoriesService: CategoriesService,
   ) {}
 
-  async list(requesterId: string) {
+  async list(requesterId: string, search?: string) {
+    const visible = {
+      [Op.or]: [{ isPublic: true }, { authorId: requesterId }],
+    };
+    const trimmed = search?.trim();
+
     const templates = await this.templateModel.findAll({
-      where: { [Op.or]: [{ isPublic: true }, { authorId: requesterId }] },
+      where: trimmed
+        ? { [Op.and]: [visible, { name: { [Op.iLike]: `%${trimmed}%` } }] }
+        : visible,
       include: AUTHOR_INCLUDE,
       order: [['createdAt', 'DESC']],
     });
 
-    const counts = await this.countsByTemplate(templates.map((t) => t.id));
+    if (templates.length === 0) return [];
 
-    return templates.map((t) => ({
-      ...this.toDto(t),
-      nominationsCount: counts.get(t.id) ?? 0,
-    }));
+    const templateIds = templates.map((t) => t.id);
+    const nominations = await this.nominationModel.findAll({
+      where: { templateId: { [Op.in]: templateIds } },
+      order: [
+        ['sortOrder', 'ASC'],
+        ['createdAt', 'ASC'],
+      ],
+    });
+    // Категорії всіх шаблонів вантажаться одним запитом: інакше на списку з
+    // тридцяти шаблонів виходить тридцять звернень до бази.
+    const categories = await this.loadCategoriesOf(nominations);
+
+    const byTemplate = new Map<string, TemplateNomination[]>();
+    for (const nomination of nominations) {
+      const bucket = byTemplate.get(nomination.templateId) ?? [];
+      bucket.push(nomination);
+      byTemplate.set(nomination.templateId, bucket);
+    }
+
+    return templates.map((t) => {
+      const own = byTemplate.get(t.id) ?? [];
+      return {
+        ...this.toDto(t),
+        nominationsCount: own.length,
+        criteria: this.buildCriteria(own, categories),
+        specials: this.buildSpecials(own),
+      };
+    });
   }
 
   async findOne(templateId: string, requesterId: string) {
@@ -54,15 +101,20 @@ export class CategoryTemplatesService {
       ],
     });
 
+    const categories = await this.loadCategoriesOf(nominations);
+
     return {
       ...this.toDto(template),
       nominationsCount: nominations.length,
+      criteria: this.buildCriteria(nominations, categories),
+      specials: this.buildSpecials(nominations),
       nominations: nominations.map((n) => this.nominationToDto(n)),
     };
   }
 
   async create(requesterId: string, dto: CreateCategoryTemplateDto) {
     await this.assertCategoriesExist(dto.nominations);
+    await this.assertAgeRangesDoNotOverlap(dto.nominations);
 
     const template = await this.templateModel.create({
       name: dto.name.trim(),
@@ -103,6 +155,7 @@ export class CategoryTemplatesService {
         throw new BadRequestException('Шаблон не може бути порожнім');
       }
       await this.assertCategoriesExist(dto.nominations);
+      await this.assertAgeRangesDoNotOverlap(dto.nominations);
       await this.replaceNominations(templateId, dto.nominations);
     }
 
@@ -139,15 +192,24 @@ export class CategoryTemplatesService {
       ],
     });
 
+    // Копія проходить ту саму перевірку, що й ручне збереження: шаблони,
+    // створені до появи перевірки, інакше форкали б перетин далі.
+    await this.assertAgeRangesDoNotOverlap(
+      sourceNominations.map((n) => ({
+        name: n.name,
+        categoryIds: n.categoryIds,
+      })),
+    );
+
     if (sourceNominations.length > 0) {
       await this.nominationModel.bulkCreate(
         sourceNominations.map((n, index) => ({
           templateId: copy.id,
           name: n.name,
-          price: n.price,
           allowsImprovisation: n.allowsImprovisation,
           categoryIds: n.categoryIds,
           isSpecial: n.isSpecial,
+          specialName: n.specialName,
           exitMode: n.exitMode,
           sortOrder: n.sortOrder ?? index,
         })) as CreationAttributes<TemplateNomination>[],
@@ -165,6 +227,18 @@ export class CategoryTemplatesService {
     if (template.authorId !== requesterId) {
       throw new ForbiddenException('Видалити шаблон може лише його автор');
     }
+
+    const usedBy = await this.contestNominationModel.count({
+      where: { templateId },
+    });
+    if (usedBy > 0) {
+      throw new ConflictException({
+        code: TEMPLATE_IN_USE,
+        message: TEMPLATE_IN_USE_MESSAGE,
+        competitionNominationsCount: usedBy,
+      });
+    }
+
     await template.destroy();
   }
 
@@ -190,14 +264,80 @@ export class CategoryTemplatesService {
       nominations.map((n, index) => ({
         templateId,
         name: n.name.trim(),
-        price: n.price ?? null,
         allowsImprovisation: n.allowsImprovisation ?? false,
         categoryIds: n.categoryIds ?? [],
         isSpecial: n.isSpecial ?? false,
+        specialName: n.specialName?.trim() || null,
         exitMode: n.exitMode ?? 'single',
         sortOrder: n.sortOrder ?? index,
       })) as CreationAttributes<TemplateNomination>[],
     );
+  }
+
+  /**
+   * Перетин діапазонів робить автовизначення вікової категорії неоднозначним:
+   * дитина 12 років підпадає і під 9–12, і під 12–15, а переможе та, що
+   * трапиться першою. Тому шаблон із перетином не зберігається взагалі.
+   */
+  private async assertAgeRangesDoNotOverlap(
+    nominations: TemplateNominationDto[],
+  ): Promise<void> {
+    const ids = [...new Set(nominations.flatMap((n) => n.categoryIds ?? []))];
+    const categories = await this.categoriesService.findByIds(ids);
+    const ageValues = categories.filter((c) => c.type === AGE_CATEGORY_TYPE);
+
+    const overlaps = findAgeRangeOverlaps(ageValues);
+    if (overlaps.length > 0) {
+      const pairs = overlaps.map(
+        ({ first, second }) =>
+          `«${first.name}» (${first.ageFrom}–${first.ageTo}) і «${second.name}» (${second.ageFrom}–${second.ageTo})`,
+      );
+      throw new BadRequestException(
+        `${AGE_RANGES_OVERLAP_MESSAGE}: ${pairs.join('; ')}`,
+      );
+    }
+  }
+
+  private async loadCategoriesOf(
+    nominations: TemplateNomination[],
+  ): Promise<Category[]> {
+    const ids = [...new Set(nominations.flatMap((n) => n.categoryIds ?? []))];
+    return this.categoriesService.findByIds(ids);
+  }
+
+  /**
+   * Критерії — це не окрема таблиця, а похідне: категорії, на які посилаються
+   * номінації шаблону, згруповані за віссю.
+   */
+  private buildCriteria(
+    nominations: TemplateNomination[],
+    categories: Category[],
+  ) {
+    const used = new Set(nominations.flatMap((n) => n.categoryIds ?? []));
+    const mine = categories.filter((c) => used.has(c.id));
+
+    return CRITERIA_ORDER.map((type) => ({
+      id: type,
+      name: CATEGORY_TYPE_LABELS[type],
+      values: mine
+        .filter((c) => c.type === type)
+        .map((c) => ({
+          id: c.id,
+          label: c.name,
+          ageFrom: c.ageFrom,
+          ageTo: c.ageTo,
+        })),
+    })).filter((criterion) => criterion.values.length > 0);
+  }
+
+  private buildSpecials(nominations: TemplateNomination[]) {
+    const names = new Set<string>();
+    for (const nomination of nominations) {
+      if (nomination.isSpecial && nomination.specialName) {
+        names.add(nomination.specialName);
+      }
+    }
+    return [...names].map((name) => ({ name }));
   }
 
   private async assertCategoriesExist(
@@ -213,23 +353,6 @@ export class CategoryTemplatesService {
         `Невідомі категорії: ${missing.join(', ')}`,
       );
     }
-  }
-
-  private async countsByTemplate(
-    templateIds: string[],
-  ): Promise<Map<string, number>> {
-    if (templateIds.length === 0) return new Map();
-
-    const rows = await this.nominationModel.findAll({
-      where: { templateId: { [Op.in]: templateIds } },
-      attributes: ['templateId'],
-    });
-
-    const counts = new Map<string, number>();
-    for (const row of rows) {
-      counts.set(row.templateId, (counts.get(row.templateId) ?? 0) + 1);
-    }
-    return counts;
   }
 
   private toDto(template: CategoryTemplate) {
@@ -250,10 +373,10 @@ export class CategoryTemplatesService {
     return {
       id: nomination.id,
       name: nomination.name,
-      price: nomination.price === null ? null : Number(nomination.price),
       allowsImprovisation: nomination.allowsImprovisation,
       categoryIds: nomination.categoryIds,
       isSpecial: nomination.isSpecial,
+      specialName: nomination.specialName,
       exitMode: nomination.exitMode,
       sortOrder: nomination.sortOrder,
     };

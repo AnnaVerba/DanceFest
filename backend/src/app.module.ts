@@ -16,7 +16,6 @@ import { CompetitionRulesModule } from './competition-rules/competition-rules.mo
 import { MailModule } from './mail/mail.module';
 import { UploadsModule } from './uploads/uploads.module';
 
-
 @Module({
   imports: [
     ConfigModule.forRoot({

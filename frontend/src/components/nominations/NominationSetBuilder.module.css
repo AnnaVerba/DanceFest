@@ -83,6 +83,31 @@
   min-width: 0;
 }
 
+/* Межі віку — вузькі поля, щоб назва значення лишалась головною. */
+.axisAdd input.ageBound {
+  flex: 0 0 90px;
+}
+
+/* Ціни за значеннями осі: склад і ліга. Ціна складу перебиває ціну ліги. */
+.axisPrices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.axisPrice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.axisPrice input {
+  width: 96px;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;
