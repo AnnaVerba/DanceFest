@@ -1,5 +1,16 @@
 import { API_BASE_URL } from './api';
+import { ROLE } from './roles';
 import type { Role } from './roles';
+import {
+  SESSION_STORAGE_KEY,
+  UNEXPECTED_SERVER_RESPONSE_MESSAGE,
+  CANNOT_CONNECT_TO_SERVER_MESSAGE,
+  LOGIN_FAILED_MESSAGE,
+  REGISTER_FAILED_MESSAGE,
+  NO_STORED_REFRESH_TOKEN_MESSAGE,
+  SESSION_EXPIRED_MESSAGE,
+} from './auth.constants';
+import { HTTP_STATUS_UNAUTHORIZED } from './api.constants';
 
 export interface ParticipantProfile {
   id: string;
@@ -72,9 +83,9 @@ function extractErrorMessage(payload: ErrorPayload | null, fallback: string) {
 }
 
 function toSession(role: Role, raw: RawAuthResponse): Session {
-  const profile = role === 'ADMIN' ? raw.admin : raw.user;
+  const profile = role === ROLE.ADMIN ? raw.admin : raw.user;
   if (!profile) {
-    throw new AuthError('Сервер повернув неочікувану відповідь');
+    throw new AuthError(UNEXPECTED_SERVER_RESPONSE_MESSAGE);
   }
   return {
     role,
@@ -97,7 +108,7 @@ async function postAuth(
       body: JSON.stringify(body),
     });
   } catch {
-    throw new AuthError("Не вдалося з'єднатися з сервером");
+    throw new AuthError(CANNOT_CONNECT_TO_SERVER_MESSAGE);
   }
 
   const payload = (await response.json().catch(() => null)) as
@@ -119,7 +130,7 @@ export async function login(
   const raw = await postAuth(
     '/auth/login',
     { email, password, role },
-    'Не вдалося увійти. Перевірте email, пароль та роль.',
+    LOGIN_FAILED_MESSAGE,
   );
   return toSession(role, raw);
 }
@@ -128,19 +139,17 @@ export async function register(payload: RegisterPayload): Promise<Session> {
   const raw = await postAuth(
     '/auth/register',
     payload,
-    'Не вдалося зареєструватися. Спробуйте ще раз.',
+    REGISTER_FAILED_MESSAGE,
   );
   return toSession(payload.role, raw);
 }
 
-const SESSION_KEY = 'dansefest.session';
-
 export function saveSession(session: Session) {
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
 }
 
 export function getSession(): Session | null {
-  const raw = localStorage.getItem(SESSION_KEY);
+  const raw = localStorage.getItem(SESSION_STORAGE_KEY);
   return raw ? (JSON.parse(raw) as Session) : null;
 }
 
@@ -152,7 +161,7 @@ export function getToken(): string | null {
 // which only ever run in an ADMIN session.
 export function getStoredAdmin(): AdminProfile | null {
   const session = getSession();
-  return session?.role === 'ADMIN' ? (session.profile as AdminProfile) : null;
+  return session?.role === ROLE.ADMIN ? (session.profile as AdminProfile) : null;
 }
 
 function getRefreshToken(): string | null {
@@ -160,14 +169,14 @@ function getRefreshToken(): string | null {
 }
 
 export function clearSession() {
-  localStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(SESSION_STORAGE_KEY);
 }
 
 export async function refreshSession(): Promise<Session> {
   const current = getSession();
   const refreshToken = current?.refreshToken;
   if (!current || !refreshToken) {
-    throw new AuthError('Немає збереженого refresh-токена');
+    throw new AuthError(NO_STORED_REFRESH_TOKEN_MESSAGE);
   }
 
   let response: Response;
@@ -178,7 +187,7 @@ export async function refreshSession(): Promise<Session> {
       body: JSON.stringify({ refreshToken }),
     });
   } catch {
-    throw new AuthError("Не вдалося з'єднатися з сервером");
+    throw new AuthError(CANNOT_CONNECT_TO_SERVER_MESSAGE);
   }
 
   const payload = (await response.json().catch(() => null)) as
@@ -186,7 +195,7 @@ export async function refreshSession(): Promise<Session> {
     | null;
   if (!response.ok) {
     clearSession();
-    throw new AuthError(extractErrorMessage(payload, 'Сесія закінчилась, увійдіть знову.'));
+    throw new AuthError(extractErrorMessage(payload, SESSION_EXPIRED_MESSAGE));
   }
 
   const session = toSession(current.role, payload as RawAuthResponse);
@@ -226,11 +235,11 @@ export async function authorizedFetch(
     });
 
   const first = await send(getToken());
-  if (first.status !== 401) return first;
+  if (first.status !== HTTP_STATUS_UNAUTHORIZED) return first;
 
   if (!getRefreshToken()) {
     redirectToLogin();
-    throw new AuthError('Сесія закінчилась, увійдіть знову.');
+    throw new AuthError(SESSION_EXPIRED_MESSAGE);
   }
 
   try {
@@ -238,6 +247,6 @@ export async function authorizedFetch(
     return await send(accessToken);
   } catch {
     redirectToLogin();
-    throw new AuthError('Сесія закінчилась, увійдіть знову.');
+    throw new AuthError(SESSION_EXPIRED_MESSAGE);
   }
 }

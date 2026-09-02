@@ -33,10 +33,12 @@ module.exports = {
         onDelete: 'CASCADE',
         onUpdate: 'CASCADE',
       },
+      // Ліга — це категорія осі 'level' (categories.type), окремої таблиці
+      // для ліг немає.
       leagueId: {
         type: DataTypes.UUID,
         allowNull: false,
-        references: { model: 'leagues', key: 'id' },
+        references: { model: 'categories', key: 'id' },
         onDelete: 'RESTRICT',
         onUpdate: 'CASCADE',
       },

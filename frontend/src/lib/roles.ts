@@ -1,4 +1,11 @@
-export type Role = 'PARTICIPANT' | 'COACH' | 'ORGANIZER' | 'ADMIN';
+export const ROLE = {
+  PARTICIPANT: 'PARTICIPANT',
+  COACH: 'COACH',
+  ORGANIZER: 'ORGANIZER',
+  ADMIN: 'ADMIN',
+} as const;
+
+export type Role = (typeof ROLE)[keyof typeof ROLE];
 
 export const ROLE_LABELS: Record<Role, string> = {
   PARTICIPANT: 'Учасник',

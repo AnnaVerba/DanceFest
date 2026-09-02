@@ -1,3 +1,10 @@
+import {
+  AGE_RANGE_REQUIRED_MESSAGE,
+  AGE_RANGE_MUST_BE_INTEGERS_MESSAGE,
+  AGE_RANGE_MUST_NOT_BE_NEGATIVE_MESSAGE,
+  AGE_RANGE_FROM_EXCEEDS_TO_MESSAGE,
+} from './ageRange.constants';
+
 export interface AgeRangeDraft {
   from: string;
   to: string;
@@ -23,20 +30,20 @@ export type AgeRangeResult =
  */
 export function parseAgeRange(draft: AgeRangeDraft): AgeRangeResult {
   if (draft.from.trim() === '' || draft.to.trim() === '') {
-    return { ok: false, message: 'Вкажіть межі віку — від і до.' };
+    return { ok: false, message: AGE_RANGE_REQUIRED_MESSAGE };
   }
 
   const ageFrom = Number(draft.from);
   const ageTo = Number(draft.to);
 
   if (!Number.isInteger(ageFrom) || !Number.isInteger(ageTo)) {
-    return { ok: false, message: 'Межі віку мають бути цілими числами.' };
+    return { ok: false, message: AGE_RANGE_MUST_BE_INTEGERS_MESSAGE };
   }
   if (ageFrom < MIN_AGE_BOUND || ageTo < MIN_AGE_BOUND) {
-    return { ok: false, message: 'Межі віку не можуть бути відʼємними.' };
+    return { ok: false, message: AGE_RANGE_MUST_NOT_BE_NEGATIVE_MESSAGE };
   }
   if (ageFrom > ageTo) {
-    return { ok: false, message: 'Нижня межа віку більша за верхню.' };
+    return { ok: false, message: AGE_RANGE_FROM_EXCEEDS_TO_MESSAGE };
   }
 
   return { ok: true, range: { ageFrom, ageTo } };

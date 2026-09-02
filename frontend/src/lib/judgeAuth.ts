@@ -1,4 +1,13 @@
 import { API_BASE_URL } from './api';
+import {
+  GENERIC_REQUEST_ERROR_MESSAGE,
+  HTTP_STATUS_UNAUTHORIZED,
+} from './api.constants';
+import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
+import {
+  JUDGE_TOKEN_STORAGE_KEY,
+  JUDGE_PROFILE_STORAGE_KEY,
+} from './judgeAuth.constants';
 
 export interface JudgeProfile {
   id: string;
@@ -39,21 +48,18 @@ function extractMessage(payload: ErrorPayload | null, fallback: string): string 
   return Array.isArray(payload.message) ? payload.message.join(', ') : payload.message;
 }
 
-const TOKEN_KEY = 'dansefest.judge.accessToken';
-const PROFILE_KEY = 'dansefest.judge.profile';
-
 export function getJudgeToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(JUDGE_TOKEN_STORAGE_KEY);
 }
 
 export function getStoredJudge(): JudgeProfile | null {
-  const raw = localStorage.getItem(PROFILE_KEY);
+  const raw = localStorage.getItem(JUDGE_PROFILE_STORAGE_KEY);
   return raw ? (JSON.parse(raw) as JudgeProfile) : null;
 }
 
 export function clearJudgeSession(): void {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(PROFILE_KEY);
+  localStorage.removeItem(JUDGE_TOKEN_STORAGE_KEY);
+  localStorage.removeItem(JUDGE_PROFILE_STORAGE_KEY);
 }
 
 function judgeAuthHeaders(): HeadersInit {
@@ -73,10 +79,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       },
     });
   } catch {
-    throw new JudgeAuthError("Не вдалося з'єднатися з сервером", 0);
+    throw new JudgeAuthError(CANNOT_CONNECT_TO_SERVER_MESSAGE, 0);
   }
 
-  if (response.status === 401) {
+  if (response.status === HTTP_STATUS_UNAUTHORIZED) {
     clearJudgeSession();
     if (typeof window !== 'undefined' && window.location.pathname !== '/judge') {
       window.location.assign('/judge');
@@ -87,7 +93,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     throw new JudgeAuthError(
-      extractMessage(payload, 'Щось пішло не так. Спробуйте ще раз.'),
+      extractMessage(payload, GENERIC_REQUEST_ERROR_MESSAGE),
       response.status,
     );
   }
@@ -100,8 +106,8 @@ export async function judgeLogin(email: string, password: string): Promise<Judge
     '/judges/login',
     { method: 'POST', body: JSON.stringify({ email, password }) },
   );
-  localStorage.setItem(TOKEN_KEY, data.accessToken);
-  localStorage.setItem(PROFILE_KEY, JSON.stringify(data.judge));
+  localStorage.setItem(JUDGE_TOKEN_STORAGE_KEY, data.accessToken);
+  localStorage.setItem(JUDGE_PROFILE_STORAGE_KEY, JSON.stringify(data.judge));
   return data.judge;
 }
 

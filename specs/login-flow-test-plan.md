@@ -28,7 +28,7 @@
 
 ## 2. Environment & Prerequisites
 
-- Frontend running at `http://localhost:5173`, backend at `http://localhost:4000`, both via docker-compose, DB and Redis available (refresh tokens are stored in Redis, see `RefreshTokenStoreService`).
+- Frontend running at `http://localhost:5173`, backend at `http://localhost:4000`, both via docker-compose, DB available (refresh tokens are stored in Postgres, see `RefreshTokenStoreService`).
 - Browser dev tools available (to inspect `localStorage`, Network tab, and to simulate corrupted storage / offline backend).
 - Ability to reset test data between runs (fresh DB or unique emails per test).
 
@@ -208,13 +208,13 @@ Same pattern, select "Адмін" tab, use seeded admin credentials (`mock@danse
 
 ### TC-LOGIN-210 — Refresh token reuse after it was already rotated
 **Preconditions:** Logged in; capture the original `refreshToken`.
-**Steps:** Trigger one successful `/auth/refresh` call (new token pair issued — note `AuthService.refresh` revokes the old `jti` in Redis and issues a new one). Then attempt to call `/auth/refresh` again using the **original** (now-rotated) refresh token.
+**Steps:** Trigger one successful `/auth/refresh` call (new token pair issued — note `AuthService.refresh` revokes the old `jti` in Postgres and issues a new one). Then attempt to call `/auth/refresh` again using the **original** (now-rotated) refresh token.
 **Expected result:** Backend's `refreshTokenStore.isActive()` check fails since the old `jti` was revoked → 401 "Refresh-токен відкликаний або вже використаний" (`REFRESH_TOKEN_REVOKED_MESSAGE`). This confirms refresh-token rotation/reuse detection works as designed.
 
 ### TC-LOGIN-211 — Logout does not appear to revoke the refresh token server-side
 **Preconditions:** Logged in as ADMIN (only role with a visible logout button, in `AdminHeader`).
 **Steps:** Click "Вийти" (logout). Before doing so, capture the current `refreshToken` value from `localStorage`. After logout, attempt to manually call `POST /auth/refresh` with that captured token (e.g., via curl/Postman).
-**Expected result — per code review, potential security gap:** `AdminHeader.handleLogout()` only calls `clearSession()` (clears local storage) and navigates to `/login` — it does **not** call the backend `POST /auth/logout` endpoint that would revoke the refresh token in Redis. If confirmed live, this means a captured refresh token remains valid and could be used to mint new access tokens even after the user "logs out" in the UI. **Flag this to the dev team as a security finding if confirmed.**
+**Expected result — per code review, potential security gap:** `AdminHeader.handleLogout()` only calls `clearSession()` (clears local storage) and navigates to `/login` — it does **not** call the backend `POST /auth/logout` endpoint that would revoke the refresh token in Postgres. If confirmed live, this means a captured refresh token remains valid and could be used to mint new access tokens even after the user "logs out" in the UI. **Flag this to the dev team as a security finding if confirmed.**
 
 ### TC-LOGIN-212 — No logout affordance for non-admin roles
 **Preconditions:** Logged in as PARTICIPANT, COACH, or ORGANIZER.

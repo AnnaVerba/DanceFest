@@ -12,6 +12,7 @@ import {
   resendInvitation,
   revokeInvitation,
 } from '../lib/team';
+import { VIEWER_ROLE } from '../lib/team';
 import type { TeamAdmin, TeamData, TeamInvitation } from '../lib/team';
 import styles from './TeamPage.module.css';
 
@@ -75,7 +76,7 @@ export default function TeamPage() {
     return <Navigate to="/" replace />;
   }
 
-  const isOwner = team?.viewerRole === 'owner';
+  const isOwner = team?.viewerRole === VIEWER_ROLE.OWNER;
   const admins = team?.admins ?? [];
   const invitations = team?.invitations ?? [];
   const isEmpty = admins.length === 0 && invitations.length === 0;

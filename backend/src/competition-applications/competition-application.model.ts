@@ -9,7 +9,7 @@ import {
 import { Competition } from '../competitions/competition.model';
 import { Participant } from '../participants/participant.model';
 import { Coach } from '../coaches/coach.model';
-import { League } from '../leagues/league.model';
+import { Category } from '../categories/category.model';
 import { ApplicationStatus } from './application-status.enum';
 
 @Table({ tableName: 'competition_applications' })
@@ -44,12 +44,14 @@ export class CompetitionApplication extends Model<CompetitionApplication> {
   @BelongsTo(() => Coach)
   declare coach: Coach | null;
 
-  @ForeignKey(() => League)
+  // Ліга — це категорія осі 'level' (LEAGUE_CATEGORY_TYPE), а не окрема
+  // таблиця: див. competition-applications.service.ts.
+  @ForeignKey(() => Category)
   @Column({ type: DataType.UUID, allowNull: false })
   declare leagueId: string;
 
-  @BelongsTo(() => League)
-  declare league: League;
+  @BelongsTo(() => Category)
+  declare league: Category;
 
   @Column({
     type: DataType.ENUM(...Object.values(ApplicationStatus)),

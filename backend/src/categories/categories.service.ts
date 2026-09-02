@@ -1,10 +1,15 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes, Op, col, fn, where } from 'sequelize';
 import { Category } from './category.model';
 import { AGE_CATEGORY_TYPE } from './category.model';
 import type { CategoryType } from './category.model';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { CATEGORY_NOT_FOUND_MESSAGE } from './categories.constants';
 
 export const DEFAULT_CATEGORY_SORT_ORDER = 0;
 
@@ -111,6 +116,14 @@ export class CategoriesService {
         ['name', 'ASC'],
       ],
     });
+  }
+
+  async findByIdOrFail(id: string): Promise<Category> {
+    const category = await this.categoryModel.findByPk(id);
+    if (!category) {
+      throw new NotFoundException(CATEGORY_NOT_FOUND_MESSAGE);
+    }
+    return category;
   }
 
   async findExistingIds(ids: string[]): Promise<string[]> {

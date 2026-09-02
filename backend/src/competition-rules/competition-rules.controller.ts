@@ -20,11 +20,15 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedAdmin } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CompetitionRulesService } from './competition-rules.service';
-import { DURATION_ROUNDS } from './duration-limit.model';
+import {
+  DURATION_ROUNDS,
+  DEFAULT_DURATION_ROUND,
+} from './duration-limit.model';
 import type { DurationRound } from './duration-limit.model';
 import { CreateDurationLimitDto } from './dto/create-duration-limit.dto';
 import { CreateOverlimitTariffDto } from './dto/create-overlimit-tariff.dto';
 import { UpdateCompetitionRuleDto } from './dto/update-competition-rule.dto';
+import { NOMINATION_ID_REQUIRED_MESSAGE } from './competition-rules.constants';
 
 @ApiTags('competition-rules')
 @Controller('competitions/:competitionId')
@@ -145,13 +149,13 @@ export class CompetitionRulesController {
     @Query('round') round?: string,
   ) {
     if (!nominationId) {
-      throw new BadRequestException('Вкажіть nominationId');
+      throw new BadRequestException(NOMINATION_ID_REQUIRED_MESSAGE);
     }
     const resolvedRound: DurationRound = DURATION_ROUNDS.includes(
       round as DurationRound,
     )
       ? (round as DurationRound)
-      : 'final';
+      : DEFAULT_DURATION_ROUND;
     const seconds = await this.competitionRulesService.resolveLimit(
       nominationId,
       resolvedRound,

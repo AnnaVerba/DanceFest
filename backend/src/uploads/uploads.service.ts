@@ -2,19 +2,13 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
-
-const ALLOWED_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-];
-const MIME_EXTENSIONS: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/gif': 'gif',
-};
+import {
+  ALLOWED_MIME_TYPES,
+  MIME_EXTENSIONS,
+  STORAGE_NOT_CONFIGURED_MESSAGE,
+  UNSUPPORTED_FILE_FORMAT_MESSAGE,
+  COMPETITION_BANNERS_KEY_PREFIX,
+} from './uploads.constants';
 
 @Injectable()
 export class UploadsService {
@@ -29,9 +23,7 @@ export class UploadsService {
     const accessKeyId = this.config.get<string>('AWS_ACCESS_KEY_ID');
     const secretAccessKey = this.config.get<string>('AWS_SECRET_ACCESS_KEY');
     if (!region || !accessKeyId || !secretAccessKey) {
-      throw new BadRequestException(
-        'Сховище зображень не налаштовано. Зверніться до адміністратора застосунку.',
-      );
+      throw new BadRequestException(STORAGE_NOT_CONFIGURED_MESSAGE);
     }
 
     this.client = new S3Client({
@@ -43,20 +35,16 @@ export class UploadsService {
 
   async uploadImage(file: Express.Multer.File): Promise<string> {
     if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      throw new BadRequestException(
-        'Непідтримуваний формат файлу. Дозволено: JPEG, PNG, WEBP, GIF.',
-      );
+      throw new BadRequestException(UNSUPPORTED_FILE_FORMAT_MESSAGE);
     }
 
     const bucket = this.config.get<string>('AWS_S3_BUCKET');
     if (!bucket) {
-      throw new BadRequestException(
-        'Сховище зображень не налаштовано. Зверніться до адміністратора застосунку.',
-      );
+      throw new BadRequestException(STORAGE_NOT_CONFIGURED_MESSAGE);
     }
 
     const extension = MIME_EXTENSIONS[file.mimetype];
-    const key = `competition-banners/${randomUUID()}.${extension}`;
+    const key = `${COMPETITION_BANNERS_KEY_PREFIX}/${randomUUID()}.${extension}`;
 
     await this.getClient().send(
       new PutObjectCommand({

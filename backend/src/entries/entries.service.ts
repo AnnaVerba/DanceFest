@@ -12,6 +12,16 @@ import { NominationsService } from '../nominations/nominations.service';
 import { Entry } from './entry.model';
 import { Score } from './score.model';
 import { CreateEntryDto } from './dto/create-entry.dto';
+import {
+  NOMINATION_REQUIRED_MESSAGE,
+  ENTRY_NOT_FOUND_MESSAGE,
+  ENTRY_CREATE_FAILED_MESSAGE,
+  MAX_ENTRY_NUMBER_ASSIGNMENT_ATTEMPTS,
+} from './entries.constants';
+import {
+  COMPETITION_NOT_FOUND_MESSAGE,
+  NO_COMPETITION_ACCESS_MESSAGE,
+} from '../competitions/competitions.constants';
 
 @Injectable()
 export class EntriesService {
@@ -40,7 +50,7 @@ export class EntriesService {
   async count(competitionId: string): Promise<{ count: number }> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
-      throw new NotFoundException('Конкурс не знайдено');
+      throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
     const count = await this.entryModel.count({ where: { competitionId } });
     return { count };
@@ -49,10 +59,10 @@ export class EntriesService {
   async create(competitionId: string, dto: CreateEntryDto) {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
-      throw new NotFoundException('Конкурс не знайдено');
+      throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
     if (!dto.nominationId && !dto.nomination) {
-      throw new BadRequestException('Вкажіть номінацію');
+      throw new BadRequestException(NOMINATION_REQUIRED_MESSAGE);
     }
 
     const { nomination, exits, ageCategory, league } =
@@ -61,7 +71,11 @@ export class EntriesService {
         name: dto.nomination,
       });
 
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (
+      let attempt = 0;
+      attempt < MAX_ENTRY_NUMBER_ASSIGNMENT_ATTEMPTS;
+      attempt++
+    ) {
       try {
         const created = await this.entryModel.sequelize!.transaction(
           async (transaction: Transaction) => {
@@ -101,7 +115,7 @@ export class EntriesService {
         throw err;
       }
     }
-    throw new Error('Не вдалося створити заявку');
+    throw new Error(ENTRY_CREATE_FAILED_MESSAGE);
   }
 
   async remove(
@@ -115,7 +129,7 @@ export class EntriesService {
       where: { id: entryId, competitionId },
     });
     if (!entry) {
-      throw new NotFoundException('Заявку не знайдено');
+      throw new NotFoundException(ENTRY_NOT_FOUND_MESSAGE);
     }
     await entry.destroy();
   }
@@ -126,7 +140,7 @@ export class EntriesService {
   ): Promise<Competition> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
-      throw new NotFoundException('Конкурс не знайдено');
+      throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
     if (competition.ownerId === requesterId) return competition;
 
@@ -134,7 +148,7 @@ export class EntriesService {
       where: { competitionId, adminId: requesterId },
     });
     if (!membership) {
-      throw new ForbiddenException('Немає доступу до цього конкурсу');
+      throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);
     }
     return competition;
   }

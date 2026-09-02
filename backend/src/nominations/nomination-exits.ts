@@ -3,6 +3,7 @@ import { buildNominationLabel } from './nomination-naming';
 export type ExitMode = 'single' | 'per_program';
 
 export const EXIT_MODES: ExitMode[] = ['single', 'per_program'];
+export const DEFAULT_EXIT_MODE: ExitMode = EXIT_MODES[0];
 
 export interface NominationProgram {
   id: string;

@@ -134,10 +134,12 @@ export async function resolveDraftCategories(
   });
 }
 
+const NOMINATION_NOUNS = ['номінація', 'номінації', 'номінацій'] as const;
+
 export function pluralNominations(n: number): string {
   const d10 = n % 10;
   const d100 = n % 100;
-  if (d10 === 1 && d100 !== 11) return 'номінація';
-  if (d10 >= 2 && d10 <= 4 && (d100 < 12 || d100 > 14)) return 'номінації';
-  return 'номінацій';
+  if (d10 === 1 && d100 !== 11) return NOMINATION_NOUNS[0];
+  if (d10 >= 2 && d10 <= 4 && (d100 < 12 || d100 > 14)) return NOMINATION_NOUNS[1];
+  return NOMINATION_NOUNS[2];
 }

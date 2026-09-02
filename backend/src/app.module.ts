@@ -19,7 +19,6 @@ import { SchoolsModule } from './schools/schools.module';
 import { CoachesModule } from './coaches/coaches.module';
 import { ParticipantsModule } from './participants/participants.module';
 import { OrganizersModule } from './organizers/organizers.module';
-import { LeaguesModule } from './leagues/leagues.module';
 import { CompetitionApplicationsModule } from './competition-applications/competition-applications.module';
 
 @Module({
@@ -59,7 +58,6 @@ import { CompetitionApplicationsModule } from './competition-applications/compet
     CoachesModule,
     ParticipantsModule,
     OrganizersModule,
-    LeaguesModule,
     CompetitionApplicationsModule,
   ],
 })

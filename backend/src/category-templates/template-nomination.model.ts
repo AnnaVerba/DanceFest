@@ -7,6 +7,7 @@ import {
   Table,
 } from 'sequelize-typescript';
 import { CategoryTemplate } from './category-template.model';
+import { EXIT_MODES, DEFAULT_EXIT_MODE } from '../nominations/nomination-exits';
 import type { ExitMode } from '../nominations/nomination-exits';
 
 @Table({ tableName: 'template_nominations' })
@@ -43,9 +44,9 @@ export class TemplateNomination extends Model<TemplateNomination> {
   declare specialName: string | null;
 
   @Column({
-    type: DataType.ENUM('single', 'per_program'),
+    type: DataType.ENUM(...EXIT_MODES),
     allowNull: false,
-    defaultValue: 'single',
+    defaultValue: DEFAULT_EXIT_MODE,
   })
   declare exitMode: ExitMode;
 

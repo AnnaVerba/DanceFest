@@ -17,6 +17,7 @@ import {
 } from '../categories/category-type-labels';
 import { findAgeRangeOverlaps } from '../categories/resolve-age-category';
 import { Nomination } from '../nominations/nomination.model';
+import { DEFAULT_EXIT_MODE } from '../nominations/nomination-exits';
 import {
   AGE_RANGES_OVERLAP_MESSAGE,
   TEMPLATE_IN_USE,
@@ -28,6 +29,14 @@ import { CreateCategoryTemplateDto } from './dto/create-category-template.dto';
 import { UpdateCategoryTemplateDto } from './dto/update-category-template.dto';
 import { ForkCategoryTemplateDto } from './dto/fork-category-template.dto';
 import { TemplateNominationDto } from './dto/template-nomination.dto';
+import {
+  TEMPLATE_NOT_FOUND_MESSAGE,
+  TEMPLATE_EDIT_AUTHOR_ONLY_MESSAGE,
+  TEMPLATE_DELETE_AUTHOR_ONLY_MESSAGE,
+  TEMPLATE_CANNOT_BE_EMPTY_MESSAGE,
+  FORK_NAME_MUST_DIFFER_MESSAGE,
+  UNKNOWN_CATEGORIES_MESSAGE_PREFIX,
+} from './category-templates.constants';
 
 const AUTHOR_INCLUDE = [
   { model: Admin, as: 'author', attributes: ['id', 'name'] },
@@ -135,12 +144,10 @@ export class CategoryTemplatesService {
   ) {
     const template = await this.templateModel.findByPk(templateId);
     if (!template) {
-      throw new NotFoundException('Шаблон не знайдено');
+      throw new NotFoundException(TEMPLATE_NOT_FOUND_MESSAGE);
     }
     if (template.authorId !== requesterId) {
-      throw new ForbiddenException(
-        'Редагувати шаблон може лише його автор. Створіть власну копію.',
-      );
+      throw new ForbiddenException(TEMPLATE_EDIT_AUTHOR_ONLY_MESSAGE);
     }
 
     if (dto.name !== undefined) template.name = dto.name.trim();
@@ -152,7 +159,7 @@ export class CategoryTemplatesService {
 
     if (dto.nominations) {
       if (dto.nominations.length === 0) {
-        throw new BadRequestException('Шаблон не може бути порожнім');
+        throw new BadRequestException(TEMPLATE_CANNOT_BE_EMPTY_MESSAGE);
       }
       await this.assertCategoriesExist(dto.nominations);
       await this.assertAgeRangesDoNotOverlap(dto.nominations);
@@ -171,9 +178,7 @@ export class CategoryTemplatesService {
 
     const name = dto.name.trim();
     if (name.toLowerCase() === source.name.trim().toLowerCase()) {
-      throw new BadRequestException(
-        'Назва копії має відрізнятися від назви оригіналу',
-      );
+      throw new BadRequestException(FORK_NAME_MUST_DIFFER_MESSAGE);
     }
 
     const copy = await this.templateModel.create({
@@ -222,10 +227,10 @@ export class CategoryTemplatesService {
   async remove(templateId: string, requesterId: string): Promise<void> {
     const template = await this.templateModel.findByPk(templateId);
     if (!template) {
-      throw new NotFoundException('Шаблон не знайдено');
+      throw new NotFoundException(TEMPLATE_NOT_FOUND_MESSAGE);
     }
     if (template.authorId !== requesterId) {
-      throw new ForbiddenException('Видалити шаблон може лише його автор');
+      throw new ForbiddenException(TEMPLATE_DELETE_AUTHOR_ONLY_MESSAGE);
     }
 
     const usedBy = await this.contestNominationModel.count({
@@ -247,10 +252,10 @@ export class CategoryTemplatesService {
       include: AUTHOR_INCLUDE,
     });
     if (!template) {
-      throw new NotFoundException('Шаблон не знайдено');
+      throw new NotFoundException(TEMPLATE_NOT_FOUND_MESSAGE);
     }
     if (!template.isPublic && template.authorId !== requesterId) {
-      throw new NotFoundException('Шаблон не знайдено');
+      throw new NotFoundException(TEMPLATE_NOT_FOUND_MESSAGE);
     }
     return template;
   }
@@ -268,7 +273,7 @@ export class CategoryTemplatesService {
         categoryIds: n.categoryIds ?? [],
         isSpecial: n.isSpecial ?? false,
         specialName: n.specialName?.trim() || null,
-        exitMode: n.exitMode ?? 'single',
+        exitMode: n.exitMode ?? DEFAULT_EXIT_MODE,
         sortOrder: n.sortOrder ?? index,
       })) as CreationAttributes<TemplateNomination>[],
     );
@@ -350,7 +355,7 @@ export class CategoryTemplatesService {
     const missing = ids.filter((id) => !existing.includes(id));
     if (missing.length > 0) {
       throw new BadRequestException(
-        `Невідомі категорії: ${missing.join(', ')}`,
+        `${UNKNOWN_CATEGORIES_MESSAGE_PREFIX}: ${missing.join(', ')}`,
       );
     }
   }

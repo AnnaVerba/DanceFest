@@ -2,13 +2,13 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthError, login, saveSession } from '../lib/auth';
-import { LOGINABLE_ROLES, ROLE_LABELS } from '../lib/roles';
+import { LOGINABLE_ROLES, ROLE, ROLE_LABELS } from '../lib/roles';
 import type { Role } from '../lib/roles';
 import styles from './LoginPage.module.css';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const [role, setRole] = useState<Role>('PARTICIPANT');
+  const [role, setRole] = useState<Role>(ROLE.PARTICIPANT);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +22,7 @@ export default function LoginPage() {
     try {
       const session = await login(email, password, role);
       saveSession(session);
-      navigate(role === 'ADMIN' ? '/dashboard' : '/', { replace: true });
+      navigate(role === ROLE.ADMIN ? '/dashboard' : '/', { replace: true });
     } catch (err) {
       setError(
         err instanceof AuthError

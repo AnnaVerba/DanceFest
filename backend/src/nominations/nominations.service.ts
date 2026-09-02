@@ -10,11 +10,19 @@ import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Category } from '../categories/category.model';
 import { Nomination } from './nomination.model';
-import { planNominationExits } from './nomination-exits';
+import { planNominationExits, DEFAULT_EXIT_MODE } from './nomination-exits';
 import type { NominationExit, NominationProgram } from './nomination-exits';
 import { CreateNominationDto } from './dto/create-nomination.dto';
 import { UpdateNominationDto } from './dto/update-nomination.dto';
 import { BulkCreateNominationsDto } from './dto/bulk-create-nominations.dto';
+import {
+  NOMINATION_NOT_FOUND_MESSAGE,
+  NOMINATION_NOT_IN_COMPETITION_MESSAGE,
+} from './nominations.constants';
+import {
+  COMPETITION_NOT_FOUND_MESSAGE,
+  NO_COMPETITION_ACCESS_MESSAGE,
+} from '../competitions/competitions.constants';
 
 @Injectable()
 export class NominationsService {
@@ -151,7 +159,7 @@ export class NominationsService {
       allowsImprovisation: dto.allowsImprovisation ?? false,
       categoryIds: dto.categoryIds ?? [],
       isSpecial: dto.isSpecial ?? false,
-      exitMode: dto.exitMode ?? 'single',
+      exitMode: dto.exitMode ?? DEFAULT_EXIT_MODE,
       durationLimitSeconds: dto.durationLimitSeconds ?? null,
       programLimits: dto.programLimits ?? {},
     } as CreationAttributes<Nomination>;
@@ -224,9 +232,7 @@ export class NominationsService {
       where: { competitionId, name },
     });
     if (!nomination) {
-      throw new BadRequestException(
-        'Цю номінацію не знайдено серед номінацій конкурсу',
-      );
+      throw new BadRequestException(NOMINATION_NOT_IN_COMPETITION_MESSAGE);
     }
     return nomination;
   }
@@ -239,7 +245,7 @@ export class NominationsService {
       where: { id: nominationId, competitionId },
     });
     if (!nomination) {
-      throw new NotFoundException('Номінацію не знайдено');
+      throw new NotFoundException(NOMINATION_NOT_FOUND_MESSAGE);
     }
     return nomination;
   }
@@ -249,7 +255,7 @@ export class NominationsService {
   ): Promise<Competition> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
-      throw new NotFoundException('Конкурс не знайдено');
+      throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
     return competition;
   }
@@ -265,7 +271,7 @@ export class NominationsService {
       where: { competitionId, adminId: requesterId },
     });
     if (!membership) {
-      throw new ForbiddenException('Немає доступу до цього конкурсу');
+      throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);
     }
     return competition;
   }

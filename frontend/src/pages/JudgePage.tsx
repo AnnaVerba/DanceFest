@@ -9,6 +9,7 @@ import {
   submitJudgeScore,
 } from '../lib/judgeAuth';
 import type { JudgeEntry, JudgeProfile } from '../lib/judgeAuth';
+import { HTTP_STATUS_UNAUTHORIZED } from '../lib/api.constants';
 import styles from './JudgePage.module.css';
 
 export default function JudgePage() {
@@ -37,7 +38,7 @@ export default function JudgePage() {
       })
       .catch((err) => {
         if (cancelled) return;
-        if (err instanceof JudgeAuthError && err.status === 401) {
+        if (err instanceof JudgeAuthError && err.status === HTTP_STATUS_UNAUTHORIZED) {
           clearJudgeSession();
           setJudge(null);
           return;

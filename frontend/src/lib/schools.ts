@@ -1,4 +1,8 @@
 import { API_BASE_URL } from './api';
+import {
+  SCHOOLS_LOAD_FAILED_MESSAGE,
+  SCHOOL_CREATE_FAILED_MESSAGE,
+} from './schools.constants';
 
 export interface School {
   id: string;
@@ -17,7 +21,7 @@ function extractMessage(payload: ErrorPayload | null, fallback: string): string 
 export async function getSchools(): Promise<School[]> {
   const response = await fetch(`${API_BASE_URL}/schools`);
   if (!response.ok) {
-    throw new Error('Не вдалося завантажити список шкіл');
+    throw new Error(SCHOOLS_LOAD_FAILED_MESSAGE);
   }
   return response.json() as Promise<School[]>;
 }
@@ -30,7 +34,7 @@ export async function createSchool(name: string): Promise<School> {
   });
   const payload = (await response.json().catch(() => null)) as (ErrorPayload & School) | null;
   if (!response.ok) {
-    throw new Error(extractMessage(payload, 'Не вдалося створити школу'));
+    throw new Error(extractMessage(payload, SCHOOL_CREATE_FAILED_MESSAGE));
   }
   return payload as unknown as School;
 }

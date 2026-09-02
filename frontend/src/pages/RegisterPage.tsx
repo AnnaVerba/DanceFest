@@ -3,16 +3,17 @@ import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthError, register, saveSession } from '../lib/auth';
 import { MIN_PASSWORD_LENGTH } from '../lib/auth.constants';
-import { REGISTERABLE_ROLES, ROLE_LABELS } from '../lib/roles';
+import { REGISTERABLE_ROLES, ROLE, ROLE_LABELS } from '../lib/roles';
 import type { Role } from '../lib/roles';
 import { createSchool, getSchools } from '../lib/schools';
 import type { School } from '../lib/schools';
+import { SCHOOL_CREATE_FAILED_MESSAGE } from '../lib/schools.constants';
 import PhoneField from '../components/PhoneField';
 import styles from './LoginPage.module.css';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const [role, setRole] = useState<Role>('ORGANIZER');
+  const [role, setRole] = useState<Role>(ROLE.ORGANIZER);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
@@ -30,7 +31,7 @@ export default function RegisterPage() {
   const [schoolBusy, setSchoolBusy] = useState(false);
 
   useEffect(() => {
-    if (role !== 'COACH') return;
+    if (role !== ROLE.COACH) return;
     getSchools()
       .then(setSchools)
       .catch(() => setSchools([]));
@@ -47,7 +48,7 @@ export default function RegisterPage() {
       setCreatingSchool(false);
       setNewSchoolName('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не вдалося створити школу');
+      setError(err instanceof Error ? err.message : SCHOOL_CREATE_FAILED_MESSAGE);
     } finally {
       setSchoolBusy(false);
     }
@@ -65,7 +66,7 @@ export default function RegisterPage() {
       setError('Паролі не збігаються');
       return;
     }
-    if (role === 'COACH' && !schoolId) {
+    if (role === ROLE.COACH && !schoolId) {
       setError('Оберіть або створіть школу/студію');
       return;
     }
@@ -79,8 +80,8 @@ export default function RegisterPage() {
         phone,
         email,
         password,
-        ...(role === 'PARTICIPANT' ? { birthDate } : {}),
-        ...(role === 'COACH' ? { schoolId } : {}),
+        ...(role === ROLE.PARTICIPANT ? { birthDate } : {}),
+        ...(role === ROLE.COACH ? { schoolId } : {}),
       });
       saveSession(session);
       navigate('/');
@@ -196,7 +197,7 @@ export default function RegisterPage() {
             />
           </div>
 
-          {role === 'PARTICIPANT' && (
+          {role === ROLE.PARTICIPANT && (
             <div className={styles.field}>
               <label htmlFor="birthDate">Дата народження</label>
               <input
@@ -213,7 +214,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {role === 'COACH' && (
+          {role === ROLE.COACH && (
             <div className={styles.field}>
               <label htmlFor="schoolId">Школа / студія</label>
               <select

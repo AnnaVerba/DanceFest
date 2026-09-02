@@ -17,8 +17,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UploadsService } from './uploads.service';
-
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+import { MAX_FILE_SIZE_BYTES, FILE_MISSING_MESSAGE } from './uploads.constants';
 
 @ApiTags('uploads')
 @ApiBearerAuth()
@@ -47,7 +46,7 @@ export class UploadsController {
   )
   async uploadImage(@UploadedFile() file?: Express.Multer.File) {
     if (!file) {
-      throw new BadRequestException('Файл не передано.');
+      throw new BadRequestException(FILE_MISSING_MESSAGE);
     }
     const url = await this.uploadsService.uploadImage(file);
     return { url };

@@ -1,4 +1,6 @@
 import { authorizedFetch } from './auth';
+import { GENERIC_REQUEST_ERROR_MESSAGE } from './api.constants';
+import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
 
 export interface Venue {
   id: string;
@@ -35,7 +37,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       },
     });
   } catch {
-    throw new VenueApiError("Не вдалося з'єднатися з сервером", 0);
+    throw new VenueApiError(CANNOT_CONNECT_TO_SERVER_MESSAGE, 0);
   }
 
   if (response.status === 204) {
@@ -46,7 +48,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     throw new VenueApiError(
-      extractMessage(payload, 'Щось пішло не так. Спробуйте ще раз.'),
+      extractMessage(payload, GENERIC_REQUEST_ERROR_MESSAGE),
       response.status,
     );
   }

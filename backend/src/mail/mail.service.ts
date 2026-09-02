@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createTransport } from 'nodemailer';
 import type { Transporter } from 'nodemailer';
+import { DEFAULT_MAIL_FROM_NAME } from './mail.constants';
 
 interface JudgeCredentialsEmail {
   to: string;
@@ -49,7 +50,8 @@ export class MailService {
     const transporter = this.getTransporter();
     if (!transporter) return false;
 
-    const fromName = this.config.get<string>('MAIL_FROM_NAME') ?? 'CompAdmin';
+    const fromName =
+      this.config.get<string>('MAIL_FROM_NAME') ?? DEFAULT_MAIL_FROM_NAME;
     const fromUser = this.config.get<string>('GMAIL_USER');
 
     try {

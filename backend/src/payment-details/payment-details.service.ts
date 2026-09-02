@@ -9,6 +9,10 @@ import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { PaymentDetails } from './payment-details.model';
 import { UpsertPaymentDetailsDto } from './dto/upsert-payment-details.dto';
+import {
+  COMPETITION_NOT_FOUND_MESSAGE,
+  NO_COMPETITION_ACCESS_MESSAGE,
+} from '../competitions/competitions.constants';
 
 @Injectable()
 export class PaymentDetailsService {
@@ -24,7 +28,7 @@ export class PaymentDetailsService {
   async get(competitionId: string): Promise<PaymentDetails | null> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
-      throw new NotFoundException('Конкурс не знайдено');
+      throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
     return this.paymentDetailsModel.findOne({ where: { competitionId } });
   }
@@ -64,7 +68,7 @@ export class PaymentDetailsService {
   ): Promise<Competition> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
-      throw new NotFoundException('Конкурс не знайдено');
+      throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
     if (competition.ownerId === requesterId) return competition;
 
@@ -72,7 +76,7 @@ export class PaymentDetailsService {
       where: { competitionId, adminId: requesterId },
     });
     if (!membership) {
-      throw new ForbiddenException('Немає доступу до цього конкурсу');
+      throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);
     }
     return competition;
   }

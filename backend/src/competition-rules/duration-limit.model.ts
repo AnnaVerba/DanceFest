@@ -12,6 +12,7 @@ import { Nomination } from '../nominations/nomination.model';
 
 export const DURATION_ROUNDS = ['final', 'semifinal'] as const;
 export type DurationRound = (typeof DURATION_ROUNDS)[number];
+export const DEFAULT_DURATION_ROUND: DurationRound = DURATION_ROUNDS[0];
 
 @Table({ tableName: 'duration_limits' })
 export class DurationLimit extends Model<DurationLimit> {
@@ -37,7 +38,7 @@ export class DurationLimit extends Model<DurationLimit> {
   @Column({
     type: DataType.ENUM(...DURATION_ROUNDS),
     allowNull: false,
-    defaultValue: 'final',
+    defaultValue: DEFAULT_DURATION_ROUND,
   })
   declare round: DurationRound;
 

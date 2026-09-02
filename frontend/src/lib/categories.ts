@@ -1,5 +1,7 @@
 import { authorizedFetch } from './auth';
 import type { AgeRange } from './ageRange';
+import { GENERIC_REQUEST_ERROR_MESSAGE } from './api.constants';
+import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
 
 export type CategoryType = 'lineup' | 'age' | 'level' | 'style';
 
@@ -61,7 +63,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       },
     });
   } catch {
-    throw new CategoryApiError("Не вдалося з'єднатися з сервером", 0);
+    throw new CategoryApiError(CANNOT_CONNECT_TO_SERVER_MESSAGE, 0);
   }
 
   if (response.status === 204) {
@@ -72,7 +74,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     throw new CategoryApiError(
-      extractMessage(payload, 'Щось пішло не так. Спробуйте ще раз.'),
+      extractMessage(payload, GENERIC_REQUEST_ERROR_MESSAGE),
       response.status,
     );
   }

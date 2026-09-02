@@ -14,11 +14,33 @@ import { CreationAttributes, Op } from 'sequelize';
 import { Admin } from '../admins/admin.model';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from './competition-admin.model';
-import { Invitation } from './invitation.model';
+import {
+  Invitation,
+  PENDING_INVITATION_STATUS,
+  REVOKED_INVITATION_STATUS,
+} from './invitation.model';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
-
-const INVITATION_TTL_DAYS = 7;
-const MAX_INVITES_PER_HOUR = 20;
+import {
+  INVITATION_TTL_DAYS,
+  MAX_INVITES_PER_HOUR,
+  ONE_HOUR_MS,
+  DEFAULT_FRONTEND_URL,
+  VIEWER_ROLE_OWNER,
+  VIEWER_ROLE_ADMIN,
+  InvitationErrorCode,
+  ALREADY_MEMBER_MESSAGE,
+  ALREADY_INVITED_MESSAGE,
+  INVITE_RATE_LIMITED_MESSAGE,
+  INVITATION_NOT_FOUND_MESSAGE,
+  INVITATION_NOT_ACTIVE_MESSAGE,
+  OWNER_NOT_REMOVABLE_MESSAGE,
+  ADMIN_NOT_FOUND_MESSAGE,
+} from './team.constants';
+import {
+  COMPETITION_NOT_FOUND_MESSAGE,
+  NO_COMPETITION_ACCESS_MESSAGE,
+  COMPETITION_OWNER_ONLY_MESSAGE,
+} from '../competitions/competitions.constants';
 
 function randomToken(): string {
   return randomBytes(32).toString('hex');
@@ -57,7 +79,7 @@ export class TeamService {
       order: [['createdAt', 'ASC']],
     });
     const invitations = await this.invitationModel.findAll({
-      where: { competitionId, status: 'pending' },
+      where: { competitionId, status: PENDING_INVITATION_STATUS },
       order: [['createdAt', 'ASC']],
     });
 
@@ -106,30 +128,30 @@ export class TeamService {
       memberships.some((m) => m.admin.email.toLowerCase() === email);
     if (alreadyMember) {
       throw new ConflictException({
-        errorCode: 'already-member',
-        message: 'Ця людина вже має доступ до конкурсу',
+        errorCode: InvitationErrorCode.ALREADY_MEMBER,
+        message: ALREADY_MEMBER_MESSAGE,
       });
     }
 
     const pendingInvitations = await this.invitationModel.findAll({
-      where: { competitionId, status: 'pending' },
+      where: { competitionId, status: PENDING_INVITATION_STATUS },
     });
     if (pendingInvitations.some((inv) => inv.email.toLowerCase() === email)) {
       throw new ConflictException({
-        errorCode: 'already-invited',
-        message: 'Запрошення вже надіслано',
+        errorCode: InvitationErrorCode.ALREADY_INVITED,
+        message: ALREADY_INVITED_MESSAGE,
       });
     }
 
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const oneHourAgo = new Date(Date.now() - ONE_HOUR_MS);
     const recentCount = await this.invitationModel.count({
       where: { competitionId, createdAt: { [Op.gte]: oneHourAgo } },
     });
     if (recentCount >= MAX_INVITES_PER_HOUR) {
       throw new HttpException(
         {
-          errorCode: 'rate-limited',
-          message: 'Забагато запрошень, спробуйте за годину',
+          errorCode: InvitationErrorCode.RATE_LIMITED,
+          message: INVITE_RATE_LIMITED_MESSAGE,
         },
         HttpStatus.TOO_MANY_REQUESTS,
       );
@@ -140,7 +162,7 @@ export class TeamService {
       email: dto.email.trim(),
       name: dto.name?.trim() || null,
       token: randomToken(),
-      status: 'pending',
+      status: PENDING_INVITATION_STATUS,
       invitedByAdminId: requesterId,
       expiresAt: addDays(new Date(), INVITATION_TTL_DAYS),
     } as CreationAttributes<Invitation>);
@@ -162,10 +184,10 @@ export class TeamService {
       where: { id: invitationId, competitionId },
     });
     if (!invitation) {
-      throw new NotFoundException('Запрошення не знайдено');
+      throw new NotFoundException(INVITATION_NOT_FOUND_MESSAGE);
     }
-    if (invitation.status !== 'pending') {
-      throw new ConflictException('Це запрошення більше не активне');
+    if (invitation.status !== PENDING_INVITATION_STATUS) {
+      throw new ConflictException(INVITATION_NOT_ACTIVE_MESSAGE);
     }
 
     invitation.token = randomToken();
@@ -189,10 +211,10 @@ export class TeamService {
       where: { id: invitationId, competitionId },
     });
     if (!invitation) {
-      throw new NotFoundException('Запрошення не знайдено');
+      throw new NotFoundException(INVITATION_NOT_FOUND_MESSAGE);
     }
 
-    invitation.status = 'revoked';
+    invitation.status = REVOKED_INVITATION_STATUS;
     await invitation.save();
   }
 
@@ -205,16 +227,14 @@ export class TeamService {
     this.assertOwner(competition, requesterId);
 
     if (adminId === competition.ownerId) {
-      throw new BadRequestException(
-        'Власника не можна видалити зі списку адміністраторів',
-      );
+      throw new BadRequestException(OWNER_NOT_REMOVABLE_MESSAGE);
     }
 
     const membership = await this.competitionAdminModel.findOne({
       where: { competitionId, adminId },
     });
     if (!membership) {
-      throw new NotFoundException('Адміністратора не знайдено');
+      throw new NotFoundException(ADMIN_NOT_FOUND_MESSAGE);
     }
 
     await membership.destroy();
@@ -225,7 +245,7 @@ export class TeamService {
   ): Promise<Competition> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
-      throw new NotFoundException('Конкурс не знайдено');
+      throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
     return competition;
   }
@@ -234,21 +254,19 @@ export class TeamService {
     competition: Competition,
     adminId: string,
   ): Promise<ViewerRole> {
-    if (competition.ownerId === adminId) return 'owner';
+    if (competition.ownerId === adminId) return VIEWER_ROLE_OWNER;
     const membership = await this.competitionAdminModel.findOne({
       where: { competitionId: competition.id, adminId },
     });
     if (!membership) {
-      throw new ForbiddenException('Немає доступу до цього конкурсу');
+      throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);
     }
-    return 'admin';
+    return VIEWER_ROLE_ADMIN;
   }
 
   private assertOwner(competition: Competition, adminId: string): void {
     if (competition.ownerId !== adminId) {
-      throw new ForbiddenException(
-        'Цю дію може виконати лише власник конкурсу',
-      );
+      throw new ForbiddenException(COMPETITION_OWNER_ONLY_MESSAGE);
     }
   }
 
@@ -264,7 +282,7 @@ export class TeamService {
 
   private logInviteLink(invitation: Invitation): void {
     const frontendUrl =
-      this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
+      this.config.get<string>('FRONTEND_URL') ?? DEFAULT_FRONTEND_URL;
     console.log(
       `[invitations] ${invitation.email} → ${frontendUrl}/invite/${invitation.token} (діє до ${invitation.expiresAt.toISOString()})`,
     );

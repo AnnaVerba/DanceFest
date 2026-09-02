@@ -13,6 +13,11 @@ export type CategoryType = (typeof CATEGORY_TYPES)[number];
 // Єдина вісь, значення якої несуть числові межі.
 export const AGE_CATEGORY_TYPE: CategoryType = 'age';
 
+// Вісь, якою заявки на конкурс позначають лігу учасника (Аматорська,
+// Професійна тощо) — окремої таблиці для ліг немає, це та сама вісь, що й
+// у критеріях номінацій.
+export const LEAGUE_CATEGORY_TYPE: CategoryType = 'level';
+
 // Нижня межа вікового діапазону. Нуль — свідомо: у категоріях «до 5» діти
 // молодші за рік теж трапляються.
 export const MIN_PARTICIPANT_AGE = 0;

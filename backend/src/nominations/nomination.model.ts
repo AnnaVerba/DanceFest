@@ -9,6 +9,7 @@ import {
 import { Competition } from '../competitions/competition.model';
 import { Venue } from '../venues/venue.model';
 import { CategoryTemplate } from '../category-templates/category-template.model';
+import { EXIT_MODES, DEFAULT_EXIT_MODE } from './nomination-exits';
 import type { ExitMode } from './nomination-exits';
 
 @Table({ tableName: 'nominations' })
@@ -53,9 +54,9 @@ export class Nomination extends Model<Nomination> {
   declare isSpecial: boolean;
 
   @Column({
-    type: DataType.ENUM('single', 'per_program'),
+    type: DataType.ENUM(...EXIT_MODES),
     allowNull: false,
-    defaultValue: 'single',
+    defaultValue: DEFAULT_EXIT_MODE,
   })
   declare exitMode: ExitMode;
 

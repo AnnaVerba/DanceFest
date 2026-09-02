@@ -13,6 +13,10 @@ import { CompetitionRule } from '../competition-rules/competition-rule.model';
 import { Role } from '../auth/roles.enum';
 import { CreateCompetitionDto } from './dto/create-competition.dto';
 import { UpdateCompetitionDto } from './dto/update-competition.dto';
+import {
+  NO_COMPETITION_ACCESS_MESSAGE,
+  COMPETITION_OWNER_ONLY_MESSAGE,
+} from './competitions.constants';
 
 const OWNER_INCLUDE = [
   { model: Admin, as: 'owner', attributes: ['id', 'name'] },
@@ -90,15 +94,13 @@ export class CompetitionsService {
       where: { competitionId: competition.id, adminId: requesterId },
     });
     if (!membership) {
-      throw new ForbiddenException('Немає доступу до цього конкурсу');
+      throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);
     }
   }
 
   private assertOwner(competition: Competition, requesterId: string): void {
     if (competition.ownerId !== requesterId) {
-      throw new ForbiddenException(
-        'Цю дію може виконати лише власник конкурсу',
-      );
+      throw new ForbiddenException(COMPETITION_OWNER_ONLY_MESSAGE);
     }
   }
 }

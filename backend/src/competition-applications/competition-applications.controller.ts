@@ -37,7 +37,7 @@ export class CompetitionApplicationsController {
   @ApiResponse({ status: 201, description: 'Application created.' })
   @ApiResponse({
     status: 400,
-    description: 'Validation failed, or the league is not active.',
+    description: 'Validation failed, or the given category is not a league.',
   })
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
   @ApiResponse({
@@ -92,7 +92,7 @@ export class CompetitionApplicationsController {
   @ApiResponse({
     status: 400,
     description:
-      'Validation failed, the league is inactive, or the application is not PENDING.',
+      'Validation failed, the given category is not a league, or the application is not PENDING.',
   })
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
   @ApiResponse({

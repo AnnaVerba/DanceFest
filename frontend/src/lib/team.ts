@@ -1,4 +1,7 @@
 import { authorizedFetch } from './auth';
+import { GENERIC_REQUEST_ERROR_MESSAGE } from './api.constants';
+import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
+import { UNKNOWN_INVITE_ERROR_TYPE } from './team.constants';
 
 export interface TeamOrganizer {
   id: string;
@@ -21,7 +24,12 @@ export interface TeamInvitation {
   expiresAt: string;
 }
 
-export type ViewerRole = 'owner' | 'admin';
+export const VIEWER_ROLE = {
+  OWNER: 'owner',
+  ADMIN: 'admin',
+} as const;
+
+export type ViewerRole = (typeof VIEWER_ROLE)[keyof typeof VIEWER_ROLE];
 
 export interface TeamCompetitionSummary {
   id: string;
@@ -71,7 +79,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       },
     });
   } catch {
-    throw new TeamApiError('unknown', "Не вдалося з'єднатися з сервером", 0);
+    throw new TeamApiError(
+      UNKNOWN_INVITE_ERROR_TYPE,
+      CANNOT_CONNECT_TO_SERVER_MESSAGE,
+      0,
+    );
   }
 
   if (response.status === 204) {
@@ -81,10 +93,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const payload = (await response.json().catch(() => null)) as ErrorPayload | null;
 
   if (!response.ok) {
-    const errorCode = payload?.errorCode ?? 'unknown';
+    const errorCode = payload?.errorCode ?? UNKNOWN_INVITE_ERROR_TYPE;
     throw new TeamApiError(
       errorCode,
-      extractMessage(payload, 'Щось пішло не так. Спробуйте ще раз.'),
+      extractMessage(payload, GENERIC_REQUEST_ERROR_MESSAGE),
       response.status,
     );
   }

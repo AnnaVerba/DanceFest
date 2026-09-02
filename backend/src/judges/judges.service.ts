@@ -15,10 +15,18 @@ import { MailService } from '../mail/mail.service';
 import { Judge } from './judge.model';
 import { CreateJudgeDto } from './dto/create-judge.dto';
 import { JudgeLoginDto } from './dto/judge-login.dto';
-
-const SALT_ROUNDS = 10;
-const TEMP_PASSWORD_LENGTH = 8;
-const TEMP_PASSWORD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+import { SALT_ROUNDS } from '../auth/auth.constants';
+import {
+  TEMP_PASSWORD_LENGTH,
+  TEMP_PASSWORD_CHARS,
+  JUDGE_EMAIL_TAKEN_MESSAGE,
+  JUDGE_NOT_FOUND_MESSAGE,
+  INVALID_JUDGE_CREDENTIALS_MESSAGE,
+} from './judges.constants';
+import {
+  COMPETITION_NOT_FOUND_MESSAGE,
+  NO_COMPETITION_ACCESS_MESSAGE,
+} from '../competitions/competitions.constants';
 
 function generateTempPassword(): string {
   let password = '';
@@ -73,9 +81,7 @@ export class JudgesService {
       } as CreationAttributes<Judge>);
     } catch (err) {
       if (err instanceof UniqueConstraintError) {
-        throw new ConflictException(
-          'Суддя з таким email вже доданий до конкурсу',
-        );
+        throw new ConflictException(JUDGE_EMAIL_TAKEN_MESSAGE);
       }
       throw err;
     }
@@ -105,7 +111,7 @@ export class JudgesService {
       where: { id: judgeId, competitionId },
     });
     if (!judge) {
-      throw new NotFoundException('Суддю не знайдено');
+      throw new NotFoundException(JUDGE_NOT_FOUND_MESSAGE);
     }
     await judge.destroy();
   }
@@ -123,7 +129,7 @@ export class JudgesService {
         return candidate;
       }
     }
-    throw new UnauthorizedException('Невірний email або пароль');
+    throw new UnauthorizedException(INVALID_JUDGE_CREDENTIALS_MESSAGE);
   }
 
   private async loadCompetitionAndAssertAccess(
@@ -132,7 +138,7 @@ export class JudgesService {
   ): Promise<Competition> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
-      throw new NotFoundException('Конкурс не знайдено');
+      throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
     if (competition.ownerId === requesterId) return competition;
 
@@ -140,7 +146,7 @@ export class JudgesService {
       where: { competitionId, adminId: requesterId },
     });
     if (!membership) {
-      throw new ForbiddenException('Немає доступу до цього конкурсу');
+      throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);
     }
     return competition;
   }

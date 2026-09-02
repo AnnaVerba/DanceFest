@@ -1,4 +1,6 @@
 import { authorizedFetch } from './auth';
+import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
+import { IMAGE_UPLOAD_FAILED_MESSAGE } from './uploads.constants';
 
 export class UploadApiError extends Error {
   status: number;
@@ -28,7 +30,7 @@ export async function uploadImage(file: File): Promise<string> {
       body,
     });
   } catch {
-    throw new UploadApiError("Не вдалося з'єднатися з сервером", 0);
+    throw new UploadApiError(CANNOT_CONNECT_TO_SERVER_MESSAGE, 0);
   }
 
   const payload = (await response.json().catch(() => null)) as
@@ -37,7 +39,7 @@ export async function uploadImage(file: File): Promise<string> {
 
   if (!response.ok) {
     throw new UploadApiError(
-      extractMessage(payload, 'Не вдалося завантажити зображення. Спробуйте ще раз.'),
+      extractMessage(payload, IMAGE_UPLOAD_FAILED_MESSAGE),
       response.status,
     );
   }

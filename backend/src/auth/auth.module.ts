@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { SequelizeModule } from '@nestjs/sequelize';
 import { AdminsModule } from '../admins/admins.module';
 import { ParticipantsModule } from '../participants/participants.module';
 import { CoachesModule } from '../coaches/coaches.module';
@@ -11,9 +12,11 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { RefreshTokenStoreService } from './refresh-token-store.service';
+import { RefreshToken } from './refresh-token.model';
 
 @Module({
   imports: [
+    SequelizeModule.forFeature([RefreshToken]),
     AdminsModule,
     ParticipantsModule,
     CoachesModule,

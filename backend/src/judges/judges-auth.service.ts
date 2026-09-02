@@ -10,6 +10,8 @@ import { JudgeLoginDto } from './dto/judge-login.dto';
 import { SubmitScoreDto } from './dto/submit-score.dto';
 import { JudgeJwtPayload } from './judge-jwt-payload.interface';
 import { AuthenticatedJudge } from './current-judge.decorator';
+import { JUDGE_TOKEN_TYPE } from './judges.constants';
+import { ENTRY_NOT_FOUND_MESSAGE } from '../entries/entries.constants';
 
 @Injectable()
 export class JudgesAuthService {
@@ -29,7 +31,7 @@ export class JudgesAuthService {
     const payload: JudgeJwtPayload = {
       sub: judge.id,
       competitionId: judge.competitionId,
-      type: 'judge',
+      type: JUDGE_TOKEN_TYPE,
     };
     const competition = await this.competitionModel.findByPk(
       judge.competitionId,
@@ -93,7 +95,7 @@ export class JudgesAuthService {
       where: { id: entryId, competitionId: judge.competitionId },
     });
     if (!entry) {
-      throw new NotFoundException('Заявку не знайдено');
+      throw new NotFoundException(ENTRY_NOT_FOUND_MESSAGE);
     }
 
     const existing = await this.scoreModel.findOne({

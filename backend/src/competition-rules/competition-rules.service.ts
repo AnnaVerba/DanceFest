@@ -17,9 +17,21 @@ import { CompetitionRule } from './competition-rule.model';
 import { CreateDurationLimitDto } from './dto/create-duration-limit.dto';
 import { CreateOverlimitTariffDto } from './dto/create-overlimit-tariff.dto';
 import { UpdateCompetitionRuleDto } from './dto/update-competition-rule.dto';
-import { DurationLimit } from './duration-limit.model';
+import { DurationLimit, DEFAULT_DURATION_ROUND } from './duration-limit.model';
 import type { DurationRound } from './duration-limit.model';
 import { OverlimitTariff } from './overlimit-tariff.model';
+import {
+  TARIFF_NOT_FOUND_MESSAGE,
+  DURATION_LIMIT_NOT_FOUND_MESSAGE,
+  DURATION_LIMIT_TARGET_REQUIRED_MESSAGE,
+  NOMINATION_LIMIT_ALREADY_SET_MESSAGE,
+  AXIS_LIMIT_ALREADY_SET_MESSAGE,
+} from './competition-rules.constants';
+import { NOMINATION_NOT_FOUND_MESSAGE } from '../nominations/nominations.constants';
+import {
+  COMPETITION_NOT_FOUND_MESSAGE,
+  NO_COMPETITION_ACCESS_MESSAGE,
+} from '../competitions/competitions.constants';
 
 export const DEFAULT_DURATION_LIMIT_SECONDS = 180;
 
@@ -109,7 +121,7 @@ export class CompetitionRulesService {
       where: { id: tariffId, competitionId },
     });
     if (!tariff) {
-      throw new NotFoundException('Тариф перелiмiту не знайдено');
+      throw new NotFoundException(TARIFF_NOT_FOUND_MESSAGE);
     }
     await tariff.destroy();
   }
@@ -132,9 +144,7 @@ export class CompetitionRulesService {
     const hasNomination = Boolean(dto.nominationId);
     const hasCategory = Boolean(dto.categoryId);
     if (hasNomination === hasCategory) {
-      throw new BadRequestException(
-        'Задайте рівно одне: nominationId (точна номінація) або categoryId (вісь)',
-      );
+      throw new BadRequestException(DURATION_LIMIT_TARGET_REQUIRED_MESSAGE);
     }
 
     try {
@@ -142,15 +152,15 @@ export class CompetitionRulesService {
         competitionId,
         nominationId: dto.nominationId ?? null,
         categoryId: dto.categoryId ?? null,
-        round: dto.round ?? 'final',
+        round: dto.round ?? DEFAULT_DURATION_ROUND,
         seconds: dto.seconds,
       } as CreationAttributes<DurationLimit>);
     } catch (error) {
       if (error instanceof UniqueConstraintError) {
         throw new ConflictException(
           hasNomination
-            ? 'Ліміт для цієї номінації й раунду вже задано'
-            : 'Ліміт для цієї осі й раунду вже задано',
+            ? NOMINATION_LIMIT_ALREADY_SET_MESSAGE
+            : AXIS_LIMIT_ALREADY_SET_MESSAGE,
         );
       }
       throw error;
@@ -167,7 +177,7 @@ export class CompetitionRulesService {
       where: { id: limitId, competitionId },
     });
     if (!limit) {
-      throw new NotFoundException('Ліміт тривалості не знайдено');
+      throw new NotFoundException(DURATION_LIMIT_NOT_FOUND_MESSAGE);
     }
     await limit.destroy();
   }
@@ -178,7 +188,7 @@ export class CompetitionRulesService {
   ): Promise<number> {
     const nomination = await this.nominationModel.findByPk(nominationId);
     if (!nomination) {
-      throw new NotFoundException('Номінацію не знайдено');
+      throw new NotFoundException(NOMINATION_NOT_FOUND_MESSAGE);
     }
 
     const exact = await this.durationLimitModel.findOne({
@@ -217,7 +227,7 @@ export class CompetitionRulesService {
   ): Promise<Competition> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
-      throw new NotFoundException('Конкурс не знайдено');
+      throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
     return competition;
   }
@@ -233,7 +243,7 @@ export class CompetitionRulesService {
       where: { competitionId, adminId: requesterId },
     });
     if (!membership) {
-      throw new ForbiddenException('Немає доступу до цього конкурсу');
+      throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);
     }
     return competition;
   }

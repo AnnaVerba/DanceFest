@@ -9,6 +9,11 @@ import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Venue } from './venue.model';
 import { CreateVenueDto } from './dto/create-venue.dto';
+import { VENUE_NOT_FOUND_MESSAGE } from './venues.constants';
+import {
+  COMPETITION_NOT_FOUND_MESSAGE,
+  NO_COMPETITION_ACCESS_MESSAGE,
+} from '../competitions/competitions.constants';
 
 @Injectable()
 export class VenuesService {
@@ -57,7 +62,7 @@ export class VenuesService {
       where: { id: venueId, competitionId },
     });
     if (!venue) {
-      throw new NotFoundException('Майданчик не знайдено');
+      throw new NotFoundException(VENUE_NOT_FOUND_MESSAGE);
     }
     await venue.destroy();
   }
@@ -68,7 +73,7 @@ export class VenuesService {
   ): Promise<Competition> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
-      throw new NotFoundException('Конкурс не знайдено');
+      throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
     if (competition.ownerId === requesterId) return competition;
 
@@ -76,7 +81,7 @@ export class VenuesService {
       where: { competitionId, adminId: requesterId },
     });
     if (!membership) {
-      throw new ForbiddenException('Немає доступу до цього конкурсу');
+      throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);
     }
     return competition;
   }

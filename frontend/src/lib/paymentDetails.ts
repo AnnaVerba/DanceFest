@@ -1,4 +1,6 @@
 import { authorizedFetch } from './auth';
+import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
+import { PAYMENT_DETAILS_SAVE_FAILED_MESSAGE } from './paymentDetails.constants';
 
 export interface PaymentDetails {
   id: string;
@@ -45,14 +47,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       },
     });
   } catch {
-    throw new PaymentDetailsApiError("Не вдалося з'єднатися з сервером", 0);
+    throw new PaymentDetailsApiError(CANNOT_CONNECT_TO_SERVER_MESSAGE, 0);
   }
 
   const payload = (await response.json().catch(() => null)) as ErrorPayload | null;
 
   if (!response.ok) {
     throw new PaymentDetailsApiError(
-      extractMessage(payload, 'Не вдалося зберегти реквізити оплати.'),
+      extractMessage(payload, PAYMENT_DETAILS_SAVE_FAILED_MESSAGE),
       response.status,
     );
   }

@@ -1,6 +1,11 @@
 import { API_BASE_URL } from './api';
 import { authorizedFetch } from './auth';
 import { COMPETITION_STATUS } from './competitionStatus';
+import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
+import {
+  COMPETITION_SAVE_FAILED_MESSAGE,
+  COMPETITION_DELETE_FAILED_MESSAGE,
+} from './competitions.constants';
 import type { CompetitionStatus } from './competitionStatus';
 import type { PaymentDetails } from './paymentDetails';
 
@@ -87,7 +92,7 @@ async function submitCompetition(
       body: JSON.stringify(input),
     });
   } catch {
-    throw new CompetitionApiError("Не вдалося з'єднатися з сервером", 0);
+    throw new CompetitionApiError(CANNOT_CONNECT_TO_SERVER_MESSAGE, 0);
   }
 
   const payload = (await response.json().catch(() => null)) as
@@ -96,7 +101,7 @@ async function submitCompetition(
 
   if (!response.ok) {
     throw new CompetitionApiError(
-      extractMessage(payload, 'Не вдалося зберегти конкурс'),
+      extractMessage(payload, COMPETITION_SAVE_FAILED_MESSAGE),
       response.status,
     );
   }
@@ -120,14 +125,14 @@ export async function deleteCompetition(id: string): Promise<void> {
   try {
     response = await authorizedFetch(`/competitions/${id}`, { method: 'DELETE' });
   } catch {
-    throw new CompetitionApiError("Не вдалося з'єднатися з сервером", 0);
+    throw new CompetitionApiError(CANNOT_CONNECT_TO_SERVER_MESSAGE, 0);
   }
 
   if (response.ok) return;
 
   const payload = (await response.json().catch(() => null)) as ErrorPayload | null;
   throw new CompetitionApiError(
-    extractMessage(payload, 'Не вдалося видалити конкурс'),
+    extractMessage(payload, COMPETITION_DELETE_FAILED_MESSAGE),
     response.status,
   );
 }

@@ -1,7 +1,7 @@
 import type { QueryInterface } from 'sequelize';
 import { DataTypes } from 'sequelize';
 
-const TABLE = 'leagues';
+const TABLE = 'refresh_tokens';
 
 module.exports = {
   up: async (queryInterface: QueryInterface) => {
@@ -12,18 +12,18 @@ module.exports = {
         primaryKey: true,
         allowNull: false,
       },
-      name: {
+      userId: {
+        type: DataTypes.UUID,
+        allowNull: false,
+      },
+      tokenId: {
         type: DataTypes.STRING,
         allowNull: false,
+        unique: true,
       },
-      description: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-      },
-      isActive: {
-        type: DataTypes.BOOLEAN,
+      expiresAt: {
+        type: DataTypes.DATE,
         allowNull: false,
-        defaultValue: true,
       },
       createdAt: {
         type: DataTypes.DATE,
@@ -33,6 +33,11 @@ module.exports = {
         type: DataTypes.DATE,
         allowNull: false,
       },
+    });
+
+    await queryInterface.addIndex(TABLE, {
+      fields: ['userId'],
+      name: 'refresh_tokens_user_id_idx',
     });
   },
 

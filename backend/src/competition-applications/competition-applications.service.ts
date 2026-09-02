@@ -8,7 +8,8 @@ import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
 import { ParticipantsService } from '../participants/participants.service';
-import { LeaguesService } from '../leagues/leagues.service';
+import { CategoriesService } from '../categories/categories.service';
+import { LEAGUE_CATEGORY_TYPE } from '../categories/category.model';
 import { Role } from '../auth/roles.enum';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { CompetitionApplication } from './competition-application.model';
@@ -20,6 +21,7 @@ import {
   APPLICATION_NOT_FOUND_MESSAGE,
   APPLICATION_NOT_OWNED_MESSAGE,
   COMPETITION_NOT_FOUND_MESSAGE,
+  LEAGUE_CATEGORY_TYPE_MISMATCH_MESSAGE,
   LEAGUE_CHANGE_NOT_ALLOWED_MESSAGE,
   NOT_OWN_PARTICIPANT_MESSAGE,
   PARTICIPANT_ID_REQUIRED_FOR_COACH_MESSAGE,
@@ -33,7 +35,7 @@ export class CompetitionApplicationsService {
     @InjectModel(CompetitionApplication)
     private readonly applicationModel: typeof CompetitionApplication,
     private readonly participantsService: ParticipantsService,
-    private readonly leaguesService: LeaguesService,
+    private readonly categoriesService: CategoriesService,
   ) {}
 
   async create(
@@ -44,7 +46,7 @@ export class CompetitionApplicationsService {
     if (!competition) {
       throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
-    await this.leaguesService.assertActiveLeague(dto.leagueId);
+    await this.assertLeagueCategory(dto.leagueId);
 
     const { participantId, coachId } = await this.resolveSubmitter(dto, user);
 
@@ -98,7 +100,7 @@ export class CompetitionApplicationsService {
     if (application.status !== ApplicationStatus.PENDING) {
       throw new BadRequestException(LEAGUE_CHANGE_NOT_ALLOWED_MESSAGE);
     }
-    await this.leaguesService.assertActiveLeague(dto.leagueId);
+    await this.assertLeagueCategory(dto.leagueId);
 
     application.leagueId = dto.leagueId;
     await application.save();
@@ -113,6 +115,15 @@ export class CompetitionApplicationsService {
     application.status = dto.status;
     await application.save();
     return application;
+  }
+
+  // Ліга — категорія осі 'level', не окрема сутність, тож "активності" в неї
+  // немає: перевіряємо лише, що ідентифікатор існує і належить саме цій осі.
+  private async assertLeagueCategory(leagueId: string): Promise<void> {
+    const category = await this.categoriesService.findByIdOrFail(leagueId);
+    if (category.type !== LEAGUE_CATEGORY_TYPE) {
+      throw new BadRequestException(LEAGUE_CATEGORY_TYPE_MISMATCH_MESSAGE);
+    }
   }
 
   private async resolveSubmitter(

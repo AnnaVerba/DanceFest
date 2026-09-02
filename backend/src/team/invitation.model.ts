@@ -9,7 +9,17 @@ import {
 import { Admin } from '../admins/admin.model';
 import { Competition } from '../competitions/competition.model';
 
-export type InvitationStatus = 'pending' | 'accepted' | 'revoked' | 'expired';
+export const INVITATION_STATUSES = [
+  'pending',
+  'accepted',
+  'revoked',
+  'expired',
+] as const;
+export type InvitationStatus = (typeof INVITATION_STATUSES)[number];
+export const DEFAULT_INVITATION_STATUS: InvitationStatus =
+  INVITATION_STATUSES[0];
+export const PENDING_INVITATION_STATUS: InvitationStatus = 'pending';
+export const REVOKED_INVITATION_STATUS: InvitationStatus = 'revoked';
 
 @Table({ tableName: 'invitations' })
 export class Invitation extends Model<Invitation> {
@@ -34,9 +44,9 @@ export class Invitation extends Model<Invitation> {
   declare token: string;
 
   @Column({
-    type: DataType.ENUM('pending', 'accepted', 'revoked', 'expired'),
+    type: DataType.ENUM(...INVITATION_STATUSES),
     allowNull: false,
-    defaultValue: 'pending',
+    defaultValue: DEFAULT_INVITATION_STATUS,
   })
   declare status: InvitationStatus;
 
