@@ -12,7 +12,6 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { RefreshTokenStoreService } from './refresh-token-store.service';
 
-
 @Module({
   imports: [
     AdminsModule,

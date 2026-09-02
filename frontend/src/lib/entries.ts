@@ -1,3 +1,4 @@
+import { API_BASE_URL } from './api';
 import { authorizedFetch } from './auth';
 
 export interface Entry {
@@ -80,6 +81,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function getEntries(competitionId: string): Promise<Entry[]> {
   return request<Entry[]>(`/competitions/${competitionId}/entries`);
+}
+
+export async function getEntriesCount(competitionId: string): Promise<number> {
+  const response = await fetch(
+    `${API_BASE_URL}/competitions/${competitionId}/entries/count`,
+  );
+  if (!response.ok) {
+    throw new EntryApiError(
+      'Не вдалося завантажити кількість заявок',
+      response.status,
+    );
+  }
+  const payload = (await response.json()) as { count: number };
+  return payload.count;
 }
 
 export function createEntry(

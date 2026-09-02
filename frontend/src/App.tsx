@@ -1,6 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
-import Header from './components/Header';
 import ThemeToggle from './components/ThemeToggle';
+import { getToken } from './lib/auth';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -9,6 +9,7 @@ import DashboardPage from './pages/DashboardPage';
 import NewCompetitionPage from './pages/NewCompetitionPage';
 import CompetitionEditPage from './pages/CompetitionEditPage';
 import CompetitionDetailPage from './pages/CompetitionDetailPage';
+import PublicCompetitionPage from './pages/PublicCompetitionPage';
 import CompetitionPreviewRedirect from './pages/CompetitionPreviewRedirect';
 import JudgePage from './pages/JudgePage';
 import ApplyPage from './pages/ApplyPage';
@@ -21,20 +22,17 @@ function App() {
     <>
       <ThemeToggle />
       <Routes>
-        <Route
-          path="/"
-          element={
-            <>
-              <Header />
-              <HomePage />
-            </>
-          }
-        />
+        <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/competitions/preview" element={<CompetitionPreviewRedirect />} />
-        <Route path="/competitions/:id" element={<CompetitionDetailPage />} />
+        <Route
+          path="/competitions/:id"
+          element={
+            getToken() ? <CompetitionDetailPage /> : <PublicCompetitionPage />
+          }
+        />
         <Route path="/competitions/:id/team" element={<TeamPage />} />
         <Route path="/competitions/:id/edit" element={<CompetitionEditPage />} />
         <Route path="/competitions/new" element={<NewCompetitionPage />} />

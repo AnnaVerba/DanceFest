@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams } from 'react-router-dom';
+import { getToken } from '../lib/auth';
 import { getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { getNominations } from '../lib/nominations';
@@ -162,6 +163,10 @@ export default function ApplyPage() {
         </div>
       </main>
     );
+  }
+
+  if (!getToken()) {
+    return <Navigate to="/login" replace />;
   }
 
   if (loadError) {

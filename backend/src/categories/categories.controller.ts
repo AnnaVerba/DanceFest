@@ -44,7 +44,7 @@ export class CategoriesController {
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
   @Post()
   create(@Body() dto: CreateCategoryDto) {
-    return this.categoriesService.findOrCreate(dto.name, dto.type);
+    return this.categoriesService.findOrCreate(dto);
   }
 
   @ApiOperation({

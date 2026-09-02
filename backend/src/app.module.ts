@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SequelizeModule } from '@nestjs/sequelize';
-import { RedisModule } from './redis/redis.module';
 import { CompetitionsModule } from './competitions/competitions.module';
 import { AdminsModule } from './admins/admins.module';
 import { AuthModule } from './auth/auth.module';
@@ -28,7 +27,6 @@ import { CompetitionApplicationsModule } from './competition-applications/compet
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    RedisModule,
     MailModule,
     SequelizeModule.forRootAsync({
       imports: [ConfigModule],

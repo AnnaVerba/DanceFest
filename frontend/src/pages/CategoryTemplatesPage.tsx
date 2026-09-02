@@ -228,7 +228,6 @@ export default function CategoryTemplatesPage() {
                           nominationsById[t.id].map((nomination) => (
                             <li key={nomination.id}>
                               {nomination.name}
-                              {nomination.price !== null && ` — ${nomination.price} грн`}
                               {nomination.allowsImprovisation && ' · імпровізація'}
                             </li>
                           ))
