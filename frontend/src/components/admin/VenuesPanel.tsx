@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import ConfirmDialog from './ConfirmDialog';
 import { createVenue, deleteVenue, getVenues } from '../../lib/venues';
 import type { Venue } from '../../lib/venues';
+import { FEATURES } from '../../lib/features';
 import styles from './VenuesPanel.module.css';
 
 interface VenuesPanelProps {
@@ -71,8 +72,8 @@ export default function VenuesPanel({
   return (
     <section className={styles.panel}>
       <p className={styles.note}>
-        Кожен майданчик має свою окрему групу суддів. Розподіліть готові
-        номінації по майданчикам нижче.
+        {FEATURES.judges && 'Кожен майданчик має свою окрему групу суддів. '}
+        Розподіліть готові номінації по майданчикам нижче.
       </p>
 
       {canManage && (

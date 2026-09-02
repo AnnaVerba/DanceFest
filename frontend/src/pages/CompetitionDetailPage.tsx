@@ -13,13 +13,17 @@ import { useToasts } from '../components/admin/useToasts';
 import { getStoredAdmin, getToken } from '../lib/auth';
 import { deleteCompetition, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
+import { FEATURES } from '../lib/features';
 import { getMockCompetitionById } from '../lib/mockCompetitions';
 import styles from './CompetitionDetailPage.module.css';
 
 const USE_MOCK_DATA = false;
 
-const TABS = ['Деталі', 'Номінації', 'Судді', 'Майданчики', 'Заявки'] as const;
-type Tab = (typeof TABS)[number];
+const ALL_TABS = ['Деталі', 'Номінації', 'Судді', 'Майданчики', 'Заявки'] as const;
+type Tab = (typeof ALL_TABS)[number];
+const TABS: readonly Tab[] = ALL_TABS.filter(
+  (tab) => FEATURES.judges || tab !== 'Судді',
+);
 
 export default function CompetitionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -149,7 +153,7 @@ export default function CompetitionDetailPage() {
                 />
               )}
 
-              {activeTab === 'Судді' && (
+              {FEATURES.judges && activeTab === 'Судді' && (
                 <JudgesPanel
                   competitionId={id}
                   canManage={isOwner}

@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import AdminHeader from '../components/AdminHeader';
 import PhoneField from '../components/PhoneField';
 import { getToken } from '../lib/auth';
+import { FEATURES } from '../lib/features';
 import { CompetitionApiError, createCompetition } from '../lib/competitions';
 import { createJudge } from '../lib/judges';
 import type { CreatedJudge } from '../lib/judges';
@@ -39,7 +40,12 @@ const STEP_LABELS = [
   'Розподіл',
 ] as const;
 const TOTAL_STEPS = STEP_LABELS.length;
+const JUDGES_STEP = 4;
 const NOMINATIONS_STEP = 5;
+
+const VISIBLE_STEPS: readonly number[] = STEP_LABELS.map((_, i) => i + 1).filter(
+  (n) => FEATURES.judges || n !== JUDGES_STEP,
+);
 
 let draftIdCounter = 0;
 function nextDraftId(): string {
@@ -211,7 +217,11 @@ export default function NewCompetitionPage() {
     });
 
   const goStep = (n: number) => {
-    setStep(Math.min(Math.max(n, 1), TOTAL_STEPS));
+    let target = Math.min(Math.max(n, 1), TOTAL_STEPS);
+    if (!FEATURES.judges && target === JUDGES_STEP) {
+      target += target > step ? 1 : -1;
+    }
+    setStep(target);
     window.scrollTo(0, 0);
   };
 
@@ -570,8 +580,8 @@ export default function NewCompetitionPage() {
           <h1>Новий конкурс</h1>
 
           <div className={styles.steps} role="tablist" aria-label="Кроки створення конкурсу">
-            {STEP_LABELS.map((label, i) => {
-              const n = i + 1;
+            {VISIBLE_STEPS.map((n, i) => {
+              const label = STEP_LABELS[n - 1];
               const cls = [
                 styles.step,
                 n === step ? styles.stepCurrent : '',
@@ -588,7 +598,7 @@ export default function NewCompetitionPage() {
                   className={cls}
                   onClick={() => goStep(n)}
                 >
-                  <span className={styles.dot}>{n}</span>
+                  <span className={styles.dot}>{i + 1}</span>
                   {label}
                 </button>
               );
@@ -932,7 +942,7 @@ export default function NewCompetitionPage() {
             </div>
           )}
 
-          {step === 4 && (
+          {FEATURES.judges && step === 4 && (
             <div className={styles.panel}>
               <p className={styles.sectionTitle}>Судді</p>
               <p className={styles.sectionNote}>
@@ -1174,8 +1184,9 @@ export default function NewCompetitionPage() {
             <div className={styles.panel}>
               <p className={styles.sectionTitle}>Майданчики</p>
               <p className={styles.sectionNote}>
-                Кожен майданчик має свою окрему групу суддів. Номінації нижче можна розподілити
-                по майданчиках.
+                {FEATURES.judges &&
+                  'Кожен майданчик має свою окрему групу суддів. '}
+                Номінації нижче можна розподілити по майданчиках.
               </p>
               {venues.length > 0 && (
                 <div className={styles.list} style={{ marginBottom: 16 }}>
@@ -1186,9 +1197,11 @@ export default function NewCompetitionPage() {
                         {v.note && <p className={styles.sub}>{v.note}</p>}
                       </div>
                       <div className={styles.spacer} />
-                      <span className={`${styles.badge} ${styles.badgeMuted}`}>
-                        Суддів не призначено
-                      </span>
+                      {FEATURES.judges && (
+                        <span className={`${styles.badge} ${styles.badgeMuted}`}>
+                          Суддів не призначено
+                        </span>
+                      )}
                       <button
                         type="button"
                         className={`${styles.btn} ${styles.btnSm} ${styles.btnGhost}`}
