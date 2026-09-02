@@ -71,8 +71,7 @@ export default function VenuesPanel({
   return (
     <section className={styles.panel}>
       <p className={styles.note}>
-        Кожен майданчик має свою окрему групу суддів. Розподіліть готові
-        номінації по майданчикам нижче.
+        Розподіліть готові номінації по майданчикам нижче.
       </p>
 
       {canManage && (

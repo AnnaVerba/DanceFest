@@ -5,8 +5,6 @@ import AdminHeader from '../components/AdminHeader';
 import PhoneField from '../components/PhoneField';
 import { getToken } from '../lib/auth';
 import { CompetitionApiError, createCompetition } from '../lib/competitions';
-import { createJudge } from '../lib/judges';
-import type { CreatedJudge } from '../lib/judges';
 import { createVenue } from '../lib/venues';
 import { createNominationsBulk } from '../lib/nominations';
 import NominationSetBuilder from '../components/nominations/NominationSetBuilder';
@@ -33,13 +31,12 @@ const STEP_LABELS = [
   'Загальне',
   'Контакти',
   'Оплата',
-  'Судді',
   'Категорії',
   'Майданчики',
   'Розподіл',
 ] as const;
 const TOTAL_STEPS = STEP_LABELS.length;
-const NOMINATIONS_STEP = 5;
+const NOMINATIONS_STEP = 4;
 
 let draftIdCounter = 0;
 function nextDraftId(): string {
@@ -75,12 +72,6 @@ const STEP_1_FIELDS = [
 ] as const;
 const STEP_2_FIELDS = ['contactNumber', 'contactEmail'] as const;
 const STEP_3_FIELDS = ['paymentRecipient', 'paymentAccount'] as const;
-
-interface DraftJudge {
-  id: string;
-  name: string;
-  email: string;
-}
 
 type NominationSource = 'template' | 'custom';
 
@@ -118,12 +109,6 @@ export default function NewCompetitionPage() {
   const [paymentBank, setPaymentBank] = useState('');
   const [paymentTaxId, setPaymentTaxId] = useState('');
   const [paymentPurpose, setPaymentPurpose] = useState('');
-
-  const [judges, setJudges] = useState<DraftJudge[]>([]);
-  const [judgeNameInput, setJudgeNameInput] = useState('');
-  const [judgeEmailInput, setJudgeEmailInput] = useState('');
-  const judgeNameRef = useRef<HTMLInputElement>(null);
-  const judgeEmailRef = useRef<HTMLInputElement>(null);
 
   const [categoryTemplates, setCategoryTemplates] = useState<CategoryTemplate[] | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState(
@@ -196,11 +181,8 @@ export default function NewCompetitionPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [createdCompetitionId, setCreatedCompetitionId] = useState<string | null>(null);
-  const [createdJudges, setCreatedJudges] = useState<CreatedJudge[]>([]);
 
   const [fieldErrors, setFieldErrors] = useState<StepFieldErrors>({});
-  const [judgeEmailError, setJudgeEmailError] = useState<string | null>(null);
 
   const clearFieldError = (field: keyof StepFieldErrors) =>
     setFieldErrors((prev) => {
@@ -236,32 +218,6 @@ export default function NewCompetitionPage() {
     }
   };
 
-  const addJudge = () => {
-    if (!judgeNameInput.trim()) {
-      judgeNameRef.current?.focus();
-      return;
-    }
-    if (!judgeEmailInput.trim()) {
-      setJudgeEmailError("Вкажіть email судді.");
-      judgeEmailRef.current?.focus();
-      return;
-    }
-    if (!isValidEmail(judgeEmailInput)) {
-      setJudgeEmailError('Перевірте формат email.');
-      judgeEmailRef.current?.focus();
-      return;
-    }
-    setJudgeEmailError(null);
-    setJudges((prev) => [
-      ...prev,
-      { id: nextDraftId(), name: judgeNameInput.trim(), email: judgeEmailInput.trim() },
-    ]);
-    setJudgeNameInput('');
-    setJudgeEmailInput('');
-    judgeNameRef.current?.focus();
-  };
-
-  const removeJudge = (id: string) => setJudges((prev) => prev.filter((j) => j.id !== id));
 
   const addVenue = () => {
     if (!venueNameInput.trim()) {
@@ -427,17 +383,6 @@ export default function NewCompetitionPage() {
         destination: paymentPurpose.trim() || undefined,
       });
 
-      const judgeResults = await Promise.allSettled(
-        judges
-          .filter((j) => j.email.trim())
-          .map((j) => createJudge(competition.id, j.name, j.email)),
-      );
-      const successfulJudges = judgeResults
-        .filter(
-          (r): r is PromiseFulfilledResult<CreatedJudge> => r.status === 'fulfilled',
-        )
-        .map((r) => r.value);
-
       await Promise.allSettled([
         ...venues
           .filter((v) => v.name.trim())
@@ -463,19 +408,14 @@ export default function NewCompetitionPage() {
           : []),
       ]);
 
-      if (successfulJudges.length > 0) {
-        setCreatedJudges(successfulJudges);
-        setCreatedCompetitionId(competition.id);
-      } else {
-        navigate(`/competitions/${competition.id}`);
-      }
+      navigate(`/competitions/${competition.id}`);
     } catch (err) {
       if (err instanceof CategoryApiError) {
         setSubmitError(`Не вдалося зберегти значення категорій: ${err.message}`);
-        goStep(5);
+        goStep(NOMINATIONS_STEP);
       } else if (err instanceof CategoryTemplateApiError) {
         setSubmitError(`Не вдалося зберегти шаблон: ${err.message}`);
-        goStep(5);
+        goStep(NOMINATIONS_STEP);
       } else {
         setSubmitError(
           err instanceof CompetitionApiError
@@ -494,55 +434,6 @@ export default function NewCompetitionPage() {
 
   if (!getToken()) {
     return <Navigate to="/login" replace />;
-  }
-
-  if (createdCompetitionId) {
-    return (
-      <>
-        <AdminHeader />
-        <main className={styles.main}>
-          <div className={styles.wrap}>
-            <h1>Конкурс створено</h1>
-            <div className={styles.panel}>
-              <p className={styles.sectionTitle}>Паролі суддів</p>
-              <p className={styles.sectionNote}>
-                Тимчасовий пароль показується тут лише один раз. Кому лист не надійшов —
-                перекажіть пароль самі.
-              </p>
-              <div className={styles.list}>
-                {createdJudges.map((j) => (
-                  <div className={styles.item} key={j.id}>
-                    <div>
-                      <h3>{j.name}</h3>
-                      <p className={styles.sub}>{j.email}</p>
-                    </div>
-                    <div className={styles.spacer} />
-                    <span
-                      className={`${styles.badge} ${j.emailSent ? styles.badgeOk : styles.badgeWarn}`}
-                    >
-                      {j.emailSent ? 'Лист надіслано' : 'Лист не надіслано'}
-                    </span>
-                    <span className={`${styles.badge} ${styles.badgeMuted}`}>
-                      {j.tempPassword}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className={styles.actions}>
-              <div className={styles.spacer} />
-              <button
-                type="button"
-                className={`${styles.btn} ${styles.btnPrimary}`}
-                onClick={() => navigate(`/competitions/${createdCompetitionId}`)}
-              >
-                Перейти до конкурсу
-              </button>
-            </div>
-          </div>
-        </main>
-      </>
-    );
   }
 
   return (
@@ -934,72 +825,6 @@ export default function NewCompetitionPage() {
 
           {step === 4 && (
             <div className={styles.panel}>
-              <p className={styles.sectionTitle}>Судді</p>
-              <p className={styles.sectionNote}>
-                Кожен суддя отримає тимчасовий пароль на email і матиме доступ лише до цього
-                конкурсу.
-              </p>
-              {judges.length > 0 && (
-                <div className={styles.list} style={{ marginBottom: 16 }}>
-                  {judges.map((j) => (
-                    <div className={styles.item} key={j.id}>
-                      <div>
-                        <h3>{j.name}</h3>
-                        <p className={styles.sub}>{j.email}</p>
-                      </div>
-                      <div className={styles.spacer} />
-                      <span className={`${styles.badge} ${styles.badgeWarn}`}>
-                        Пароль не надіслано
-                      </span>
-                      <button
-                        type="button"
-                        className={`${styles.btn} ${styles.btnSm} ${styles.btnGhost}`}
-                        aria-label="Прибрати суддю"
-                        onClick={() => removeJudge(j.id)}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className={styles.inlineAdd}>
-                <input
-                  ref={judgeNameRef}
-                  type="text"
-                  placeholder="Ім'я судді"
-                  aria-label="Ім'я судді"
-                  value={judgeNameInput}
-                  onChange={(e) => setJudgeNameInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addJudge()}
-                />
-                <input
-                  ref={judgeEmailRef}
-                  type="email"
-                  className={judgeEmailError ? styles.fieldInvalid : undefined}
-                  placeholder="email судді"
-                  aria-label="Email судді"
-                  value={judgeEmailInput}
-                  onChange={(e) => {
-                    setJudgeEmailInput(e.target.value);
-                    setJudgeEmailError(null);
-                  }}
-                  onKeyDown={(e) => e.key === 'Enter' && addJudge()}
-                />
-                <button
-                  type="button"
-                  className={`${styles.btn} ${styles.btnPrimary}`}
-                  onClick={addJudge}
-                >
-                  Додати
-                </button>
-              </div>
-              {judgeEmailError && <p className={styles.fieldError}>{judgeEmailError}</p>}
-            </div>
-          )}
-
-          {step === 5 && (
-            <div className={styles.panel}>
               <p className={styles.sectionTitle} style={{ marginBottom: 16 }}>
                 Номінації конкурсу
               </p>
@@ -1170,12 +995,11 @@ export default function NewCompetitionPage() {
             </div>
           )}
 
-          {step === 6 && (
+          {step === 5 && (
             <div className={styles.panel}>
               <p className={styles.sectionTitle}>Майданчики</p>
               <p className={styles.sectionNote}>
-                Кожен майданчик має свою окрему групу суддів. Номінації нижче можна розподілити
-                по майданчиках.
+                Номінації нижче можна розподілити по майданчиках.
               </p>
               {venues.length > 0 && (
                 <div className={styles.list} style={{ marginBottom: 16 }}>
@@ -1186,9 +1010,6 @@ export default function NewCompetitionPage() {
                         {v.note && <p className={styles.sub}>{v.note}</p>}
                       </div>
                       <div className={styles.spacer} />
-                      <span className={`${styles.badge} ${styles.badgeMuted}`}>
-                        Суддів не призначено
-                      </span>
                       <button
                         type="button"
                         className={`${styles.btn} ${styles.btnSm} ${styles.btnGhost}`}
@@ -1230,7 +1051,7 @@ export default function NewCompetitionPage() {
             </div>
           )}
 
-          {step === 7 && (
+          {step === 6 && (
             <div className={styles.panel}>
               <p className={styles.sectionTitle} style={{ marginBottom: 18 }}>
                 Розподіл номінацій по майданчикам
@@ -1241,7 +1062,7 @@ export default function NewCompetitionPage() {
                   <button
                     type="button"
                     className={styles.linkAccent}
-                    onClick={() => goStep(5)}
+                    onClick={() => goStep(NOMINATIONS_STEP)}
                   >
                     Категорії
                   </button>
@@ -1253,7 +1074,7 @@ export default function NewCompetitionPage() {
                   <button
                     type="button"
                     className={styles.linkAccent}
-                    onClick={() => goStep(6)}
+                    onClick={() => goStep(5)}
                   >
                     Майданчики
                   </button>

@@ -5,12 +5,11 @@ import CompetitionDetails from '../components/CompetitionDetails';
 import ContestIcon from '../components/ContestIcon';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import EntriesPanel from '../components/admin/EntriesPanel';
-import JudgesPanel from '../components/admin/JudgesPanel';
 import NominationsPanel from '../components/admin/NominationsPanel';
 import VenuesPanel from '../components/admin/VenuesPanel';
 import { ToastStack } from '../components/admin/Toast';
 import { useToasts } from '../components/admin/useToasts';
-import { getStoredAdmin, getToken } from '../lib/auth';
+import { getCurrentUserId, getToken } from '../lib/auth';
 import { deleteCompetition, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { getMockCompetitionById } from '../lib/mockCompetitions';
@@ -18,13 +17,13 @@ import styles from './CompetitionDetailPage.module.css';
 
 const USE_MOCK_DATA = false;
 
-const TABS = ['Деталі', 'Номінації', 'Судді', 'Майданчики', 'Заявки'] as const;
+const TABS = ['Деталі', 'Номінації', 'Майданчики', 'Заявки'] as const;
 type Tab = (typeof TABS)[number];
 
 export default function CompetitionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const admin = getStoredAdmin();
+  const currentUserId = getCurrentUserId();
 
   const [competition, setCompetition] = useState<Competition | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,7 +81,7 @@ export default function CompetitionDetailPage() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const isOwner = !!admin && !!competition && competition.ownerId === admin.id;
+  const isOwner = !!competition && competition.ownerId === currentUserId;
 
   return (
     <>
@@ -143,14 +142,6 @@ export default function CompetitionDetailPage() {
 
               {activeTab === 'Заявки' && (
                 <EntriesPanel
-                  competitionId={id}
-                  canManage={isOwner}
-                  onError={(message) => showToast(message)}
-                />
-              )}
-
-              {activeTab === 'Судді' && (
-                <JudgesPanel
                   competitionId={id}
                   canManage={isOwner}
                   onError={(message) => showToast(message)}

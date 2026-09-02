@@ -15,7 +15,7 @@
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  /* App-wide semantic tokens (admin/judge/apply UI). Every page module
+  /* App-wide semantic tokens (admin/apply UI). Every page module
      points its local color vars at these, so switching theme here
      re-themes the whole app. See ThemeProvider for the data-theme switch. */
   --g-page-bg: #f1f5f9;

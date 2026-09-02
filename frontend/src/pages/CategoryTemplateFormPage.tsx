@@ -3,7 +3,8 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import AdminHeader from '../components/AdminHeader';
 import { ToastStack } from '../components/admin/Toast';
 import { useToasts } from '../components/admin/useToasts';
-import { getToken } from '../lib/auth';
+import { getSession, getToken } from '../lib/auth';
+import { ROLE } from '../lib/roles';
 import {
   CategoryTemplateApiError,
   createCategoryTemplate,
@@ -147,6 +148,10 @@ export default function CategoryTemplateFormPage() {
 
   if (!getToken()) {
     return <Navigate to="/login" replace />;
+  }
+  // Only an Admin may author a template — see CategoryTemplatesPage.
+  if (getSession()?.role !== ROLE.ADMIN) {
+    return <Navigate to="/category-templates" replace />;
   }
 
   return (

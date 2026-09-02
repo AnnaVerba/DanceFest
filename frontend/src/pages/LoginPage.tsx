@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthError, login, saveSession } from '../lib/auth';
-import { LOGINABLE_ROLES, ROLE, ROLE_LABELS } from '../lib/roles';
+import { LOGINABLE_ROLES, ROLE, ROLE_CABINET_PATH, ROLE_LABELS } from '../lib/roles';
 import type { Role } from '../lib/roles';
 import styles from './LoginPage.module.css';
 
@@ -22,7 +22,7 @@ export default function LoginPage() {
     try {
       const session = await login(email, password, role);
       saveSession(session);
-      navigate(role === ROLE.ADMIN ? '/dashboard' : '/', { replace: true });
+      navigate(ROLE_CABINET_PATH[role], { replace: true });
     } catch (err) {
       setError(
         err instanceof AuthError

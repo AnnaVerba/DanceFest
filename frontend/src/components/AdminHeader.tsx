@@ -1,10 +1,11 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { clearSession, getStoredAdmin } from '../lib/auth';
+import { clearSession, getSession } from '../lib/auth';
+import { ROLE } from '../lib/roles';
 import styles from './AdminHeader.module.css';
 
 export default function AdminHeader() {
   const navigate = useNavigate();
-  const admin = getStoredAdmin();
+  const session = getSession();
 
   const handleLogout = () => {
     clearSession();
@@ -44,7 +45,12 @@ export default function AdminHeader() {
           <NavLink to="/category-templates" className={navLinkClass}>
             Шаблони категорій
           </NavLink>
-          {admin && <span className={styles.email}>{admin.email}</span>}
+          {session?.role === ROLE.ADMIN && (
+            <NavLink to="/admins" className={navLinkClass}>
+              Адміни
+            </NavLink>
+          )}
+          {session && <span className={styles.email}>{session.profile.email}</span>}
           <button type="button" className={styles.logoutBtn} onClick={handleLogout}>
             Вийти
           </button>

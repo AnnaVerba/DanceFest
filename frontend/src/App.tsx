@@ -11,10 +11,12 @@ import CompetitionEditPage from './pages/CompetitionEditPage';
 import CompetitionDetailPage from './pages/CompetitionDetailPage';
 import PublicCompetitionPage from './pages/PublicCompetitionPage';
 import CompetitionPreviewRedirect from './pages/CompetitionPreviewRedirect';
-import JudgePage from './pages/JudgePage';
 import ApplyPage from './pages/ApplyPage';
 import CategoryTemplatesPage from './pages/CategoryTemplatesPage';
 import CategoryTemplateFormPage from './pages/CategoryTemplateFormPage';
+import ParticipantCabinetPage from './pages/ParticipantCabinetPage';
+import CoachCabinetPage from './pages/CoachCabinetPage';
+import AdminsPage from './pages/AdminsPage';
 import './App.css';
 
 function App() {
@@ -26,6 +28,9 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/profile" element={<ParticipantCabinetPage />} />
+        <Route path="/coach" element={<CoachCabinetPage />} />
+        <Route path="/admins" element={<AdminsPage />} />
         <Route path="/competitions/preview" element={<CompetitionPreviewRedirect />} />
         <Route
           path="/competitions/:id"
@@ -37,7 +42,6 @@ function App() {
         <Route path="/competitions/:id/edit" element={<CompetitionEditPage />} />
         <Route path="/competitions/new" element={<NewCompetitionPage />} />
 
-        <Route path="/judge" element={<JudgePage />} />
         <Route path="/apply" element={<ApplyPage />} />
         <Route path="/competitions/:id/apply" element={<ApplyPage />} />
         <Route path="/category-templates" element={<CategoryTemplatesPage />} />

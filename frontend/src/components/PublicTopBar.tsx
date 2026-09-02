@@ -1,7 +1,17 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { clearSession, getSession } from '../lib/auth';
+import { ROLE_CABINET_LABEL, ROLE_CABINET_PATH } from '../lib/roles';
 import styles from './PublicTopBar.module.css';
 
 export default function PublicTopBar() {
+  const navigate = useNavigate();
+  const session = getSession();
+
+  const handleLogout = () => {
+    clearSession();
+    navigate('/login');
+  };
+
   return (
     <header className={styles.topbar}>
       <Link to="/" className={styles.brand}>
@@ -21,9 +31,22 @@ export default function PublicTopBar() {
         </svg>
         <span className={styles.brandName}>Конкурси Сходу</span>
       </Link>
-      <Link to="/login" className={styles.loginBtn}>
-        Увійти
-      </Link>
+
+      {session ? (
+        <div className={styles.authArea}>
+          <Link to={ROLE_CABINET_PATH[session.role]} className={styles.cabinetLink}>
+            {ROLE_CABINET_LABEL[session.role]}
+          </Link>
+          <span className={styles.email}>{session.profile.email}</span>
+          <button type="button" className={styles.logoutBtn} onClick={handleLogout}>
+            Вийти
+          </button>
+        </div>
+      ) : (
+        <Link to="/login" className={styles.loginBtn}>
+          Увійти
+        </Link>
+      )}
     </header>
   );
 }

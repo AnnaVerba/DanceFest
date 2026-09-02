@@ -43,8 +43,54 @@
   border-color: var(--g-line-strong);
 }
 
+.authArea {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.cabinetLink {
+  padding: 9px 18px;
+  border: 1px solid var(--g-line);
+  border-radius: 10px;
+  background: var(--g-surface);
+  color: var(--g-ink-soft);
+  font-weight: 600;
+  font-size: 13.5px;
+  text-decoration: none;
+}
+
+.cabinetLink:hover {
+  border-color: var(--g-line-strong);
+}
+
+.email {
+  font-size: 13.5px;
+  color: var(--g-muted);
+}
+
+.logoutBtn {
+  padding: 9px 18px;
+  border: 1px solid var(--g-line);
+  border-radius: 10px;
+  background: var(--g-surface);
+  color: var(--g-ink-soft);
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.logoutBtn:hover {
+  border-color: var(--g-line-strong);
+}
+
 @media (max-width: 680px) {
   .topbar {
     padding: 14px 16px;
+  }
+
+  .email {
+    display: none;
   }
 }

@@ -4,7 +4,7 @@ import { UI_TEXT } from '../../src/constants/ui-text.constants';
 import { ROUTES } from '../../src/constants/routes.constants';
 
 test.describe('Login', () => {
-  test('logs in an existing account and redirects to the homepage', async ({
+  test('logs in an existing Organizer account and redirects to the dashboard', async ({
     page,
     registerPage,
     loginPage,
@@ -18,7 +18,9 @@ test.describe('Login', () => {
     await loginPage.open();
     await loginPage.login(account.email, account.password, account.role);
 
-    await expect(page).toHaveURL('/');
+    // ORGANIZER shares the Organizer dashboard with ADMIN; PARTICIPANT/COACH
+    // land on their own cabinet instead (see cabinets/login-redirect.spec.ts).
+    await expect(page).toHaveURL(ROUTES.DASHBOARD);
   });
 
   test('shows a generic error for wrong credentials without revealing whether the email exists', async ({

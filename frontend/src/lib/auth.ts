@@ -157,11 +157,11 @@ export function getToken(): string | null {
   return getSession()?.accessToken ?? null;
 }
 
-// Used by the existing admin-only pages (dashboard, competition management),
-// which only ever run in an ADMIN session.
-export function getStoredAdmin(): AdminProfile | null {
-  const session = getSession();
-  return session?.role === ROLE.ADMIN ? (session.profile as AdminProfile) : null;
+// Used by pages that compare "is this record mine" (competition/template
+// ownership) against the logged-in user, regardless of role — ADMIN and
+// ORGANIZER both own competitions, so this can't be admin-only.
+export function getCurrentUserId(): string | null {
+  return getSession()?.profile.id ?? null;
 }
 
 function getRefreshToken(): string | null {

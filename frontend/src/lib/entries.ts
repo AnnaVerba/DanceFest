@@ -19,7 +19,6 @@ export interface Entry {
   improv?: boolean;
   paymentMethod?: 'cash' | 'card' | null;
   score: number | null;
-  scoresCount?: number;
   createdAt: string;
 }
 

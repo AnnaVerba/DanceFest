@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -19,6 +20,7 @@ import { JwtPayload, RefreshTokenPayload } from './jwt-payload.interface';
 import { Role } from './roles.enum';
 import { RefreshTokenStoreService } from './refresh-token-store.service';
 import {
+  ADMIN_SELF_REGISTRATION_FORBIDDEN_MESSAGE,
   DEFAULT_REFRESH_EXPIRES_IN_SECONDS,
   EMAIL_OR_PHONE_TAKEN_MESSAGE,
   INVALID_CREDENTIALS_MESSAGE,
@@ -43,7 +45,9 @@ export class AuthService {
   async register(dto: RegisterDto): Promise<AuthResult> {
     switch (dto.role) {
       case Role.ADMIN:
-        return this.registerAdmin(dto);
+        // No public bootstrap path: an admin account can only be created by
+        // an existing admin, via POST /admins (AdminsController).
+        throw new ForbiddenException(ADMIN_SELF_REGISTRATION_FORBIDDEN_MESSAGE);
       case Role.PARTICIPANT:
         return this.registerParticipant(dto);
       case Role.COACH:
@@ -155,22 +159,6 @@ export class AuthService {
   async logout(dto: RefreshTokenDto): Promise<void> {
     const payload = await this.verifyRefreshToken(dto.refreshToken);
     await this.refreshTokenStore.revoke(payload.sub, payload.jti);
-  }
-
-  private async registerAdmin(dto: RegisterDto): Promise<AuthResult> {
-    const existing = await this.adminsService.findByEmail(dto.email);
-    if (existing) {
-      throw new ConflictException('Адмін з таким email вже існує');
-    }
-    const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
-    const admin = await this.adminsService.create({
-      name: dto.name,
-      email: dto.email,
-      passwordHash,
-    });
-    return this.issueSession(admin.id, admin.email, Role.ADMIN, {
-      admin: { id: admin.id, name: admin.name, email: admin.email },
-    });
   }
 
   private async registerParticipant(dto: RegisterDto): Promise<AuthResult> {

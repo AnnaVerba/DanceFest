@@ -5,7 +5,6 @@ import { CompetitionsModule } from './competitions/competitions.module';
 import { AdminsModule } from './admins/admins.module';
 import { AuthModule } from './auth/auth.module';
 import { TeamModule } from './team/team.module';
-import { JudgesModule } from './judges/judges.module';
 import { VenuesModule } from './venues/venues.module';
 import { EntriesModule } from './entries/entries.module';
 import { NominationsModule } from './nominations/nominations.module';
@@ -13,7 +12,6 @@ import { CategoriesModule } from './categories/categories.module';
 import { CategoryTemplatesModule } from './category-templates/category-templates.module';
 import { PaymentDetailsModule } from './payment-details/payment-details.module';
 import { CompetitionRulesModule } from './competition-rules/competition-rules.module';
-import { MailModule } from './mail/mail.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { SchoolsModule } from './schools/schools.module';
 import { CoachesModule } from './coaches/coaches.module';
@@ -26,7 +24,6 @@ import { CompetitionApplicationsModule } from './competition-applications/compet
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    MailModule,
     SequelizeModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -45,7 +42,6 @@ import { CompetitionApplicationsModule } from './competition-applications/compet
     AdminsModule,
     AuthModule,
     TeamModule,
-    JudgesModule,
     VenuesModule,
     EntriesModule,
     NominationsModule,

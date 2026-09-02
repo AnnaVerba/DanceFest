@@ -12,3 +12,5 @@ export const REFRESH_TOKEN_REVOKED_MESSAGE =
   'Refresh-токен відкликаний або вже використаний';
 export const LEAGUE_NOT_ALLOWED_ON_REGISTER_MESSAGE =
   'Лігу не можна вказувати при реєстрації';
+export const ADMIN_SELF_REGISTRATION_FORBIDDEN_MESSAGE =
+  'Самостійна реєстрація адміністратора недоступна — новий обліковий запис адміністратора може створити лише інший адміністратор.';
