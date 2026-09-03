@@ -20,11 +20,10 @@ import { CompetitionsService } from './competitions.service';
 import { CreateCompetitionDto } from './dto/create-competition.dto';
 import { UpdateCompetitionDto } from './dto/update-competition.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
-import { Roles } from '../auth/roles.decorator';
-import { Role } from '../auth/roles.enum';
+import { MinLevelGuard } from '../auth/min-level.guard';
+import { MinLevel } from '../auth/min-level.decorator';
+import { AccessLevel } from '../auth/access-level.enum';
 import { CurrentUser } from '../auth/current-user.decorator';
-import type { AuthenticatedAdmin } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 
 @ApiTags('competitions')
@@ -68,12 +67,12 @@ export class CompetitionsController {
     description: 'This action is not available for your role.',
   })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.ORGANIZER)
+  @UseGuards(JwtAuthGuard, MinLevelGuard)
+  @MinLevel(AccessLevel.ORGANIZER)
   @Post()
   create(
     @Body() createCompetitionDto: CreateCompetitionDto,
-    @CurrentUser() owner: AuthenticatedAdmin | AuthenticatedUser,
+    @CurrentUser() owner: AuthenticatedUser,
   ) {
     return this.competitionsService.create(createCompetitionDto, owner.id);
   }
@@ -95,19 +94,19 @@ export class CompetitionsController {
     description: 'No competition exists with the given id.',
   })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.ORGANIZER)
+  @UseGuards(JwtAuthGuard, MinLevelGuard)
+  @MinLevel(AccessLevel.ORGANIZER)
   @Patch(':id')
   update(
     @Param('id') id: string,
     @Body() updateCompetitionDto: UpdateCompetitionDto,
-    @CurrentUser() owner: AuthenticatedAdmin | AuthenticatedUser,
+    @CurrentUser() owner: AuthenticatedUser,
   ) {
     return this.competitionsService.update(
       id,
       updateCompetitionDto,
       owner.id,
-      owner.role,
+      owner.accessLevel,
     );
   }
 
@@ -126,7 +125,7 @@ export class CompetitionsController {
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id') id: string, @CurrentUser() admin: AuthenticatedAdmin) {
+  remove(@Param('id') id: string, @CurrentUser() admin: AuthenticatedUser) {
     return this.competitionsService.remove(id, admin.id);
   }
 }

@@ -15,7 +15,7 @@
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  /* App-wide semantic tokens (admin/apply UI). Every page module
+  /* App-wide semantic tokens (admin/judge/apply UI). Every page module
      points its local color vars at these, so switching theme here
      re-themes the whole app. See ThemeProvider for the data-theme switch. */
   --g-page-bg: #f1f5f9;
@@ -31,6 +31,10 @@
   --g-accent: #2563eb;
   --g-accent-hover: #1d4ed8;
   --g-accent-bg-soft: #dbeafe;
+
+  /* Fixed app chrome — the top bar and the cabinet's left nav rail. */
+  --topbar-h: 64px;
+  --cabinet-rail-w: 240px;
   --g-danger: #dc2626;
   --g-danger-hover: #b91c1c;
   --g-danger-bg: #fef2f2;

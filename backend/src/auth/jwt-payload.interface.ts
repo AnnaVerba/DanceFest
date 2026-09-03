@@ -1,9 +1,9 @@
-import { Role } from './roles.enum';
+import { AccessLevel } from './access-level.enum';
 
 export interface JwtPayload {
   sub: string;
   email: string;
-  role: Role;
+  accessLevel: AccessLevel;
 }
 
 export interface RefreshTokenPayload extends JwtPayload {

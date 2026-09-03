@@ -1,26 +1,24 @@
 import { authorizedFetch } from './auth';
+import { GENERIC_REQUEST_ERROR_MESSAGE } from './api.constants';
 import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
-import {
-  PARTICIPANTS_LOAD_FAILED_MESSAGE,
-  PARTICIPANT_CREATE_FAILED_MESSAGE,
-} from './participants.constants';
 
-export interface ParticipantSummary {
+export interface Participant {
   id: string;
   firstName: string;
   lastName: string;
   phone: string;
-  email: string;
+  email: string | null;
   birthDate: string;
+  hasPassword: boolean;
   coachId: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface CreateParticipantInput {
+export interface NewParticipant {
   firstName: string;
   lastName: string;
   phone: string;
-  email: string;
-  password: string;
   birthDate: string;
 }
 
@@ -41,52 +39,44 @@ function extractMessage(payload: ErrorPayload | null, fallback: string): string 
   return Array.isArray(payload.message) ? payload.message.join(', ') : payload.message;
 }
 
-export async function getMyParticipants(): Promise<ParticipantSummary[]> {
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
-    response = await authorizedFetch('/users/participants');
-  } catch {
-    throw new ParticipantApiError(CANNOT_CONNECT_TO_SERVER_MESSAGE, 0);
-  }
-
-  const payload = (await response.json().catch(() => null)) as
-    | (ErrorPayload & ParticipantSummary[])
-    | null;
-
-  if (!response.ok) {
-    throw new ParticipantApiError(
-      extractMessage(payload as ErrorPayload | null, PARTICIPANTS_LOAD_FAILED_MESSAGE),
-      response.status,
-    );
-  }
-
-  return payload as unknown as ParticipantSummary[];
-}
-
-export async function createParticipant(
-  input: CreateParticipantInput,
-): Promise<ParticipantSummary> {
-  let response: Response;
-  try {
-    response = await authorizedFetch('/users/participants', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+    response = await authorizedFetch(path, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...init?.headers,
+      },
     });
   } catch {
     throw new ParticipantApiError(CANNOT_CONNECT_TO_SERVER_MESSAGE, 0);
   }
 
-  const payload = (await response.json().catch(() => null)) as
-    | (ErrorPayload & ParticipantSummary)
-    | null;
+  const payload = (await response.json().catch(() => null)) as ErrorPayload | null;
 
   if (!response.ok) {
     throw new ParticipantApiError(
-      extractMessage(payload, PARTICIPANT_CREATE_FAILED_MESSAGE),
+      extractMessage(payload, GENERIC_REQUEST_ERROR_MESSAGE),
       response.status,
     );
   }
 
-  return payload as unknown as ParticipantSummary;
+  return payload as unknown as T;
+}
+
+export function getParticipants(): Promise<Participant[]> {
+  return request<Participant[]>('/users/participants');
+}
+
+export function createParticipant(input: NewParticipant): Promise<Participant> {
+  return request<Participant>('/users/participants', {
+    method: 'POST',
+    body: JSON.stringify({
+      firstName: input.firstName.trim(),
+      lastName: input.lastName.trim(),
+      phone: input.phone.trim(),
+      birthDate: input.birthDate,
+    }),
+  });
 }

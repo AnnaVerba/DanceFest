@@ -1,36 +1,90 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AuthError, login, saveSession } from '../lib/auth';
-import { LOGINABLE_ROLES, ROLE, ROLE_CABINET_PATH, ROLE_LABELS } from '../lib/roles';
-import type { Role } from '../lib/roles';
+import {
+  AuthError,
+  login,
+  resendOtp,
+  saveSession,
+  verifyOtp,
+} from '../lib/auth';
+import { MIN_PASSWORD_LENGTH } from '../lib/auth.constants';
 import styles from './LoginPage.module.css';
+
+const OTP_LENGTH = 4;
+const RESEND_SECONDS = 60;
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const [role, setRole] = useState<Role>(ROLE.PARTICIPANT);
-  const [email, setEmail] = useState('');
+  const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const [stage, setStage] = useState<'login' | 'otp'>('login');
+  const [maskedPhone, setMaskedPhone] = useState('');
+  const [code, setCode] = useState('');
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = setInterval(() => setResendIn((s) => s - 1), 1000);
+    return () => clearInterval(timer);
+  }, [resendIn]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
     setSubmitting(true);
-
     try {
-      const session = await login(email, password, role);
-      saveSession(session);
-      navigate(ROLE_CABINET_PATH[role], { replace: true });
+      const result = await login(loginId, password);
+      if ('otpRequired' in result) {
+        setMaskedPhone(result.phone);
+        setStage('otp');
+        setResendIn(RESEND_SECONDS);
+        setCode('');
+        setOtpError(null);
+      } else {
+        saveSession(result);
+        navigate('/profile', { replace: true });
+      }
     } catch (err) {
       setError(
         err instanceof AuthError
           ? err.message
-          : 'Не вдалося увійти. Перевірте email та пароль.',
+          : 'Не вдалося увійти. Перевірте дані та пароль.',
       );
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const submitOtp = async () => {
+    setOtpError(null);
+    setOtpBusy(true);
+    try {
+      const session = await verifyOtp(loginId, code, password);
+      saveSession(session);
+      navigate('/profile', { replace: true });
+    } catch (err) {
+      setOtpError(err instanceof AuthError ? err.message : 'Невірний код.');
+    } finally {
+      setOtpBusy(false);
+    }
+  };
+
+  const doResend = async () => {
+    setOtpError(null);
+    try {
+      const { phone } = await resendOtp(loginId);
+      setMaskedPhone(phone);
+      setResendIn(RESEND_SECONDS);
+    } catch (err) {
+      setOtpError(
+        err instanceof AuthError ? err.message : 'Спробуйте пізніше.',
+      );
     }
   };
 
@@ -63,66 +117,120 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <h1 className={styles.title}>Вхід</h1>
-        <p className={styles.subtitle}>Увійдіть у свій акаунт</p>
+        {stage === 'login' && (
+          <>
+            <h1 className={styles.title}>Вхід</h1>
+            <p className={styles.subtitle}>Увійдіть у свій акаунт</p>
 
-        {error && <p className={styles.error}>{error}</p>}
+            {error && <p className={styles.error}>{error}</p>}
 
-        <form onSubmit={handleSubmit}>
-          <div className={styles.field}>
-            <label>Вхід як</label>
-            <div className={styles.roleTabs} role="tablist" aria-label="Роль">
-              {LOGINABLE_ROLES.map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  role="tab"
-                  aria-selected={role === r}
-                  className={`${styles.roleTab} ${role === r ? styles.roleTabActive : ''}`}
-                  onClick={() => setRole(r)}
-                >
-                  {ROLE_LABELS[r]}
-                </button>
-              ))}
+            <form onSubmit={handleSubmit}>
+              <div className={styles.field}>
+                <label htmlFor="loginId">Номер телефону або email</label>
+                <input
+                  type="text"
+                  id="loginId"
+                  name="loginId"
+                  placeholder="+380 67 123 45 67"
+                  autoComplete="username"
+                  value={loginId}
+                  onChange={(e) => setLoginId(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className={styles.field}>
+                <label htmlFor="password">Пароль</label>
+                <input
+                  type="password"
+                  id="password"
+                  name="password"
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  minLength={MIN_PASSWORD_LENGTH}
+                  required
+                />
+                <p className={styles.hint}>
+                  Перший вхід? Введіть номер і придумайте пароль — ми
+                  надішлемо код підтвердження в SMS.
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                className={styles.submit}
+                disabled={submitting}
+              >
+                {submitting ? 'Вхід...' : 'Увійти'}
+              </button>
+            </form>
+
+            <p className={styles.footer}>
+              Немає акаунта? <Link to="/register">Зареєструватися</Link>
+            </p>
+          </>
+        )}
+
+        {stage === 'otp' && (
+          <>
+            <h1 className={styles.title}>Підтвердження</h1>
+            <p className={styles.subtitle}>Ми надіслали код на {maskedPhone}</p>
+
+            {otpError && <p className={styles.error}>{otpError}</p>}
+
+            <div className={styles.field}>
+              <label htmlFor="otp">Код із SMS</label>
+              <input
+                type="text"
+                id="otp"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={OTP_LENGTH}
+                placeholder="1111"
+                value={code}
+                onChange={(e) =>
+                  setCode(
+                    e.target.value.replace(/\D/g, '').slice(0, OTP_LENGTH),
+                  )
+                }
+              />
             </div>
-          </div>
 
-          <div className={styles.field}>
-            <label htmlFor="email">Email</label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              placeholder="user@example.com"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
+            <button
+              type="button"
+              className={styles.submit}
+              disabled={otpBusy || code.length !== OTP_LENGTH}
+              onClick={submitOtp}
+            >
+              {otpBusy ? '...' : 'Підтвердити'}
+            </button>
 
-          <div className={styles.field}>
-            <label htmlFor="password">Пароль</label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              placeholder="••••••••"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
+            <button
+              type="button"
+              className={styles.inlineAction}
+              disabled={resendIn > 0}
+              onClick={doResend}
+            >
+              {resendIn > 0
+                ? `Надіслати код ще раз (${resendIn})`
+                : 'Надіслати код ще раз'}
+            </button>
 
-          <button type="submit" className={styles.submit} disabled={submitting}>
-            {submitting ? 'Вхід...' : 'Увійти'}
-          </button>
-        </form>
-
-        <p className={styles.footer}>
-          Немає акаунта? <Link to="/register">Зареєструватися</Link>
-        </p>
+            <button
+              type="button"
+              className={styles.inlineAction}
+              onClick={() => {
+                setStage('login');
+                setCode('');
+                setOtpError(null);
+              }}
+            >
+              ← Змінити номер
+            </button>
+          </>
+        )}
       </div>
     </main>
   );

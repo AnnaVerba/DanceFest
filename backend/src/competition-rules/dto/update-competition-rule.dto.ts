@@ -64,4 +64,13 @@ export class UpdateCompetitionRuleDto {
   @IsInt()
   @Min(1)
   improvIndividualSeconds?: number;
+
+  @ApiPropertyOptional({
+    example: 3,
+    description: 'How many judges must submit a sheet for a valid result.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  quorum?: number;
 }

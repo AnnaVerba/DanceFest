@@ -1,0 +1,124 @@
+.card {
+  border: 1px solid var(--border, #e4e7ec);
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+}
+.label {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.view {
+  display: grid;
+  gap: 12px;
+}
+.muted {
+  color: var(--g-muted, #667085);
+  font-size: 14px;
+}
+.details {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 14px;
+}
+.row dt {
+  color: var(--g-muted, #667085);
+}
+.row dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+.pending {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--g-warning-bg, #fef3c7);
+  color: var(--g-warning, #b45309);
+  font-size: 13px;
+}
+.form {
+  display: grid;
+  gap: 8px;
+}
+.input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #d0d5dd);
+  border-radius: 8px;
+  font: inherit;
+}
+.combo {
+  position: relative;
+}
+.comboList {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 4px;
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--g-surface, #fff);
+  border: 1px solid var(--border, #d0d5dd);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.12);
+}
+.comboItem {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.comboItem:hover {
+  background: var(--g-field, #f2f4f7);
+}
+.comboEmpty {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--g-muted, #667085);
+}
+.actions {
+  display: flex;
+  gap: 8px;
+}
+.primary {
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+}
+.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ghost {
+  padding: 8px 12px;
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+}
+.error {
+  color: #b42318;
+  font-size: 13px;
+  margin: 0;
+}

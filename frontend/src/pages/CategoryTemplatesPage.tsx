@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import AdminHeader from '../components/AdminHeader';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import { ToastStack } from '../components/admin/Toast';
 import { useToasts } from '../components/admin/useToasts';
-import { getCurrentUserId, getSession, getToken } from '../lib/auth';
-import { ROLE } from '../lib/roles';
+import { getStoredAdmin, getToken } from '../lib/auth';
 import {
   CategoryTemplateApiError,
   deleteCategoryTemplate,
@@ -30,10 +28,7 @@ function plural(n: number): string {
 }
 
 export default function CategoryTemplatesPage() {
-  const currentUserId = getCurrentUserId();
-  // Only an Admin may author a template (create/edit/fork/delete) — an
-  // Organizer can still browse and use one via "Використати".
-  const isAdmin = getSession()?.role === ROLE.ADMIN;
+  const admin = getStoredAdmin();
 
   const [templates, setTemplates] = useState<CategoryTemplate[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -61,11 +56,11 @@ export default function CategoryTemplatesPage() {
     const q = search.trim().toLowerCase();
     return list.filter((t) => {
       if (scope === 'public' && !t.isPublic) return false;
-      if (scope === 'mine' && t.author?.id !== currentUserId) return false;
+      if (scope === 'mine' && t.author?.id !== admin?.id) return false;
       if (q && !(t.name + ' ' + (t.description ?? '')).toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [templates, search, scope, currentUserId]);
+  }, [templates, search, scope, admin?.id]);
 
   const toggleExpanded = async (template: CategoryTemplate) => {
     if (expandedId === template.id) {
@@ -128,7 +123,6 @@ export default function CategoryTemplatesPage() {
 
   return (
     <>
-      <AdminHeader />
       <main className={styles.main}>
         <div className={styles.wrap}>
           <div className={styles.pageHead}>
@@ -139,24 +133,22 @@ export default function CategoryTemplatesPage() {
               </p>
             </div>
             <span className={styles.spacer} />
-            {isAdmin && (
-              <Link to="/category-templates/new" className={styles.btnPrimary}>
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  aria-hidden="true"
-                >
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M12 8v8M8 12h8" />
-                </svg>
-                Створити шаблон
-              </Link>
-            )}
+            <Link to="/category-templates/new" className={styles.btnPrimary}>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 8v8M8 12h8" />
+              </svg>
+              Створити шаблон
+            </Link>
           </div>
 
           <div className={styles.toolbar}>
@@ -256,7 +248,7 @@ export default function CategoryTemplatesPage() {
                       >
                         Номінації
                       </button>
-                      {t.author?.id === currentUserId && (
+                      {t.author?.id === admin?.id && (
                         <Link
                           to={`/category-templates/${t.id}/edit`}
                           className={styles.linkMuted}
@@ -266,16 +258,14 @@ export default function CategoryTemplatesPage() {
                       )}
                     </div>
                     <div className={styles.tplLinks}>
-                      {isAdmin && (
-                        <button
-                          type="button"
-                          className={styles.link}
-                          onClick={() => void handleFork(t)}
-                        >
-                          {t.author?.id === currentUserId ? 'Дублювати' : 'Зберегти як мою копію'}
-                        </button>
-                      )}
-                      {t.author?.id === currentUserId && (
+                      <button
+                        type="button"
+                        className={styles.link}
+                        onClick={() => void handleFork(t)}
+                      >
+                        {t.author?.id === admin?.id ? 'Дублювати' : 'Зберегти як мою копію'}
+                      </button>
+                      {t.author?.id === admin?.id && (
                         <button
                           type="button"
                           className={styles.linkDanger}

@@ -1,97 +1,123 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
-import PublicTopBar from '../components/PublicTopBar';
+import { Navigate } from 'react-router-dom';
+import CabinetLayout from '../components/CabinetLayout';
 import { getSession, getToken } from '../lib/auth';
-import type { ParticipantProfile } from '../lib/auth';
-import { getCompetitionStatus, getCompetitions } from '../lib/competitions';
-import type { Competition } from '../lib/competitions';
-import { COMPETITION_STATUS } from '../lib/competitionStatus';
-import { ROLE, ROLE_CABINET_PATH } from '../lib/roles';
+import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
+import { getMyEntries } from '../lib/entries';
+import type { MyEntry } from '../lib/entries';
 import styles from './ParticipantCabinetPage.module.css';
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('uk-UA', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+interface CompetitionGroup {
+  competitionId: string;
+  competitionName: string;
+  entries: MyEntry[];
+}
+
+function groupByCompetition(entries: MyEntry[]): CompetitionGroup[] {
+  const byId = new Map<string, CompetitionGroup>();
+  for (const entry of entries) {
+    const key = entry.competitionId;
+    const existing = byId.get(key);
+    if (existing) {
+      existing.entries.push(entry);
+    } else {
+      byId.set(key, {
+        competitionId: key,
+        competitionName: entry.competitionName ?? 'Конкурс',
+        entries: [entry],
+      });
+    }
+  }
+  return [...byId.values()];
 }
 
 export default function ParticipantCabinetPage() {
   const session = getSession();
-
-  const [competitions, setCompetitions] = useState<Competition[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [myEntries, setMyEntries] = useState<MyEntry[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    getCompetitions()
-      .then((data) => {
-        if (!cancelled) setCompetitions(data);
+    getMyEntries()
+      .then((entries) => {
+        if (!cancelled) setMyEntries(entries);
       })
       .catch(() => {
-        if (!cancelled) setLoadError('Не вдалося завантажити конкурси.');
+        if (!cancelled) setError('Не вдалося завантажити заявки.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const openCompetitions = useMemo(
-    () =>
-      (competitions ?? []).filter(
-        (c) => getCompetitionStatus(c) === COMPETITION_STATUS.REGISTRATION_OPEN,
-      ),
-    [competitions],
+  const groups = useMemo(
+    () => groupByCompetition(myEntries ?? []),
+    [myEntries],
   );
 
   if (!getToken() || !session) {
     return <Navigate to="/login" replace />;
   }
-  if (session.role !== ROLE.PARTICIPANT) {
-    return <Navigate to={ROLE_CABINET_PATH[session.role]} replace />;
-  }
 
-  const profile = session.profile as ParticipantProfile;
+  const isCoach = meetsLevel(session.profile.accessLevel, ACCESS_LEVEL.COACH);
+  const displayName = `${session.profile.firstName} ${session.profile.lastName}`;
 
   return (
-    <>
-      <PublicTopBar />
-      <main className={styles.main}>
-        <div className={styles.container}>
-          <p className={styles.eyebrow}>Кабінет учасника</p>
-          <h1 className={styles.title}>
-            {profile.firstName} {profile.lastName}
-          </h1>
+    <CabinetLayout>
+      <div className={styles.wrap}>
+        <h1 className={styles.title}>
+          {isCoach ? 'Заявки моїх учасників' : 'Мої заявки'}
+        </h1>
+        <p className={styles.subtitle}>{displayName}</p>
 
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>Відкриті конкурси</h2>
-            {loadError && <p className={styles.status}>{loadError}</p>}
-            {!loadError && competitions === null && (
-              <p className={styles.status}>Завантаження...</p>
-            )}
-            {!loadError && competitions !== null && openCompetitions.length === 0 && (
-              <p className={styles.status}>Зараз немає конкурсів з відкритою реєстрацією.</p>
-            )}
-            <ul className={styles.list}>
-              {openCompetitions.map((c) => (
-                <li key={c.id} className={styles.card}>
-                  <div>
-                    <div className={styles.cardName}>{c.name}</div>
-                    <div className={styles.cardMeta}>
-                      {formatDate(c.dateFrom)}
-                      {c.location && ` · ${c.location}`}
-                    </div>
-                  </div>
-                  <Link to={`/competitions/${c.id}/apply`} className={styles.applyBtn}>
-                    Подати заявку
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </div>
-      </main>
-    </>
+        <section className={styles.tableCard}>
+          <div className={styles.tableHead}>Подані заявки</div>
+          {loading && <p className={styles.note}>Завантаження...</p>}
+          {error && <p className={styles.note}>{error}</p>}
+          {!loading && !error && groups.length === 0 && (
+            <p className={styles.empty}>Ви ще не подавали заявок.</p>
+          )}
+          {groups.map((group) => (
+            <div key={group.competitionId} className={styles.entryGroup}>
+              <div className={styles.groupName}>{group.competitionName}</div>
+              <div className={styles.tableScroll}>
+                <table className={styles.entryTable}>
+                  <thead>
+                    <tr>
+                      <th>№</th>
+                      <th>Номінація</th>
+                      <th>Ліга</th>
+                      <th>Склад</th>
+                      <th>Вік. кат.</th>
+                      <th>Музика</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.entries.map((entry) => (
+                      <tr key={entry.id}>
+                        <td>{entry.number}</td>
+                        <td>{entry.nomination}</td>
+                        <td>{entry.league ?? '—'}</td>
+                        <td>{entry.lineup ?? '—'}</td>
+                        <td>{entry.ageCategory ?? '—'}</td>
+                        <td>
+                          {entry.improv
+                            ? 'Імпровізація'
+                            : (entry.musicName ?? '—')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </section>
+      </div>
+    </CabinetLayout>
   );
 }

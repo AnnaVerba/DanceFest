@@ -140,7 +140,8 @@
 }
 
 .inlineAction {
-  margin-top: 8px;
+  display: block;
+  margin-top: 10px;
   font-size: 13px;
   font-weight: 600;
   color: var(--brand);
@@ -151,47 +152,13 @@
   font-family: inherit;
 }
 
-.inlineAction:hover {
+.inlineAction:hover:not(:disabled) {
   text-decoration: underline;
 }
 
-.inlineRow {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.inlineRow input {
-  flex: 1;
-  min-width: 0;
-  height: 40px;
-  padding: 0 12px;
-  font-size: 14px;
-  font-family: inherit;
-  color: var(--ink);
-  background: var(--field);
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  outline: none;
-}
-
-.inlineRow button {
-  flex: none;
-  height: 40px;
-  padding: 0 14px;
-  font-size: 13px;
-  font-weight: 700;
-  font-family: inherit;
-  color: #fff;
-  background: var(--brand);
-  border: 0;
-  border-radius: 9px;
-  cursor: pointer;
-}
-
-.inlineRow button:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
+.inlineAction:disabled {
+  color: var(--muted);
+  cursor: default;
 }
 
 .field select {
@@ -307,4 +274,29 @@
   .title {
     font-size: 26px;
   }
+}
+
+.roleToggle {
+  display: flex;
+  gap: 8px;
+}
+
+.roleOn,
+.roleOff {
+  flex: 1;
+  padding: 9px 0;
+  border-radius: 8px;
+  border: 1px solid var(--brand);
+  cursor: pointer;
+  font: inherit;
+}
+
+.roleOn {
+  background: var(--brand);
+  color: #fff;
+}
+
+.roleOff {
+  background: transparent;
+  color: var(--brand);
 }

@@ -8,7 +8,7 @@ import {
   Model,
   Table,
 } from 'sequelize-typescript';
-import { Admin } from '../admins/admin.model';
+import { User } from '../users/user.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Invitation } from '../team/invitation.model';
 import { PaymentDetails } from '../payment-details/payment-details.model';
@@ -55,18 +55,18 @@ export class Competition extends Model<Competition> {
   @Column({ type: DataType.STRING, allowNull: false })
   declare contactEmail: string;
 
-  // Owner is polymorphic (an Admin or an Organizer), so this column has no
+  // Owner is polymorphic (an User or an Organizer), so this column has no
   // DB-level foreign key — see migrations/20260901093000-relax-competitions-owner-fk.ts.
   @Column({ type: DataType.UUID, allowNull: false })
   declare ownerId: string;
 
-  // Resolves to an Admin only when the owner is an Admin; null for an
+  // Resolves to an User only when the owner is an User; null for an
   // Organizer-owned competition (Organizer has no association here).
-  @BelongsTo(() => Admin, 'ownerId')
-  declare owner: Admin;
+  @BelongsTo(() => User, 'ownerId')
+  declare owner: User;
 
-  @BelongsToMany(() => Admin, () => CompetitionAdmin)
-  declare admins: Admin[];
+  @BelongsToMany(() => User, () => CompetitionAdmin)
+  declare admins: User[];
 
   @HasMany(() => Invitation)
   declare invitations: Invitation[];

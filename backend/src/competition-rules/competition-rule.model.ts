@@ -49,6 +49,9 @@ export class CompetitionRule extends Model<CompetitionRule> {
   @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 30 })
   declare improvIndividualSeconds: number;
 
+  @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 3 })
+  declare quorum: number;
+
   @BelongsTo(() => Competition)
   declare competition: Competition;
 

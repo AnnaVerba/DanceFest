@@ -7,7 +7,7 @@ import {
   Model,
   Table,
 } from 'sequelize-typescript';
-import { Admin } from '../admins/admin.model';
+import { User } from '../users/user.model';
 import { TemplateNomination } from './template-nomination.model';
 
 @Table({ tableName: 'category_templates' })
@@ -28,12 +28,12 @@ export class CategoryTemplate extends Model<CategoryTemplate> {
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   declare isPublic: boolean;
 
-  @ForeignKey(() => Admin)
+  @ForeignKey(() => User)
   @Column({ type: DataType.UUID, allowNull: false })
   declare authorId: string;
 
-  @BelongsTo(() => Admin, 'authorId')
-  declare author: Admin;
+  @BelongsTo(() => User, 'authorId')
+  declare author: User;
 
   @ForeignKey(() => CategoryTemplate)
   @Column({ type: DataType.UUID, allowNull: true })

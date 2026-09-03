@@ -6,7 +6,7 @@ import {
   Model,
   Table,
 } from 'sequelize-typescript';
-import { Admin } from '../admins/admin.model';
+import { User } from '../users/user.model';
 import { Competition } from '../competitions/competition.model';
 
 export const INVITATION_STATUSES = [
@@ -50,7 +50,7 @@ export class Invitation extends Model<Invitation> {
   })
   declare status: InvitationStatus;
 
-  @ForeignKey(() => Admin)
+  @ForeignKey(() => User)
   @Column({ type: DataType.UUID, allowNull: true })
   declare invitedByAdminId: string | null;
 
@@ -60,8 +60,8 @@ export class Invitation extends Model<Invitation> {
   @BelongsTo(() => Competition)
   declare competition: Competition;
 
-  @BelongsTo(() => Admin, 'invitedByAdminId')
-  declare invitedBy: Admin;
+  @BelongsTo(() => User, 'invitedByAdminId')
+  declare invitedBy: User;
 
   @Column(DataType.DATE)
   declare createdAt: Date;

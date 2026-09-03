@@ -6,6 +6,8 @@ import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
 export interface Entry {
   id: string;
   nominationId: string | null;
+  participantId: string | null;
+  participantIds: string[];
   number: number;
   routineName: string;
   nomination: string;
@@ -13,24 +15,30 @@ export interface Entry {
   league: string | null;
   program: string | null;
   participantsCount: number | null;
+  lineup: string | null;
   studioName: string | null;
   choreographer: string | null;
   city?: string | null;
   improv?: boolean;
   paymentMethod?: 'cash' | 'card' | null;
+  musicName?: string | null;
   score: number | null;
+  scoresCount?: number;
   createdAt: string;
 }
 
 export interface EntryInput {
-  routineName: string;
+  routineName?: string;
   nominationId: string;
+  participantId?: string;
+  participantIds?: string[];
   participantsCount?: number;
   studioName?: string;
   choreographer?: string;
   city?: string;
   improv?: boolean;
   paymentMethod?: 'cash' | 'card';
+  musicName?: string;
 }
 
 export class EntryApiError extends Error {
@@ -84,6 +92,16 @@ export function getEntries(competitionId: string): Promise<Entry[]> {
   return request<Entry[]>(`/competitions/${competitionId}/entries`);
 }
 
+export interface MyEntry extends Entry {
+  competitionId: string;
+  competitionName: string | null;
+  competitionDateFrom: string | null;
+}
+
+export function getMyEntries(): Promise<MyEntry[]> {
+  return request<MyEntry[]>('/me/entries');
+}
+
 export async function getEntriesCount(competitionId: string): Promise<number> {
   const response = await fetch(
     `${API_BASE_URL}/competitions/${competitionId}/entries/count`,
@@ -105,6 +123,18 @@ export function createEntry(
   return request<Entry[]>(`/competitions/${competitionId}/entries`, {
     method: 'POST',
     body: JSON.stringify(input),
+  });
+}
+
+// One application, many nominations: all inserted in a single transaction —
+// if one fails, none are created.
+export function createEntriesBulk(
+  competitionId: string,
+  inputs: EntryInput[],
+): Promise<Entry[]> {
+  return request<Entry[]>(`/competitions/${competitionId}/entries/bulk`, {
+    method: 'POST',
+    body: JSON.stringify({ entries: inputs }),
   });
 }
 

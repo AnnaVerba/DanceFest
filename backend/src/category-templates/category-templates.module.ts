@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
-import { Admin } from '../admins/admin.model';
+import { User } from '../users/user.model';
 import { CategoriesModule } from '../categories/categories.module';
 import { CategoryTemplate } from './category-template.model';
 import { TemplateNomination } from './template-nomination.model';
@@ -11,7 +11,7 @@ import { CategoryTemplatesService } from './category-templates.service';
 @Module({
   imports: [
     SequelizeModule.forFeature([
-      Admin,
+      User,
       CategoryTemplate,
       TemplateNomination,
       Nomination,

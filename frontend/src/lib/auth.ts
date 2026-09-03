@@ -1,65 +1,53 @@
 import { API_BASE_URL } from './api';
-import { ROLE } from './roles';
-import type { Role } from './roles';
+import { ACCESS_LEVEL, meetsLevel } from './roles';
+import type { AccessLevel } from './roles';
 import {
   SESSION_STORAGE_KEY,
   UNEXPECTED_SERVER_RESPONSE_MESSAGE,
   CANNOT_CONNECT_TO_SERVER_MESSAGE,
   LOGIN_FAILED_MESSAGE,
+  LEVEL_UPGRADE_FAILED_MESSAGE,
   REGISTER_FAILED_MESSAGE,
   NO_STORED_REFRESH_TOKEN_MESSAGE,
   SESSION_EXPIRED_MESSAGE,
+  OTP_VERIFY_FAILED_MESSAGE,
+  OTP_RESEND_FAILED_MESSAGE,
 } from './auth.constants';
 import { HTTP_STATUS_UNAUTHORIZED } from './api.constants';
 
-export interface ParticipantProfile {
+export interface UserProfile {
   id: string;
   firstName: string;
   lastName: string;
-  email: string;
-  birthDate: string;
+  email: string | null;
+  birthDate: string | null;
+  accessLevel: AccessLevel;
+  schoolId: string | null;
   coachId: string | null;
 }
 
-export interface CoachProfile {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  schoolId: string;
-}
-
-export interface OrganizerProfile {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-}
-
-export interface AdminProfile {
-  id: string;
-  name: string;
-  email: string;
-}
-
-export type AuthProfile = ParticipantProfile | CoachProfile | OrganizerProfile | AdminProfile;
-
 export interface Session {
-  role: Role;
   accessToken: string;
   refreshToken: string;
-  profile: AuthProfile;
+  // The user's access level lives here only, on `profile.accessLevel` —
+  // one source of truth.
+  profile: UserProfile;
 }
 
 export interface RegisterPayload {
-  role: Role;
+  firstName: string;
+  lastName: string;
+  phone: string;
   email: string;
   password: string;
-  firstName?: string;
-  lastName?: string;
-  phone?: string;
-  birthDate?: string;
+  birthDate: string;
+  role: AccessLevel;
   schoolId?: string;
+}
+
+export interface OtpRequired {
+  otpRequired: true;
+  phone: string;
 }
 
 export class AuthError extends Error {}
@@ -71,8 +59,7 @@ interface ErrorPayload {
 interface RawAuthResponse {
   accessToken: string;
   refreshToken: string;
-  admin?: AdminProfile;
-  user?: AuthProfile;
+  user: UserProfile;
 }
 
 function extractErrorMessage(payload: ErrorPayload | null, fallback: string) {
@@ -82,16 +69,14 @@ function extractErrorMessage(payload: ErrorPayload | null, fallback: string) {
     : payload.message;
 }
 
-function toSession(role: Role, raw: RawAuthResponse): Session {
-  const profile = role === ROLE.ADMIN ? raw.admin : raw.user;
-  if (!profile) {
+function toSession(raw: RawAuthResponse): Session {
+  if (!raw.user) {
     throw new AuthError(UNEXPECTED_SERVER_RESPONSE_MESSAGE);
   }
   return {
-    role,
     accessToken: raw.accessToken,
     refreshToken: raw.refreshToken,
-    profile,
+    profile: raw.user,
   };
 }
 
@@ -122,26 +107,143 @@ async function postAuth(
   return payload as RawAuthResponse;
 }
 
+// `login` accepts a phone number or an email. A password-less account
+// (first login) gets `{ otpRequired, phone }` instead of a session.
 export async function login(
-  email: string,
+  loginId: string,
   password: string,
-  role: Role,
-): Promise<Session> {
+): Promise<Session | OtpRequired> {
   const raw = await postAuth(
     '/auth/login',
-    { email, password, role },
+    { login: loginId, password },
     LOGIN_FAILED_MESSAGE,
   );
-  return toSession(role, raw);
+  if ((raw as unknown as OtpRequired).otpRequired) {
+    return raw as unknown as OtpRequired;
+  }
+  return toSession(raw);
+}
+
+export async function verifyOtp(
+  loginId: string,
+  code: string,
+  password: string,
+): Promise<Session> {
+  const raw = await postAuth(
+    '/auth/otp/verify',
+    { login: loginId, code, password },
+    OTP_VERIFY_FAILED_MESSAGE,
+  );
+  return toSession(raw);
+}
+
+export async function resendOtp(
+  loginId: string,
+): Promise<{ phone: string }> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/auth/otp/resend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ login: loginId }),
+    });
+  } catch {
+    throw new AuthError(CANNOT_CONNECT_TO_SERVER_MESSAGE);
+  }
+  const payload = (await response.json().catch(() => null)) as
+    | (ErrorPayload & { phone: string })
+    | null;
+  if (!response.ok) {
+    throw new AuthError(
+      extractErrorMessage(payload, OTP_RESEND_FAILED_MESSAGE),
+    );
+  }
+  return payload as { phone: string };
 }
 
 export async function register(payload: RegisterPayload): Promise<Session> {
-  const raw = await postAuth(
-    '/auth/register',
-    payload,
-    REGISTER_FAILED_MESSAGE,
-  );
-  return toSession(payload.role, raw);
+  const raw = await postAuth('/auth/register', payload, REGISTER_FAILED_MESSAGE);
+  return toSession(raw);
+}
+
+// Climb the ladder (COACH or ORGANIZER). The access token carries the
+// level, so refresh right after to pick up the change.
+export async function upgradeLevel(
+  level: AccessLevel,
+  schoolId?: string,
+): Promise<Session> {
+  let response: Response;
+  try {
+    response = await authorizedFetch('/users/me/level', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level, schoolId }),
+    });
+  } catch {
+    throw new AuthError(CANNOT_CONNECT_TO_SERVER_MESSAGE);
+  }
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as ErrorPayload | null;
+    throw new AuthError(
+      extractErrorMessage(payload, LEVEL_UPGRADE_FAILED_MESSAGE),
+    );
+  }
+  return refreshSession();
+}
+
+export interface CoachSummary {
+  id: string;
+  firstName: string;
+  lastName: string;
+  schoolName: string | null;
+}
+
+export type SetMentorCoachBody =
+  | { coachId: string }
+  | { newCoach: { firstName: string; lastName: string; phone: string } };
+
+export interface MentorCoach {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  schoolName: string | null;
+  confirmed: boolean;
+}
+
+export async function getSelectableCoaches(): Promise<CoachSummary[]> {
+  const response = await authorizedFetch('/users/coaches');
+  if (!response.ok) {
+    throw new AuthError(UNEXPECTED_SERVER_RESPONSE_MESSAGE);
+  }
+  return response.json() as Promise<CoachSummary[]>;
+}
+
+export async function getMyMentorCoach(): Promise<MentorCoach | null> {
+  const response = await authorizedFetch('/users/me/coach');
+  if (!response.ok) {
+    throw new AuthError(UNEXPECTED_SERVER_RESPONSE_MESSAGE);
+  }
+  return response.json() as Promise<MentorCoach | null>;
+}
+
+export async function setMentorCoach(
+  body: SetMentorCoachBody,
+): Promise<{ coachId: string }> {
+  const response = await authorizedFetch('/users/me/coach', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const payload = (await response.json().catch(() => null)) as
+    | (ErrorPayload & { coachId: string })
+    | null;
+  if (!response.ok) {
+    throw new AuthError(
+      extractErrorMessage(payload, LEVEL_UPGRADE_FAILED_MESSAGE),
+    );
+  }
+  return payload as { coachId: string };
 }
 
 export function saveSession(session: Session) {
@@ -150,18 +252,39 @@ export function saveSession(session: Session) {
 
 export function getSession(): Session | null {
   const raw = localStorage.getItem(SESSION_STORAGE_KEY);
-  return raw ? (JSON.parse(raw) as Session) : null;
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<Session>;
+    if (parsed?.accessToken && parsed.refreshToken && parsed.profile) {
+      return parsed as Session;
+    }
+  } catch {
+    /* malformed — treated as logged out below */
+  }
+  localStorage.removeItem(SESSION_STORAGE_KEY);
+  return null;
 }
 
 export function getToken(): string | null {
   return getSession()?.accessToken ?? null;
 }
 
-// Used by pages that compare "is this record mine" (competition/template
-// ownership) against the logged-in user, regardless of role — ADMIN and
-// ORGANIZER both own competitions, so this can't be admin-only.
-export function getCurrentUserId(): string | null {
-  return getSession()?.profile.id ?? null;
+// The organizer/admin management pages call this for the display name and
+// as an "am I allowed here" check.
+export function getStoredAdmin(): { id: string; name: string; email: string } | null {
+  const session = getSession();
+  if (
+    !session ||
+    !meetsLevel(session.profile.accessLevel, ACCESS_LEVEL.ORGANIZER)
+  ) {
+    return null;
+  }
+  const { profile } = session;
+  return {
+    id: profile.id,
+    name: `${profile.firstName} ${profile.lastName}`.trim(),
+    email: profile.email ?? '',
+  };
 }
 
 function getRefreshToken(): string | null {
@@ -198,7 +321,7 @@ export async function refreshSession(): Promise<Session> {
     throw new AuthError(extractErrorMessage(payload, SESSION_EXPIRED_MESSAGE));
   }
 
-  const session = toSession(current.role, payload as RawAuthResponse);
+  const session = toSession(payload as RawAuthResponse);
   saveSession(session);
   return session;
 }

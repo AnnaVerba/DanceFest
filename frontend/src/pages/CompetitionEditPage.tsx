@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import AdminHeader from '../components/AdminHeader';
 import PhoneField from '../components/PhoneField';
 import { getToken } from '../lib/auth';
 import { CompetitionApiError, getCompetition, updateCompetition } from '../lib/competitions';
@@ -198,12 +197,11 @@ export default function CompetitionEditPage() {
     return <Navigate to="/login" replace />;
   }
   if (!id) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return (
     <>
-      <AdminHeader />
       <main className={styles.main}>
         <div className={styles.wrap}>
           <Link to={`/competitions/${id}`} className={styles.back}>

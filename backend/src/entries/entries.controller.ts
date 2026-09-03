@@ -18,8 +18,10 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedAdmin } from '../auth/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { EntriesService } from './entries.service';
 import { CreateEntryDto } from './dto/create-entry.dto';
+import { BulkCreateEntriesDto } from './dto/bulk-create-entries.dto';
 
 @ApiTags('entries')
 @Controller('competitions/:competitionId/entries')
@@ -90,9 +92,41 @@ export class EntriesController {
   @Post()
   create(
     @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateEntryDto,
   ) {
-    return this.entriesService.create(competitionId, dto);
+    return this.entriesService.create(competitionId, dto, user);
+  }
+
+  @ApiOperation({
+    summary: 'Submit several nominations in one application',
+    description:
+      'One transaction with one running-number sequence: if any nomination ' +
+      'fails, the whole submission rolls back. Returns one element per stage exit.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Submission accepted. One element per stage exit.',
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Validation failed, or a nomination does not exist for this competition.',
+  })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 404,
+    description: 'No competition exists with the given id.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('bulk')
+  createMany(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: BulkCreateEntriesDto,
+  ) {
+    return this.entriesService.createMany(competitionId, dto.entries, user);
   }
 
   @ApiOperation({ summary: 'Remove an entry from a competition' })

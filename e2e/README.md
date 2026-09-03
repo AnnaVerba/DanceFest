@@ -72,17 +72,9 @@ visible browser; `npm run report` opens the last HTML report.
 | Bug | Spec | Status |
 |---|---|---|
 | BUG-1 — anonymous competition access redirected to `/login` | `known-bugs/bug-1-anonymous-competition-access.spec.ts` | **Fixed** — asserted as a plain (non-`test.fail()`) regression test |
-| BUG-3 — `/dashboard` has no role check | `known-bugs/bug-3-dashboard-role-guard.spec.ts` | **Fixed** (2026-09-02) — asserted as a plain (non-`test.fail()`) regression test |
+| BUG-2 — `POST /category-templates` → 500 | `known-bugs/bug-2-category-template-creation.spec.ts` | Still broken — `test.fail()`. Root cause seen in backend logs: the `category_templates_authorId_fkey` foreign key still points at `admins`, violated whenever the author is an Organizer |
+| BUG-3 — `/dashboard` has no role check | `known-bugs/bug-3-dashboard-role-guard.spec.ts` | Still broken — `test.fail()` |
 | BUG-4 — dashboard competition list not scoped to the owner | `known-bugs/bug-4-dashboard-ownership-scope.spec.ts` | Still broken — `test.fail()` |
-
-**BUG-2 was reclassified, not fixed as originally stated** — `POST /category-templates` →
-500 for an Organizer. `qa-test.md` read this as "an Organizer should be able to create a
-template"; it was briefly fixed that way (relaxing `authorId`'s FK to polymorphic, same as
-`competitions.ownerId`). Developer then clarified the actual rule is the opposite: only an
-Admin may author a template. That schema change was reverted, and an explicit `@Roles(Role.ADMIN)`
-was added to create/update/fork/delete instead (`category-templates.controller.ts`) — an
-Organizer now gets a clean 403, not a 500. See `tests/category-templates/organizer-cannot-author.spec.ts`
-(moved out of `known-bugs/`, since this is confirmed-intentional behavior, not a bug).
 
 ## Out of scope (intentionally, per Developer's call)
 
@@ -92,15 +84,7 @@ Organizer now gets a clean 403, not a 500. See `tests/category-templates/organiz
   looks like an intentional product change (the homepage copy changed to "заявка
   подається з кабінету тренера або учасника"), not a regression. Left untested by
   request until that's confirmed as a product decision.
-- The 7-step competition creation wizard (`/competitions/new`) for a brand-new
-  Organizer — they have no template of their own (can't author one, see BUG-2
-  above) and no guarantee a public one exists to reuse. Not tested end-to-end.
-- Admin role — no self-registration path / no seeded credentials available
-  (same gap `qa-test.md` flagged), and this is now by design, not just
-  unbuilt: `POST /auth/register` refuses `role: ADMIN` outright (2026-09-02) —
-  an admin account can only be created by an existing admin, via the separate
-  `POST /admins` (admin-only, `AdminsController`). No e2e coverage for that
-  endpoint yet since it needs a seeded admin session, which this suite has no
-  bootstrap for.
-- Judge role — removed from the product entirely (2026-09-02): no judge
-  accounts, cabinet, or per-entry scoring by judges. Nothing to test.
+- The 7-step competition creation wizard (`/competitions/new`) — only reachable
+  end-to-end once BUG-2 is fixed (a new Organizer has no template to fall back on).
+- Judge and Admin roles — no self-registration path / no seeded credentials
+  available (same gap `qa-test.md` flagged).

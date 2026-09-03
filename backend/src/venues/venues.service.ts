@@ -1,33 +1,24 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
-import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Venue } from './venue.model';
 import { CreateVenueDto } from './dto/create-venue.dto';
 import { VENUE_NOT_FOUND_MESSAGE } from './venues.constants';
-import {
-  COMPETITION_NOT_FOUND_MESSAGE,
-  NO_COMPETITION_ACCESS_MESSAGE,
-} from '../competitions/competitions.constants';
+import { COMPETITION_NOT_FOUND_MESSAGE } from '../competitions/competitions.constants';
 
 @Injectable()
 export class VenuesService {
   constructor(
     @InjectModel(Competition)
     private readonly competitionModel: typeof Competition,
-    @InjectModel(CompetitionAdmin)
-    private readonly competitionAdminModel: typeof CompetitionAdmin,
     @InjectModel(Venue)
     private readonly venueModel: typeof Venue,
   ) {}
 
-  async list(competitionId: string, requesterId: string) {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+  // Public: any visitor may see a competition's venues.
+  async list(competitionId: string) {
+    await this.assertCompetitionExists(competitionId);
     const venues = await this.venueModel.findAll({
       where: { competitionId },
       order: [['createdAt', 'ASC']],
@@ -35,12 +26,9 @@ export class VenuesService {
     return venues.map((v) => this.toDto(v));
   }
 
-  async create(
-    competitionId: string,
-    requesterId: string,
-    dto: CreateVenueDto,
-  ) {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+  // The controller restricts these to ORGANIZER and above.
+  async create(competitionId: string, dto: CreateVenueDto) {
+    await this.assertCompetitionExists(competitionId);
 
     const venue = await this.venueModel.create({
       competitionId,
@@ -51,12 +39,8 @@ export class VenuesService {
     return this.toDto(venue);
   }
 
-  async remove(
-    competitionId: string,
-    venueId: string,
-    requesterId: string,
-  ): Promise<void> {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+  async remove(competitionId: string, venueId: string): Promise<void> {
+    await this.assertCompetitionExists(competitionId);
 
     const venue = await this.venueModel.findOne({
       where: { id: venueId, competitionId },
@@ -67,23 +51,11 @@ export class VenuesService {
     await venue.destroy();
   }
 
-  private async loadCompetitionAndAssertAccess(
-    competitionId: string,
-    requesterId: string,
-  ): Promise<Competition> {
+  private async assertCompetitionExists(competitionId: string): Promise<void> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
       throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
-    if (competition.ownerId === requesterId) return competition;
-
-    const membership = await this.competitionAdminModel.findOne({
-      where: { competitionId, adminId: requesterId },
-    });
-    if (!membership) {
-      throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);
-    }
-    return competition;
   }
 
   private toDto(venue: Venue) {

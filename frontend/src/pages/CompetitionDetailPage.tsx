@@ -1,29 +1,33 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import AdminHeader from '../components/AdminHeader';
 import CompetitionDetails from '../components/CompetitionDetails';
 import ContestIcon from '../components/ContestIcon';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import EntriesPanel from '../components/admin/EntriesPanel';
+import JudgesPanel from '../components/admin/JudgesPanel';
 import NominationsPanel from '../components/admin/NominationsPanel';
 import VenuesPanel from '../components/admin/VenuesPanel';
 import { ToastStack } from '../components/admin/Toast';
 import { useToasts } from '../components/admin/useToasts';
-import { getCurrentUserId, getToken } from '../lib/auth';
+import { getStoredAdmin, getToken } from '../lib/auth';
 import { deleteCompetition, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
+import { FEATURES } from '../lib/features';
 import { getMockCompetitionById } from '../lib/mockCompetitions';
 import styles from './CompetitionDetailPage.module.css';
 
 const USE_MOCK_DATA = false;
 
-const TABS = ['Деталі', 'Номінації', 'Майданчики', 'Заявки'] as const;
-type Tab = (typeof TABS)[number];
+const ALL_TABS = ['Деталі', 'Номінації', 'Судді', 'Майданчики', 'Заявки'] as const;
+type Tab = (typeof ALL_TABS)[number];
+const TABS: readonly Tab[] = ALL_TABS.filter(
+  (tab) => FEATURES.judges || tab !== 'Судді',
+);
 
 export default function CompetitionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const currentUserId = getCurrentUserId();
+  const admin = getStoredAdmin();
 
   const [competition, setCompetition] = useState<Competition | null>(null);
   const [loading, setLoading] = useState(true);
@@ -78,17 +82,26 @@ export default function CompetitionDetailPage() {
     return <Navigate to="/login" replace />;
   }
   if (!id) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/" replace />;
   }
 
-  const isOwner = !!competition && competition.ownerId === currentUserId;
+  const isOwner = !!admin && !!competition && competition.ownerId === admin.id;
+
+  // Only staff came from the dashboard; everyone else goes back where they
+  // were, falling back to the public list.
+  const goBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate(admin ? '/dashboard' : '/');
+    }
+  };
 
   return (
     <>
-      <AdminHeader />
       <main className={styles.main}>
         <div className={styles.wrap}>
-          <Link to="/dashboard" className={styles.back}>
+          <button type="button" className={styles.back} onClick={goBack}>
             <svg
               width="16"
               height="16"
@@ -103,7 +116,7 @@ export default function CompetitionDetailPage() {
               <path d="M19 12H5M11 6l-6 6 6 6" />
             </svg>
             Назад до списку
-          </Link>
+          </button>
 
           {loading && <p className={styles.status}>Завантаження...</p>}
           {loadError && <p className={styles.status}>{loadError}</p>}
@@ -148,10 +161,18 @@ export default function CompetitionDetailPage() {
                 />
               )}
 
+              {FEATURES.judges && activeTab === 'Судді' && (
+                <JudgesPanel
+                  competitionId={id}
+                  canManage={isOwner}
+                  onError={(message) => showToast(message)}
+                />
+              )}
+
               {activeTab === 'Майданчики' && (
                 <VenuesPanel
                   competitionId={id}
-                  canManage={isOwner}
+                  canManage={!!admin}
                   onError={(message) => showToast(message)}
                 />
               )}

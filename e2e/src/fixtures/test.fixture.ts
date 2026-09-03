@@ -5,8 +5,6 @@ import { RegisterPage } from '../pages/register.page';
 import { DashboardPage } from '../pages/dashboard.page';
 import { PublicCompetitionPage } from '../pages/public-competition.page';
 import { CategoryTemplateFormPage } from '../pages/category-template-form.page';
-import { ParticipantCabinetPage } from '../pages/participant-cabinet.page';
-import { CoachCabinetPage } from '../pages/coach-cabinet.page';
 
 interface AppFixtures {
   homePage: HomePage;
@@ -15,8 +13,6 @@ interface AppFixtures {
   dashboardPage: DashboardPage;
   publicCompetitionPage: PublicCompetitionPage;
   categoryTemplateFormPage: CategoryTemplateFormPage;
-  participantCabinetPage: ParticipantCabinetPage;
-  coachCabinetPage: CoachCabinetPage;
 }
 
 /** Extends Playwright's base test with one page object per app page, so specs never construct them by hand. */
@@ -27,8 +23,6 @@ export const test = base.extend<AppFixtures>({
   dashboardPage: async ({ page }, use) => use(new DashboardPage(page)),
   publicCompetitionPage: async ({ page }, use) => use(new PublicCompetitionPage(page)),
   categoryTemplateFormPage: async ({ page }, use) => use(new CategoryTemplateFormPage(page)),
-  participantCabinetPage: async ({ page }, use) => use(new ParticipantCabinetPage(page)),
-  coachCabinetPage: async ({ page }, use) => use(new CoachCabinetPage(page)),
 });
 
 export { expect } from '@playwright/test';

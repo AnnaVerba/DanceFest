@@ -115,3 +115,43 @@
     width: 100%;
   }
 }
+
+.venues {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--g-line);
+}
+
+.venuesHeading {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.venueList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.venueItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--g-line);
+  border-radius: 10px;
+  background: var(--g-field);
+}
+
+.venueName {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.venueDesc {
+  font-size: 13px;
+  color: var(--g-muted);
+}

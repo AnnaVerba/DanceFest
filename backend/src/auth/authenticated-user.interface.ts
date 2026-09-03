@@ -1,8 +1,8 @@
-import { Role } from './roles.enum';
+import { AccessLevel } from './access-level.enum';
 
 export interface AuthenticatedUser {
   id: string;
-  role: Role;
+  accessLevel: AccessLevel;
   email: string;
   firstName?: string;
   lastName?: string;

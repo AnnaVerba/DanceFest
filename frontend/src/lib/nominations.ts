@@ -18,6 +18,12 @@ export interface NominationExit {
   durationLimitSeconds: number | null;
 }
 
+export interface NominationAgeCategory {
+  name: string;
+  ageFrom: number | null;
+  ageTo: number | null;
+}
+
 export interface Nomination {
   id: string;
   templateId: string | null;
@@ -30,6 +36,9 @@ export interface Nomination {
   durationLimitSeconds: number | null;
   programLimits: Record<string, number>;
   programs: NominationProgram[];
+  leagues: string[];
+  lineups: string[];
+  ageCategories: NominationAgeCategory[];
   exits: NominationExit[];
   createdAt: string;
 }

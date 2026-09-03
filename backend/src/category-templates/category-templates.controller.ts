@@ -19,9 +19,6 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
-import { Roles } from '../auth/roles.decorator';
-import { Role } from '../auth/roles.enum';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedAdmin } from '../auth/current-user.decorator';
 import { CategoryTemplatesService } from './category-templates.service';
@@ -31,7 +28,7 @@ import { ForkCategoryTemplateDto } from './dto/fork-category-template.dto';
 
 @ApiTags('category-templates')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('category-templates')
 export class CategoryTemplatesController {
   constructor(
@@ -73,22 +70,13 @@ export class CategoryTemplatesController {
     return this.categoryTemplatesService.findOne(id, admin.id);
   }
 
-  @ApiOperation({
-    summary: 'Create a category template',
-    description:
-      'Admin-only — an Organizer can read and use templates, not author them.',
-  })
+  @ApiOperation({ summary: 'Create a category template' })
   @ApiResponse({ status: 201, description: 'Template created.' })
   @ApiResponse({
     status: 400,
     description: 'Validation failed for one or more fields.',
   })
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
-  @ApiResponse({
-    status: 403,
-    description: 'This action is not available for your role.',
-  })
-  @Roles(Role.ADMIN)
   @Post()
   create(
     @CurrentUser() admin: AuthenticatedAdmin,
@@ -107,11 +95,9 @@ export class CategoryTemplatesController {
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
   @ApiResponse({
     status: 403,
-    description:
-      'This action is not available for your role, or you are not the author.',
+    description: 'Only the author can update this template.',
   })
   @ApiResponse({ status: 404, description: 'Template not found.' })
-  @Roles(Role.ADMIN)
   @Patch(':id')
   update(
     @Param('id') id: string,
@@ -124,8 +110,7 @@ export class CategoryTemplatesController {
   @ApiOperation({
     summary: 'Fork a template',
     description:
-      'Copies a readable template into a private one owned by the caller. Admin-only, ' +
-      'same as create — the copy still needs an Admin author.',
+      'Copies a readable template into a private one owned by the caller.',
   })
   @ApiResponse({ status: 201, description: 'Fork created.' })
   @ApiResponse({
@@ -133,12 +118,7 @@ export class CategoryTemplatesController {
     description: 'The copy name matches the source name.',
   })
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
-  @ApiResponse({
-    status: 403,
-    description: 'This action is not available for your role.',
-  })
   @ApiResponse({ status: 404, description: 'Template not found.' })
-  @Roles(Role.ADMIN)
   @Post(':id/fork')
   fork(
     @Param('id') id: string,
@@ -153,8 +133,7 @@ export class CategoryTemplatesController {
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
   @ApiResponse({
     status: 403,
-    description:
-      'This action is not available for your role, or you are not the author.',
+    description: 'Only the author can delete this template.',
   })
   @ApiResponse({
     status: 404,
@@ -165,7 +144,6 @@ export class CategoryTemplatesController {
     description:
       'TEMPLATE_IN_USE — a competition already has nominations generated from this template.',
   })
-  @Roles(Role.ADMIN)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string, @CurrentUser() admin: AuthenticatedAdmin) {

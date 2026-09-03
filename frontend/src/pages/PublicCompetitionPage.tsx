@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import CompetitionDetails from '../components/CompetitionDetails';
 import ContestIcon from '../components/ContestIcon';
-import PublicTopBar from '../components/PublicTopBar';
 import { getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { getEntriesCount } from '../lib/entries';
+import { getVenues } from '../lib/venues';
+import type { Venue } from '../lib/venues';
 import styles from './PublicCompetitionPage.module.css';
 
 export default function PublicCompetitionPage() {
@@ -13,6 +14,7 @@ export default function PublicCompetitionPage() {
 
   const [competition, setCompetition] = useState<Competition | null>(null);
   const [entriesCount, setEntriesCount] = useState<number | null>(null);
+  const [venues, setVenues] = useState<Venue[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -39,6 +41,14 @@ export default function PublicCompetitionPage() {
         /* count is optional — leave it hidden on failure */
       });
 
+    getVenues(id)
+      .then((data) => {
+        if (!cancelled) setVenues(data);
+      })
+      .catch(() => {
+        /* venues are optional — leave the section hidden on failure */
+      });
+
     return () => {
       cancelled = true;
     };
@@ -50,7 +60,6 @@ export default function PublicCompetitionPage() {
 
   return (
     <div className={styles.page}>
-      <PublicTopBar />
       <main className={styles.main}>
         <div className={styles.wrap}>
           <Link to="/" className={styles.back}>
@@ -92,6 +101,24 @@ export default function PublicCompetitionPage() {
                 competition={competition}
                 entriesCount={entriesCount}
               />
+
+              {venues.length > 0 && (
+                <section className={styles.venues}>
+                  <h2 className={styles.venuesHeading}>Майданчики</h2>
+                  <ul className={styles.venueList}>
+                    {venues.map((venue) => (
+                      <li key={venue.id} className={styles.venueItem}>
+                        <span className={styles.venueName}>{venue.name}</span>
+                        {venue.description && (
+                          <span className={styles.venueDesc}>
+                            {venue.description}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
             </article>
           )}
         </div>

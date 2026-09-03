@@ -30,15 +30,6 @@ export const UI_TEXT = {
     APPLY_LINK: 'Подати заявку',
     BACK_LINK: 'До всіх конкурсів',
   },
-  cabinets: {
-    PARTICIPANT_EYEBROW: 'Кабінет учасника',
-    COACH_EYEBROW: 'Кабінет тренера',
-    NO_OPEN_COMPETITIONS: 'Зараз немає конкурсів з відкритою реєстрацією.',
-    COACH_TAB_COMPETITIONS: 'Конкурси',
-    COACH_TAB_PARTICIPANTS: 'Мої учасники',
-    ADD_PARTICIPANT_BUTTON: 'Додати учасника',
-    NO_PARTICIPANTS: 'Ви ще не додали жодного учасника.',
-  },
   categoryTemplateForm: {
     HEADING: 'Новий шаблон',
     SUBMIT: 'Створити шаблон',

@@ -7,10 +7,10 @@ import {
 import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
-import { ParticipantsService } from '../participants/participants.service';
+import { UsersService } from '../users/users.service';
 import { CategoriesService } from '../categories/categories.service';
 import { LEAGUE_CATEGORY_TYPE } from '../categories/category.model';
-import { Role } from '../auth/roles.enum';
+import { AccessLevel } from '../auth/access-level.enum';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { CompetitionApplication } from './competition-application.model';
 import { ApplicationStatus } from './application-status.enum';
@@ -34,7 +34,7 @@ export class CompetitionApplicationsService {
     private readonly competitionModel: typeof Competition,
     @InjectModel(CompetitionApplication)
     private readonly applicationModel: typeof CompetitionApplication,
-    private readonly participantsService: ParticipantsService,
+    private readonly usersService: UsersService,
     private readonly categoriesService: CategoriesService,
   ) {}
 
@@ -60,11 +60,11 @@ export class CompetitionApplicationsService {
   }
 
   findMine(user: AuthenticatedUser): Promise<CompetitionApplication[]> {
-    if (user.role === Role.ORGANIZER) {
+    if (user.accessLevel === AccessLevel.ORGANIZER) {
       return this.applicationModel.findAll({ order: [['createdAt', 'DESC']] });
     }
     const where =
-      user.role === Role.PARTICIPANT
+      user.accessLevel === AccessLevel.PARTICIPANT
         ? { participantId: user.id }
         : { coachId: user.id };
     return this.applicationModel.findAll({
@@ -130,17 +130,15 @@ export class CompetitionApplicationsService {
     dto: CreateCompetitionApplicationDto,
     user: AuthenticatedUser,
   ): Promise<{ participantId: string; coachId: string | null }> {
-    if (user.role === Role.PARTICIPANT) {
-      const participant = await this.participantsService.findByIdOrFail(
-        user.id,
-      );
+    if (user.accessLevel === AccessLevel.PARTICIPANT) {
+      const participant = await this.usersService.findByIdOrFail(user.id);
       return { participantId: participant.id, coachId: participant.coachId };
     }
 
     if (!dto.participantId) {
       throw new BadRequestException(PARTICIPANT_ID_REQUIRED_FOR_COACH_MESSAGE);
     }
-    const participant = await this.participantsService.findByIdOrFail(
+    const participant = await this.usersService.findByIdOrFail(
       dto.participantId,
     );
     if (participant.coachId !== user.id) {
@@ -153,14 +151,17 @@ export class CompetitionApplicationsService {
     application: CompetitionApplication,
     user: AuthenticatedUser,
   ): void {
-    if (user.role === Role.ORGANIZER) return;
+    if (user.accessLevel === AccessLevel.ORGANIZER) return;
     if (
-      user.role === Role.PARTICIPANT &&
+      user.accessLevel === AccessLevel.PARTICIPANT &&
       application.participantId === user.id
     ) {
       return;
     }
-    if (user.role === Role.COACH && application.coachId === user.id) {
+    if (
+      user.accessLevel === AccessLevel.COACH &&
+      application.coachId === user.id
+    ) {
       return;
     }
     throw new ForbiddenException(APPLICATION_NOT_OWNED_MESSAGE);

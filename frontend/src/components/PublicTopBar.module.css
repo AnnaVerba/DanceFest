@@ -1,8 +1,12 @@
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  min-height: var(--topbar-h);
   padding: 18px 40px;
   background: var(--g-surface);
   border-bottom: 1px solid var(--g-line);
@@ -27,12 +31,65 @@
   letter-spacing: -0.01em;
 }
 
+.userArea {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profileBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 12px 6px 8px;
+  border: 1px solid var(--g-line);
+  border-radius: 999px;
+  background: var(--g-surface);
+  line-height: 1.2;
+  text-decoration: none;
+  color: inherit;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.profileBtn:hover {
+  background: var(--g-field);
+  border-color: var(--g-accent);
+}
+
+.profileIcon {
+  flex-shrink: 0;
+  color: var(--g-accent);
+}
+
+.profileText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.userName {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--g-ink-soft);
+}
+
+.userRole {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--g-accent);
+}
+
 .loginBtn {
   padding: 9px 18px;
   border: 1px solid var(--g-line);
   border-radius: 10px;
   background: var(--g-surface);
   color: var(--g-ink-soft);
+  font-family: inherit;
   font-weight: 600;
   font-size: 13.5px;
   text-decoration: none;
@@ -43,54 +100,8 @@
   border-color: var(--g-line-strong);
 }
 
-.authArea {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.cabinetLink {
-  padding: 9px 18px;
-  border: 1px solid var(--g-line);
-  border-radius: 10px;
-  background: var(--g-surface);
-  color: var(--g-ink-soft);
-  font-weight: 600;
-  font-size: 13.5px;
-  text-decoration: none;
-}
-
-.cabinetLink:hover {
-  border-color: var(--g-line-strong);
-}
-
-.email {
-  font-size: 13.5px;
-  color: var(--g-muted);
-}
-
-.logoutBtn {
-  padding: 9px 18px;
-  border: 1px solid var(--g-line);
-  border-radius: 10px;
-  background: var(--g-surface);
-  color: var(--g-ink-soft);
-  font-family: inherit;
-  font-weight: 600;
-  font-size: 13.5px;
-  cursor: pointer;
-}
-
-.logoutBtn:hover {
-  border-color: var(--g-line-strong);
-}
-
 @media (max-width: 680px) {
   .topbar {
     padding: 14px 16px;
-  }
-
-  .email {
-    display: none;
   }
 }

@@ -1,6 +1,5 @@
 import {
-  ConflictException,
-  ForbiddenException,
+  BadRequestException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -8,98 +7,116 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import * as bcrypt from 'bcrypt';
-import { AdminsService } from '../admins/admins.service';
-import { ParticipantsService } from '../participants/participants.service';
-import { CoachesService } from '../coaches/coaches.service';
-import { OrganizersService } from '../organizers/organizers.service';
-import { SchoolsService } from '../schools/schools.service';
+import { UsersService } from '../users/users.service';
+import { User } from '../users/user.model';
+import { AccessLevel, isHigherLevel } from './access-level.enum';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { OtpVerifyDto } from './dto/otp-verify.dto';
+import { OtpResendDto } from './dto/otp-resend.dto';
 import { JwtPayload, RefreshTokenPayload } from './jwt-payload.interface';
-import { Role } from './roles.enum';
 import { RefreshTokenStoreService } from './refresh-token-store.service';
+import { OtpService } from './otp.service';
+import { OtpRequired } from './otp-required.interface';
+import { isRealPhone, maskPhone } from './mask-phone';
 import {
-  ADMIN_SELF_REGISTRATION_FORBIDDEN_MESSAGE,
   DEFAULT_REFRESH_EXPIRES_IN_SECONDS,
   EMAIL_OR_PHONE_TAKEN_MESSAGE,
   INVALID_CREDENTIALS_MESSAGE,
+  MIN_PASSWORD_LENGTH,
+  PASSWORD_TOO_SHORT_MESSAGE,
   REFRESH_TOKEN_REVOKED_MESSAGE,
   SALT_ROUNDS,
 } from './auth.constants';
 import { AuthResult } from './auth-result.interface';
+import { SCHOOL_REQUIRED_FOR_COACH_MESSAGE } from '../users/users.constants';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly adminsService: AdminsService,
-    private readonly participantsService: ParticipantsService,
-    private readonly coachesService: CoachesService,
-    private readonly organizersService: OrganizersService,
-    private readonly schoolsService: SchoolsService,
+    private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     private readonly refreshTokenStore: RefreshTokenStoreService,
+    private readonly otpService: OtpService,
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthResult> {
-    switch (dto.role) {
-      case Role.ADMIN:
-        // No public bootstrap path: an admin account can only be created by
-        // an existing admin, via POST /admins (AdminsController).
-        throw new ForbiddenException(ADMIN_SELF_REGISTRATION_FORBIDDEN_MESSAGE);
-      case Role.PARTICIPANT:
-        return this.registerParticipant(dto);
-      case Role.COACH:
-        return this.registerCoach(dto);
-      case Role.ORGANIZER:
-        return this.registerOrganizer(dto);
+    if (dto.role === AccessLevel.COACH && !dto.schoolId) {
+      throw new BadRequestException(SCHOOL_REQUIRED_FOR_COACH_MESSAGE);
     }
+
+    const phone = dto.phone.trim();
+    const [byEmail, byPhone] = await Promise.all([
+      this.usersService.findByEmail(dto.email),
+      this.usersService.findByPhone(phone),
+    ]);
+    if (byEmail) {
+      throw new UnauthorizedException(EMAIL_OR_PHONE_TAKEN_MESSAGE);
+    }
+    if (byPhone && byPhone.confirmed) {
+      throw new UnauthorizedException(EMAIL_OR_PHONE_TAKEN_MESSAGE);
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
+
+    // The real person is claiming a stub someone named for them: fold the
+    // form data into that row, keeping its id so every coachId /
+    // participantId pointing at it stays valid.
+    if (byPhone && !byPhone.confirmed) {
+      const accessLevel = isHigherLevel(dto.role, byPhone.accessLevel)
+        ? dto.role
+        : byPhone.accessLevel;
+      const linked = await this.usersService.linkRegistration(byPhone.id, {
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        email: dto.email,
+        passwordHash,
+        birthDate: dto.birthDate,
+        accessLevel,
+        schoolId:
+          dto.role === AccessLevel.COACH ? dto.schoolId : byPhone.schoolId,
+        confirmed: true,
+      });
+      return this.issueSession(linked);
+    }
+
+    const user = await this.usersService.create({
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      phone,
+      email: dto.email,
+      passwordHash,
+      birthDate: dto.birthDate,
+      accessLevel: dto.role,
+      schoolId: dto.role === AccessLevel.COACH ? dto.schoolId! : null,
+      coachId: null,
+      confirmed: true,
+    });
+    return this.issueSession(user);
   }
 
-  async login(dto: LoginDto): Promise<AuthResult> {
-    switch (dto.role) {
-      case Role.ADMIN: {
-        const admin = await this.adminsService.findByEmail(dto.email);
-        await this.assertPassword(admin?.passwordHash, dto.password);
-        return this.issueSession(admin!.id, admin!.email, Role.ADMIN, {
-          admin: {
-            id: admin!.id,
-            name: admin!.name,
-            email: admin!.email,
-          },
-        });
-      }
-      case Role.PARTICIPANT: {
-        const participant = await this.participantsService.findByEmail(
-          dto.email,
-        );
-        await this.assertPassword(participant?.passwordHash, dto.password);
-        return this.issueSession(
-          participant!.id,
-          participant!.email,
-          Role.PARTICIPANT,
-          { user: this.toParticipantProfile(participant!) },
-        );
-      }
-      case Role.COACH: {
-        const coach = await this.coachesService.findByEmail(dto.email);
-        await this.assertPassword(coach?.passwordHash, dto.password);
-        return this.issueSession(coach!.id, coach!.email, Role.COACH, {
-          user: this.toCoachProfile(coach!),
-        });
-      }
-      case Role.ORGANIZER: {
-        const organizer = await this.organizersService.findByEmail(dto.email);
-        await this.assertPassword(organizer?.passwordHash, dto.password);
-        return this.issueSession(
-          organizer!.id,
-          organizer!.email,
-          Role.ORGANIZER,
-          { user: this.toOrganizerProfile(organizer!) },
-        );
-      }
+  async login(dto: LoginDto): Promise<AuthResult | OtpRequired> {
+    const user = await this.usersService.findByEmailOrPhone(dto.login.trim());
+    if (!user) {
+      throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
     }
+
+    if (user.passwordHash) {
+      await this.assertPassword(user.passwordHash, dto.password);
+      return this.issueSession(user);
+    }
+
+    // First login: no password yet — verify the phone with an SMS code.
+    if (dto.password.length < MIN_PASSWORD_LENGTH) {
+      throw new BadRequestException(PASSWORD_TOO_SHORT_MESSAGE);
+    }
+    if (!isRealPhone(user.phone)) {
+      throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
+    }
+    await this.otpService.start(user.phone);
+    return { otpRequired: true, phone: maskPhone(user.phone) };
   }
 
   async refresh(dto: RefreshTokenDto): Promise<AuthResult> {
@@ -114,46 +131,9 @@ export class AuthService {
     }
     await this.refreshTokenStore.revoke(payload.sub, payload.jti);
 
-    switch (payload.role) {
-      case Role.ADMIN: {
-        const admin = await this.adminsService.findById(payload.sub);
-        if (!admin) throw new UnauthorizedException('Недійсний refresh-токен');
-        return this.issueSession(admin.id, admin.email, Role.ADMIN, {
-          admin: { id: admin.id, name: admin.name, email: admin.email },
-        });
-      }
-      case Role.PARTICIPANT: {
-        const participant = await this.participantsService.findById(
-          payload.sub,
-        );
-        if (!participant)
-          throw new UnauthorizedException('Недійсний refresh-токен');
-        return this.issueSession(
-          participant.id,
-          participant.email,
-          Role.PARTICIPANT,
-          { user: this.toParticipantProfile(participant) },
-        );
-      }
-      case Role.COACH: {
-        const coach = await this.coachesService.findById(payload.sub);
-        if (!coach) throw new UnauthorizedException('Недійсний refresh-токен');
-        return this.issueSession(coach.id, coach.email, Role.COACH, {
-          user: this.toCoachProfile(coach),
-        });
-      }
-      case Role.ORGANIZER: {
-        const organizer = await this.organizersService.findById(payload.sub);
-        if (!organizer)
-          throw new UnauthorizedException('Недійсний refresh-токен');
-        return this.issueSession(
-          organizer.id,
-          organizer.email,
-          Role.ORGANIZER,
-          { user: this.toOrganizerProfile(organizer) },
-        );
-      }
-    }
+    const user = await this.usersService.findById(payload.sub);
+    if (!user) throw new UnauthorizedException('Недійсний refresh-токен');
+    return this.issueSession(user);
   }
 
   async logout(dto: RefreshTokenDto): Promise<void> {
@@ -161,82 +141,32 @@ export class AuthService {
     await this.refreshTokenStore.revoke(payload.sub, payload.jti);
   }
 
-  private async registerParticipant(dto: RegisterDto): Promise<AuthResult> {
-    await this.assertEmailAndPhoneAvailable(dto.email, dto.phone);
-    // A participant may self-register without a coach and pick one later.
-    if (dto.coachId) {
-      await this.coachesService.findByIdOrFail(dto.coachId);
+  // First login, step 2: check the SMS code, set the password the user
+  // chose, and issue a session. `confirmed` flips true inside claimAccount.
+  async verifyOtp(dto: OtpVerifyDto): Promise<AuthResult> {
+    const user = await this.usersService.findByEmailOrPhone(dto.login.trim());
+    if (!user || !isRealPhone(user.phone)) {
+      throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
     }
-
-    const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
-    const participant = await this.participantsService.create({
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      phone: dto.phone,
-      email: dto.email,
-      passwordHash,
-      birthDate: dto.birthDate,
-      coachId: dto.coachId ?? null,
-    });
-    return this.issueSession(
-      participant.id,
-      participant.email,
-      Role.PARTICIPANT,
-      { user: this.toParticipantProfile(participant) },
+    await this.otpService.verify(user.phone, dto.code);
+    await this.usersService.claimAccount(
+      user.id,
+      await bcrypt.hash(dto.password, SALT_ROUNDS),
     );
+    return this.issueSession(await this.usersService.findByIdOrFail(user.id));
   }
 
-  private async registerCoach(dto: RegisterDto): Promise<AuthResult> {
-    await this.assertEmailAndPhoneAvailable(dto.email, dto.phone);
-    await this.schoolsService.findByIdOrFail(dto.schoolId);
-
-    const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
-    const coach = await this.coachesService.create({
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      phone: dto.phone,
-      email: dto.email,
-      passwordHash,
-      schoolId: dto.schoolId,
-    });
-    return this.issueSession(coach.id, coach.email, Role.COACH, {
-      user: this.toCoachProfile(coach),
-    });
-  }
-
-  private async registerOrganizer(dto: RegisterDto): Promise<AuthResult> {
-    await this.assertEmailAndPhoneAvailable(dto.email, dto.phone);
-
-    const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
-    const organizer = await this.organizersService.create({
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      phone: dto.phone,
-      email: dto.email,
-      passwordHash,
-    });
-    return this.issueSession(organizer.id, organizer.email, Role.ORGANIZER, {
-      user: this.toOrganizerProfile(organizer),
-    });
-  }
-
-  private async assertEmailAndPhoneAvailable(
-    email: string,
-    phone: string,
-  ): Promise<void> {
-    const [takenByParticipant, takenByCoach, takenByOrganizer] =
-      await Promise.all([
-        this.participantsService.existsByEmailOrPhone(email, phone),
-        this.coachesService.existsByEmailOrPhone(email, phone),
-        this.organizersService.existsByEmailOrPhone(email, phone),
-      ]);
-    if (takenByParticipant || takenByCoach || takenByOrganizer) {
-      throw new ConflictException(EMAIL_OR_PHONE_TAKEN_MESSAGE);
+  async resendOtp(dto: OtpResendDto): Promise<{ phone: string }> {
+    const user = await this.usersService.findByEmailOrPhone(dto.login.trim());
+    if (!user || user.passwordHash || !isRealPhone(user.phone)) {
+      throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
     }
+    await this.otpService.start(user.phone);
+    return { phone: maskPhone(user.phone) };
   }
 
   private async assertPassword(
-    passwordHash: string | undefined,
+    passwordHash: string | null | undefined,
     password: string,
   ): Promise<void> {
     if (!passwordHash || !(await bcrypt.compare(password, passwordHash))) {
@@ -244,61 +174,12 @@ export class AuthService {
     }
   }
 
-  private toParticipantProfile(participant: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    birthDate: string;
-    coachId: string | null;
-  }) {
-    return {
-      id: participant.id,
-      firstName: participant.firstName,
-      lastName: participant.lastName,
-      email: participant.email,
-      birthDate: participant.birthDate,
-      coachId: participant.coachId,
+  private async issueSession(user: User): Promise<AuthResult> {
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email ?? '',
+      accessLevel: user.accessLevel,
     };
-  }
-
-  private toCoachProfile(coach: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    schoolId: string;
-  }) {
-    return {
-      id: coach.id,
-      firstName: coach.firstName,
-      lastName: coach.lastName,
-      email: coach.email,
-      schoolId: coach.schoolId,
-    };
-  }
-
-  private toOrganizerProfile(organizer: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-  }) {
-    return {
-      id: organizer.id,
-      firstName: organizer.firstName,
-      lastName: organizer.lastName,
-      email: organizer.email,
-    };
-  }
-
-  private async issueSession(
-    id: string,
-    email: string,
-    role: Role,
-    profile: Record<string, unknown>,
-  ): Promise<AuthResult> {
-    const payload: JwtPayload = { sub: id, email, role };
     const jti = randomUUID();
     const refreshPayload: RefreshTokenPayload = {
       ...payload,
@@ -313,12 +194,21 @@ export class AuthService {
       secret: this.refreshSecret(),
       expiresIn: refreshExpiresIn,
     });
-    await this.refreshTokenStore.save(id, jti);
+    await this.refreshTokenStore.save(user.id, jti);
 
     return {
       accessToken: this.jwtService.sign(payload),
       refreshToken,
-      ...profile,
+      user: {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        birthDate: user.birthDate,
+        accessLevel: user.accessLevel,
+        schoolId: user.schoolId,
+        coachId: user.coachId,
+      },
     };
   }
 
@@ -335,11 +225,9 @@ export class AuthService {
         'Недійсний або прострочений refresh-токен',
       );
     }
-
     if (payload.type !== 'refresh') {
       throw new UnauthorizedException('Недійсний refresh-токен');
     }
-
     return payload;
   }
 

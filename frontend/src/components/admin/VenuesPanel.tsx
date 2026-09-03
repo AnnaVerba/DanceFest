@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import ConfirmDialog from './ConfirmDialog';
 import { createVenue, deleteVenue, getVenues } from '../../lib/venues';
 import type { Venue } from '../../lib/venues';
+import { FEATURES } from '../../lib/features';
 import styles from './VenuesPanel.module.css';
 
 interface VenuesPanelProps {
@@ -70,9 +71,12 @@ export default function VenuesPanel({
 
   return (
     <section className={styles.panel}>
-      <p className={styles.note}>
-        Розподіліть готові номінації по майданчикам нижче.
-      </p>
+      {canManage && (
+        <p className={styles.note}>
+          {FEATURES.judges && 'Кожен майданчик має свою окрему групу суддів. '}
+          Розподіліть готові номінації по майданчикам нижче.
+        </p>
+      )}
 
       {canManage && (
         <form className={styles.addVenue} onSubmit={handleAdd}>
@@ -128,7 +132,9 @@ export default function VenuesPanel({
 
       {!loading && venues && venues.length === 0 && (
         <p className={styles.empty}>
-          Для цього конкурсу ще не сформовано номінацій.
+          {canManage
+            ? 'Майданчиків ще немає — додайте перший вище.'
+            : 'Для цього конкурсу ще не додано майданчиків.'}
         </p>
       )}
 

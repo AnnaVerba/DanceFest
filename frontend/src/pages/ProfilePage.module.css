@@ -1,0 +1,47 @@
+.title {
+  font-size: 26px;
+  letter-spacing: -0.02em;
+  margin: 0 0 20px;
+}
+
+.note {
+  color: var(--g-muted);
+  font-size: 13.5px;
+}
+
+.card {
+  background: var(--g-surface);
+  border: 1px solid var(--g-line);
+  border-radius: 14px;
+  padding: 8px 22px;
+  margin-bottom: 18px;
+}
+
+.list {
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 0;
+  border-top: 1px solid var(--g-line);
+}
+
+.row:first-child {
+  border-top: 0;
+}
+
+.rowLabel {
+  margin: 0;
+  font-size: 13px;
+  color: var(--g-muted);
+}
+
+.rowValue {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+}
