@@ -1,0 +1,40 @@
+.withNav {
+  color: var(--g-ink);
+}
+
+/* Pinned to the left edge, below the sticky top bar. Fixed width and
+   position — it never shifts or resizes between pages. */
+.rail {
+  position: fixed;
+  top: var(--topbar-h);
+  left: 0;
+  bottom: 0;
+  width: var(--cabinet-rail-w);
+  padding: 24px 16px;
+  overflow-y: auto;
+  background: var(--g-surface);
+  border-right: 1px solid var(--g-line);
+  box-sizing: border-box;
+  z-index: 10;
+}
+
+.body {
+  margin-left: var(--cabinet-rail-w);
+  box-sizing: border-box;
+}
+
+@media (max-width: 760px) {
+  .rail {
+    position: static;
+    width: 100%;
+    height: auto;
+    padding: 12px 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--g-line);
+    overflow: visible;
+  }
+
+  .body {
+    margin-left: 0;
+  }
+}

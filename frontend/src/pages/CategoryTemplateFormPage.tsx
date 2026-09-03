@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import AdminHeader from '../components/AdminHeader';
 import { ToastStack } from '../components/admin/Toast';
 import { useToasts } from '../components/admin/useToasts';
 import { getToken } from '../lib/auth';
@@ -151,7 +150,6 @@ export default function CategoryTemplateFormPage() {
 
   return (
     <>
-      <AdminHeader />
       <main className={styles.main}>
         <div className={`${styles.wrap} ${styles.wide}`}>
           <Link to="/category-templates" className={styles.back}>

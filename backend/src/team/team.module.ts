@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
-import { Admin } from '../admins/admin.model';
+import { User } from '../users/user.model';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from './competition-admin.model';
 import { Invitation } from './invitation.model';
@@ -10,7 +10,7 @@ import { TeamService } from './team.service';
 @Module({
   imports: [
     SequelizeModule.forFeature([
-      Admin,
+      User,
       Competition,
       CompetitionAdmin,
       Invitation,

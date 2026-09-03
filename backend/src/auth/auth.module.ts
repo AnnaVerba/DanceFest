@@ -3,24 +3,20 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { SequelizeModule } from '@nestjs/sequelize';
-import { AdminsModule } from '../admins/admins.module';
-import { ParticipantsModule } from '../participants/participants.module';
-import { CoachesModule } from '../coaches/coaches.module';
-import { OrganizersModule } from '../organizers/organizers.module';
+import { UsersModule } from '../users/users.module';
 import { SchoolsModule } from '../schools/schools.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { RefreshTokenStoreService } from './refresh-token-store.service';
 import { RefreshToken } from './refresh-token.model';
+import { OtpCode } from './otp-code.model';
+import { OtpService } from './otp.service';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([RefreshToken]),
-    AdminsModule,
-    ParticipantsModule,
-    CoachesModule,
-    OrganizersModule,
+    SequelizeModule.forFeature([RefreshToken, OtpCode]),
+    UsersModule,
     SchoolsModule,
     PassportModule,
     JwtModule.registerAsync({
@@ -36,6 +32,6 @@ import { RefreshToken } from './refresh-token.model';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, RefreshTokenStoreService],
+  providers: [AuthService, JwtStrategy, RefreshTokenStoreService, OtpService],
 })
 export class AuthModule {}

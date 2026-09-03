@@ -7,8 +7,7 @@ import {
   Table,
 } from 'sequelize-typescript';
 import { Competition } from '../competitions/competition.model';
-import { Participant } from '../participants/participant.model';
-import { Coach } from '../coaches/coach.model';
+import { User } from '../users/user.model';
 import { Category } from '../categories/category.model';
 import { ApplicationStatus } from './application-status.enum';
 
@@ -28,21 +27,21 @@ export class CompetitionApplication extends Model<CompetitionApplication> {
   @BelongsTo(() => Competition)
   declare competition: Competition;
 
-  @ForeignKey(() => Participant)
+  @ForeignKey(() => User)
   @Column({ type: DataType.UUID, allowNull: false })
   declare participantId: string;
 
-  @BelongsTo(() => Participant)
-  declare participant: Participant;
+  @BelongsTo(() => User, 'participantId')
+  declare participant: User;
 
   // Null when the application was submitted by a participant who has no
   // coach — a coach can only see applications where this matches them.
-  @ForeignKey(() => Coach)
+  @ForeignKey(() => User)
   @Column({ type: DataType.UUID, allowNull: true })
   declare coachId: string | null;
 
-  @BelongsTo(() => Coach)
-  declare coach: Coach | null;
+  @BelongsTo(() => User, 'coachId')
+  declare coach: User | null;
 
   // Ліга — це категорія осі 'level' (LEAGUE_CATEGORY_TYPE), а не окрема
   // таблиця: див. competition-applications.service.ts.

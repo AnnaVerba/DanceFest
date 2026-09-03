@@ -26,6 +26,14 @@ export async function getSchools(): Promise<School[]> {
   return response.json() as Promise<School[]>;
 }
 
+export async function getSchool(id: string): Promise<School> {
+  const response = await fetch(`${API_BASE_URL}/schools/${id}`);
+  if (!response.ok) {
+    throw new Error(SCHOOLS_LOAD_FAILED_MESSAGE);
+  }
+  return response.json() as Promise<School>;
+}
+
 export async function createSchool(name: string): Promise<School> {
   const response = await fetch(`${API_BASE_URL}/schools`, {
     method: 'POST',

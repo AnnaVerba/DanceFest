@@ -11,7 +11,7 @@ import {
 import { InjectModel } from '@nestjs/sequelize';
 import { ConfigService } from '@nestjs/config';
 import { CreationAttributes, Op } from 'sequelize';
-import { Admin } from '../admins/admin.model';
+import { User } from '../users/user.model';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from './competition-admin.model';
 import {
@@ -63,8 +63,8 @@ export class TeamService {
     private readonly competitionAdminModel: typeof CompetitionAdmin,
     @InjectModel(Invitation)
     private readonly invitationModel: typeof Invitation,
-    @InjectModel(Admin)
-    private readonly adminModel: typeof Admin,
+    @InjectModel(User)
+    private readonly adminModel: typeof User,
     private readonly config: ConfigService,
   ) {}
 
@@ -75,7 +75,7 @@ export class TeamService {
     const owner = await this.adminModel.findByPk(competition.ownerId);
     const memberships = await this.competitionAdminModel.findAll({
       where: { competitionId },
-      include: [Admin],
+      include: [User],
       order: [['createdAt', 'ASC']],
     });
     const invitations = await this.invitationModel.findAll({
@@ -93,13 +93,13 @@ export class TeamService {
       },
       organizer: owner && {
         id: owner.id,
-        name: owner.name,
-        email: owner.email,
+        name: `${owner.firstName} ${owner.lastName}`,
+        email: owner.email ?? '',
       },
       admins: memberships.map((membership) => ({
         id: membership.admin.id,
-        name: membership.admin.name,
-        email: membership.admin.email,
+        name: `${membership.admin.firstName} ${membership.admin.lastName}`,
+        email: membership.admin.email ?? '',
         addedAt: membership.createdAt,
       })),
       invitations: invitations.map((invitation) =>
@@ -121,11 +121,11 @@ export class TeamService {
     const owner = await this.adminModel.findByPk(competition.ownerId);
     const memberships = await this.competitionAdminModel.findAll({
       where: { competitionId },
-      include: [Admin],
+      include: [User],
     });
     const alreadyMember =
-      owner?.email.toLowerCase() === email ||
-      memberships.some((m) => m.admin.email.toLowerCase() === email);
+      (owner?.email ?? '').toLowerCase() === email ||
+      memberships.some((m) => (m.admin.email ?? '').toLowerCase() === email);
     if (alreadyMember) {
       throw new ConflictException({
         errorCode: InvitationErrorCode.ALREADY_MEMBER,

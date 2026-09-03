@@ -17,9 +17,10 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { OtpVerifyDto } from './dto/otp-verify.dto';
+import { OtpResendDto } from './dto/otp-resend.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser } from './current-user.decorator';
-import type { AuthenticatedAdmin } from './current-user.decorator';
 import type { AuthenticatedUser } from './authenticated-user.interface';
 
 @ApiTags('auth')
@@ -48,22 +49,52 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
-  @ApiOperation({ summary: 'Log in with email, password, and role' })
+  @ApiOperation({
+    summary: 'Log in; a password-less account gets an SMS code instead',
+  })
   @ApiResponse({
-    status: 201,
-    description: 'Login successful; returns an access/refresh token pair.',
+    status: 200,
+    description:
+      'A session, or { otpRequired: true, phone } for a first login.',
   })
   @ApiResponse({
     status: 400,
     description: 'Validation failed for one or more fields.',
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Invalid email, password, or role.',
-  })
+  @ApiResponse({ status: 401, description: 'Invalid credentials.' })
+  @HttpCode(HttpStatus.OK)
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @ApiOperation({
+    summary: 'First login step 2: verify the SMS code and set the password',
+  })
+  @ApiResponse({ status: 200, description: 'Returns an access/refresh pair.' })
+  @ApiResponse({
+    status: 401,
+    description: 'The code is wrong, expired, or used up.',
+  })
+  @HttpCode(HttpStatus.OK)
+  @Post('otp/verify')
+  verifyOtp(@Body() dto: OtpVerifyDto) {
+    return this.authService.verifyOtp(dto);
+  }
+
+  @ApiOperation({ summary: 'Resend the SMS login code' })
+  @ApiResponse({
+    status: 200,
+    description: 'Code re-sent; returns the masked phone.',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too soon, or the hourly send limit was reached.',
+  })
+  @HttpCode(HttpStatus.OK)
+  @Post('otp/resend')
+  resendOtp(@Body() dto: OtpResendDto) {
+    return this.authService.resendOtp(dto);
   }
 
   @ApiOperation({ summary: 'Exchange a refresh token for a new token pair' })
@@ -106,7 +137,7 @@ export class AuthController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  getProfile(@CurrentUser() user: AuthenticatedAdmin | AuthenticatedUser) {
+  getProfile(@CurrentUser() user: AuthenticatedUser) {
     return user;
   }
 }

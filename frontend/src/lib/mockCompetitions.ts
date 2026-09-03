@@ -16,7 +16,7 @@ export const mockCompetitions: Competition[] = [
     contactEmail: 'info@hiphopcup.ua',
     paymentDetails: null,
     ownerId: 'mock-owner-1',
-    owner: { id: 'mock-owner-1', name: 'Оргкомітет "HipHop Cup"' },
+    owner: { id: 'mock-owner-1', firstName: 'Оргкомітет', lastName: '"HipHop Cup"' },
   },
   {
     id: 'mock-2',
@@ -33,7 +33,7 @@ export const mockCompetitions: Competition[] = [
     contactEmail: 'contact@balldancefest.ua',
     paymentDetails: null,
     ownerId: 'mock-owner-2',
-    owner: { id: 'mock-owner-2', name: 'ГО "Танцювальний рух"' },
+    owner: { id: 'mock-owner-2', firstName: 'ГО', lastName: '"Танцювальний рух"' },
   },
   {
     id: 'mock-3',
@@ -50,7 +50,7 @@ export const mockCompetitions: Competition[] = [
     contactEmail: 'summer@dancemarathon.ua',
     paymentDetails: null,
     ownerId: 'mock-owner-3',
-    owner: { id: 'mock-owner-3', name: 'Студія танцю "Ритм"' },
+    owner: { id: 'mock-owner-3', firstName: 'Студія', lastName: 'танцю "Ритм"' },
   },
   {
     id: 'mock-4',
@@ -67,7 +67,7 @@ export const mockCompetitions: Competition[] = [
     contactEmail: 'spring@moderncup.ua',
     paymentDetails: null,
     ownerId: 'mock-owner-4',
-    owner: { id: 'mock-owner-4', name: 'Оргкомітет "Modern Cup"' },
+    owner: { id: 'mock-owner-4', firstName: 'Оргкомітет', lastName: '"Modern Cup"' },
   },
 ];
 

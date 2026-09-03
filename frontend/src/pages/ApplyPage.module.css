@@ -300,3 +300,300 @@
   left: -14px;
   opacity: 0.6;
 }
+
+/* ── redesigned apply form ── */
+.grid {
+  display: grid;
+  gap: 16px;
+}
+
+.label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 7px;
+}
+
+.select,
+.textInput,
+.fileInput {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.fileInput {
+  padding: 9px 12px;
+  font-size: 13.5px;
+}
+
+.select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 38px;
+}
+
+.select:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.select:focus,
+.textInput:focus {
+  outline: none;
+  background: var(--g-surface);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.linkBtn {
+  display: inline-block;
+  margin-top: 8px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.linkBtn:hover {
+  text-decoration: underline;
+}
+
+.subForm {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--field);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.subTitle {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.subGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.subInput {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--g-surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+}
+
+.subActions {
+  display: flex;
+  gap: 8px;
+}
+
+.btnPrimary,
+.btnPrimarySm,
+.btnGhost,
+.btnGhostSm {
+  border-radius: 9px;
+  font-weight: 600;
+  cursor: pointer;
+  font: inherit;
+}
+
+.btnPrimary,
+.btnPrimarySm {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+}
+
+.btnPrimary:hover,
+.btnPrimarySm:hover {
+  background: var(--accent-hover);
+}
+
+.btnGhost,
+.btnGhostSm {
+  background: var(--g-surface);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+}
+
+.btnPrimary,
+.btnGhost {
+  padding: 11px 18px;
+  font-size: 14px;
+}
+
+.btnPrimarySm,
+.btnGhostSm {
+  padding: 9px 14px;
+  font-size: 13px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line);
+  background: var(--g-surface);
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chipOn {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.nomList {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.nomRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: var(--g-surface);
+  cursor: pointer;
+  text-align: left;
+}
+
+.nomRow:first-child {
+  border-top: 0;
+}
+
+.nomEmpty {
+  padding: 12px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.nomRowOn {
+  background: var(--g-field-off);
+}
+
+.nomCheck {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 5px;
+  border: 1.5px solid var(--g-subtle);
+  background: var(--g-surface);
+  color: #fff;
+  font-size: 12px;
+  line-height: 15px;
+  text-align: center;
+}
+
+.nomCheckOn {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.nomLabel {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.nomPrice {
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.readonlyBox {
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field-off);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.successWrap {
+  text-align: center;
+  padding: 18px 0;
+}
+
+.successTitle {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+.successActions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+.musicList {
+  display: grid;
+  gap: 12px;
+}
+
+.musicRow {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--field);
+}
+
+.musicLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+@media (max-width: 560px) {
+  .two,
+  .subGrid {
+    grid-template-columns: 1fr;
+  }
+}

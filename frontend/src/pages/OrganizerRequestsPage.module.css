@@ -1,0 +1,34 @@
+.title {
+  font-size: 22px;
+  margin: 0 0 16px;
+}
+.tableScroll {
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.table th,
+.table td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border, #e4e7ec);
+  vertical-align: top;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+}
+.actions button {
+  padding: 6px 10px;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  background: #fff;
+  color: #2563eb;
+  cursor: pointer;
+}
+.error {
+  color: #b42318;
+}

@@ -14,7 +14,6 @@ import {
 } from '../lib/homeContests';
 import type { HomeStatusFilterId } from '../lib/homeContests';
 import { mockCompetitions } from '../lib/mockCompetitions';
-import PublicTopBar from '../components/PublicTopBar';
 import styles from './HomePage.module.css';
 
 const USE_MOCK_DATA = false;
@@ -77,8 +76,6 @@ export default function HomePage() {
 
   return (
     <div className={styles.page}>
-      <PublicTopBar />
-
       <div className={styles.container}>
         <h1 className={styles.pageTitle}>Конкурси східного танцю</h1>
         <p className={styles.pageSubtitle}>

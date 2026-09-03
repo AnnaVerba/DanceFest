@@ -142,10 +142,6 @@ export default function EntriesPanel({
   return (
     <section className={styles.panel}>
       <div className={styles.intro}>
-        <p className={styles.note}>
-          Заявки подають самі учасники через форму реєстрації на конкурс — тут ви
-          лише переглядаєте подані заявки.
-        </p>
         <a
           className={styles.btn}
           href={`/competitions/${competitionId}/apply`}

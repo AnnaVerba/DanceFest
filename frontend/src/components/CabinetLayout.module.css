@@ -1,0 +1,11 @@
+.content {
+  max-width: 960px;
+  padding: 32px clamp(20px, 4vw, 48px) 72px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 760px) {
+  .content {
+    padding: 20px 16px 56px;
+  }
+}

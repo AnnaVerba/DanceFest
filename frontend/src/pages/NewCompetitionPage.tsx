@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-import AdminHeader from '../components/AdminHeader';
 import PhoneField from '../components/PhoneField';
 import { getToken } from '../lib/auth';
 import { FEATURES } from '../lib/features';
@@ -509,7 +508,6 @@ export default function NewCompetitionPage() {
   if (createdCompetitionId) {
     return (
       <>
-        <AdminHeader />
         <main className={styles.main}>
           <div className={styles.wrap}>
             <h1>Конкурс створено</h1>
@@ -557,7 +555,6 @@ export default function NewCompetitionPage() {
 
   return (
     <>
-      <AdminHeader />
       <main className={styles.main}>
         <div className={styles.wrap}>
           <Link to="/dashboard" className={styles.back}>

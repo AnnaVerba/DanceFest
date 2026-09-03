@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes, Op } from 'sequelize';
-import { Admin } from '../admins/admin.model';
+import { User } from '../users/user.model';
 import { CategoriesService } from '../categories/categories.service';
 import { AGE_CATEGORY_TYPE } from '../categories/category.model';
 import type { Category } from '../categories/category.model';
@@ -39,7 +39,7 @@ import {
 } from './category-templates.constants';
 
 const AUTHOR_INCLUDE = [
-  { model: Admin, as: 'author', attributes: ['id', 'name'] },
+  { model: User, as: 'author', attributes: ['id', 'firstName', 'lastName'] },
 ];
 
 @Injectable()
@@ -368,7 +368,10 @@ export class CategoryTemplatesService {
       isPublic: template.isPublic,
       forkedFromId: template.forkedFromId,
       author: template.author
-        ? { id: template.author.id, name: template.author.name }
+        ? {
+            id: template.author.id,
+            name: `${template.author.firstName} ${template.author.lastName}`,
+          }
         : null,
       createdAt: template.createdAt,
     };

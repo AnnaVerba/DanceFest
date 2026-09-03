@@ -1,3 +1,4 @@
+import { API_BASE_URL } from './api';
 import { authorizedFetch } from './auth';
 import { GENERIC_REQUEST_ERROR_MESSAGE } from './api.constants';
 import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
@@ -56,8 +57,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as unknown as T;
 }
 
-export function getVenues(competitionId: string): Promise<Venue[]> {
-  return request<Venue[]>(`/competitions/${competitionId}/venues`);
+// Venues are public — no session needed to view them.
+export async function getVenues(competitionId: string): Promise<Venue[]> {
+  let response: Response;
+  try {
+    response = await fetch(
+      `${API_BASE_URL}/competitions/${competitionId}/venues`,
+    );
+  } catch {
+    throw new VenueApiError(CANNOT_CONNECT_TO_SERVER_MESSAGE, 0);
+  }
+  const payload = (await response.json().catch(() => null)) as
+    | (ErrorPayload & Venue[])
+    | null;
+  if (!response.ok) {
+    throw new VenueApiError(
+      extractMessage(payload, GENERIC_REQUEST_ERROR_MESSAGE),
+      response.status,
+    );
+  }
+  return (payload ?? []) as Venue[];
 }
 
 export function createVenue(

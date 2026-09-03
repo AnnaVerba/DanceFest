@@ -71,10 +71,12 @@ export default function VenuesPanel({
 
   return (
     <section className={styles.panel}>
-      <p className={styles.note}>
-        {FEATURES.judges && 'Кожен майданчик має свою окрему групу суддів. '}
-        Розподіліть готові номінації по майданчикам нижче.
-      </p>
+      {canManage && (
+        <p className={styles.note}>
+          {FEATURES.judges && 'Кожен майданчик має свою окрему групу суддів. '}
+          Розподіліть готові номінації по майданчикам нижче.
+        </p>
+      )}
 
       {canManage && (
         <form className={styles.addVenue} onSubmit={handleAdd}>
@@ -130,7 +132,9 @@ export default function VenuesPanel({
 
       {!loading && venues && venues.length === 0 && (
         <p className={styles.empty}>
-          Для цього конкурсу ще не сформовано номінацій.
+          {canManage
+            ? 'Майданчиків ще немає — додайте перший вище.'
+            : 'Для цього конкурсу ще не додано майданчиків.'}
         </p>
       )}
 

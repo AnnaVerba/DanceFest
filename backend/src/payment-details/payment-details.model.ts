@@ -6,7 +6,7 @@ import {
   Model,
   Table,
 } from 'sequelize-typescript';
-import { Admin } from '../admins/admin.model';
+import { User } from '../users/user.model';
 import { Competition } from '../competitions/competition.model';
 
 @Table({ tableName: 'payment_details' })
@@ -22,7 +22,7 @@ export class PaymentDetails extends Model<PaymentDetails> {
   @Column({ type: DataType.UUID, allowNull: false })
   declare competitionId: string;
 
-  @ForeignKey(() => Admin)
+  @ForeignKey(() => User)
   @Column({ type: DataType.UUID, allowNull: false })
   declare adminId: string;
 
@@ -44,6 +44,6 @@ export class PaymentDetails extends Model<PaymentDetails> {
   @BelongsTo(() => Competition)
   declare competition: Competition;
 
-  @BelongsTo(() => Admin)
-  declare admin: Admin;
+  @BelongsTo(() => User)
+  declare admin: User;
 }

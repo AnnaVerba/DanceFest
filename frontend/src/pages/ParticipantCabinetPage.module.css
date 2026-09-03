@@ -1,27 +1,14 @@
-.page {
-  min-height: 100vh;
-  background: var(--g-field);
-  color: var(--g-ink);
+.wrap {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     Arial, sans-serif;
   font-size: 14px;
+}
+
+.wrap,
+.wrap *,
+.wrap *::before,
+.wrap *::after {
   box-sizing: border-box;
-}
-
-.page *,
-.page *::before,
-.page *::after {
-  box-sizing: border-box;
-}
-
-.main {
-  padding: 32px 0 64px;
-}
-
-.wrap {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 0 24px;
 }
 
 .title {
@@ -37,74 +24,10 @@
   color: var(--g-muted);
 }
 
-.card {
-  background: var(--g-surface);
-  border: 1px solid var(--g-line);
-  border-radius: 14px;
-  padding: 22px;
-  margin-bottom: 20px;
-}
-
-.cardLabel {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--g-accent);
-  margin-bottom: 14px;
-}
-
 .note {
   margin: 0;
   color: var(--g-muted);
   font-size: 13px;
-}
-
-.openList {
-  display: grid;
-  gap: 10px;
-}
-
-.openRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--g-field);
-  border: 1px solid var(--g-line);
-  border-radius: 10px;
-  padding: 12px 14px;
-}
-
-.openInfo {
-  flex: 1;
-  min-width: 0;
-}
-
-.openName {
-  font-weight: 700;
-  font-size: 14px;
-}
-
-.openMeta {
-  margin-top: 2px;
-  font-size: 12.5px;
-  color: var(--g-muted);
-}
-
-.applyButton {
-  flex: none;
-  padding: 9px 16px;
-  border-radius: 10px;
-  background: var(--g-accent);
-  color: #fff;
-  font-weight: 600;
-  font-size: 13px;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.applyButton:hover {
-  background: var(--g-accent-hover);
 }
 
 .tableCard {
@@ -130,6 +53,50 @@
   text-align: center;
   color: var(--g-muted);
   font-size: 13px;
+}
+
+.entryGroup {
+  border-bottom: 1px solid var(--g-line);
+}
+
+.entryGroup:last-child {
+  border-bottom: 0;
+}
+
+.groupName {
+  padding: 14px 22px 8px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.tableScroll {
+  overflow-x: auto;
+}
+
+.entryTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.entryTable th,
+.entryTable td {
+  padding: 9px 22px;
+  text-align: left;
+  white-space: nowrap;
+  border-top: 1px solid var(--g-line);
+}
+
+.entryTable th {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--g-muted);
+}
+
+.entryTable td:nth-child(2) {
+  white-space: normal;
 }
 
 @media (max-width: 680px) {

@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { CompetitionsModule } from './competitions/competitions.module';
-import { AdminsModule } from './admins/admins.module';
 import { AuthModule } from './auth/auth.module';
 import { TeamModule } from './team/team.module';
 import { JudgesModule } from './judges/judges.module';
@@ -14,12 +13,13 @@ import { CategoryTemplatesModule } from './category-templates/category-templates
 import { PaymentDetailsModule } from './payment-details/payment-details.module';
 import { CompetitionRulesModule } from './competition-rules/competition-rules.module';
 import { MailModule } from './mail/mail.module';
+import { SmsModule } from './sms/sms.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { SchoolsModule } from './schools/schools.module';
-import { CoachesModule } from './coaches/coaches.module';
-import { ParticipantsModule } from './participants/participants.module';
-import { OrganizersModule } from './organizers/organizers.module';
+import { UsersModule } from './users/users.module';
 import { CompetitionApplicationsModule } from './competition-applications/competition-applications.module';
+import { OrganizerRequestsModule } from './organizer-requests/organizer-requests.module';
+import { AppBootstrapModule } from './app-bootstrap/app-bootstrap.module';
 
 @Module({
   imports: [
@@ -27,6 +27,7 @@ import { CompetitionApplicationsModule } from './competition-applications/compet
       isGlobal: true,
     }),
     MailModule,
+    SmsModule,
     SequelizeModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -42,7 +43,6 @@ import { CompetitionApplicationsModule } from './competition-applications/compet
       }),
     }),
     CompetitionsModule,
-    AdminsModule,
     AuthModule,
     TeamModule,
     JudgesModule,
@@ -55,10 +55,10 @@ import { CompetitionApplicationsModule } from './competition-applications/compet
     UploadsModule,
     CompetitionRulesModule,
     SchoolsModule,
-    CoachesModule,
-    ParticipantsModule,
-    OrganizersModule,
+    UsersModule,
     CompetitionApplicationsModule,
+    OrganizerRequestsModule,
+    AppBootstrapModule,
   ],
 })
 export class AppModule {}

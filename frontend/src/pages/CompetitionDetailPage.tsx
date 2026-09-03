@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import AdminHeader from '../components/AdminHeader';
 import CompetitionDetails from '../components/CompetitionDetails';
 import ContestIcon from '../components/ContestIcon';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
@@ -83,17 +82,26 @@ export default function CompetitionDetailPage() {
     return <Navigate to="/login" replace />;
   }
   if (!id) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/" replace />;
   }
 
   const isOwner = !!admin && !!competition && competition.ownerId === admin.id;
 
+  // Only staff came from the dashboard; everyone else goes back where they
+  // were, falling back to the public list.
+  const goBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate(admin ? '/dashboard' : '/');
+    }
+  };
+
   return (
     <>
-      <AdminHeader />
       <main className={styles.main}>
         <div className={styles.wrap}>
-          <Link to="/dashboard" className={styles.back}>
+          <button type="button" className={styles.back} onClick={goBack}>
             <svg
               width="16"
               height="16"
@@ -108,7 +116,7 @@ export default function CompetitionDetailPage() {
               <path d="M19 12H5M11 6l-6 6 6 6" />
             </svg>
             Назад до списку
-          </Link>
+          </button>
 
           {loading && <p className={styles.status}>Завантаження...</p>}
           {loadError && <p className={styles.status}>{loadError}</p>}
@@ -164,7 +172,7 @@ export default function CompetitionDetailPage() {
               {activeTab === 'Майданчики' && (
                 <VenuesPanel
                   competitionId={id}
-                  canManage={isOwner}
+                  canManage={!!admin}
                   onError={(message) => showToast(message)}
                 />
               )}

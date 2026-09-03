@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { Competition } from '../competitions/competition.model';
-import { ParticipantsModule } from '../participants/participants.module';
+import { UsersModule } from '../users/users.module';
 import { CategoriesModule } from '../categories/categories.module';
 import { CompetitionApplication } from './competition-application.model';
 import { CompetitionApplicationsController } from './competition-applications.controller';
@@ -10,7 +10,7 @@ import { CompetitionApplicationsService } from './competition-applications.servi
 @Module({
   imports: [
     SequelizeModule.forFeature([Competition, CompetitionApplication]),
-    ParticipantsModule,
+    UsersModule,
     CategoriesModule,
   ],
   controllers: [CompetitionApplicationsController],

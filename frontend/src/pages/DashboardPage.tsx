@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
-import AdminHeader from '../components/AdminHeader';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import { ToastStack } from '../components/admin/Toast';
 import { useToasts } from '../components/admin/useToasts';
@@ -26,7 +25,20 @@ function formatDate(iso: string): string {
 }
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const admin = getStoredAdmin();
+  const isStaff = !!admin;
+
+  // The dashboard is for staff (organizers / admins). Anyone else who
+  // lands here is sent back to the page they came from.
+  useEffect(() => {
+    if (!getToken() || isStaff) return;
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/', { replace: true });
+    }
+  }, [isStaff, navigate]);
 
   const [competitions, setCompetitions] = useState<Competition[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -106,10 +118,12 @@ export default function DashboardPage() {
   if (!getToken()) {
     return <Navigate to="/login" replace />;
   }
+  if (!isStaff) {
+    return null; // the effect above redirects non-staff away
+  }
 
   return (
     <>
-      <AdminHeader />
       <main className={styles.main}>
         <div className={styles.container}>
           <div className={styles.pageHead}>

@@ -5,15 +5,8 @@
 .intro {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 20px;
-}
-
-.note {
-  margin: 0;
-  color: var(--g-muted);
-  font-size: 14px;
-  max-width: 62ch;
 }
 
 .btn {

@@ -14,9 +14,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
-import { Roles } from '../auth/roles.decorator';
-import { Role } from '../auth/roles.enum';
+import { MinLevelGuard } from '../auth/min-level.guard';
+import { MinLevel } from '../auth/min-level.decorator';
+import { AccessLevel } from '../auth/access-level.enum';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { CompetitionApplicationsService } from './competition-applications.service';
@@ -26,7 +26,7 @@ import { UpdateApplicationStatusDto } from './dto/update-application-status.dto'
 
 @ApiTags('competition-applications')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, MinLevelGuard)
 @Controller('competition-applications')
 export class CompetitionApplicationsController {
   constructor(
@@ -48,7 +48,7 @@ export class CompetitionApplicationsController {
     status: 404,
     description: 'Competition, league, or participant not found.',
   })
-  @Roles(Role.PARTICIPANT, Role.COACH)
+  @MinLevel(AccessLevel.PARTICIPANT)
   @Post()
   create(
     @CurrentUser() user: AuthenticatedUser,
@@ -64,7 +64,7 @@ export class CompetitionApplicationsController {
     status: 403,
     description: 'This action is not available for your role.',
   })
-  @Roles(Role.PARTICIPANT, Role.COACH, Role.ORGANIZER)
+  @MinLevel(AccessLevel.PARTICIPANT)
   @Get()
   findMine(@CurrentUser() user: AuthenticatedUser) {
     return this.applicationsService.findMine(user);
@@ -81,7 +81,7 @@ export class CompetitionApplicationsController {
     status: 404,
     description: 'No application exists with the given id.',
   })
-  @Roles(Role.PARTICIPANT, Role.COACH, Role.ORGANIZER)
+  @MinLevel(AccessLevel.PARTICIPANT)
   @Get(':id')
   findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.applicationsService.findByIdForUser(id, user);
@@ -100,7 +100,7 @@ export class CompetitionApplicationsController {
     description: 'You have no access to this application.',
   })
   @ApiResponse({ status: 404, description: 'Application or league not found.' })
-  @Roles(Role.PARTICIPANT, Role.COACH, Role.ORGANIZER)
+  @MinLevel(AccessLevel.PARTICIPANT)
   @Patch(':id/league')
   updateLeague(
     @Param('id') id: string,
@@ -125,7 +125,7 @@ export class CompetitionApplicationsController {
     status: 404,
     description: 'No application exists with the given id.',
   })
-  @Roles(Role.ORGANIZER)
+  @MinLevel(AccessLevel.ORGANIZER)
   @Patch(':id/status')
   updateStatus(
     @Param('id') id: string,

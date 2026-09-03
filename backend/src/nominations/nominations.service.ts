@@ -289,6 +289,15 @@ export class NominationsService {
       durationLimitSeconds: nomination.durationLimitSeconds,
       programLimits: nomination.programLimits ?? {},
       programs: this.programsFor(nomination, categories),
+      leagues: this.categoriesFor(nomination, categories, 'level').map(
+        (c) => c.name,
+      ),
+      lineups: this.categoriesFor(nomination, categories, 'lineup').map(
+        (c) => c.name,
+      ),
+      ageCategories: this.categoriesFor(nomination, categories, 'age').map(
+        (c) => ({ name: c.name, ageFrom: c.ageFrom, ageTo: c.ageTo }),
+      ),
       exits: this.exitsOf(nomination, categories),
       createdAt: nomination.createdAt,
     };

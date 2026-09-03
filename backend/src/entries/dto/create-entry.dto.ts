@@ -1,5 +1,7 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayNotEmpty,
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
@@ -11,10 +13,35 @@ import {
 } from 'class-validator';
 
 export class CreateEntryDto {
-  @ApiProperty({ example: 'Beautiful Life' })
+  @ApiPropertyOptional({
+    example: 'Beautiful Life',
+    description:
+      'Routine name. Optional when `participantId` is given — the server then uses the participant name.',
+  })
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
-  routineName: string;
+  routineName?: string;
+
+  @ApiPropertyOptional({
+    example: 'e7c1a2b4-5d6f-4a8b-9c0d-1e2f3a4b5c6d',
+    description:
+      'Single participant the entry is for. Fallback for `participantIds`; a coach may only pass a participant they own.',
+  })
+  @IsOptional()
+  @IsUUID('4')
+  participantId?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Every participant in the number — one for a solo, many for a group. The apply form always sends this. A coach may only pass participants they own.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsUUID('4', { each: true })
+  participantIds?: string[];
 
   @ApiPropertyOptional({
     example: 'e7c1a2b4-5d6f-4a8b-9c0d-1e2f3a4b5c6d',
@@ -65,4 +92,12 @@ export class CreateEntryDto {
   @IsOptional()
   @IsIn(['cash', 'card'])
   paymentMethod?: 'cash' | 'card';
+
+  @ApiPropertyOptional({
+    example: '213_Fesenko_Oriental.mp3',
+    description: 'Track file name for this performance.',
+  })
+  @IsOptional()
+  @IsString()
+  musicName?: string;
 }

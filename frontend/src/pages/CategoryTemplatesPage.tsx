@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import AdminHeader from '../components/AdminHeader';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import { ToastStack } from '../components/admin/Toast';
 import { useToasts } from '../components/admin/useToasts';
@@ -124,7 +123,6 @@ export default function CategoryTemplatesPage() {
 
   return (
     <>
-      <AdminHeader />
       <main className={styles.main}>
         <div className={styles.wrap}>
           <div className={styles.pageHead}>

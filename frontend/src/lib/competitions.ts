@@ -11,7 +11,8 @@ import type { PaymentDetails } from './paymentDetails';
 
 export interface CompetitionOwner {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
 }
 
 export interface Competition {
