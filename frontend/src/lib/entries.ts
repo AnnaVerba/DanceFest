@@ -8,6 +8,9 @@ export interface Entry {
   nominationId: string | null;
   participantId: string | null;
   participantIds: string[];
+  // One per dancer in `participantIds` order: the per-competition
+  // participant number issued at registration.
+  participantNumbers: number[];
   number: number;
   routineName: string;
   nomination: string;

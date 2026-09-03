@@ -5,6 +5,7 @@ import { getSession, getToken } from '../lib/auth';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import { getMyEntries } from '../lib/entries';
 import type { MyEntry } from '../lib/entries';
+import { formatParticipantNumbers } from '../lib/participantNumbers';
 import styles from './ParticipantCabinetPage.module.css';
 
 interface CompetitionGroup {
@@ -89,6 +90,7 @@ export default function ParticipantCabinetPage() {
                   <thead>
                     <tr>
                       <th>№</th>
+                      <th>№ учасника</th>
                       <th>Номінація</th>
                       <th>Ліга</th>
                       <th>Склад</th>
@@ -100,6 +102,7 @@ export default function ParticipantCabinetPage() {
                     {group.entries.map((entry) => (
                       <tr key={entry.id}>
                         <td>{entry.number}</td>
+                        <td>{formatParticipantNumbers(entry.participantNumbers)}</td>
                         <td>{entry.nomination}</td>
                         <td>{entry.league ?? '—'}</td>
                         <td>{entry.lineup ?? '—'}</td>

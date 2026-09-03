@@ -12,6 +12,8 @@ import { NominationsService } from '../nominations/nominations.service';
 import type { NominationExit } from '../nominations/nomination-exits';
 import { UsersService } from '../users/users.service';
 import { SchoolsService } from '../schools/schools.service';
+import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
+import { ParticipantNumberLookup } from '../competition-participant-numbers/participant-number-lookup';
 import { AccessLevel } from '../auth/access-level.enum';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Entry } from './entry.model';
@@ -65,6 +67,7 @@ export class EntriesService {
     private readonly nominationsService: NominationsService,
     private readonly usersService: UsersService,
     private readonly schoolsService: SchoolsService,
+    private readonly participantNumbersService: CompetitionParticipantNumbersService,
   ) {}
 
   async list(competitionId: string, requesterId: string) {
@@ -74,7 +77,10 @@ export class EntriesService {
       include: [Score],
       order: [['number', 'ASC']],
     });
-    return entries.map((e) => this.toDto(e));
+    const numbers = await this.participantNumbersService.loadLookup([
+      competitionId,
+    ]);
+    return entries.map((e) => this.toDto(e, numbers));
   }
 
   async count(competitionId: string): Promise<{ count: number }> {
@@ -114,13 +120,32 @@ export class EntriesService {
       dtos.map((dto) => this.prepareEntry(competitionId, dto, user)),
     );
 
+    const created = await this.insertWithRetry(competitionId, prepared);
+
+    // Every dancer entered here is now registered for the competition and
+    // gets their per-competition participant number (idempotent, so a
+    // repeat submission by the same dancer keeps the number).
+    await this.participantNumbersService.assignAll(
+      competitionId,
+      prepared.flatMap((entry) => entry.submitter.participantIds),
+    );
+    const numbers = await this.participantNumbersService.loadLookup([
+      competitionId,
+    ]);
+    return created.map((entry) => this.toDto(entry, numbers));
+  }
+
+  private async insertWithRetry(
+    competitionId: string,
+    prepared: PreparedEntry[],
+  ): Promise<Entry[]> {
     for (
       let attempt = 0;
       attempt < MAX_ENTRY_NUMBER_ASSIGNMENT_ATTEMPTS;
       attempt++
     ) {
       try {
-        const created = await this.entryModel.sequelize!.transaction(
+        return await this.entryModel.sequelize!.transaction(
           async (transaction: Transaction) => {
             const last = await this.entryModel.findOne({
               where: { competitionId },
@@ -143,8 +168,6 @@ export class EntriesService {
             return this.entryModel.bulkCreate(rows, { transaction });
           },
         );
-
-        return created.map((entry) => this.toDto(entry));
       } catch (err) {
         if (attempt === 0) continue;
         throw err;
@@ -240,11 +263,13 @@ export class EntriesService {
       where: { id: { [Op.in]: competitionIds } },
     });
     const byId = new Map(competitions.map((c) => [c.id, c]));
+    const numbers =
+      await this.participantNumbersService.loadLookup(competitionIds);
 
     return entries.map((entry) => {
       const competition = byId.get(entry.competitionId);
       return {
-        ...this.toDto(entry),
+        ...this.toDto(entry, numbers),
         competitionId: entry.competitionId,
         competitionName: competition?.name ?? null,
         competitionDateFrom: competition?.dateFrom ?? null,
@@ -375,8 +400,9 @@ export class EntriesService {
     return competition;
   }
 
-  private toDto(entry: Entry) {
+  private toDto(entry: Entry, numbers: ParticipantNumberLookup) {
     const scores = entry.scores ?? [];
+    const participantIds = entry.participantIds ?? [];
     const averageScore =
       scores.length > 0
         ? scores.reduce((sum, s) => sum + Number(s.value), 0) / scores.length
@@ -388,7 +414,12 @@ export class EntriesService {
       id: entry.id,
       nominationId: entry.nominationId,
       participantId: entry.participantId,
-      participantIds: entry.participantIds ?? [],
+      participantIds,
+      // One per dancer, in `participantIds` order.
+      participantNumbers: numbers.numbersFor(
+        entry.competitionId,
+        participantIds,
+      ),
       number: entry.number,
       routineName: entry.routineName,
       nomination: entry.nomination,

@@ -9,6 +9,7 @@ import { CreationAttributes } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
 import { UsersService } from '../users/users.service';
 import { CategoriesService } from '../categories/categories.service';
+import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
 import { LEAGUE_CATEGORY_TYPE } from '../categories/category.model';
 import { AccessLevel } from '../auth/access-level.enum';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
@@ -36,6 +37,7 @@ export class CompetitionApplicationsService {
     private readonly applicationModel: typeof CompetitionApplication,
     private readonly usersService: UsersService,
     private readonly categoriesService: CategoriesService,
+    private readonly participantNumbersService: CompetitionParticipantNumbersService,
   ) {}
 
   async create(
@@ -50,13 +52,22 @@ export class CompetitionApplicationsService {
 
     const { participantId, coachId } = await this.resolveSubmitter(dto, user);
 
-    return this.applicationModel.create({
+    const application = await this.applicationModel.create({
       competitionId: dto.competitionId,
       leagueId: dto.leagueId,
       participantId,
       coachId,
       status: ApplicationStatus.PENDING,
     } as CreationAttributes<CompetitionApplication>);
+
+    // The participant number is issued the moment a person registers for a
+    // competition; repeat applications of the same person reuse it.
+    await this.participantNumbersService.assign(
+      dto.competitionId,
+      participantId,
+    );
+
+    return application;
   }
 
   findMine(user: AuthenticatedUser): Promise<CompetitionApplication[]> {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import ConfirmDialog from './ConfirmDialog';
 import { deleteEntry, getEntries } from '../../lib/entries';
 import type { Entry } from '../../lib/entries';
+import { formatParticipantNumbers } from '../../lib/participantNumbers';
 import styles from './EntriesPanel.module.css';
 
 interface EntriesPanelProps {
@@ -240,6 +241,7 @@ export default function EntriesPanel({
               <thead>
                 <tr>
                   <th scope="col">№</th>
+                  <th scope="col">№ учасника</th>
                   <th scope="col">Назва номеру</th>
                   <th scope="col">Номінація</th>
                   <th scope="col">Вік. категорія</th>
@@ -259,7 +261,7 @@ export default function EntriesPanel({
               <tbody>
                 {pageEntries.length === 0 && (
                   <tr>
-                    <td colSpan={canManage ? 11 : 10} className={styles.noMatches}>
+                    <td colSpan={canManage ? 12 : 11} className={styles.noMatches}>
                       Нічого не знайдено за обраними фільтрами.
                     </td>
                   </tr>
@@ -267,6 +269,7 @@ export default function EntriesPanel({
                 {pageEntries.map((entry) => (
                   <tr key={entry.id}>
                     <td className={styles.num}>{entry.number}</td>
+                    <td>{formatParticipantNumbers(entry.participantNumbers)}</td>
                     <td className={styles.name}>{entry.routineName}</td>
                     <td>{entry.nomination}</td>
                     <td>{entry.ageCategory}</td>

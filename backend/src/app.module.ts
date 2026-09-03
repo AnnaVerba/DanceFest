@@ -18,6 +18,7 @@ import { UploadsModule } from './uploads/uploads.module';
 import { SchoolsModule } from './schools/schools.module';
 import { UsersModule } from './users/users.module';
 import { CompetitionApplicationsModule } from './competition-applications/competition-applications.module';
+import { CompetitionParticipantNumbersModule } from './competition-participant-numbers/competition-participant-numbers.module';
 import { OrganizerRequestsModule } from './organizer-requests/organizer-requests.module';
 import { AppBootstrapModule } from './app-bootstrap/app-bootstrap.module';
 
@@ -57,6 +58,7 @@ import { AppBootstrapModule } from './app-bootstrap/app-bootstrap.module';
     SchoolsModule,
     UsersModule,
     CompetitionApplicationsModule,
+    CompetitionParticipantNumbersModule,
     OrganizerRequestsModule,
     AppBootstrapModule,
   ],
