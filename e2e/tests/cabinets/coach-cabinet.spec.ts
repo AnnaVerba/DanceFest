@@ -3,10 +3,7 @@ import { TestAccountFactory } from '../../src/utils/test-account.factory';
 import { ROUTES } from '../../src/constants/routes.constants';
 
 test.describe('Coach cabinet (/coach)', () => {
-  test('shows the cabinet and the open-competitions tab after registering', async ({
-    registerPage,
-    coachCabinetPage,
-  }) => {
+  test('shows the cabinet after registering', async ({ registerPage, coachCabinetPage }) => {
     const account = TestAccountFactory.create('COACH');
     await registerPage.open();
     await registerPage.registerAccount(account);
@@ -14,9 +11,11 @@ test.describe('Coach cabinet (/coach)', () => {
     await coachCabinetPage.open();
 
     await expect(coachCabinetPage.eyebrow()).toBeVisible();
-    // Same deterministic state as the participant cabinet — no seeded
-    // competition currently has registration open.
-    await expect(coachCabinetPage.noOpenCompetitionsMessage()).toBeVisible();
+    // Not asserting the "no open competitions" empty state here: this suite's
+    // own wizard/apply/team/edit specs seed real open-registration
+    // competitions into the same shared dev database, so "zero open
+    // competitions exist globally" is no longer a safe invariant (see the
+    // equivalent note in cabinets/participant-cabinet.spec.ts).
   });
 
   test('adds a participant and lists them under "Мої учасники"', async ({

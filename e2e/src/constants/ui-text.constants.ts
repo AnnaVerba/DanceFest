@@ -47,4 +47,35 @@ export const UI_TEXT = {
     // surfaces this literal English message rather than a translated one.
     SERVER_ERROR_500: 'Internal server error',
   },
+  wizard: {
+    HEADING: 'Новий конкурс',
+    NEXT: 'Далі',
+    SUBMIT: 'Створити конкурс',
+    FIELD_ERROR_BANNER: 'Перевірте позначені поля.',
+    NAME_REQUIRED: 'Вкажіть назву конкурсу.',
+  },
+  competitionDetail: {
+    TAB_DETAILS: 'Деталі',
+    TAB_NOMINATIONS: 'Номінації',
+    TAB_VENUES: 'Майданчики',
+    TAB_ENTRIES: 'Заявки',
+    EDIT_LINK: 'Редагувати',
+    DELETE_BUTTON: 'Видалити',
+    LOAD_ERROR: 'Не вдалося завантажити конкурс.',
+  },
+  competitionEdit: {
+    HEADING: 'Редагувати конкурс',
+    SUBMIT: 'Зберегти зміни',
+  },
+  team: {
+    HEADING: 'Команда конкурсу',
+    ADD_ADMIN_BUTTON: '+ Додати адміна',
+    ONLY_MANAGER_MESSAGE: 'Поки що ви єдина людина, яка керує конкурсом',
+    MODAL_TITLE: 'Додати адміна',
+    MODAL_SUBMIT: 'Надіслати запрошення',
+  },
+  admins: {
+    HEADING: 'Адміністратори',
+    SUBMIT: 'Створити адміністратора',
+  },
 } as const;
