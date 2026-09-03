@@ -1,0 +1,50 @@
+.icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--g-danger-bg);
+  border: 1px solid var(--g-danger-border);
+  color: var(--g-danger);
+  font-size: 20px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px 0 16px;
+}
+
+.text {
+  margin: 0 0 24px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--g-ink-soft);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.close {
+  height: 44px;
+  padding: 0 20px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  border-radius: 9px;
+  cursor: pointer;
+  border: none;
+  color: #fff;
+  background: var(--g-accent);
+  transition: background 0.15s;
+}
+
+.close:hover {
+  background: var(--g-accent-hover);
+}
+
+@media (max-width: 640px) {
+  .close {
+    width: 100%;
+  }
+}

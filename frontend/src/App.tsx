@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import ThemeToggle from './components/ThemeToggle';
+import ServerErrorModal from './components/ServerErrorModal';
 import { getToken } from './lib/auth';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
@@ -23,6 +24,7 @@ function App() {
   return (
     <>
       <ThemeToggle />
+      <ServerErrorModal />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />

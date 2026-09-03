@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './api';
+import { apiFetch } from './api';
 import { ROLE } from './roles';
 import type { Role } from './roles';
 import {
@@ -102,7 +102,7 @@ async function postAuth(
 ): Promise<RawAuthResponse> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await apiFetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -181,7 +181,7 @@ export async function refreshSession(): Promise<Session> {
 
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    response = await apiFetch('/auth/refresh', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
@@ -226,7 +226,7 @@ export async function authorizedFetch(
   init: RequestInit = {},
 ): Promise<Response> {
   const send = (token: string | null) =>
-    fetch(`${API_BASE_URL}${path}`, {
+    apiFetch(path, {
       ...init,
       headers: {
         ...init.headers,

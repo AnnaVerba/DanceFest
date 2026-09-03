@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './api';
+import { apiFetch } from './api';
 import {
   SCHOOLS_LOAD_FAILED_MESSAGE,
   SCHOOL_CREATE_FAILED_MESSAGE,
@@ -19,7 +19,7 @@ function extractMessage(payload: ErrorPayload | null, fallback: string): string 
 }
 
 export async function getSchools(): Promise<School[]> {
-  const response = await fetch(`${API_BASE_URL}/schools`);
+  const response = await apiFetch('/schools');
   if (!response.ok) {
     throw new Error(SCHOOLS_LOAD_FAILED_MESSAGE);
   }
@@ -27,7 +27,7 @@ export async function getSchools(): Promise<School[]> {
 }
 
 export async function createSchool(name: string): Promise<School> {
-  const response = await fetch(`${API_BASE_URL}/schools`, {
+  const response = await apiFetch('/schools', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),

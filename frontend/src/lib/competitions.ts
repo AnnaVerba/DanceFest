@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './api';
+import { apiFetch } from './api';
 import { authorizedFetch } from './auth';
 import { COMPETITION_STATUS } from './competitionStatus';
 import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
@@ -50,7 +50,7 @@ function extractMessage(payload: ErrorPayload | null, fallback: string): string 
 }
 
 export async function getCompetitions(): Promise<Competition[]> {
-  const response = await fetch(`${API_BASE_URL}/competitions`);
+  const response = await apiFetch('/competitions');
   if (!response.ok) {
     throw new Error('Не вдалося завантажити конкурси');
   }
@@ -58,7 +58,7 @@ export async function getCompetitions(): Promise<Competition[]> {
 }
 
 export async function getCompetition(id: string): Promise<Competition> {
-  const response = await fetch(`${API_BASE_URL}/competitions/${id}`);
+  const response = await apiFetch(`/competitions/${id}`);
   if (!response.ok) {
     throw new Error('Не вдалося завантажити конкурс');
   }

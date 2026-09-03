@@ -5,6 +5,7 @@ import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Nomination } from '../nominations/nomination.model';
 import { NominationsModule } from '../nominations/nominations.module';
 import { Entry } from './entry.model';
+import { Score } from './score.model';
 import { EntriesController } from './entries.controller';
 import { EntriesService } from './entries.service';
 
@@ -15,6 +16,7 @@ import { EntriesService } from './entries.service';
       CompetitionAdmin,
       Nomination,
       Entry,
+      Score,
     ]),
     NominationsModule,
   ],

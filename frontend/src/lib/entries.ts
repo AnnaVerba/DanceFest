@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './api';
+import { apiFetch } from './api';
 import { authorizedFetch } from './auth';
 import { GENERIC_REQUEST_ERROR_MESSAGE } from './api.constants';
 import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
@@ -85,8 +85,8 @@ export function getEntries(competitionId: string): Promise<Entry[]> {
 }
 
 export async function getEntriesCount(competitionId: string): Promise<number> {
-  const response = await fetch(
-    `${API_BASE_URL}/competitions/${competitionId}/entries/count`,
+  const response = await apiFetch(
+    `/competitions/${competitionId}/entries/count`,
   );
   if (!response.ok) {
     throw new EntryApiError(
