@@ -47,8 +47,8 @@ export class PaymentDetailsService {
     const attrs = {
       competitionId,
       adminId: requesterId,
-      beneficiary: dto.beneficiary.trim(),
-      account: dto.account.trim(),
+      beneficiary: dto.beneficiary?.trim() || null,
+      account: dto.account?.trim() || null,
       bankName: dto.bankName?.trim() || null,
       taxId: dto.taxId?.trim() || null,
       destination: dto.destination?.trim() || null,

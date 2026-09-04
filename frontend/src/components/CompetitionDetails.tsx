@@ -113,11 +113,13 @@ export default function CompetitionDetails({
             <div className={`${styles.grid} ${styles.grid2}`}>
               <div className={styles.item}>
                 <div className={styles.itemLabel}>Отримувач</div>
-                <div className={styles.itemValue}>{payment.beneficiary}</div>
+                <div className={styles.itemValue}>
+                  {payment.beneficiary ?? '—'}
+                </div>
               </div>
               <div className={styles.item}>
                 <div className={styles.itemLabel}>Картка / IBAN</div>
-                <div className={styles.itemValue}>{payment.account}</div>
+                <div className={styles.itemValue}>{payment.account ?? '—'}</div>
               </div>
               {payment.bankName && (
                 <div className={styles.item}>

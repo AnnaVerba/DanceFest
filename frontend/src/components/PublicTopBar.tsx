@@ -1,15 +1,16 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { clearSession, getSession } from '../lib/auth';
 import { ACCESS_LEVEL_LABELS } from '../lib/roles';
 import styles from './PublicTopBar.module.css';
 
 export default function PublicTopBar() {
-  const navigate = useNavigate();
   const session = getSession();
 
   const handleLogout = () => {
     clearSession();
-    navigate('/');
+    // Hard navigation to the public home: clears every in-memory guard and
+    // avoids racing a protected page's own redirect to /login.
+    window.location.assign('/');
   };
 
   return (

@@ -105,6 +105,17 @@ export function getMyEntries(): Promise<MyEntry[]> {
   return request<MyEntry[]>('/me/entries');
 }
 
+// Set / replace the track file name for one of the user's own entries.
+export function updateEntryMusic(
+  entryId: string,
+  musicName: string,
+): Promise<Entry> {
+  return request<Entry>(`/me/entries/${entryId}/music`, {
+    method: 'PATCH',
+    body: JSON.stringify({ musicName }),
+  });
+}
+
 export async function getEntriesCount(competitionId: string): Promise<number> {
   const response = await fetch(
     `${API_BASE_URL}/competitions/${competitionId}/entries/count`,
