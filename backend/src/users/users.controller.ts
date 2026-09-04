@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -52,18 +53,20 @@ export class UsersController {
   }
 
   @ApiOperation({
-    summary: "List a coach's roster, or every user for an organizer",
+    summary:
+      "List a coach's roster; for an organizer, search participants by name",
   })
   @ApiResponse({ status: 200, description: 'Participants returned.' })
   @MinLevel(AccessLevel.COACH)
   @Get('participants')
   async findRoster(
     @CurrentUser() user: AuthenticatedUser,
+    @Query('q') q?: string,
   ): Promise<ParticipantSummary[]> {
     const participants =
       user.accessLevel === AccessLevel.COACH
-        ? await this.usersService.listRosterByCoach(user.id)
-        : await this.usersService.listAllUsers();
+        ? await this.usersService.listRosterByCoach(user.id, q)
+        : await this.usersService.searchParticipants(q ?? '');
     return participants.map((participant) => this.toSummary(participant));
   }
 

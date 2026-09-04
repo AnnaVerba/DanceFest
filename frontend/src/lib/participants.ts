@@ -65,8 +65,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as unknown as T;
 }
 
-export function getParticipants(): Promise<Participant[]> {
-  return request<Participant[]>('/users/participants');
+// A name query is required for organizers (it searches every participant);
+// a coach may omit it to get their full roster.
+export function getParticipants(query?: string): Promise<Participant[]> {
+  const q = query?.trim();
+  const suffix = q ? `?q=${encodeURIComponent(q)}` : '';
+  return request<Participant[]>(`/users/participants${suffix}`);
 }
 
 export function createParticipant(input: NewParticipant): Promise<Participant> {

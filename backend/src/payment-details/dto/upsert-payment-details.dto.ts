@@ -1,19 +1,19 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString } from 'class-validator';
 
 export class UpsertPaymentDetailsDto {
-  @ApiProperty({ example: 'ФОП Ковальчук О. М.' })
+  @ApiPropertyOptional({ example: 'ФОП Ковальчук О. М.' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  beneficiary: string;
+  beneficiary?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'UA123456780000026007233566001',
     description: 'Номер картки або IBAN отримувача — одне поле, як на формі.',
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  account: string;
+  account?: string;
 
   @ApiPropertyOptional({ example: 'АТ КБ «ПриватБанк»' })
   @IsOptional()

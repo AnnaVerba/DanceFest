@@ -12,6 +12,11 @@ import { User } from './user.model';
 import { PlaceholderCoachData } from './placeholder-coach.data';
 import { MentorCoach } from './mentor-coach.interface';
 import {
+  PARTICIPANT_SEARCH_LIMIT,
+  PARTICIPANT_SEARCH_MIN_CHARS,
+  nameWhere,
+} from './participant-search';
+import {
   LEVEL_ONLY_GOES_UP_MESSAGE,
   MENTOR_COACH_NOT_FOUND_MESSAGE,
   ONLY_COACH_SELF_UPGRADE_MESSAGE,
@@ -256,16 +261,24 @@ export class UsersService {
     return this.findByIdOrFail(userId);
   }
 
-  listRosterByCoach(coachUserId: string): Promise<User[]> {
+  listRosterByCoach(coachUserId: string, query?: string): Promise<User[]> {
     return this.userModel.findAll({
-      where: { coachId: coachUserId },
+      where: { coachId: coachUserId, ...nameWhere(query) },
       order: [['lastName', 'ASC']],
     });
   }
 
-  // For an organizer's "all participants" view — every account can compete.
-  listAllUsers(): Promise<User[]> {
-    return this.userModel.findAll({ order: [['lastName', 'ASC']] });
+  // Name search over every participant — never returns the full table.
+  // Requires a query of at least PARTICIPANT_SEARCH_MIN_CHARS characters.
+  searchParticipants(query: string): Promise<User[]> {
+    if (query.trim().length < PARTICIPANT_SEARCH_MIN_CHARS) {
+      return Promise.resolve([]);
+    }
+    return this.userModel.findAll({
+      where: nameWhere(query),
+      order: [['lastName', 'ASC']],
+      limit: PARTICIPANT_SEARCH_LIMIT,
+    });
   }
 
   // A coach adds a dancer to their roster: a credential-less PARTICIPANT

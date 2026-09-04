@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import CabinetLayout from '../components/CabinetLayout';
 import { getSession, getToken } from '../lib/auth';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
-import { getMyEntries } from '../lib/entries';
+import { getMyEntries, updateEntryMusic } from '../lib/entries';
 import type { MyEntry } from '../lib/entries';
 import styles from './ParticipantCabinetPage.module.css';
 
@@ -59,6 +60,26 @@ export default function ParticipantCabinetPage() {
     [myEntries],
   );
 
+  const onMusicPick = async (
+    entryId: string,
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setError(null);
+    try {
+      const updated = await updateEntryMusic(entryId, file.name);
+      setMyEntries((prev) =>
+        (prev ?? []).map((e) =>
+          e.id === entryId ? { ...e, musicName: updated.musicName } : e,
+        ),
+      );
+    } catch {
+      setError('Не вдалося зберегти музику.');
+    }
+  };
+
   if (!getToken() || !session) {
     return <Navigate to="/login" replace />;
   }
@@ -105,9 +126,21 @@ export default function ParticipantCabinetPage() {
                         <td>{entry.lineup ?? '—'}</td>
                         <td>{entry.ageCategory ?? '—'}</td>
                         <td>
-                          {entry.improv
-                            ? 'Імпровізація'
-                            : (entry.musicName ?? '—')}
+                          <label className={styles.musicCell}>
+                            <span>
+                              {entry.musicName ??
+                                (entry.improv ? 'Імпровізація' : '—')}
+                            </span>
+                            <input
+                              type="file"
+                              accept="audio/*"
+                              hidden
+                              onChange={(e) => onMusicPick(entry.id, e)}
+                            />
+                            <span className={styles.musicEdit}>
+                              {entry.musicName ? 'змінити' : 'додати'}
+                            </span>
+                          </label>
                         </td>
                       </tr>
                     ))}

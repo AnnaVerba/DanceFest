@@ -4,16 +4,16 @@ import { PAYMENT_DETAILS_SAVE_FAILED_MESSAGE } from './paymentDetails.constants'
 
 export interface PaymentDetails {
   id: string;
-  beneficiary: string;
-  account: string;
+  beneficiary: string | null;
+  account: string | null;
   bankName: string | null;
   taxId: string | null;
   destination: string | null;
 }
 
 export interface PaymentDetailsInput {
-  beneficiary: string;
-  account: string;
+  beneficiary?: string;
+  account?: string;
   bankName?: string;
   taxId?: string;
   destination?: string;

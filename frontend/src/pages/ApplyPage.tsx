@@ -12,6 +12,10 @@ import {
   getParticipants,
 } from '../lib/participants';
 import type { Participant } from '../lib/participants';
+import {
+  PARTICIPANT_SEARCH_DEBOUNCE_MS,
+  PARTICIPANT_SEARCH_MIN_CHARS,
+} from '../lib/participants.constants';
 import { getSchool } from '../lib/schools';
 import { getSession } from '../lib/auth';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
@@ -116,12 +120,18 @@ export default function ApplyPage() {
 
   const [competition, setCompetition] = useState<Competition | null>(null);
   const [nominations, setNominations] = useState<Nomination[] | null>(null);
-  const [roster, setRoster] = useState<Participant[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>(
-    [],
-  );
+  // Picked dancers are held as full objects: a coach searches the roster by
+  // name and a match may no longer be in the current results by the time
+  // the form is submitted.
+  const [selectedParticipants, setSelectedParticipants] = useState<
+    SelectableParticipant[]
+  >([]);
+  const [participantQuery, setParticipantQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Participant[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [studioName, setStudioName] = useState<string | null>(null);
   const [league, setLeague] = useState('');
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
@@ -162,18 +172,11 @@ export default function ApplyPage() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    const loads: [Promise<Competition>, Promise<Nomination[]>, Promise<Participant[]>] =
-      [
-        getCompetition(id),
-        getNominations(id),
-        isCoach ? getParticipants() : Promise.resolve([]),
-      ];
-    Promise.all(loads)
-      .then(([c, noms, people]) => {
+    Promise.all([getCompetition(id), getNominations(id)])
+      .then(([c, noms]) => {
         if (cancelled) return;
         setCompetition(c);
         setNominations(noms);
-        setRoster(people);
       })
       .catch(() => {
         if (!cancelled) setLoadError('Не вдалося завантажити конкурс.');
@@ -181,7 +184,40 @@ export default function ApplyPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, isCoach]);
+  }, [id]);
+
+  // Name search over the roster — never loads every participant at once.
+  useEffect(() => {
+    if (!isCoach) return;
+    const q = participantQuery.trim();
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      if (q.length < PARTICIPANT_SEARCH_MIN_CHARS) {
+        setSearchResults([]);
+        setSearching(false);
+        setSearchError(null);
+        return;
+      }
+      setSearching(true);
+      getParticipants(q)
+        .then((people) => {
+          if (!cancelled) {
+            setSearchResults(people);
+            setSearchError(null);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setSearchError('Не вдалося виконати пошук.');
+        })
+        .finally(() => {
+          if (!cancelled) setSearching(false);
+        });
+    }, PARTICIPANT_SEARCH_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [participantQuery, isCoach]);
 
   useEffect(() => {
     if (!coachSchoolId) return;
@@ -196,26 +232,33 @@ export default function ApplyPage() {
     };
   }, [coachSchoolId]);
 
-  const participantOptions: SelectableParticipant[] = useMemo(() => {
-    if (selfParticipant) return [selfParticipant];
-    const rosterOptions = roster.map((p) => ({
-      id: p.id,
-      firstName: p.firstName,
-      lastName: p.lastName,
-      birthDate: p.birthDate,
-    }));
-    return selfAsOption ? [selfAsOption, ...rosterOptions] : rosterOptions;
-  }, [roster, selfParticipant, selfAsOption]);
+  // Rows offered under the search box: the coach themselves (always
+  // available, no search needed) plus whatever the current query matched,
+  // minus anyone already picked.
+  const searchOptions: SelectableParticipant[] = useMemo(() => {
+    const pickedIds = new Set(selectedParticipants.map((p) => p.id));
+    const matches = searchResults
+      .filter((p) => !pickedIds.has(p.id))
+      .map((p) => ({
+        id: p.id,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        birthDate: p.birthDate,
+      }));
+    const self =
+      selfAsOption && !pickedIds.has(selfAsOption.id) ? [selfAsOption] : [];
+    return [...self, ...matches];
+  }, [searchResults, selectedParticipants, selfAsOption]);
 
   // A participant applies for themselves; a coach picks one (solo) or
   // several (group number) from the roster.
   const effectiveParticipantIds = selfParticipant
     ? [selfParticipant.id]
-    : selectedParticipantIds;
+    : selectedParticipants.map((p) => p.id);
 
-  const activeParticipants = participantOptions.filter((p) =>
-    effectiveParticipantIds.includes(p.id),
-  );
+  const activeParticipants = selfParticipant
+    ? [selfParticipant]
+    : selectedParticipants;
 
   const nonSpecial = useMemo(
     () => (nominations ?? []).filter((n) => !n.isSpecial),
@@ -241,7 +284,7 @@ export default function ApplyPage() {
     [nonSpecial],
   );
 
-  const pickedCount = effectiveParticipantIds.length;
+  const pickedCount = selfParticipant ? 1 : selectedParticipants.length;
 
   const styleRows: NominationRow[] = useMemo(() => {
     const rows: NominationRow[] = [];
@@ -328,11 +371,16 @@ export default function ApplyPage() {
     );
   };
 
-  const toggleParticipant = (pid: string) => {
+  const addParticipant = (person: SelectableParticipant) => {
     setSubmitError(null);
-    setSelectedParticipantIds((prev) =>
-      prev.includes(pid) ? prev.filter((x) => x !== pid) : [...prev, pid],
+    setSelectedParticipants((prev) =>
+      prev.some((p) => p.id === person.id) ? prev : [...prev, person],
     );
+  };
+
+  const removeParticipant = (pid: string) => {
+    setSubmitError(null);
+    setSelectedParticipants((prev) => prev.filter((p) => p.id !== pid));
   };
 
   const setMusicForRow = (key: string, e: ChangeEvent<HTMLInputElement>) => {
@@ -362,8 +410,12 @@ export default function ApplyPage() {
         phone,
         birthDate,
       });
-      setRoster((prev) => [...prev, created]);
-      setSelectedParticipantIds((prev) => [...prev, created.id]);
+      addParticipant({
+        id: created.id,
+        firstName: created.firstName,
+        lastName: created.lastName,
+        birthDate: created.birthDate,
+      });
       setNewParticipant({
         firstName: '',
         lastName: '',
@@ -381,7 +433,9 @@ export default function ApplyPage() {
   };
 
   const resetForm = () => {
-    setSelectedParticipantIds([]);
+    setSelectedParticipants([]);
+    setParticipantQuery('');
+    setSearchResults([]);
     setLeague('');
     setSelectedStyles([]);
     setSelectedKeys([]);
@@ -536,31 +590,60 @@ export default function ApplyPage() {
               </div>
             ) : (
               <>
-                <div className={styles.nomList}>
-                  {participantOptions.map((p) => {
-                    const on = selectedParticipantIds.includes(p.id);
-                    return (
+                {selectedParticipants.length > 0 && (
+                  <div className={styles.chips}>
+                    {selectedParticipants.map((p) => (
                       <button
                         key={p.id}
                         type="button"
-                        className={`${styles.nomRow} ${on ? styles.nomRowOn : ''}`}
-                        onClick={() => toggleParticipant(p.id)}
+                        className={`${styles.chip} ${styles.chipOn}`}
+                        onClick={() => removeParticipant(p.id)}
                       >
-                        <span
-                          className={`${styles.nomCheck} ${on ? styles.nomCheckOn : ''}`}
-                        >
-                          {on ? '✓' : ''}
-                        </span>
+                        {fullName(p)} ✕
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <input
+                  className={styles.textInput}
+                  type="text"
+                  placeholder="Почніть вводити прізвище учасника…"
+                  value={participantQuery}
+                  onChange={(e) => setParticipantQuery(e.target.value)}
+                />
+
+                {participantQuery.trim().length > 0 &&
+                  participantQuery.trim().length < PARTICIPANT_SEARCH_MIN_CHARS && (
+                    <p className={styles.hint}>
+                      Введіть щонайменше {PARTICIPANT_SEARCH_MIN_CHARS} літери.
+                    </p>
+                  )}
+                {searching && <p className={styles.hint}>Пошук…</p>}
+                {searchError && <p className={styles.error}>{searchError}</p>}
+
+                {searchOptions.length > 0 && (
+                  <div className={styles.nomList}>
+                    {searchOptions.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className={styles.nomRow}
+                        onClick={() => addParticipant(p)}
+                      >
+                        <span className={styles.nomCheck} />
                         <span className={styles.nomLabel}>{fullName(p)}</span>
                       </button>
-                    );
-                  })}
-                  {participantOptions.length === 0 && (
-                    <div className={styles.nomEmpty}>
-                      Ще немає учасників — додайте першого нижче.
-                    </div>
+                    ))}
+                  </div>
+                )}
+                {!searching &&
+                  !searchError &&
+                  participantQuery.trim().length >=
+                    PARTICIPANT_SEARCH_MIN_CHARS &&
+                  searchOptions.length === 0 && (
+                    <div className={styles.nomEmpty}>Нікого не знайдено.</div>
                   )}
-                </div>
                 <p className={styles.hint}>
                   Оберіть одного для сольного номера або кількох для групового.
                 </p>

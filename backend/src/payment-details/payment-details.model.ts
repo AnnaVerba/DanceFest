@@ -26,11 +26,11 @@ export class PaymentDetails extends Model<PaymentDetails> {
   @Column({ type: DataType.UUID, allowNull: false })
   declare adminId: string;
 
-  @Column({ type: DataType.STRING, allowNull: false })
-  declare beneficiary: string;
+  @Column({ type: DataType.STRING, allowNull: true })
+  declare beneficiary: string | null;
 
-  @Column({ type: DataType.STRING, allowNull: false })
-  declare account: string;
+  @Column({ type: DataType.STRING, allowNull: true })
+  declare account: string | null;
 
   @Column({ type: DataType.STRING, allowNull: true })
   declare bankName: string | null;

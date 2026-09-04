@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { getStoredAdmin } from '../lib/auth';
 import { getCompetitionStatus, getCompetitions } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { COMPETITION_STATUS } from '../lib/competitionStatus';
@@ -73,14 +74,25 @@ export default function HomePage() {
   }, [competitions, search, year, statusId]);
 
   const ready = !loading && !error && competitions !== null;
+  const canCreate = !!getStoredAdmin(); // organizer / admin
 
   return (
     <div className={styles.page}>
       <div className={styles.container}>
-        <h1 className={styles.pageTitle}>Конкурси східного танцю</h1>
-        <p className={styles.pageSubtitle}>
-          Оберіть конкурс — заявка подається з кабінету тренера або учасника.
-        </p>
+        <div className={styles.pageHead}>
+          <div>
+            <h1 className={styles.pageTitle}>Конкурси східного танцю</h1>
+            <p className={styles.pageSubtitle}>
+              Оберіть конкурс — заявка подається з кабінету тренера або
+              учасника.
+            </p>
+          </div>
+          {canCreate && (
+            <Link to="/competitions/new" className={styles.createBtn}>
+              + Створити конкурс
+            </Link>
+          )}
+        </div>
 
         <div className={styles.filters}>
           <input
