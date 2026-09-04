@@ -36,6 +36,9 @@ interface NominationSetBuilderProps {
   onSelectionChange: (next: AxisSelection) => void;
   onNotice?: (message: string) => void;
   seedCategoryIds?: string[];
+  // Категорії, створені лише в модалці спецкатегорії, не потрапляють у
+  // selection — цей колбек несе їх межі туди, де їх шукає resolveDraftCategories.
+  onCategoryCreated?: (category: Category) => void;
 }
 
 export default function NominationSetBuilder({
@@ -45,6 +48,7 @@ export default function NominationSetBuilder({
   onSelectionChange,
   onNotice,
   seedCategoryIds,
+  onCategoryCreated,
 }: NominationSetBuilderProps) {
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Category[]>([]);
@@ -438,11 +442,12 @@ export default function NominationSetBuilder({
           )
         }
         onClose={() => setSpecialOpen(false)}
-        onCategoryCreated={(category) =>
+        onCategoryCreated={(category) => {
           setSuggestions((prev) =>
             prev.some((s) => s.id === category.id) ? prev : [...prev, category],
-          )
-        }
+          );
+          onCategoryCreated?.(category);
+        }}
         onSubmit={addSpecial}
       />
     </div>

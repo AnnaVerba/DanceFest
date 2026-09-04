@@ -13,6 +13,7 @@ import NominationSetBuilder from '../components/nominations/NominationSetBuilder
 import { resolveDraftCategories, savedSignatureOf } from '../lib/nominationSet';
 import type { AxisSelection, DraftNomination } from '../lib/nominationSet';
 import { CategoryApiError } from '../lib/categories';
+import type { Category } from '../lib/categories';
 import styles from './CategoryTemplateFormPage.module.css';
 
 export default function CategoryTemplateFormPage() {
@@ -26,6 +27,9 @@ export default function CategoryTemplateFormPage() {
   const [isPublic, setIsPublic] = useState(false);
   const [nominations, setNominations] = useState<DraftNomination[]>([]);
   const [axes, setAxes] = useState<AxisSelection | null>(null);
+  // Категорії зі спецмодалки, відсутні в axes — потрібні resolveDraftCategories,
+  // щоб не загубити ageFrom/ageTo нової вікової категорії при збереженні.
+  const [extraCategories, setExtraCategories] = useState<Category[]>([]);
 
   const [loading, setLoading] = useState(isEdit);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -105,7 +109,7 @@ export default function CategoryTemplateFormPage() {
     try {
       const resolved = await resolveDraftCategories(
         nominations,
-        Object.values(axes ?? {}).flat(),
+        [...Object.values(axes ?? {}).flat(), ...extraCategories],
       );
       await save(resolved);
     } catch (err) {
@@ -240,6 +244,11 @@ export default function CategoryTemplateFormPage() {
                 onSelectionChange={setAxes}
                 onNotice={showToast}
                 seedCategoryIds={seedCategoryIds}
+                onCategoryCreated={(category) =>
+                  setExtraCategories((prev) =>
+                    prev.some((c) => c.id === category.id) ? prev : [...prev, category],
+                  )
+                }
               />
 
               <div className={styles.actions}>

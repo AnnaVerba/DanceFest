@@ -11,6 +11,7 @@ import { createVenue } from '../lib/venues';
 import { createNominationsBulk } from '../lib/nominations';
 import NominationSetBuilder from '../components/nominations/NominationSetBuilder';
 import { CategoryApiError } from '../lib/categories';
+import type { Category } from '../lib/categories';
 import {
   pluralNominations,
   resolveDraftCategories,
@@ -138,6 +139,9 @@ export default function NewCompetitionPage() {
   const [templateName, setTemplateName] = useState('');
   const [nominations, setNominations] = useState<DraftNomination[]>([]);
   const [axes, setAxes] = useState<AxisSelection | null>(null);
+  // Категорії зі спецмодалки, відсутні в axes — потрібні resolveDraftCategories,
+  // щоб не загубити ageFrom/ageTo нової вікової категорії при збереженні.
+  const [extraCategories, setExtraCategories] = useState<Category[]>([]);
   const [loadingNominations, setLoadingNominations] = useState(false);
 
   useEffect(() => {
@@ -395,7 +399,7 @@ export default function NewCompetitionPage() {
         nominationSource === 'custom'
           ? await resolveDraftCategories(
               nominations,
-              Object.values(axes ?? {}).flat(),
+              [...Object.values(axes ?? {}).flat(), ...extraCategories],
             )
           : nominations;
 
@@ -1067,6 +1071,11 @@ export default function NewCompetitionPage() {
                     onChange={setNominations}
                     selection={axes}
                     onSelectionChange={setAxes}
+                    onCategoryCreated={(category) =>
+                      setExtraCategories((prev) =>
+                        prev.some((c) => c.id === category.id) ? prev : [...prev, category],
+                      )
+                    }
                   />
                 </>
               )}
