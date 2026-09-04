@@ -6,6 +6,7 @@ import { useToasts } from '../components/admin/useToasts';
 import { getStoredAdmin, getToken } from '../lib/auth';
 import {
   deleteCompetition,
+  formatOrganizers,
   getCompetitionStatus,
   getCompetitions,
 } from '../lib/competitions';
@@ -73,7 +74,7 @@ export default function DashboardPage() {
           (c) =>
             c.name.toLowerCase().includes(q) ||
             c.location.toLowerCase().includes(q) ||
-            c.organizer.toLowerCase().includes(q),
+            formatOrganizers(c.organizers).toLowerCase().includes(q),
         )
       : list;
 
@@ -81,7 +82,9 @@ export default function DashboardPage() {
     if (sortKey === 'name') {
       sorted.sort((a, b) => a.name.localeCompare(b.name, 'uk'));
     } else if (sortKey === 'organizer') {
-      sorted.sort((a, b) => a.organizer.localeCompare(b.organizer, 'uk'));
+      sorted.sort((a, b) =>
+        formatOrganizers(a.organizers).localeCompare(formatOrganizers(b.organizers), 'uk'),
+      );
     } else {
       sorted.sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
     }
@@ -256,7 +259,7 @@ export default function DashboardPage() {
                       </td>
                       <td>{formatDate(c.dateFrom)}</td>
                       <td>{c.location || '—'}</td>
-                      <td>{c.organizer || '—'}</td>
+                      <td>{c.organizers.length > 0 ? formatOrganizers(c.organizers) : '—'}</td>
                       <td className={styles.contact}>
                         {c.contactNumber && (
                           <div className={styles.contactPhone}>{c.contactNumber}</div>

@@ -20,7 +20,7 @@ import { MinLevel } from '../auth/min-level.decorator';
 import { AccessLevel } from '../auth/access-level.enum';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
-import { ApplicationStatus } from '../competition-applications/application-status.enum';
+import { ApplicationStatus } from './application-status.enum';
 import { OrganizerRequestsService } from './organizer-requests.service';
 import { CreateOrganizerRequestDto } from './dto/create-organizer-request.dto';
 import { ReviewOrganizerRequestDto } from './dto/review-organizer-request.dto';

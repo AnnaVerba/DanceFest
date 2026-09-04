@@ -11,22 +11,39 @@ import { DataTypes } from 'sequelize';
 //   - drops the `leagues` table
 //   - removes the orphan SequelizeMeta row so `migrate:undo` stays in
 //     step with the files on disk
+//
+// competition_applications itself was later removed too (its creating
+// migration is gone from the repo), so a freshly migrated database never
+// has it here — the repoint is skipped in that case.
 const FK = 'competition_applications_leagueId_fkey';
 const DELETED_MIGRATION = '20260901090400-create-leagues.ts';
 
+async function tableExists(
+  queryInterface: QueryInterface,
+  tableName: string,
+): Promise<boolean> {
+  const [rows] = await queryInterface.sequelize.query(
+    'SELECT to_regclass(:tableName) AS reg',
+    { replacements: { tableName } },
+  );
+  return (rows[0] as { reg: string | null }).reg !== null;
+}
+
 module.exports = {
   up: async (queryInterface: QueryInterface) => {
-    await queryInterface
-      .removeConstraint('competition_applications', FK)
-      .catch(() => undefined);
-    await queryInterface.addConstraint('competition_applications', {
-      type: 'foreign key',
-      fields: ['leagueId'],
-      references: { table: 'categories', field: 'id' },
-      onDelete: 'RESTRICT',
-      onUpdate: 'CASCADE',
-      name: FK,
-    });
+    if (await tableExists(queryInterface, 'competition_applications')) {
+      await queryInterface
+        .removeConstraint('competition_applications', FK)
+        .catch(() => undefined);
+      await queryInterface.addConstraint('competition_applications', {
+        type: 'foreign key',
+        fields: ['leagueId'],
+        references: { table: 'categories', field: 'id' },
+        onDelete: 'RESTRICT',
+        onUpdate: 'CASCADE',
+        name: FK,
+      });
+    }
 
     await queryInterface.dropTable('leagues', { cascade: true });
 
@@ -55,16 +72,18 @@ module.exports = {
       updatedAt: { type: DataTypes.DATE, allowNull: false },
     });
 
-    await queryInterface
-      .removeConstraint('competition_applications', FK)
-      .catch(() => undefined);
-    await queryInterface.addConstraint('competition_applications', {
-      type: 'foreign key',
-      fields: ['leagueId'],
-      references: { table: 'leagues', field: 'id' },
-      onDelete: 'RESTRICT',
-      onUpdate: 'CASCADE',
-      name: FK,
-    });
+    if (await tableExists(queryInterface, 'competition_applications')) {
+      await queryInterface
+        .removeConstraint('competition_applications', FK)
+        .catch(() => undefined);
+      await queryInterface.addConstraint('competition_applications', {
+        type: 'foreign key',
+        fields: ['leagueId'],
+        references: { table: 'leagues', field: 'id' },
+        onDelete: 'RESTRICT',
+        onUpdate: 'CASCADE',
+        name: FK,
+      });
+    }
   },
 };

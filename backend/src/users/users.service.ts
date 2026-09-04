@@ -228,6 +228,15 @@ export class UsersService {
     });
   }
 
+  // Organizers a competition can be attributed to — confirmed rows at
+  // ORGANIZER level exactly (not ADMIN).
+  listSelectableOrganizers(): Promise<User[]> {
+    return this.userModel.findAll({
+      where: { confirmed: true, accessLevel: AccessLevel.ORGANIZER },
+      order: [['lastName', 'ASC']],
+    });
+  }
+
   // Self-service climb up the ladder — COACH only. Can only go up.
   async selfUpgrade(
     userId: string,

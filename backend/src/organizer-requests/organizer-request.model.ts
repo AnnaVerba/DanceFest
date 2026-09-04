@@ -8,7 +8,7 @@ import {
 } from 'sequelize-typescript';
 import { User } from '../users/user.model';
 import { School } from '../schools/school.model';
-import { ApplicationStatus } from '../competition-applications/application-status.enum';
+import { ApplicationStatus } from './application-status.enum';
 
 @Table({ tableName: 'organizer_requests' })
 export class OrganizerRequest extends Model<OrganizerRequest> {

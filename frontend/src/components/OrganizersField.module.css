@@ -1,0 +1,100 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--g-accent-bg-soft);
+  color: var(--g-accent);
+  border-radius: 999px;
+  padding: 5px 8px 5px 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.chip button {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.65;
+  padding: 0 2px;
+}
+
+.chip button:hover {
+  opacity: 1;
+}
+
+.add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 4px 4px 12px;
+  border: 1px solid var(--g-line);
+  border-radius: 9px;
+  background: var(--g-field);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
+}
+
+.add:focus-within {
+  border-color: var(--g-accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  background: var(--g-surface);
+}
+
+.add.invalid {
+  border-color: var(--g-danger);
+}
+
+.add.invalid:focus-within {
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14.5px;
+  color: var(--g-ink);
+  padding: 8px 0;
+}
+
+.input::placeholder {
+  color: var(--g-subtle);
+}
+
+.btnAdd {
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g-accent);
+  background: var(--g-accent-bg-soft);
+  cursor: pointer;
+}
+
+.btnAdd:hover {
+  background: var(--g-line);
+}

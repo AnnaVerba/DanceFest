@@ -6,6 +6,31 @@ import { DataTypes } from 'sequelize';
 // as nullable columns (a user has at most one of each role). ADMIN stays
 // in its own `admins` table, untouched.
 const USER_ROLES = ['PARTICIPANT', 'COACH', 'ORGANIZER'];
+const USER_ROLES_UNIQUE_CONSTRAINT = 'user_roles_userId_role_unique';
+
+// Lets a migration re-run after a previous attempt partially applied
+// itself (Sequelize migrations here aren't wrapped in a transaction).
+async function tableExists(
+  queryInterface: QueryInterface,
+  tableName: string,
+): Promise<boolean> {
+  const [rows] = await queryInterface.sequelize.query(
+    'SELECT to_regclass(:tableName) AS reg',
+    { replacements: { tableName } },
+  );
+  return (rows[0] as { reg: string | null }).reg !== null;
+}
+
+async function constraintExists(
+  queryInterface: QueryInterface,
+  constraintName: string,
+): Promise<boolean> {
+  const [rows] = await queryInterface.sequelize.query(
+    'SELECT 1 FROM pg_constraint WHERE conname = :name',
+    { replacements: { name: constraintName } },
+  );
+  return rows.length > 0;
+}
 
 module.exports = {
   up: async (queryInterface: QueryInterface) => {
@@ -58,28 +83,31 @@ module.exports = {
       createdAt: { type: DataTypes.DATE, allowNull: false },
       updatedAt: { type: DataTypes.DATE, allowNull: false },
     });
-    await queryInterface.addConstraint('user_roles', {
-      type: 'unique',
-      fields: ['userId', 'role'],
-      name: 'user_roles_userId_role_unique',
-    });
+    if (!(await constraintExists(queryInterface, USER_ROLES_UNIQUE_CONSTRAINT))) {
+      await queryInterface.addConstraint('user_roles', {
+        type: 'unique',
+        fields: ['userId', 'role'],
+        name: USER_ROLES_UNIQUE_CONSTRAINT,
+      });
+    }
 
     // Move the existing organizer accounts across, keeping their ids so
-    // competitions.ownerId and friends stay valid.
-    await queryInterface.sequelize.query(`
-      INSERT INTO users (id, email, phone, "passwordHash", "firstName", "lastName", "createdAt", "updatedAt")
-      SELECT id, email, phone, "passwordHash", "firstName", "lastName", NOW(), NOW() FROM organizers
-    `);
-    await queryInterface.sequelize.query(`
-      INSERT INTO user_roles (id, "userId", role, "createdAt", "updatedAt")
-      SELECT gen_random_uuid(), id, 'ORGANIZER', NOW(), NOW() FROM organizers
-    `);
+    // competitions.ownerId and friends stay valid. Skipped if a previous
+    // partial run of this migration already moved them and dropped the table.
+    if (await tableExists(queryInterface, 'organizers')) {
+      await queryInterface.sequelize.query(`
+        INSERT INTO users (id, email, phone, "passwordHash", "firstName", "lastName", "createdAt", "updatedAt")
+        SELECT id, email, phone, "passwordHash", "firstName", "lastName", NOW(), NOW() FROM organizers
+      `);
+      await queryInterface.sequelize.query(`
+        INSERT INTO user_roles (id, "userId", role, "createdAt", "updatedAt")
+        SELECT gen_random_uuid(), id, 'ORGANIZER', NOW(), NOW() FROM organizers
+      `);
+    }
 
     // coaches / participants are empty — nothing to move, just repoint the
     // foreign keys that pointed at them.
     for (const [table, column] of [
-      ['competition_applications', 'participantId'],
-      ['competition_applications', 'coachId'],
       ['entries', 'participantId'],
     ] as const) {
       await queryInterface
@@ -87,34 +115,28 @@ module.exports = {
         .catch(() => undefined);
     }
 
-    await queryInterface.dropTable('participants');
-    await queryInterface.dropTable('coaches');
-    await queryInterface.dropTable('organizers');
+    if (await tableExists(queryInterface, 'participants')) {
+      await queryInterface.dropTable('participants');
+    }
+    if (await tableExists(queryInterface, 'coaches')) {
+      await queryInterface.dropTable('coaches');
+    }
+    if (await tableExists(queryInterface, 'organizers')) {
+      await queryInterface.dropTable('organizers');
+    }
 
-    await queryInterface.addConstraint('competition_applications', {
-      type: 'foreign key',
-      fields: ['participantId'],
-      references: { table: 'users', field: 'id' },
-      onDelete: 'CASCADE',
-      onUpdate: 'CASCADE',
-      name: 'competition_applications_participantId_fkey',
-    });
-    await queryInterface.addConstraint('competition_applications', {
-      type: 'foreign key',
-      fields: ['coachId'],
-      references: { table: 'users', field: 'id' },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
-      name: 'competition_applications_coachId_fkey',
-    });
-    await queryInterface.addConstraint('entries', {
-      type: 'foreign key',
-      fields: ['participantId'],
-      references: { table: 'users', field: 'id' },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
-      name: 'entries_participantId_fkey',
-    });
+    if (
+      !(await constraintExists(queryInterface, 'entries_participantId_fkey'))
+    ) {
+      await queryInterface.addConstraint('entries', {
+        type: 'foreign key',
+        fields: ['participantId'],
+        references: { table: 'users', field: 'id' },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE',
+        name: 'entries_participantId_fkey',
+      });
+    }
 
     // Every refresh token names an account in a table that may no longer
     // exist — force everyone to log in again.
@@ -188,8 +210,6 @@ module.exports = {
     });
 
     for (const [table, column] of [
-      ['competition_applications', 'participantId'],
-      ['competition_applications', 'coachId'],
       ['entries', 'participantId'],
     ] as const) {
       await queryInterface
@@ -199,7 +219,7 @@ module.exports = {
 
     await queryInterface.removeConstraint(
       'user_roles',
-      'user_roles_userId_role_unique',
+      USER_ROLES_UNIQUE_CONSTRAINT,
     );
     await queryInterface.dropTable('user_roles');
     await queryInterface.dropTable('users');

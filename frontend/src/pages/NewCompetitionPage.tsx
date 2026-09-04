@@ -5,6 +5,8 @@ import PhoneField from '../components/PhoneField';
 import { getToken } from '../lib/auth';
 import { FEATURES } from '../lib/features';
 import { CompetitionApiError, createCompetition } from '../lib/competitions';
+import { getOrganizerSuggestions } from '../lib/users';
+import OrganizersField from '../components/OrganizersField';
 import { createJudge } from '../lib/judges';
 import type { CreatedJudge } from '../lib/judges';
 import { createVenue } from '../lib/venues';
@@ -59,7 +61,7 @@ interface StepFieldErrors {
   dateFrom?: string;
   dateTo?: string;
   location?: string;
-  organizer?: string;
+  organizers?: string;
   description?: string;
   registrationFrom?: string;
   registrationTo?: string;
@@ -74,7 +76,7 @@ const STEP_1_FIELDS = [
   'dateFrom',
   'dateTo',
   'location',
-  'organizer',
+  'organizers',
   'description',
   'registrationFrom',
   'registrationTo',
@@ -108,7 +110,8 @@ export default function NewCompetitionPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [location, setLocation] = useState('');
-  const [organizer, setOrganizer] = useState('');
+  const [organizers, setOrganizers] = useState<string[]>([]);
+  const [organizerSuggestions, setOrganizerSuggestions] = useState<string[]>([]);
   const [registrationFrom, setRegistrationFrom] = useState('');
   const [registrationTo, setRegistrationTo] = useState('');
   const [bannerName, setBannerName] = useState<string | null>(null);
@@ -143,6 +146,12 @@ export default function NewCompetitionPage() {
   // щоб не загубити ageFrom/ageTo нової вікової категорії при збереженні.
   const [extraCategories, setExtraCategories] = useState<Category[]>([]);
   const [loadingNominations, setLoadingNominations] = useState(false);
+
+  useEffect(() => {
+    getOrganizerSuggestions()
+      .then(setOrganizerSuggestions)
+      .catch(() => setOrganizerSuggestions([]));
+  }, []);
 
   useEffect(() => {
     getCategoryTemplates()
@@ -303,7 +312,7 @@ export default function NewCompetitionPage() {
       errors.dateTo = 'Дата завершення раніша за дату початку.';
     }
     if (!location.trim()) errors.location = 'Вкажіть місце проведення.';
-    if (!organizer.trim()) errors.organizer = 'Вкажіть організатора.';
+    if (organizers.length === 0) errors.organizers = 'Вкажіть хоча б одного організатора.';
     if (!description.trim()) errors.description = 'Додайте опис конкурсу.';
     if (!registrationFrom) errors.registrationFrom = 'Вкажіть початок реєстрації.';
     if (!registrationTo) errors.registrationTo = 'Вкажіть кінець реєстрації.';
@@ -431,7 +440,7 @@ export default function NewCompetitionPage() {
         name: name.trim(),
         description: description.trim(),
         location: location.trim(),
-        organizer: organizer.trim(),
+        organizers,
         dateFrom,
         dateTo: dateTo || dateFrom,
         registrationFrom,
@@ -771,21 +780,21 @@ export default function NewCompetitionPage() {
               </div>
               <div className={styles.field}>
                 <label htmlFor="w-org">
-                  Організатор <span className={styles.req}>*</span>
+                  Організатори <span className={styles.req}>*</span>
                 </label>
-                <input
+                <OrganizersField
                   id="w-org"
-                  className={`${styles.half} ${fieldErrors.organizer ? styles.fieldInvalid : ''}`}
-                  type="text"
-                  placeholder='Студія східного танцю «Джерело»'
-                  value={organizer}
-                  onChange={(e) => {
-                    setOrganizer(e.target.value);
-                    clearFieldError('organizer');
+                  ariaLabel="Організатори конкурсу"
+                  invalid={Boolean(fieldErrors.organizers)}
+                  values={organizers}
+                  onChange={(next) => {
+                    setOrganizers(next);
+                    clearFieldError('organizers');
                   }}
+                  suggestions={organizerSuggestions}
                 />
-                {fieldErrors.organizer && (
-                  <p className={styles.fieldError}>{fieldErrors.organizer}</p>
+                {fieldErrors.organizers && (
+                  <p className={styles.fieldError}>{fieldErrors.organizers}</p>
                 )}
               </div>
               <div className={styles.row}>

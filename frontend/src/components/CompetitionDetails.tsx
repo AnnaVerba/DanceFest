@@ -1,4 +1,4 @@
-import { getCompetitionStatus } from '../lib/competitions';
+import { formatOrganizers, getCompetitionStatus } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import styles from './CompetitionDetails.module.css';
 
@@ -49,7 +49,11 @@ export default function CompetitionDetails({
           </div>
           <div className={styles.item}>
             <div className={styles.itemLabel}>Організатор</div>
-            <div className={styles.itemValue}>{competition.organizer || '—'}</div>
+            <div className={styles.itemValue}>
+              {competition.organizers.length > 0
+                ? formatOrganizers(competition.organizers)
+                : '—'}
+            </div>
           </div>
           <div className={styles.item}>
             <div className={styles.itemLabel}>Реєстрація</div>

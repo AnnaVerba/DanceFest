@@ -10,7 +10,7 @@ import { CompetitionAdmin } from '../team/competition-admin.model';
 import { User } from '../users/user.model';
 import { PaymentDetails } from '../payment-details/payment-details.model';
 import { CompetitionRule } from '../competition-rules/competition-rule.model';
-import { AccessLevel, meetsLevel } from '../auth/access-level.enum';
+import { AccessLevel } from '../auth/access-level.enum';
 import { CreateCompetitionDto } from './dto/create-competition.dto';
 import { UpdateCompetitionDto } from './dto/update-competition.dto';
 import {
@@ -86,9 +86,8 @@ export class CompetitionsService {
     requesterId: string,
     requesterLevel: AccessLevel,
   ): Promise<void> {
-    // An organizer can edit any competition (see roles-task.md section 9:
-    // "Редагування конкурсу" carries no ownership qualifier for Organizer).
-    if (meetsLevel(requesterLevel, AccessLevel.ORGANIZER)) return;
+    // An admin can edit any competition; an organizer only their own.
+    if (requesterLevel === AccessLevel.ADMIN) return;
     if (competition.ownerId === requesterId) return;
     const membership = await this.competitionAdminModel.findOne({
       where: { competitionId: competition.id, adminId: requesterId },

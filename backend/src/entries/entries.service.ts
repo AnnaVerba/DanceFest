@@ -271,7 +271,10 @@ export class EntriesService {
     }
     entry.musicName = musicName.trim();
     await entry.save();
-    return this.toDto(entry);
+    const numbers = await this.participantNumbersService.loadLookup([
+      entry.competitionId,
+    ]);
+    return this.toDto(entry, numbers);
   }
 
   // Entries the current user is involved in — their own performances and,

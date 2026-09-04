@@ -10,7 +10,7 @@ import { AccessLevel, meetsLevel } from '../auth/access-level.enum';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { UsersService } from '../users/users.service';
 import { SchoolsService } from '../schools/schools.service';
-import { ApplicationStatus } from '../competition-applications/application-status.enum';
+import { ApplicationStatus } from './application-status.enum';
 import { OrganizerRequest } from './organizer-request.model';
 import { CreateOrganizerRequestDto } from './dto/create-organizer-request.dto';
 import { ReviewOrganizerRequestDto } from './dto/review-organizer-request.dto';

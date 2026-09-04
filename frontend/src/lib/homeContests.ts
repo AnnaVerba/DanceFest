@@ -86,7 +86,7 @@ export function filterHomeContests(
 
   return competitions.filter((c) => {
     if (query) {
-      const haystack = `${c.name} ${c.location} ${c.organizer}`.toLowerCase();
+      const haystack = `${c.name} ${c.location} ${c.organizers.join(' ')}`.toLowerCase();
       if (!haystack.includes(query)) return false;
     }
     if (filter.year && new Date(c.dateFrom).getFullYear() !== Number(filter.year)) {
