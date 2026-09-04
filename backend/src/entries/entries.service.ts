@@ -216,13 +216,45 @@ export class EntriesService {
     } as CreationAttributes<Entry>;
   }
 
+  // The participant ids the user may act on: themselves plus, for a coach,
+  // their whole roster.
+  private async ownParticipantIds(user: AuthenticatedUser): Promise<string[]> {
+    const ids = new Set<string>([user.id]);
+    const roster = await this.usersService.listRosterByCoach(user.id);
+    roster.forEach((r) => ids.add(r.id));
+    return [...ids];
+  }
+
+  private entryBelongsTo(entry: Entry, ids: string[]): boolean {
+    const set = new Set(ids);
+    if (entry.participantId && set.has(entry.participantId)) return true;
+    return (entry.participantIds ?? []).some((id) => set.has(id));
+  }
+
+  // Set / replace the track file name for one of the user's own entries —
+  // e.g. a dancer who applied without music adding it later.
+  async updateMusic(
+    entryId: string,
+    user: AuthenticatedUser,
+    musicName: string,
+  ) {
+    const entry = await this.entryModel.findByPk(entryId, { include: [Score] });
+    if (!entry) {
+      throw new NotFoundException(ENTRY_NOT_FOUND_MESSAGE);
+    }
+    const ids = await this.ownParticipantIds(user);
+    if (!this.entryBelongsTo(entry, ids)) {
+      throw new ForbiddenException(NOT_OWN_PARTICIPANT_MESSAGE);
+    }
+    entry.musicName = musicName.trim();
+    await entry.save();
+    return this.toDto(entry);
+  }
+
   // Entries the current user is involved in — their own performances and,
   // if they coach, every performance one of their roster dancers is in.
   async listForUser(user: AuthenticatedUser) {
-    const ownIds = new Set<string>([user.id]);
-    const roster = await this.usersService.listRosterByCoach(user.id);
-    roster.forEach((r) => ownIds.add(r.id));
-    const ids = [...ownIds];
+    const ids = await this.ownParticipantIds(user);
 
     const entries = await this.entryModel.findAll({
       where: {

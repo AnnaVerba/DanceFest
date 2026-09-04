@@ -87,21 +87,15 @@ export default function CompetitionDetailPage() {
 
   const isOwner = !!admin && !!competition && competition.ownerId === admin.id;
 
-  // Only staff came from the dashboard; everyone else goes back where they
-  // were, falling back to the public list.
-  const goBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate(admin ? '/dashboard' : '/');
-    }
-  };
+  // "Назад до списку" always goes to a list, never the previous page:
+  // staff to the dashboard, everyone else to the public list.
+  const listPath = admin ? '/dashboard' : '/';
 
   return (
     <>
       <main className={styles.main}>
         <div className={styles.wrap}>
-          <button type="button" className={styles.back} onClick={goBack}>
+          <Link to={listPath} className={styles.back}>
             <svg
               width="16"
               height="16"
@@ -116,7 +110,7 @@ export default function CompetitionDetailPage() {
               <path d="M19 12H5M11 6l-6 6 6 6" />
             </svg>
             Назад до списку
-          </button>
+          </Link>
 
           {loading && <p className={styles.status}>Завантаження...</p>}
           {loadError && <p className={styles.status}>{loadError}</p>}

@@ -109,11 +109,12 @@ export function groupContestsByMonth(competitions: Competition[]): MonthGroup[] 
     else buckets.set(key, [c]);
   }
 
+  // Newest month first; newest competition first within a month.
   return [...buckets.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(([a], [b]) => b.localeCompare(a))
     .map(([key, items]) => {
       const competitions = [...items].sort(
-        (a, b) => new Date(a.dateFrom).getTime() - new Date(b.dateFrom).getTime(),
+        (a, b) => new Date(b.dateFrom).getTime() - new Date(a.dateFrom).getTime(),
       );
       const first = new Date(competitions[0].dateFrom);
       const monthName = first.toLocaleDateString(DATE_LOCALE, { month: 'long' });

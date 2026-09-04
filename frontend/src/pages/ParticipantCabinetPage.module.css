@@ -113,3 +113,20 @@
     text-align: center;
   }
 }
+
+.musicCell {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.musicEdit {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--g-accent);
+}
+
+.musicCell:hover .musicEdit {
+  text-decoration: underline;
+}

@@ -328,9 +328,17 @@ export default function NewCompetitionPage() {
   }
 
   function validateStep3(): StepFieldErrors {
+    // Payment details are optional — only flag an account without a
+    // beneficiary or vice versa.
     const errors: StepFieldErrors = {};
-    if (!paymentRecipient.trim()) errors.paymentRecipient = 'Вкажіть отримувача платежу.';
-    if (!paymentAccount.trim()) errors.paymentAccount = 'Вкажіть номер картки або IBAN.';
+    const hasRecipient = paymentRecipient.trim() !== '';
+    const hasAccount = paymentAccount.trim() !== '';
+    if (hasAccount && !hasRecipient) {
+      errors.paymentRecipient = 'Вкажіть отримувача платежу.';
+    }
+    if (hasRecipient && !hasAccount) {
+      errors.paymentAccount = 'Вкажіть номер картки або IBAN.';
+    }
     return errors;
   }
 
@@ -428,13 +436,21 @@ export default function NewCompetitionPage() {
         contactEmail: contactEmail.trim(),
       });
 
-      await upsertPaymentDetails(competition.id, {
-        beneficiary: paymentRecipient.trim(),
-        account: paymentAccount.trim(),
-        bankName: paymentBank.trim() || undefined,
-        taxId: paymentTaxId.trim() || undefined,
-        destination: paymentPurpose.trim() || undefined,
-      });
+      const hasPaymentDetails =
+        paymentRecipient.trim() ||
+        paymentAccount.trim() ||
+        paymentBank.trim() ||
+        paymentTaxId.trim() ||
+        paymentPurpose.trim();
+      if (hasPaymentDetails) {
+        await upsertPaymentDetails(competition.id, {
+          beneficiary: paymentRecipient.trim() || undefined,
+          account: paymentAccount.trim() || undefined,
+          bankName: paymentBank.trim() || undefined,
+          taxId: paymentTaxId.trim() || undefined,
+          destination: paymentPurpose.trim() || undefined,
+        });
+      }
 
       const judgeResults = await Promise.allSettled(
         judges
@@ -859,7 +875,7 @@ export default function NewCompetitionPage() {
 
           {step === 3 && (
             <div className={styles.panel}>
-              <p className={styles.sectionTitle}>Реквізити для оплати</p>
+              <p className={styles.sectionTitle}>Реквізити для оплати (необовʼязково)</p>
               <p className={styles.sectionNote}>
                 Оплата участі приймається лише переказом за реквізитами — оплата через
                 застосунок не проводиться.
@@ -867,7 +883,7 @@ export default function NewCompetitionPage() {
               <div className={styles.row}>
                 <div className={styles.field}>
                   <label htmlFor="w-recip">
-                    Отримувач <span className={styles.req}>*</span>
+                    Отримувач
                   </label>
                   <input
                     id="w-recip"
@@ -886,7 +902,7 @@ export default function NewCompetitionPage() {
                 </div>
                 <div className={styles.field}>
                   <label htmlFor="w-iban">
-                    Номер картки / IBAN <span className={styles.req}>*</span>
+                    Номер картки / IBAN
                   </label>
                   <input
                     id="w-iban"

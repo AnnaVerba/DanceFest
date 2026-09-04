@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -9,6 +9,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { EntriesService } from './entries.service';
+import { UpdateEntryMusicDto } from './dto/update-entry-music.dto';
 
 @ApiTags('entries')
 @ApiBearerAuth()
@@ -28,5 +29,18 @@ export class MyEntriesController {
   @Get()
   list(@CurrentUser() user: AuthenticatedUser) {
     return this.entriesService.listForUser(user);
+  }
+
+  @ApiOperation({ summary: 'Set or replace the track file name for an entry' })
+  @ApiResponse({ status: 200, description: 'Entry updated.' })
+  @ApiResponse({ status: 403, description: 'The entry is not yours.' })
+  @ApiResponse({ status: 404, description: 'No such entry.' })
+  @Patch(':id/music')
+  updateMusic(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateEntryMusicDto,
+  ) {
+    return this.entriesService.updateMusic(id, user, dto.musicName);
   }
 }

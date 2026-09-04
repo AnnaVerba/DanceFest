@@ -71,6 +71,20 @@ async function addRosterParticipant(
   return dancer;
 }
 
+// The apply form searches the roster by name — type at least three
+// letters, then click the match (never a full roster dump).
+const PARTICIPANT_SEARCH_PLACEHOLDER = 'Почніть вводити прізвище учасника…';
+
+async function pickParticipant(
+  page: Page,
+  person: { firstName: string; lastName: string },
+): Promise<void> {
+  await page.getByPlaceholder(PARTICIPANT_SEARCH_PLACEHOLDER).fill(person.firstName);
+  await page
+    .getByRole('button', { name: displayName(person), exact: true })
+    .click();
+}
+
 test.describe('Coach applications', () => {
   test('coach picks a participant on the apply form and sees roster entries', async ({
     page,
@@ -78,20 +92,23 @@ test.describe('Coach applications', () => {
     const coach = await registerCoach(page);
     const dancer = await addRosterParticipant(page, 'Даня');
 
-    // Feature 1: the apply form offers BOTH the roster dancer and the coach
-    // as pickable participants (not a read-only "you" field).
+    // Feature 1: the apply form offers BOTH the roster dancer (via name
+    // search) and the coach (pinned) as pickable participants.
     await page.goto(`/competitions/${OPEN_COMPETITION_ID}/apply`);
     await expect(
-      page.getByRole('button', { name: displayName(dancer) }),
+      page.getByRole('button', { name: displayName(coach), exact: true }),
     ).toBeVisible();
+    await page
+      .getByPlaceholder(PARTICIPANT_SEARCH_PLACEHOLDER)
+      .fill(dancer.firstName);
     await expect(
-      page.getByRole('button', { name: displayName(coach) }),
+      page.getByRole('button', { name: displayName(dancer), exact: true }),
     ).toBeVisible();
 
     // Two entries for the roster dancer, two different styles.
     for (const style of ['Фрі Денс', 'Табла']) {
       await page.goto(`/competitions/${OPEN_COMPETITION_ID}/apply`);
-      await page.getByRole('button', { name: displayName(dancer) }).click();
+      await pickParticipant(page, dancer);
       await page.getByRole('combobox').selectOption({ label: LEAGUE });
       await page.getByRole('button', { name: style, exact: true }).click();
       await page
@@ -113,6 +130,44 @@ test.describe('Coach applications', () => {
     );
   });
 
+  test('music can be added to an entry later from "Мої заявки"', async ({
+    page,
+  }) => {
+    await registerCoach(page);
+    const dancer = await addRosterParticipant(page, 'Мелодія');
+
+    // Apply without music.
+    await page.goto(`/competitions/${OPEN_COMPETITION_ID}/apply`);
+    await pickParticipant(page, dancer);
+    await page.getByRole('combobox').selectOption({ label: LEAGUE });
+    await page.getByRole('button', { name: 'Фрі Денс', exact: true }).click();
+    await page
+      .getByRole('button', { name: new RegExp(`Соло.*${LEAGUE}.*Фрі Денс`) })
+      .first()
+      .click();
+    await page.getByRole('button', { name: 'Надіслати заявку' }).click();
+    await expect(page.getByText('Заявку надіслано!')).toBeVisible();
+
+    // In "Мої заявки" the music cell offers "додати"; pick a file.
+    await page.goto('/my-entries');
+    const row = page.locator('table tbody tr').first();
+    await expect(row.getByText('додати')).toBeVisible();
+    await row.locator('input[type="file"]').setInputFiles({
+      name: 'oriental-solo.mp3',
+      mimeType: 'audio/mpeg',
+      buffer: Buffer.from('id3'),
+    });
+
+    await expect(row.getByText('oriental-solo.mp3')).toBeVisible();
+    await expect(row.getByText('змінити')).toBeVisible();
+
+    // Persisted: reload and it's still there.
+    await page.reload();
+    await expect(
+      page.locator('table tbody tr').first().getByText('oriental-solo.mp3'),
+    ).toBeVisible();
+  });
+
   test('line-up is auto-derived from participant count, and improv rows take music', async ({
     page,
   }) => {
@@ -126,7 +181,7 @@ test.describe('Coach applications', () => {
     const duetRow = page.getByRole('button', { name: /^Дует .*Дебют · Табла/ });
 
     // One participant -> Соло; only solo nominations are offered.
-    await page.getByRole('button', { name: displayName(d1) }).click();
+    await pickParticipant(page, d1);
     await expect(lineupBox).toHaveText('Соло');
     await page.getByRole('combobox').selectOption({ label: LEAGUE });
     await page.getByRole('button', { name: 'Табла', exact: true }).click();
@@ -134,7 +189,7 @@ test.describe('Coach applications', () => {
     await expect(duetRow).toHaveCount(0);
 
     // Two participants -> Дуо; solo nominations disappear, duet ones appear.
-    await page.getByRole('button', { name: displayName(d2) }).click();
+    await pickParticipant(page, d2);
     await expect(lineupBox).toHaveText('Дуо');
     await expect(soloRow).toHaveCount(0);
     await expect(duetRow.first()).toBeVisible();
@@ -169,7 +224,9 @@ test.describe('Coach applications', () => {
     await addRosterParticipant(page, 'Тарас');
 
     await page.goto(`/competitions/${OPEN_COMPETITION_ID}/apply`);
-    await page.getByRole('button', { name: displayName(coach) }).click();
+    await page
+      .getByRole('button', { name: displayName(coach), exact: true })
+      .click();
     await page.getByRole('combobox').selectOption({ label: LEAGUE });
     await page.getByRole('button', { name: 'Фрі Денс', exact: true }).click();
     await page
@@ -242,6 +299,33 @@ test.describe('Coach applications', () => {
 
     await expect(page).not.toHaveURL(/\/dashboard$/);
     await expect(page).toHaveURL(/\/my-entries$/);
+  });
+
+  test('"Назад до списку" goes to the list, not the previous page', async ({
+    page,
+  }) => {
+    await registerCoach(page);
+
+    // Reach the competition page *from* its apply form (the buggy path).
+    await page.goto(`/competitions/${OPEN_COMPETITION_ID}/apply`);
+    await page.getByRole('link', { name: /До сторінки конкурсу/ }).click();
+    await expect(page).toHaveURL(
+      new RegExp(`/competitions/${OPEN_COMPETITION_ID}$`),
+    );
+
+    await page.getByRole('link', { name: 'Назад до списку' }).click();
+    await expect(page).toHaveURL(/\/$/); // public list, not /apply
+  });
+
+  test('logging out lands on the public home, not a protected page', async ({
+    page,
+  }) => {
+    await registerCoach(page); // ends on /profile
+    await page.getByRole('button', { name: 'Вийти' }).click();
+
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page).not.toHaveURL(/\/login/);
+    await expect(page.getByRole('complementary')).toHaveCount(0); // no rail
   });
 
   test('the cabinet nav has a Конкурси link that opens the public list', async ({
