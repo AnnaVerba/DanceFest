@@ -46,7 +46,7 @@ export class EntriesController {
     @Param('competitionId') competitionId: string,
     @CurrentUser() admin: AuthenticatedAdmin,
   ) {
-    return this.entriesService.list(competitionId, admin.id);
+    return this.entriesService.list(competitionId, admin.id, admin.accessLevel);
   }
 
   @ApiOperation({
@@ -146,6 +146,11 @@ export class EntriesController {
     @Param('entryId') entryId: string,
     @CurrentUser() admin: AuthenticatedAdmin,
   ) {
-    return this.entriesService.remove(competitionId, entryId, admin.id);
+    return this.entriesService.remove(
+      competitionId,
+      entryId,
+      admin.id,
+      admin.accessLevel,
+    );
   }
 }

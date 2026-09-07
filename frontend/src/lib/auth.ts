@@ -271,7 +271,12 @@ export function getToken(): string | null {
 
 // The organizer/admin management pages call this for the display name and
 // as an "am I allowed here" check.
-export function getStoredAdmin(): { id: string; name: string; email: string } | null {
+export function getStoredAdmin(): {
+  id: string;
+  name: string;
+  email: string;
+  accessLevel: AccessLevel;
+} | null {
   const session = getSession();
   if (
     !session ||
@@ -284,6 +289,7 @@ export function getStoredAdmin(): { id: string; name: string; email: string } | 
     id: profile.id,
     name: `${profile.firstName} ${profile.lastName}`.trim(),
     email: profile.email ?? '',
+    accessLevel: profile.accessLevel,
   };
 }
 

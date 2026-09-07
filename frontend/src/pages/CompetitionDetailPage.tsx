@@ -13,6 +13,7 @@ import { getStoredAdmin, getToken } from '../lib/auth';
 import { deleteCompetition, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { FEATURES } from '../lib/features';
+import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import { getMockCompetitionById } from '../lib/mockCompetitions';
 import styles from './CompetitionDetailPage.module.css';
 
@@ -86,6 +87,10 @@ export default function CompetitionDetailPage() {
   }
 
   const isOwner = !!admin && !!competition && competition.ownerId === admin.id;
+  // An admin manages every competition's applications; an organizer only
+  // the ones they own.
+  const isAdmin = !!admin && meetsLevel(admin.accessLevel, ACCESS_LEVEL.ADMIN);
+  const canManageEntries = isOwner || isAdmin;
 
   // "Назад до списку" always goes to a list, never the previous page:
   // staff to the dashboard, everyone else to the public list.
@@ -150,7 +155,7 @@ export default function CompetitionDetailPage() {
               {activeTab === 'Заявки' && (
                 <EntriesPanel
                   competitionId={id}
-                  canManage={isOwner}
+                  canManage={canManageEntries}
                   onError={(message) => showToast(message)}
                 />
               )}

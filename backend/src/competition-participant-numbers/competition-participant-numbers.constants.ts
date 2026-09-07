@@ -1,0 +1,1 @@
+export const FIRST_PARTICIPANT_NUMBER = 1;
