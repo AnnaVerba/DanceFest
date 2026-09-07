@@ -7,6 +7,7 @@ import type {
   SectionSummary,
 } from '../../../lib/schedule';
 import { ROW_TYPE_LABELS } from '../../../lib/schedule';
+import { formatParticipantNumbers } from '../../../lib/participantNumbers';
 import { formatClock, formatDuration } from '../../../lib/duration';
 import styles from './program.module.css';
 
@@ -90,6 +91,7 @@ export default function ProgramTable({
     if (!needle) return true;
     return [
       item.exit?.number,
+      ...(item.exit?.participantNumbers ?? []),
       item.exit?.routineName,
       item.exit?.studioName,
       item.exit?.choreographer,
@@ -444,7 +446,9 @@ export default function ProgramTable({
                           <tr key={item.id} className={styles.perfRow}>
                             <td className={styles.td} />
                             <td className={`${styles.td} ${styles.tdNum}`}>
-                              {item.exit?.number ?? '—'}
+                              {formatParticipantNumbers(
+                                item.exit?.participantNumbers ?? [],
+                              )}
                             </td>
                             <td className={`${styles.td} ${styles.tdName}`}>
                               {item.exit?.routineName ?? '—'}

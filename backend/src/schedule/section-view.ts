@@ -12,6 +12,10 @@ import { formatHhMmSs, parseHhMm } from './section-time';
 export interface SectionExitView {
   entryId: string;
   number: number;
+  // Per-competition participant number, one per dancer in `participantIds`
+  // order; null for a dancer with no number yet or an organizer-typed entry.
+  // This is the number the program shows.
+  participantNumbers: (number | null)[];
   nomination: string;
   routineName: string;
   ageCategory: string | null;
@@ -24,6 +28,10 @@ export interface SectionExitView {
   participantIds: string[];
   musicName: string | null;
 }
+
+// entry id -> its participant numbers, so buildSectionView stays a pure
+// function while the service loads the numbers.
+export type ParticipantNumbersByEntry = Map<string, (number | null)[]>;
 
 export interface SectionItemView {
   id: string;
@@ -76,10 +84,14 @@ export function isLiveItem(item: SectionItem): boolean {
   );
 }
 
-function toExitView(entry: Entry): SectionExitView {
+function toExitView(
+  entry: Entry,
+  participantNumbers: (number | null)[],
+): SectionExitView {
   return {
     entryId: entry.id,
     number: entry.number,
+    participantNumbers,
     nomination: entry.nomination,
     routineName: entry.routineName,
     ageCategory: entry.ageCategory,
@@ -101,6 +113,7 @@ function toExitView(entry: Entry): SectionExitView {
 export function buildSectionView(
   section: Section,
   orderedItems: SectionItem[],
+  participantNumbers: ParticipantNumbersByEntry = new Map(),
 ): SectionView {
   const liveItems = orderedItems.filter(isLiveItem);
   const startTimeSeconds = parseHhMm(section.startTime) ?? 0;
@@ -135,7 +148,10 @@ export function buildSectionView(
       time: formatHhMmSs(seconds),
       startTimeSeconds: seconds,
       durationSeconds: item.durationSeconds,
-      exit: item.entry != null ? toExitView(item.entry) : null,
+      exit:
+        item.entry != null
+          ? toExitView(item.entry, participantNumbers.get(item.entry.id) ?? [])
+          : null,
     };
   });
 

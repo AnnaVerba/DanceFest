@@ -72,8 +72,17 @@ export default function OrganizerRequestsPage() {
           <tbody>
             {rows.map((r) => (
               <tr key={r.id}>
-                <td>{r.userId}</td>
-                <td>{r.schoolId}</td>
+                <td>
+                  {r.user
+                    ? `${r.user.lastName} ${r.user.firstName}`.trim()
+                    : r.userId}
+                  {r.user && (
+                    <div className={styles.sub}>
+                      {[r.user.phone, r.user.email].filter(Boolean).join(' · ')}
+                    </div>
+                  )}
+                </td>
+                <td>{r.school?.name ?? r.schoolId}</td>
                 <td>{r.note ?? '—'}</td>
                 <td>{STATUS_LABELS[r.status]}</td>
                 <td>

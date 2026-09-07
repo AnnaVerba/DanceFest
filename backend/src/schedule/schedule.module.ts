@@ -4,6 +4,7 @@ import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Entry } from '../entries/entry.model';
 import { CompetitionRulesModule } from '../competition-rules/competition-rules.module';
+import { CompetitionParticipantNumbersModule } from '../competition-participant-numbers/competition-participant-numbers.module';
 import { UsersModule } from '../users/users.module';
 import { ScheduleController } from './schedule.controller';
 import { ScheduleService } from './schedule.service';
@@ -22,6 +23,7 @@ import { SectionItem } from './section-item.model';
       SectionItem,
     ]),
     CompetitionRulesModule,
+    CompetitionParticipantNumbersModule,
     UsersModule,
   ],
   controllers: [ScheduleController],

@@ -4,17 +4,24 @@ import { withPageParams } from './pagination';
 import type { RowPaged } from './pagination';
 
 export interface PublicProgramRow {
-  kind: 'section' | 'group' | 'award' | 'break' | 'gala';
+  kind: 'section' | 'group' | 'exit' | 'award' | 'break' | 'gala';
   label: string | null;
   time: string;
   dayId: string;
   dayDate: string | null;
   venueId: string | null;
+  // Only on `exit` rows.
+  participantNumbers?: (number | null)[];
+  routineName?: string | null;
+  studioName?: string | null;
+  choreographer?: string | null;
+  durationSeconds?: number | null;
 }
 
 export interface MineExitRow {
   time: string;
   number: number;
+  participantNumbers: (number | null)[];
   nomination: string;
   groupLabel: string;
   isMine: boolean;
@@ -41,6 +48,7 @@ export interface ExtendedProgramItem {
   time: string;
   groupLabel: string | null;
   number: number | null;
+  participantNumbers: (number | null)[];
   nomination: string | null;
   routineName: string | null;
   studioName: string | null;

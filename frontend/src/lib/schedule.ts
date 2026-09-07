@@ -21,6 +21,9 @@ export const ROW_TYPE_LABELS: Record<'break' | 'gala', string> = {
 export interface SectionExit {
   entryId: string;
   number: number;
+  // Per-competition participant number per dancer (participantIds order);
+  // this is what the programme shows.
+  participantNumbers: (number | null)[];
   nomination: string;
   routineName: string;
   ageCategory: string | null;

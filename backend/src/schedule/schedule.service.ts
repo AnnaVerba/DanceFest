@@ -26,6 +26,7 @@ import { CompetitionRule } from '../competition-rules/competition-rule.model';
 import { CompetitionRulesService } from '../competition-rules/competition-rules.service';
 import { DEFAULT_DURATION_ROUND } from '../competition-rules/duration-limit.model';
 import { UsersService } from '../users/users.service';
+import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
 import { CompetitionDay } from './competition-day.model';
 import { Section } from './section.model';
 import { SectionItem } from './section-item.model';
@@ -35,6 +36,7 @@ import { eachDateInclusive } from './date-range';
 import {
   buildSectionView,
   isGroupImprov,
+  type ParticipantNumbersByEntry,
   type SectionSummaryView,
   type SectionView,
 } from './section-view';
@@ -126,6 +128,7 @@ export class ScheduleService {
     private readonly entryModel: typeof Entry,
     private readonly rulesService: CompetitionRulesService,
     private readonly usersService: UsersService,
+    private readonly participantNumbersService: CompetitionParticipantNumbersService,
   ) {}
 
   // --- Days -----------------------------------------------------------------
@@ -198,11 +201,33 @@ export class ScheduleService {
     ['sortOrder', 'ASC'],
   ];
 
+  // entry id -> its per-competition participant numbers, loaded in one query
+  // so buildSectionView can stay pure.
+  private async participantNumbersByEntry(
+    competitionId: string,
+    items: SectionItem[],
+  ): Promise<ParticipantNumbersByEntry> {
+    const lookup = await this.participantNumbersService.loadLookup([
+      competitionId,
+    ]);
+    const byEntry: ParticipantNumbersByEntry = new Map();
+    for (const item of items) {
+      const entry = item.entry;
+      if (!entry) continue;
+      byEntry.set(
+        entry.id,
+        lookup.numbersFor(competitionId, entry.participantIds ?? []),
+      );
+    }
+    return byEntry;
+  }
+
   // Loads the items for the given sections in one query (the public /program
   // route is unauthenticated, so an N+1 here is a scraper's lever) and folds
   // each section into its API shape.
   private async toSectionViews(sections: Section[]): Promise<SectionView[]> {
     if (sections.length === 0) return [];
+    const competitionId = sections[0].competitionId;
     const items = await this.itemModel.findAll({
       where: { sectionId: { [Op.in]: sections.map((s) => s.id) } },
       order: [
@@ -212,6 +237,7 @@ export class ScheduleService {
       include: [{ model: Entry }],
       limit: MAX_SCHEDULE_QUERY_ROWS,
     });
+    const numbers = await this.participantNumbersByEntry(competitionId, items);
     const bySection = new Map<string, SectionItem[]>();
     for (const item of items) {
       const bucket = bySection.get(item.sectionId);
@@ -219,7 +245,7 @@ export class ScheduleService {
       else bySection.set(item.sectionId, [item]);
     }
     return sections.map((section) =>
-      buildSectionView(section, bySection.get(section.id) ?? []),
+      buildSectionView(section, bySection.get(section.id) ?? [], numbers),
     );
   }
 
@@ -949,7 +975,11 @@ export class ScheduleService {
       limit: MAX_SCHEDULE_QUERY_ROWS,
       transaction,
     });
-    return buildSectionView(section, items);
+    const numbers = await this.participantNumbersByEntry(
+      section.competitionId,
+      items,
+    );
+    return buildSectionView(section, items, numbers);
   }
 
   private async sectionViewById(sectionId: string): Promise<SectionView> {

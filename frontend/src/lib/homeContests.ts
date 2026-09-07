@@ -109,12 +109,21 @@ export function groupContestsByMonth(competitions: Competition[]): MonthGroup[] 
     else buckets.set(key, [c]);
   }
 
-  // Newest month first; newest competition first within a month.
+  // Calendar rotated to "now": the current month first, then the coming
+  // months in order, then past months most-recent-first (people still
+  // browse finished contests). Month grouping is kept.
+  const now = new Date();
+  const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const isPast = (key: string) => key < currentKey;
+
   return [...buckets.entries()]
-    .sort(([a], [b]) => b.localeCompare(a))
+    .sort(([a], [b]) => {
+      if (isPast(a) !== isPast(b)) return isPast(a) ? 1 : -1;
+      return isPast(a) ? b.localeCompare(a) : a.localeCompare(b);
+    })
     .map(([key, items]) => {
       const competitions = [...items].sort(
-        (a, b) => new Date(b.dateFrom).getTime() - new Date(a.dateFrom).getTime(),
+        (a, b) => new Date(a.dateFrom).getTime() - new Date(b.dateFrom).getTime(),
       );
       const first = new Date(competitions[0].dateFrom);
       const monthName = first.toLocaleDateString(DATE_LOCALE, { month: 'long' });

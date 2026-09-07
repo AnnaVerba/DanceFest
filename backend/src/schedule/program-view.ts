@@ -7,17 +7,26 @@ export interface ProgramAudienceIdentity {
 }
 
 export interface PublicProgramRow {
-  kind: 'section' | 'group' | 'award' | 'break' | 'gala';
+  kind: 'section' | 'group' | 'exit' | 'award' | 'break' | 'gala';
   label: string | null;
   time: string;
   dayId: string;
   dayDate: string | null;
   venueId: string | null;
+  // Set only on `exit` rows — the program lists every performance with the
+  // participant number(s), the routine, the studio and coach, and its
+  // on-stage length (see docs/AppDescription.docx).
+  participantNumbers?: (number | null)[];
+  routineName?: string | null;
+  studioName?: string | null;
+  choreographer?: string | null;
+  durationSeconds?: number | null;
 }
 
 export interface MineExitRow {
   time: string;
   number: number;
+  participantNumbers: (number | null)[];
   nomination: string;
   groupLabel: string;
   isMine: boolean;
@@ -44,6 +53,7 @@ export interface ExtendedProgramItem {
   time: string;
   groupLabel: string | null;
   number: number | null;
+  participantNumbers: (number | null)[];
   nomination: string | null;
   routineName: string | null;
   studioName: string | null;
@@ -69,8 +79,11 @@ function overlaps(a: string[], b: Set<string>): boolean {
   return a.some((id) => b.has(id));
 }
 
-// Poster projection: service rows only — section starts, nomination-block
-// starts, award. No names, numbers or studios ever leave this function.
+// The festival programme (docs/AppDescription.docx): section starts,
+// nomination-block headers with a clock time, every performance as an
+// `exit` row (participant number, routine, studio + coach, on-stage
+// length), and the award. Same for everyone; the personal cut just flags
+// the viewer's own rows.
 export function buildPublicProgram(
   sections: SectionView[],
 ): PublicProgramRow[] {
@@ -123,6 +136,19 @@ export function buildPublicProgram(
           venueId: section.venueId,
         });
       }
+      rows.push({
+        kind: 'exit',
+        label: null,
+        time: item.time,
+        dayId: section.dayId,
+        dayDate: section.dayDate,
+        venueId: section.venueId,
+        participantNumbers: item.exit?.participantNumbers ?? [],
+        routineName: item.exit?.routineName ?? null,
+        studioName: item.exit?.studioName ?? null,
+        choreographer: item.exit?.choreographer ?? null,
+        durationSeconds: item.durationSeconds,
+      });
     }
   }
 
@@ -156,6 +182,7 @@ export function buildMineProgram(
       exits.push({
         time: item.time,
         number: item.exit.number,
+        participantNumbers: item.exit.participantNumbers,
         nomination: item.exit.nomination,
         groupLabel: groupLabelOf(item),
         isMine,
@@ -199,6 +226,7 @@ export function buildExtendedProgram(
             ? item.label
             : groupLabelOf(item),
       number: item.exit?.number ?? null,
+      participantNumbers: item.exit?.participantNumbers ?? [],
       nomination: item.exit?.nomination ?? null,
       routineName: item.exit?.routineName ?? null,
       studioName: item.exit?.studioName ?? null,

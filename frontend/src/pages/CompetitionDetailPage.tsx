@@ -196,13 +196,21 @@ export default function CompetitionDetailPage() {
               )}
 
               {activeTab === 'Програма' && (
-                <SchedulePanel
-                  competitionId={id}
-                  competition={competition}
-                  canManage={isOwner}
-                  onError={(message) => showToast(message)}
-                  onNotice={(message) => showToast(message)}
-                />
+                <>
+                  <Link
+                    to={`/competitions/${id}/schedule`}
+                    className={styles.back}
+                  >
+                    Відкрити повну програму фестивалю →
+                  </Link>
+                  <SchedulePanel
+                    competitionId={id}
+                    competition={competition}
+                    canManage={isOwner}
+                    onError={(message) => showToast(message)}
+                    onNotice={(message) => showToast(message)}
+                  />
+                </>
               )}
 
               {activeTab === 'Деталі' && (

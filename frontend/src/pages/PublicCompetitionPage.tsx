@@ -90,6 +90,12 @@ export default function PublicCompetitionPage() {
                 </span>
                 <h1>{competition.name}</h1>
                 <Link
+                  to={`/competitions/${id}/schedule`}
+                  className={styles.programLink}
+                >
+                  Програма фестивалю
+                </Link>
+                <Link
                   to={`/competitions/${id}/apply`}
                   className={styles.applyButton}
                 >

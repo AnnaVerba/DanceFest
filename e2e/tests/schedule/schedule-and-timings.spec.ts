@@ -107,7 +107,7 @@ async function createFixture(
       name: `E2E Розклад ${Date.now()}`,
       description: 'E2E schedule + timings fixture',
       location: 'E2E Hall',
-      organizer: 'E2E Org',
+      organizers: ['E2E Org'],
       dateFrom: '2026-12-01',
       dateTo: '2026-12-03',
       registrationFrom: '2026-11-01',
@@ -455,12 +455,16 @@ test.describe.serial('Програма та таймінги', () => {
     expect(stats.endTime).toMatch(/^\d\d:\d\d:\d\d$/);
   });
 
-  test('the public program has times but no participant names', async () => {
+  test('the public program lists every performance with number, name and studio', async () => {
     const res = await requestCtx.get(api('/program'));
     expect(res.status()).toBe(200);
     const body = (await res.json()) as RowPaged<{
       kind: string;
       label: string | null;
+      participantNumbers?: (number | null)[];
+      routineName?: string | null;
+      studioName?: string | null;
+      durationSeconds?: number | null;
     }>;
     const rows = body.rows;
 
@@ -469,11 +473,14 @@ test.describe.serial('Програма та таймінги', () => {
     ).toBeTruthy();
     expect(rows.some((r) => r.kind === 'award')).toBeTruthy();
 
+    const exits = rows.filter((r) => r.kind === 'exit');
+    expect(exits.length).toBeGreaterThan(0);
+    // The programme carries names and the participant-number field (docs).
+    expect(exits.every((r) => Array.isArray(r.participantNumbers))).toBeTruthy();
+    expect(exits.every((r) => typeof r.durationSeconds === 'number')).toBeTruthy();
     const serialized = JSON.stringify(rows);
-    for (const dancer of fixture.dancers) {
-      expect(serialized).not.toContain(dancer.split(' ')[0]);
-    }
-    expect(serialized).not.toContain('E2E Студія');
+    expect(serialized).toContain(fixture.dancers[0]); // routine name
+    expect(serialized).toContain('E2E Студія');
   });
 
   test('the public program pages by section', async () => {
@@ -559,11 +566,12 @@ test.describe.serial('Програма та таймінги', () => {
     ).toBeVisible();
     await expect(page.getByText('Іваненко Марія')).toBeVisible();
 
-    // Public projection: heading stays, dancer names are gone.
+    // Public projection: the same programme — section heading, and every
+    // performance with its name (docs/AppDescription.docx).
     await page.getByRole('button', { name: 'Публічна' }).click();
     await expect(
       page.getByRole('heading', { name: 'Відділення 1' }),
     ).toBeVisible();
-    await expect(page.getByText('Іваненко')).toHaveCount(0);
+    await expect(page.getByText('Іваненко Марія')).toBeVisible();
   });
 });

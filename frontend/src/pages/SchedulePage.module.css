@@ -4,6 +4,15 @@
   padding: 1.5rem 1rem 4rem;
 }
 
+.back {
+  display: inline-block;
+  margin-bottom: 1rem;
+  color: var(--g-accent, #1d4ed8);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
 .title {
   margin: 0 0 0.25rem;
   font-size: 1.4rem;

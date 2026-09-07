@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   getMyProgram,
   getPublicProgram,
   hasSession,
 } from '../lib/program';
 import type { MineProgram, PublicProgramRow } from '../lib/program';
-import { formatClock } from '../lib/duration';
+import { formatParticipantNumbers } from '../lib/participantNumbers';
+import { formatClock, formatDuration } from '../lib/duration';
 import styles from './SchedulePage.module.css';
 
 export default function SchedulePage() {
@@ -74,15 +75,22 @@ export default function SchedulePage() {
         exits: section.exits.filter(
           (exit) =>
             exit.performerName.toLowerCase().includes(needle) ||
-            String(exit.number).includes(needle),
+            formatParticipantNumbers(exit.participantNumbers).includes(needle),
         ),
       }))
       .filter((section) => section.exits.length > 0);
   }, [mine, query]);
 
+  const backLink = id ? (
+    <Link to={`/competitions/${id}`} className={styles.back}>
+      ← До конкурсу
+    </Link>
+  ) : null;
+
   if (loadError) {
     return (
       <main className={styles.main}>
+        {backLink}
         <p className={styles.status}>{loadError}</p>
       </main>
     );
@@ -91,6 +99,7 @@ export default function SchedulePage() {
   if (!publicRows) {
     return (
       <main className={styles.main}>
+        {backLink}
         <p className={styles.status}>Завантаження…</p>
       </main>
     );
@@ -101,6 +110,7 @@ export default function SchedulePage() {
 
   return (
     <main className={styles.main}>
+      {backLink}
       <h1 className={styles.title}>Програма фестивалю</h1>
       <p className={styles.subtitle}>
         Час кожного відділення й блоку номінацій. Точний порядок може
@@ -145,7 +155,9 @@ export default function SchedulePage() {
                   <span className={styles.time}>
                     {formatClock(exit.time, true)}
                   </span>
-                  <span className={styles.num}>№{exit.number}</span>
+                  <span className={styles.num}>
+                    №{formatParticipantNumbers(exit.participantNumbers)}
+                  </span>
                   <span className={styles.grow}>
                     {exit.groupLabel} — {exit.performerName}
                   </span>
@@ -191,6 +203,25 @@ export default function SchedulePage() {
                   {formatClock(row.time, true)}
                 </span>
                 <span>{row.label}</span>
+              </div>
+            );
+          } else if (row.kind === 'exit') {
+            const studioCoach = [row.studioName, row.choreographer]
+              .filter(Boolean)
+              .join(' · ');
+            body = (
+              <div className={styles.exitRow}>
+                <span className={styles.time}>
+                  {formatClock(row.time, true)}
+                </span>
+                <span className={styles.num}>
+                  №{formatParticipantNumbers(row.participantNumbers ?? [])}
+                </span>
+                <span className={styles.grow}>
+                  {row.routineName ?? '—'}
+                  {studioCoach ? ` · ${studioCoach}` : ''}
+                </span>
+                <span>{formatDuration(row.durationSeconds ?? null)}</span>
               </div>
             );
           } else {

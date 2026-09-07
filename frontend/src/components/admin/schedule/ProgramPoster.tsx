@@ -1,7 +1,8 @@
 import { Fragment } from 'react';
 import type { PublicProgramRow } from '../../../lib/program';
 import type { CompetitionDay } from '../../../lib/schedule';
-import { formatClock } from '../../../lib/duration';
+import { formatParticipantNumbers } from '../../../lib/participantNumbers';
+import { formatClock, formatDuration } from '../../../lib/duration';
 import styles from './Schedule.module.css';
 
 interface ProgramPosterProps {
@@ -15,7 +16,13 @@ const KIND_LABEL: Record<'award' | 'break' | 'gala', string> = {
   gala: 'Гала-шоу',
 };
 
-// The logged-out audience view — service rows only, no names or numbers.
+function studioAndCoach(row: PublicProgramRow): string {
+  return [row.studioName, row.choreographer].filter(Boolean).join(' · ');
+}
+
+// The festival programme, same for everyone: section starts, nomination
+// blocks, every performance (participant number, routine, studio + coach,
+// length), and the award.
 export default function ProgramPoster({ rows, days = [] }: ProgramPosterProps) {
   if (rows.length === 0) {
     return <p className={styles.empty}>Публічна програма ще порожня.</p>;
@@ -50,6 +57,20 @@ export default function ProgramPoster({ rows, days = [] }: ProgramPosterProps) {
             <div className={styles.groupHead}>
               <span className={styles.time}>{formatClock(row.time, true)}</span>
               <span>{row.label}</span>
+            </div>
+          );
+        } else if (row.kind === 'exit') {
+          body = (
+            <div className={styles.awardRow}>
+              <span className={styles.time}>{formatClock(row.time, true)}</span>
+              <span className={styles.num}>
+                №{formatParticipantNumbers(row.participantNumbers ?? [])}
+              </span>
+              <span className={styles.grow}>
+                {row.routineName ?? '—'}
+                {studioAndCoach(row) ? ` · ${studioAndCoach(row)}` : ''}
+              </span>
+              <span>{formatDuration(row.durationSeconds ?? null)}</span>
             </div>
           );
         } else {
