@@ -1,0 +1,277 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.switchers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border, #d0d5dd);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(240px, 340px) 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card {
+  border: 1px solid var(--border, #e4e7ec);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.counter {
+  font-size: 0.85rem;
+  color: var(--text-muted, #667085);
+}
+
+.poolActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.btn {
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--border, #d0d5dd);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  font: inherit;
+  cursor: pointer;
+}
+
+.btnPrimary {
+  padding: 0.45rem 0.9rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent, #4f46e5);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.btnPrimary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.btnDanger {
+  border: none;
+  background: none;
+  color: var(--danger, #d92d20);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.poolList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 460px;
+  overflow-y: auto;
+}
+
+.poolItem {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-size: 0.88rem;
+  padding: 0.25rem 0;
+}
+
+.poolNum {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted, #667085);
+  min-width: 2.2rem;
+}
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.sectionName {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.sectionMeta {
+  font-size: 0.8rem;
+  color: var(--text-muted, #667085);
+}
+
+.itemRows {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.groupHead {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  margin-top: 0.6rem;
+  padding: 0.2rem 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted, #667085);
+}
+
+.mergedTag {
+  font-weight: 400;
+  font-style: italic;
+}
+
+.itemRow {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.35rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  cursor: grab;
+}
+
+.itemRow:hover {
+  background: var(--hover, #f4f4f6);
+}
+
+.itemRowDragging {
+  opacity: 0.4;
+}
+
+.itemRowOver {
+  box-shadow: inset 0 2px 0 var(--accent, #4f46e5);
+}
+
+.awardRow {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.35rem 0.4rem;
+  margin-top: 0.2rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: not-allowed;
+  color: var(--text-muted, #667085);
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+  min-width: 4.5rem;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted, #667085);
+  min-width: 2.2rem;
+}
+
+.grow {
+  flex: 1;
+}
+
+.empty {
+  color: var(--text-muted, #667085);
+  font-size: 0.9rem;
+}
+
+.conflict {
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  background: var(--warning-bg, #fef3c7);
+  color: var(--warning-text, #92400e);
+  font-size: 0.85rem;
+}
+
+.modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.modalField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.modalField label {
+  font-size: 0.85rem;
+  color: var(--text-muted, #667085);
+}
+
+.input {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border, #d0d5dd);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.checkRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.modalActions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.warnText {
+  font-size: 0.82rem;
+  color: var(--warning-text, #92400e);
+}

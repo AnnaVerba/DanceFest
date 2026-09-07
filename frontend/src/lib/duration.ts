@@ -24,6 +24,22 @@ export function parseDuration(raw: string): number | null {
   return seconds;
 }
 
+// "09:30:05" or "09:30" (24h) -> the same string trimmed to the wanted
+// precision. The backend already hands times back as "HH:MM:SS", so this
+// only decides how many parts to show.
+export function formatClock(time: string, withSeconds = false): string {
+  const parts = time.split(':');
+  return withSeconds ? parts.slice(0, 3).join(':') : parts.slice(0, 2).join(':');
+}
+
+const HH_MM = /^([0-1]\d|2[0-3]):([0-5]\d)$/;
+
+// "09:30" -> "09:30" once validated, else null. Section start times are the
+// only clock value the organizer types.
+export function parseClock(raw: string): string | null {
+  return HH_MM.test(raw.trim()) ? raw.trim() : null;
+}
+
 const NOUNS = ['вихід', 'виходи', 'виходів'];
 
 export function pluralExits(count: number): string {

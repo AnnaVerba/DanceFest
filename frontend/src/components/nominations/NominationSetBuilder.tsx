@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import SpecialCategoryModal from './SpecialCategoryModal';
 import type { SpecialNominationDraft } from './SpecialCategoryModal';
+import AxisPriceInputs from './AxisPriceInputs';
 import {
   AGE_CATEGORY_TYPE,
   CATEGORY_TYPES,
@@ -8,11 +9,7 @@ import {
   getCategories,
 } from '../../lib/categories';
 import AgeRangeFields from './AgeRangeFields';
-import {
-  PRICED_AXES,
-  axisPriceKey,
-  resolvePrice,
-} from '../../lib/nominationPricing';
+import { PRICED_AXES, resolvePrice } from '../../lib/nominationPricing';
 import type { AxisPriceMap } from '../../lib/nominationPricing';
 import { EMPTY_AGE_RANGE, parseAgeRange } from '../../lib/ageRange';
 import type { AgeRange } from '../../lib/ageRange';
@@ -250,26 +247,11 @@ export default function NominationSetBuilder({
                 </div>
               )}
               {PRICED_AXES.includes(type) && picked.length > 0 && (
-                <div className={styles.axisPrices}>
-                  {picked.map((category) => (
-                    <label className={styles.axisPrice} key={category.id}>
-                      <span>{category.name}</span>
-                      <input
-                        type="number"
-                        min={0}
-                        placeholder="ціна"
-                        aria-label={`Ціна за «${category.name}»`}
-                        value={axisPrices[axisPriceKey(type, category.id)] ?? ''}
-                        onChange={(e) =>
-                          setAxisPrices((prev) => ({
-                            ...prev,
-                            [axisPriceKey(type, category.id)]: e.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-                  ))}
-                </div>
+                <AxisPriceInputs
+                  categories={picked}
+                  prices={axisPrices}
+                  onChange={setAxisPrices}
+                />
               )}
               <div className={styles.axisAdd}>
                 <input

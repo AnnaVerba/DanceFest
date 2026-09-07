@@ -1157,7 +1157,9 @@ export default function NewCompetitionPage() {
                                 aria-label={`Ціна номінації «${n.name}»`}
                                 value={n.price}
                                 onChange={(e) =>
-                                  patchNomination(n.signature, { price: e.target.value })
+                                  patchNomination(n.signature, {
+                                    price: e.target.value,
+                                  })
                                 }
                               />
                             </td>

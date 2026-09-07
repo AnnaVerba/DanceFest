@@ -4,6 +4,7 @@ import {
   IsIn,
   IsInt,
   IsNumber,
+  IsObject,
   IsOptional,
   Min,
 } from 'class-validator';
@@ -19,6 +20,16 @@ export class UpdateCompetitionRuleDto {
   @IsInt()
   @Min(0)
   pauseSeconds?: number;
+
+  @ApiPropertyOptional({
+    example: { Дебют: 90, Профі: 150 },
+    description:
+      'Per-league on-stage limit in seconds, keyed by league name. ' +
+      'Non-positive or non-numeric values are dropped by the service.',
+  })
+  @IsOptional()
+  @IsObject()
+  leagueLimits?: Record<string, number>;
 
   @ApiPropertyOptional({
     example: 'limit',

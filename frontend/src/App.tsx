@@ -11,6 +11,7 @@ import DashboardPage from './pages/DashboardPage';
 import NewCompetitionPage from './pages/NewCompetitionPage';
 import CompetitionEditPage from './pages/CompetitionEditPage';
 import CompetitionDetailPage from './pages/CompetitionDetailPage';
+import SchedulePage from './pages/SchedulePage';
 import PublicCompetitionPage from './pages/PublicCompetitionPage';
 import CompetitionPreviewRedirect from './pages/CompetitionPreviewRedirect';
 import JudgePage from './pages/JudgePage';
@@ -46,6 +47,10 @@ function App() {
             element={
               getToken() ? <CompetitionDetailPage /> : <PublicCompetitionPage />
             }
+          />
+          <Route
+            path="/competitions/:id/schedule"
+            element={<SchedulePage />}
           />
           <Route path="/competitions/:id/team" element={<TeamPage />} />
           <Route

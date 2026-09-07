@@ -12,6 +12,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { CategoryTemplatesModule } from './category-templates/category-templates.module';
 import { PaymentDetailsModule } from './payment-details/payment-details.module';
 import { CompetitionRulesModule } from './competition-rules/competition-rules.module';
+import { ScheduleModule } from './schedule/schedule.module';
 import { MailModule } from './mail/mail.module';
 import { SmsModule } from './sms/sms.module';
 import { UploadsModule } from './uploads/uploads.module';
@@ -54,6 +55,7 @@ import { AppBootstrapModule } from './app-bootstrap/app-bootstrap.module';
     PaymentDetailsModule,
     UploadsModule,
     CompetitionRulesModule,
+    ScheduleModule,
     SchoolsModule,
     UsersModule,
     CompetitionApplicationsModule,
