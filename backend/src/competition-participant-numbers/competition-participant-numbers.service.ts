@@ -1,18 +1,9 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import {
-  CreationAttributes,
-  Op,
-  Transaction,
-  UniqueConstraintError,
-} from 'sequelize';
+import { CreationAttributes, Op, Transaction } from 'sequelize';
 import { CompetitionParticipantNumber } from './competition-participant-number.model';
 import { ParticipantNumberLookup } from './participant-number-lookup';
-import {
-  FIRST_PARTICIPANT_NUMBER,
-  MAX_PARTICIPANT_NUMBER_ASSIGNMENT_ATTEMPTS,
-  PARTICIPANT_NUMBER_CONFLICT_MESSAGE,
-} from './competition-participant-numbers.constants';
+import { FIRST_PARTICIPANT_NUMBER } from './competition-participant-numbers.constants';
 
 @Injectable()
 export class CompetitionParticipantNumbersService {
@@ -22,38 +13,18 @@ export class CompetitionParticipantNumbersService {
   ) {}
 
   // Idempotent: a person already numbered in this competition gets the same
-  // number back; otherwise MAX(number) + 1 within the competition. Runs in a
-  // transaction with SELECT ... FOR UPDATE so two parallel registrations do
-  // not race for the same number; the unique index is the last line of
-  // defence — one retry, then 409.
-  async assign(
+  // number back; otherwise MAX(number) + 1 within the competition. Must run
+  // inside a transaction that already holds a lock on the competition row
+  // (see EntriesService.insertWithRetry) — that lock is what actually
+  // serializes concurrent registrations for the same competition, so the
+  // reads below can stay plain reads.
+  async assignAll(
     competitionId: string,
-    personId: string,
-  ): Promise<CompetitionParticipantNumber> {
-    for (
-      let attempt = 0;
-      attempt < MAX_PARTICIPANT_NUMBER_ASSIGNMENT_ATTEMPTS;
-      attempt++
-    ) {
-      try {
-        return await this.numberModel.sequelize!.transaction(
-          (transaction: Transaction) =>
-            this.findOrIssue(competitionId, personId, transaction),
-        );
-      } catch (error) {
-        if (!(error instanceof UniqueConstraintError)) {
-          throw error;
-        }
-      }
-    }
-    throw new ConflictException(PARTICIPANT_NUMBER_CONFLICT_MESSAGE);
-  }
-
-  // Every person in the list gets a number in the competition; issued one by
-  // one so each assignment keeps its own short lock window.
-  async assignAll(competitionId: string, personIds: string[]): Promise<void> {
+    personIds: string[],
+    transaction: Transaction,
+  ): Promise<void> {
     for (const personId of new Set(personIds)) {
-      await this.assign(competitionId, personId);
+      await this.findOrIssue(competitionId, personId, transaction);
     }
   }
 
@@ -75,7 +46,6 @@ export class CompetitionParticipantNumbersService {
     const existing = await this.numberModel.findOne({
       where: { competitionId, personId },
       transaction,
-      lock: transaction.LOCK.UPDATE,
     });
     if (existing) {
       return existing;
@@ -85,7 +55,6 @@ export class CompetitionParticipantNumbersService {
       where: { competitionId },
       order: [['number', 'DESC']],
       transaction,
-      lock: transaction.LOCK.UPDATE,
     });
     const number = last ? last.number + 1 : FIRST_PARTICIPANT_NUMBER;
 

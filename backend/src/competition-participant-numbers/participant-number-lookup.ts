@@ -11,10 +11,13 @@ export class ParticipantNumberLookup {
     }
   }
 
-  numbersFor(competitionId: string, personIds: string[]): number[] {
-    return personIds
-      .map((personId) => this.numbers.get(this.key(competitionId, personId)))
-      .filter((number): number is number => number !== undefined);
+  // One element per `personId`, in the same order — `null` for a person who
+  // has no number yet, so a caller displaying a group entry never has a
+  // later number silently shift into an earlier dancer's slot.
+  numbersFor(competitionId: string, personIds: string[]): (number | null)[] {
+    return personIds.map(
+      (personId) => this.numbers.get(this.key(competitionId, personId)) ?? null,
+    );
   }
 
   private key(competitionId: string, personId: string): string {
