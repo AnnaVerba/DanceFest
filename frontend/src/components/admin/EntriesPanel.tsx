@@ -2,6 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import ConfirmDialog from './ConfirmDialog';
 import { deleteEntry, getEntries } from '../../lib/entries';
 import type { Entry } from '../../lib/entries';
+import { formatParticipantNumbers } from '../../lib/participantNumbers';
+import {
+  ACTIONS_COLUMN_COUNT,
+  ALL,
+  BASE_COLUMN_COUNT,
+  PAGE_SIZE,
+  SORT_LABELS,
+} from './EntriesPanel.constants';
+import type { SortKey } from './EntriesPanel.constants';
 import styles from './EntriesPanel.module.css';
 
 interface EntriesPanelProps {
@@ -9,17 +18,6 @@ interface EntriesPanelProps {
   canManage: boolean;
   onError: (message: string) => void;
 }
-
-const ALL = '__all__';
-const PAGE_SIZE = 20;
-
-type SortKey = 'number' | 'name' | 'score';
-
-const SORT_LABELS: Record<SortKey, string> = {
-  number: 'Сортувати за №',
-  name: 'За назвою',
-  score: 'За балом',
-};
 
 function formatScore(score: number | null): string {
   return score === null ? '—' : score.toFixed(1);
@@ -240,6 +238,7 @@ export default function EntriesPanel({
               <thead>
                 <tr>
                   <th scope="col">№</th>
+                  <th scope="col">№ учасника</th>
                   <th scope="col">Назва номеру</th>
                   <th scope="col">Номінація</th>
                   <th scope="col">Вік. категорія</th>
@@ -259,7 +258,14 @@ export default function EntriesPanel({
               <tbody>
                 {pageEntries.length === 0 && (
                   <tr>
-                    <td colSpan={canManage ? 11 : 10} className={styles.noMatches}>
+                    <td
+                      colSpan={
+                        canManage
+                          ? BASE_COLUMN_COUNT + ACTIONS_COLUMN_COUNT
+                          : BASE_COLUMN_COUNT
+                      }
+                      className={styles.noMatches}
+                    >
                       Нічого не знайдено за обраними фільтрами.
                     </td>
                   </tr>
@@ -267,6 +273,7 @@ export default function EntriesPanel({
                 {pageEntries.map((entry) => (
                   <tr key={entry.id}>
                     <td className={styles.num}>{entry.number}</td>
+                    <td>{formatParticipantNumbers(entry.participantNumbers)}</td>
                     <td className={styles.name}>{entry.routineName}</td>
                     <td>{entry.nomination}</td>
                     <td>{entry.ageCategory}</td>

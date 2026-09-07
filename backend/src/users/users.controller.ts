@@ -31,6 +31,7 @@ import { SetMentorCoachDto } from './dto/set-mentor-coach.dto';
 import { User } from './user.model';
 import { ParticipantSummary } from './participant-summary.interface';
 import { CoachSummary } from './coach-summary.interface';
+import { OrganizerSummary } from './organizer-summary.interface';
 import { MentorCoach } from './mentor-coach.interface';
 import {
   COACH_ID_REQUIRED_FOR_ORGANIZER_MESSAGE,
@@ -169,6 +170,19 @@ export class UsersController {
         lastName: coach.lastName,
         schoolName: coach.school?.name ?? null,
       }));
+  }
+
+  @ApiOperation({ summary: 'Organizers a competition can be attributed to' })
+  @ApiResponse({ status: 200, description: 'Organizers returned.' })
+  @MinLevel(AccessLevel.ORGANIZER)
+  @Get('organizers')
+  async findSelectableOrganizers(): Promise<OrganizerSummary[]> {
+    const organizers = await this.usersService.listSelectableOrganizers();
+    return organizers.map((organizer) => ({
+      id: organizer.id,
+      firstName: organizer.firstName,
+      lastName: organizer.lastName,
+    }));
   }
 
   @ApiOperation({ summary: "Set another user's access level (admin only)" })

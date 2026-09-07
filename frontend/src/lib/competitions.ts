@@ -21,7 +21,7 @@ export interface Competition {
   name: string;
   description: string;
   location: string;
-  organizer: string;
+  organizers: string[];
   dateFrom: string;
   dateTo: string;
   registrationFrom: string;
@@ -71,7 +71,7 @@ export interface CompetitionInput {
   name: string;
   description: string;
   location: string;
-  organizer: string;
+  organizers: string[];
   dateFrom: string;
   dateTo: string;
   registrationFrom: string;
@@ -136,6 +136,10 @@ export async function deleteCompetition(id: string): Promise<void> {
     extractMessage(payload, COMPETITION_DELETE_FAILED_MESSAGE),
     response.status,
   );
+}
+
+export function formatOrganizers(organizers: string[]): string {
+  return organizers.join(', ');
 }
 
 export function getCompetitionStatus(c: Competition): CompetitionStatus {

@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString } from 'class-validator';
-import { ApplicationStatus } from '../../competition-applications/application-status.enum';
+import { ApplicationStatus } from '../application-status.enum';
 
 const DECISIONS = [ApplicationStatus.APPROVED, ApplicationStatus.REJECTED];
 

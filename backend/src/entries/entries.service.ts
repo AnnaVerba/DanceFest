@@ -12,6 +12,8 @@ import { NominationsService } from '../nominations/nominations.service';
 import type { NominationExit } from '../nominations/nomination-exits';
 import { UsersService } from '../users/users.service';
 import { SchoolsService } from '../schools/schools.service';
+import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
+import { ParticipantNumberLookup } from '../competition-participant-numbers/participant-number-lookup';
 import { AccessLevel } from '../auth/access-level.enum';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Entry } from './entry.model';
@@ -65,16 +67,28 @@ export class EntriesService {
     private readonly nominationsService: NominationsService,
     private readonly usersService: UsersService,
     private readonly schoolsService: SchoolsService,
+    private readonly participantNumbersService: CompetitionParticipantNumbersService,
   ) {}
 
-  async list(competitionId: string, requesterId: string) {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+  async list(
+    competitionId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+  ) {
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
     const entries = await this.entryModel.findAll({
       where: { competitionId },
       include: [Score],
       order: [['number', 'ASC']],
     });
-    return entries.map((e) => this.toDto(e));
+    const numbers = await this.participantNumbersService.loadLookup([
+      competitionId,
+    ]);
+    return entries.map((e) => this.toDto(e, numbers));
   }
 
   async count(competitionId: string): Promise<{ count: number }> {
@@ -114,19 +128,45 @@ export class EntriesService {
       dtos.map((dto) => this.prepareEntry(competitionId, dto, user)),
     );
 
+    const created = await this.insertWithRetry(competitionId, prepared);
+
+    const numbers = await this.participantNumbersService.loadLookup([
+      competitionId,
+    ]);
+    return created.map((entry) => this.toDto(entry, numbers));
+  }
+
+  private async insertWithRetry(
+    competitionId: string,
+    prepared: PreparedEntry[],
+  ): Promise<Entry[]> {
+    const participantIds = prepared.flatMap(
+      (entry) => entry.submitter.participantIds,
+    );
+
     for (
       let attempt = 0;
       attempt < MAX_ENTRY_NUMBER_ASSIGNMENT_ATTEMPTS;
       attempt++
     ) {
       try {
-        const created = await this.entryModel.sequelize!.transaction(
+        return await this.entryModel.sequelize!.transaction(
           async (transaction: Transaction) => {
+            // Locks the competition row for the rest of this transaction,
+            // so two concurrent submissions for the same competition are
+            // fully serialized — a plain read of MAX(number) below can't do
+            // that on its own, since a row lock on today's max row doesn't
+            // stop a second transaction from reading that same (soon
+            // stale) row before the first commits.
+            await this.competitionModel.findByPk(competitionId, {
+              transaction,
+              lock: transaction.LOCK.UPDATE,
+            });
+
             const last = await this.entryModel.findOne({
               where: { competitionId },
               order: [['number', 'DESC']],
               transaction,
-              lock: transaction.LOCK.UPDATE,
             });
 
             let nextNumber = (last?.number ?? 0) + 1;
@@ -140,11 +180,25 @@ export class EntriesService {
               nextNumber += entry.exits.length;
             }
 
-            return this.entryModel.bulkCreate(rows, { transaction });
+            const created = await this.entryModel.bulkCreate(rows, {
+              transaction,
+            });
+
+            // Every dancer entered here is now registered for the
+            // competition and gets their per-competition participant
+            // number (idempotent, so a repeat submission by the same
+            // dancer keeps the number) — in the same transaction as the
+            // entries themselves, so a failure here rolls the entries back
+            // too instead of leaving them without a participant number.
+            await this.participantNumbersService.assignAll(
+              competitionId,
+              participantIds,
+              transaction,
+            );
+
+            return created;
           },
         );
-
-        return created.map((entry) => this.toDto(entry));
       } catch (err) {
         if (attempt === 0) continue;
         throw err;
@@ -248,7 +302,10 @@ export class EntriesService {
     }
     entry.musicName = musicName.trim();
     await entry.save();
-    return this.toDto(entry);
+    const numbers = await this.participantNumbersService.loadLookup([
+      entry.competitionId,
+    ]);
+    return this.toDto(entry, numbers);
   }
 
   // Entries the current user is involved in — their own performances and,
@@ -272,11 +329,13 @@ export class EntriesService {
       where: { id: { [Op.in]: competitionIds } },
     });
     const byId = new Map(competitions.map((c) => [c.id, c]));
+    const numbers =
+      await this.participantNumbersService.loadLookup(competitionIds);
 
     return entries.map((entry) => {
       const competition = byId.get(entry.competitionId);
       return {
-        ...this.toDto(entry),
+        ...this.toDto(entry, numbers),
         competitionId: entry.competitionId,
         competitionName: competition?.name ?? null,
         competitionDateFrom: competition?.dateFrom ?? null,
@@ -288,8 +347,13 @@ export class EntriesService {
     competitionId: string,
     entryId: string,
     requesterId: string,
+    requesterLevel: AccessLevel,
   ): Promise<void> {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
 
     const entry = await this.entryModel.findOne({
       where: { id: entryId, competitionId },
@@ -391,11 +455,15 @@ export class EntriesService {
   private async loadCompetitionAndAssertAccess(
     competitionId: string,
     requesterId: string,
+    requesterLevel: AccessLevel,
   ): Promise<Competition> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
       throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
+    // An admin can see/manage any competition's entries; an organizer only
+    // their own.
+    if (requesterLevel === AccessLevel.ADMIN) return competition;
     if (competition.ownerId === requesterId) return competition;
 
     const membership = await this.competitionAdminModel.findOne({
@@ -407,8 +475,9 @@ export class EntriesService {
     return competition;
   }
 
-  private toDto(entry: Entry) {
+  private toDto(entry: Entry, numbers: ParticipantNumberLookup) {
     const scores = entry.scores ?? [];
+    const participantIds = entry.participantIds ?? [];
     const averageScore =
       scores.length > 0
         ? scores.reduce((sum, s) => sum + Number(s.value), 0) / scores.length
@@ -420,7 +489,12 @@ export class EntriesService {
       id: entry.id,
       nominationId: entry.nominationId,
       participantId: entry.participantId,
-      participantIds: entry.participantIds ?? [],
+      participantIds,
+      // One per dancer, in `participantIds` order.
+      participantNumbers: numbers.numbersFor(
+        entry.competitionId,
+        participantIds,
+      ),
       number: entry.number,
       routineName: entry.routineName,
       nomination: entry.nomination,

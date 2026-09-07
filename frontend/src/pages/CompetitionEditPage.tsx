@@ -5,6 +5,8 @@ import PhoneField from '../components/PhoneField';
 import { getToken } from '../lib/auth';
 import { CompetitionApiError, getCompetition, updateCompetition } from '../lib/competitions';
 import type { CompetitionInput } from '../lib/competitions';
+import { getOrganizerSuggestions } from '../lib/users';
+import OrganizersField from '../components/OrganizersField';
 import {
   PaymentDetailsApiError,
   getPaymentDetails,
@@ -18,6 +20,7 @@ interface ContactFieldErrors {
   contactNumber?: string;
   contactEmail?: string;
   paymentAccount?: string;
+  organizers?: string;
 }
 
 interface PaymentForm {
@@ -33,7 +36,7 @@ const EMPTY_FORM: CompetitionInput = {
   name: '',
   description: '',
   location: '',
-  organizer: '',
+  organizers: [],
   dateFrom: '',
   dateTo: '',
   registrationFrom: '',
@@ -53,7 +56,10 @@ const EMPTY_PAYMENT_FORM: PaymentForm = {
 function toPayload(form: CompetitionInput): CompetitionInput {
   const payload: CompetitionInput = { ...form };
   (Object.keys(payload) as (keyof CompetitionInput)[]).forEach((key) => {
-    if (payload[key] === '') delete payload[key];
+    const value = payload[key];
+    if (value === '' || (Array.isArray(value) && value.length === 0)) {
+      delete payload[key];
+    }
   });
   return payload;
 }
@@ -71,7 +77,14 @@ export default function CompetitionEditPage() {
   const [fieldErrors, setFieldErrors] = useState<ContactFieldErrors>({});
   const [bannerUploading, setBannerUploading] = useState(false);
   const [bannerError, setBannerError] = useState<string | null>(null);
+  const [organizerSuggestions, setOrganizerSuggestions] = useState<string[]>([]);
   const bannerInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    getOrganizerSuggestions()
+      .then(setOrganizerSuggestions)
+      .catch(() => setOrganizerSuggestions([]));
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -84,7 +97,7 @@ export default function CompetitionEditPage() {
           name: c.name,
           description: c.description,
           location: c.location,
-          organizer: c.organizer,
+          organizers: c.organizers,
           dateFrom: c.dateFrom,
           dateTo: c.dateTo,
           registrationFrom: c.registrationFrom,
@@ -147,6 +160,9 @@ export default function CompetitionEditPage() {
     if (!id) return;
 
     const errors: ContactFieldErrors = {};
+    if (form.organizers.length === 0) {
+      errors.organizers = 'Вкажіть хоча б одного організатора.';
+    }
     if (!form.contactNumber.trim()) {
       errors.contactNumber = 'Вкажіть контактний номер.';
     } else if (!isValidPhone(form.contactNumber)) {
@@ -265,14 +281,21 @@ export default function CompetitionEditPage() {
                     />
                   </div>
                   <div className={styles.field}>
-                    <label htmlFor="organizer">Організатор</label>
-                    <input
+                    <label htmlFor="organizer">Організатори</label>
+                    <OrganizersField
                       id="organizer"
-                      required
-                      value={form.organizer}
-                      onChange={update('organizer')}
-                      placeholder='Студія східного танцю «Джерело»'
+                      ariaLabel="Організатори конкурсу"
+                      invalid={Boolean(fieldErrors.organizers)}
+                      values={form.organizers}
+                      onChange={(next) => {
+                        setForm((prev) => ({ ...prev, organizers: next }));
+                        setFieldErrors((prev) => ({ ...prev, organizers: undefined }));
+                      }}
+                      suggestions={organizerSuggestions}
                     />
+                    {fieldErrors.organizers && (
+                      <p className={styles.fieldError}>{fieldErrors.organizers}</p>
+                    )}
                   </div>
                   <div className={styles.field}>
                     <label htmlFor="image">Банер</label>

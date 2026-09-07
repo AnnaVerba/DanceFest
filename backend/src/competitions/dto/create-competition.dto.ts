@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayNotEmpty,
+  IsArray,
   IsDateString,
   IsEmail,
   IsNotEmpty,
@@ -34,10 +36,12 @@ export class CreateCompetitionDto {
   @IsNotEmpty()
   location: string;
 
-  @ApiProperty({ example: 'Студія східного танцю «Джерело»' })
-  @IsString()
-  @IsNotEmpty()
-  organizer: string;
+  @ApiProperty({ example: ['Студія східного танцю «Джерело»'] })
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  organizers: string[];
 
   @ApiProperty({ example: '2026-09-10' })
   @IsDateString()
