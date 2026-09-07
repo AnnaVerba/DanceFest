@@ -3,6 +3,14 @@ import ConfirmDialog from './ConfirmDialog';
 import { deleteEntry, getEntries } from '../../lib/entries';
 import type { Entry } from '../../lib/entries';
 import { formatParticipantNumbers } from '../../lib/participantNumbers';
+import {
+  ACTIONS_COLUMN_COUNT,
+  ALL,
+  BASE_COLUMN_COUNT,
+  PAGE_SIZE,
+  SORT_LABELS,
+} from './EntriesPanel.constants';
+import type { SortKey } from './EntriesPanel.constants';
 import styles from './EntriesPanel.module.css';
 
 interface EntriesPanelProps {
@@ -10,17 +18,6 @@ interface EntriesPanelProps {
   canManage: boolean;
   onError: (message: string) => void;
 }
-
-const ALL = '__all__';
-const PAGE_SIZE = 20;
-
-type SortKey = 'number' | 'name' | 'score';
-
-const SORT_LABELS: Record<SortKey, string> = {
-  number: 'Сортувати за №',
-  name: 'За назвою',
-  score: 'За балом',
-};
 
 function formatScore(score: number | null): string {
   return score === null ? '—' : score.toFixed(1);
@@ -261,7 +258,14 @@ export default function EntriesPanel({
               <tbody>
                 {pageEntries.length === 0 && (
                   <tr>
-                    <td colSpan={canManage ? 12 : 11} className={styles.noMatches}>
+                    <td
+                      colSpan={
+                        canManage
+                          ? BASE_COLUMN_COUNT + ACTIONS_COLUMN_COUNT
+                          : BASE_COLUMN_COUNT
+                      }
+                      className={styles.noMatches}
+                    >
                       Нічого не знайдено за обраними фільтрами.
                     </td>
                   </tr>
