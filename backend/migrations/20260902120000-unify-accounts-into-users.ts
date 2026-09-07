@@ -1,5 +1,6 @@
 import type { QueryInterface } from 'sequelize';
 import { DataTypes } from 'sequelize';
+import { tableExists } from './utils/table-exists';
 
 // One human = one `users` row (credentials + identity). The roles that
 // human holds live in `user_roles`. Role-specific fields sit on `users`
@@ -7,19 +8,6 @@ import { DataTypes } from 'sequelize';
 // in its own `admins` table, untouched.
 const USER_ROLES = ['PARTICIPANT', 'COACH', 'ORGANIZER'];
 const USER_ROLES_UNIQUE_CONSTRAINT = 'user_roles_userId_role_unique';
-
-// Lets a migration re-run after a previous attempt partially applied
-// itself (Sequelize migrations here aren't wrapped in a transaction).
-async function tableExists(
-  queryInterface: QueryInterface,
-  tableName: string,
-): Promise<boolean> {
-  const [rows] = await queryInterface.sequelize.query(
-    'SELECT to_regclass(:tableName) AS reg',
-    { replacements: { tableName } },
-  );
-  return (rows[0] as { reg: string | null }).reg !== null;
-}
 
 async function constraintExists(
   queryInterface: QueryInterface,

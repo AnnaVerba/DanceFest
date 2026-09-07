@@ -1,5 +1,6 @@
 import { authorizedFetch, getSession } from './auth';
 import type { AccessLevel } from './roles';
+import type { OrganizerSummary } from './organizerSummary';
 import { GENERIC_REQUEST_ERROR_MESSAGE } from './api.constants';
 import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
 
@@ -47,12 +48,6 @@ export async function getMyProfile(): Promise<MyProfile> {
     throw new UserApiError(message, response.status);
   }
   return payload as MyProfile;
-}
-
-export interface OrganizerSummary {
-  id: string;
-  firstName: string;
-  lastName: string;
 }
 
 export function organizerDisplayName(organizer: OrganizerSummary): string {

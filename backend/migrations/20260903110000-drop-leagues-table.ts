@@ -1,5 +1,6 @@
 import type { QueryInterface } from 'sequelize';
 import { DataTypes } from 'sequelize';
+import { tableExists } from './utils/table-exists';
 
 // `leagues` was superseded by `categories` (type = 'level'): a league is a
 // category on the 'level' axis, there is no separate entity. Its creating
@@ -17,17 +18,6 @@ import { DataTypes } from 'sequelize';
 // has it here — the repoint is skipped in that case.
 const FK = 'competition_applications_leagueId_fkey';
 const DELETED_MIGRATION = '20260901090400-create-leagues.ts';
-
-async function tableExists(
-  queryInterface: QueryInterface,
-  tableName: string,
-): Promise<boolean> {
-  const [rows] = await queryInterface.sequelize.query(
-    'SELECT to_regclass(:tableName) AS reg',
-    { replacements: { tableName } },
-  );
-  return (rows[0] as { reg: string | null }).reg !== null;
-}
 
 module.exports = {
   up: async (queryInterface: QueryInterface) => {

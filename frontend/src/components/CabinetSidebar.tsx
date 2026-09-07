@@ -31,7 +31,7 @@ export default function CabinetSidebar() {
     {
       to: '/category-templates',
       label: 'Шаблони категорій',
-      show: isAdmin,
+      show: isOrganizer,
     },
     {
       to: '/organizer-requests',

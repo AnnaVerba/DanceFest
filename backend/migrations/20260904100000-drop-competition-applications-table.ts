@@ -1,4 +1,5 @@
 import type { QueryInterface } from 'sequelize';
+import { tableExists } from './utils/table-exists';
 
 // The competition-applications feature (module, service, controller, model)
 // was removed before shipping. Its creating migrations were deleted from
@@ -12,17 +13,6 @@ const DELETED_MIGRATIONS = [
   '20260901090500-create-competition-applications.ts',
   '20260901170100-make-competition-applications-coach-id-nullable.ts',
 ];
-
-async function tableExists(
-  queryInterface: QueryInterface,
-  tableName: string,
-): Promise<boolean> {
-  const [rows] = await queryInterface.sequelize.query(
-    'SELECT to_regclass(:tableName) AS reg',
-    { replacements: { tableName } },
-  );
-  return (rows[0] as { reg: string | null }).reg !== null;
-}
 
 module.exports = {
   up: async (queryInterface: QueryInterface) => {
