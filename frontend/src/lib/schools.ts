@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './api';
+import { authorizedFetch } from './auth';
 import {
   SCHOOLS_LOAD_FAILED_MESSAGE,
   SCHOOL_CREATE_FAILED_MESSAGE,
@@ -18,8 +18,13 @@ function extractMessage(payload: ErrorPayload | null, fallback: string): string 
   return Array.isArray(payload.message) ? payload.message.join(', ') : payload.message;
 }
 
-export async function getSchools(): Promise<School[]> {
-  const response = await fetch(`${API_BASE_URL}/schools`);
+// Typeahead: returns [] until the caller sends 2+ letters.
+export async function searchSchools(q: string): Promise<School[]> {
+  const query = q.trim();
+  if (query.length < 2) return [];
+  const response = await authorizedFetch(
+    `/schools?q=${encodeURIComponent(query)}`,
+  );
   if (!response.ok) {
     throw new Error(SCHOOLS_LOAD_FAILED_MESSAGE);
   }
@@ -27,7 +32,7 @@ export async function getSchools(): Promise<School[]> {
 }
 
 export async function getSchool(id: string): Promise<School> {
-  const response = await fetch(`${API_BASE_URL}/schools/${id}`);
+  const response = await authorizedFetch(`/schools/${id}`);
   if (!response.ok) {
     throw new Error(SCHOOLS_LOAD_FAILED_MESSAGE);
   }
@@ -35,7 +40,7 @@ export async function getSchool(id: string): Promise<School> {
 }
 
 export async function createSchool(name: string): Promise<School> {
-  const response = await fetch(`${API_BASE_URL}/schools`, {
+  const response = await authorizedFetch(`/schools`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),

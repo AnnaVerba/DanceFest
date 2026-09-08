@@ -16,6 +16,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Public } from '../auth/public.decorator';
 import { MinLevelGuard } from '../auth/min-level.guard';
 import { MinLevel } from '../auth/min-level.decorator';
 import { AccessLevel } from '../auth/access-level.enum';
@@ -33,6 +34,7 @@ export class VenuesController {
     status: 404,
     description: 'No competition exists with the given id.',
   })
+  @Public()
   @Get()
   list(@Param('competitionId') competitionId: string) {
     return this.venuesService.list(competitionId);

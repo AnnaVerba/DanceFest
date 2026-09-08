@@ -18,6 +18,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Public } from '../auth/public.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { ScheduleService } from './schedule.service';
@@ -373,6 +374,7 @@ export class ScheduleController {
   @ApiOperation({
     summary: 'Public program — service rows with times only (paged by section)',
   })
+  @Public()
   @Get('program')
   publicProgram(
     @Param('competitionId') competitionId: string,

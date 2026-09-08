@@ -20,9 +20,15 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { OtpVerifyDto } from './dto/otp-verify.dto';
 import { OtpResendDto } from './dto/otp-resend.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { Public } from './public.decorator';
 import { CurrentUser } from './current-user.decorator';
+import { ClientContextParam } from './client-context.decorator';
 import type { AuthenticatedUser } from './authenticated-user.interface';
+import type { ClientContext } from './client-context.interface';
 
+// Every route here is reachable without a token; `GET /auth/me` opts back
+// in with its own @UseGuards(JwtAuthGuard).
+@Public()
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -45,8 +51,11 @@ export class AuthController {
       'An account with this email (or, for the new roles, phone) already exists.',
   })
   @Post('register')
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  register(
+    @Body() dto: RegisterDto,
+    @ClientContextParam() ctx: ClientContext,
+  ) {
+    return this.authService.register(dto, ctx);
   }
 
   @ApiOperation({
@@ -64,8 +73,8 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials.' })
   @HttpCode(HttpStatus.OK)
   @Post('login')
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  login(@Body() dto: LoginDto, @ClientContextParam() ctx: ClientContext) {
+    return this.authService.login(dto, ctx);
   }
 
   @ApiOperation({
@@ -78,8 +87,11 @@ export class AuthController {
   })
   @HttpCode(HttpStatus.OK)
   @Post('otp/verify')
-  verifyOtp(@Body() dto: OtpVerifyDto) {
-    return this.authService.verifyOtp(dto);
+  verifyOtp(
+    @Body() dto: OtpVerifyDto,
+    @ClientContextParam() ctx: ClientContext,
+  ) {
+    return this.authService.verifyOtp(dto, ctx);
   }
 
   @ApiOperation({ summary: 'Resend the SMS login code' })
@@ -111,8 +123,8 @@ export class AuthController {
     description: 'Refresh token is missing, invalid, or expired.',
   })
   @Post('refresh')
-  refresh(@Body() dto: RefreshTokenDto) {
-    return this.authService.refresh(dto);
+  refresh(@Body() dto: RefreshTokenDto, @ClientContextParam() ctx: ClientContext) {
+    return this.authService.refresh(dto, ctx);
   }
 
   @ApiOperation({ summary: 'Revoke a refresh token (log out of this session)' })
