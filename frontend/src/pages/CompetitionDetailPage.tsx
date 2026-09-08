@@ -36,7 +36,9 @@ const ALL_TABS = [
 ] as const;
 type Tab = (typeof ALL_TABS)[number];
 const TABS: readonly Tab[] = ALL_TABS.filter(
-  (tab) => FEATURES.judges || tab !== 'Судді',
+  (tab) =>
+    (FEATURES.judges || tab !== 'Судді') &&
+    (FEATURES.schedule || (tab !== 'Таймінги' && tab !== 'Програма')),
 );
 
 export default function CompetitionDetailPage() {
@@ -195,7 +197,7 @@ export default function CompetitionDetailPage() {
                 />
               )}
 
-              {activeTab === 'Таймінги' && (
+              {FEATURES.schedule && activeTab === 'Таймінги' && (
                 <ScheduleSettings
                   competitionId={id}
                   canManage={isOwner}
@@ -204,7 +206,7 @@ export default function CompetitionDetailPage() {
                 />
               )}
 
-              {activeTab === 'Програма' && (
+              {FEATURES.schedule && activeTab === 'Програма' && (
                 <>
                   <Link
                     to={`/competitions/${id}/schedule`}

@@ -53,10 +53,12 @@ function App() {
               getToken() ? <CompetitionDetailPage /> : <PublicCompetitionPage />
             }
           />
-          <Route
-            path="/competitions/:id/schedule"
-            element={<SchedulePage />}
-          />
+          {FEATURES.schedule && (
+            <Route
+              path="/competitions/:id/schedule"
+              element={<SchedulePage />}
+            />
+          )}
           <Route path="/competitions/:id/team" element={<TeamPage />} />
           <Route
             path="/competitions/:id/edit"

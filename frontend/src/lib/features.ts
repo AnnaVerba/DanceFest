@@ -8,4 +8,12 @@ export const FEATURES = {
    * and the judges step in the new-competition wizard.
    */
   judges: false,
+  /**
+   * Program / timings module: the "Таймінги" and "Програма" tabs on the
+   * competition page (timing rules, section builder — auto-calc of times
+   * and pauses, sorting, group merging, drag-and-drop), the
+   * `/competitions/:id/schedule` public program page, and the
+   * "Програма фестивалю" link.
+   */
+  schedule: false,
 } as const;

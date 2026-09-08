@@ -7,6 +7,7 @@ import type { Competition } from '../lib/competitions';
 import { getEntriesCount } from '../lib/entries';
 import { getVenues } from '../lib/venues';
 import type { Venue } from '../lib/venues';
+import { FEATURES } from '../lib/features';
 import styles from './PublicCompetitionPage.module.css';
 
 export default function PublicCompetitionPage() {
@@ -99,12 +100,14 @@ export default function PublicCompetitionPage() {
                         <ContestIcon />
                       </span>
                       <h1>{competition.name}</h1>
-                      <Link
-                        to={`/competitions/${id}/schedule`}
-                        className={styles.programLink}
-                      >
-                        Програма фестивалю
-                      </Link>
+                      {FEATURES.schedule && (
+                        <Link
+                          to={`/competitions/${id}/schedule`}
+                          className={styles.programLink}
+                        >
+                          Програма фестивалю
+                        </Link>
+                      )}
                       {apply.allowed ? (
                         <Link
                           to={`/competitions/${id}/apply`}
