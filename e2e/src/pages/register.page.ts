@@ -27,19 +27,9 @@ export class RegisterPage extends BasePage {
     await this.page.getByLabel('Прізвище').fill(account.lastName);
     await this.page.getByLabel('Телефон').fill(account.phone);
     await this.page.getByLabel('Email').fill(account.email);
+    await this.page.getByLabel('Дата народження').fill(PLACEHOLDER_BIRTH_DATE);
     await this.page.getByLabel('Пароль', { exact: true }).fill(account.password);
     await this.page.getByLabel('Повторіть пароль').fill(account.password);
-  }
-
-  private async fillParticipantFields(): Promise<void> {
-    await this.page.getByLabel('Дата народження').fill(PLACEHOLDER_BIRTH_DATE);
-  }
-
-  /** Creates a fresh school inline via "+ Немає потрібної школи — створити" — the flow QA confirmed working. */
-  private async createSchoolInline(schoolName: string): Promise<void> {
-    await this.page.getByRole('button', { name: 'Немає потрібної школи — створити' }).click();
-    await this.page.getByPlaceholder('Назва школи/студії').fill(schoolName);
-    await this.page.getByRole('button', { name: 'Додати' }).click();
   }
 
   async submit(): Promise<void> {
@@ -54,14 +44,39 @@ export class RegisterPage extends BasePage {
    */
   async registerAccount(account: TestAccount): Promise<void> {
     await this.fillCommonFields(account);
-    if (account.role === 'PARTICIPANT') {
-      await this.fillParticipantFields();
-    }
-    if (account.role === 'COACH') {
-      await this.createSchoolInline(`E2E School ${account.email}`);
-    }
     await this.submit();
-    await this.page.waitForURL(ROUTES.HOME);
+    await this.passProfileCompletionGate(account);
+  }
+
+  /**
+   * A participant or coach is held on /complete-profile until the required
+   * fields are set: a coach names their school and a mentor coach, a
+   * participant just a mentor coach. Other roles land on the home page.
+   */
+  private async passProfileCompletionGate(account: TestAccount): Promise<void> {
+    if (account.role !== 'PARTICIPANT' && account.role !== 'COACH') {
+      await this.page.waitForURL(ROUTES.HOME);
+      return;
+    }
+    await this.page.waitForURL(`**${ROUTES.COMPLETE_PROFILE}`);
+    if (account.role === 'COACH') {
+      await this.page
+        .getByPlaceholder('…або впишіть нову назву')
+        .fill(`E2E School ${account.email}`);
+      // "exact" — MentorCoachPicker's "Додати нового" is also on this page.
+      await this.page
+        .getByRole('button', { name: 'Додати', exact: true })
+        .click();
+    }
+    await this.page.getByRole('button', { name: 'Додати нового' }).click();
+    const tag = `${Date.now()}`.slice(-7);
+    await this.page.getByPlaceholder('Імʼя').fill('Ментор');
+    await this.page.getByPlaceholder('Прізвище').fill(`Тренер${tag}`);
+    await this.page.getByPlaceholder('Телефон').fill(`+38066${tag}`);
+    await this.page
+      .getByRole('button', { name: 'Зберегти та продовжити' })
+      .click();
+    await this.page.waitForURL(`**${ROUTES.PROFILE}`);
   }
 
   passwordMismatchError() {
