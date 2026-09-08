@@ -78,13 +78,17 @@ export default function CompetitionEditPage() {
   const [bannerUploading, setBannerUploading] = useState(false);
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [organizerSuggestions, setOrganizerSuggestions] = useState<string[]>([]);
+  const [organizerQuery, setOrganizerQuery] = useState('');
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    getOrganizerSuggestions()
-      .then(setOrganizerSuggestions)
-      .catch(() => setOrganizerSuggestions([]));
-  }, []);
+    const t = setTimeout(() => {
+      getOrganizerSuggestions(organizerQuery)
+        .then(setOrganizerSuggestions)
+        .catch(() => setOrganizerSuggestions([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [organizerQuery]);
 
   useEffect(() => {
     if (!id) return;
@@ -285,6 +289,7 @@ export default function CompetitionEditPage() {
                     <OrganizersField
                       id="organizer"
                       ariaLabel="Організатори конкурсу"
+                      onQuery={setOrganizerQuery}
                       invalid={Boolean(fieldErrors.organizers)}
                       values={form.organizers}
                       onChange={(next) => {

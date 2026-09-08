@@ -1,22 +1,5 @@
-// Parses the `page` / `pageSize` query pair into a Sequelize-ready
-// { limit, offset } plus the normalised values to echo back to the client.
-// `page` is zero-based; anything missing or out of range is clamped.
-
-export interface PageParams {
-  page: number;
-  pageSize: number;
-  limit: number;
-  offset: number;
-}
-
-// What the plain (uniform) paginated endpoints return — the unassigned
-// pool. `total` is the entry count under the current filter.
-export interface PagedResult<T> {
-  rows: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
+export { resolvePage } from '../common/pagination';
+export type { PageParams, PagedResult } from '../common/pagination';
 
 // What the row-bounded, section-aligned endpoints return — the editor and
 // the public program. Pages hold whole sections, so their sizes vary and
@@ -54,22 +37,4 @@ export function paginateByRows(
   }
   if (current.length > 0) pages.push(current);
   return pages;
-}
-
-export function resolvePage(
-  rawPage: string | undefined,
-  rawPageSize: string | undefined,
-  defaultPageSize: number,
-  maxPageSize: number,
-): PageParams {
-  const parsedSize = Number.parseInt(rawPageSize ?? '', 10);
-  const pageSize =
-    Number.isFinite(parsedSize) && parsedSize > 0
-      ? Math.min(parsedSize, maxPageSize)
-      : defaultPageSize;
-
-  const parsedPage = Number.parseInt(rawPage ?? '', 10);
-  const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 0;
-
-  return { page, pageSize, limit: pageSize, offset: page * pageSize };
 }

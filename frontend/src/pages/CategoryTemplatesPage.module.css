@@ -373,3 +373,12 @@
     transition: none !important;
   }
 }
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 20px;
+  font-size: 14px;
+}

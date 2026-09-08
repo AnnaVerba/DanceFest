@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import CompetitionDetails from '../components/CompetitionDetails';
 import ContestIcon from '../components/ContestIcon';
-import { getCompetition } from '../lib/competitions';
+import { getApplyEligibility, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { getEntriesCount } from '../lib/entries';
 import { getVenues } from '../lib/venues';
@@ -84,24 +84,50 @@ export default function PublicCompetitionPage() {
 
           {!loading && !loadError && competition && (
             <article className={styles.card}>
-              <div className={styles.contestHead}>
-                <span className={styles.contestHeadIcon} aria-hidden="true">
-                  <ContestIcon />
-                </span>
-                <h1>{competition.name}</h1>
-                <Link
-                  to={`/competitions/${id}/schedule`}
-                  className={styles.programLink}
-                >
-                  Програма фестивалю
-                </Link>
-                <Link
-                  to={`/competitions/${id}/apply`}
-                  className={styles.applyButton}
-                >
-                  Подати заявку
-                </Link>
-              </div>
+              {/* A public visitor is never an organizer of this competition. */}
+              {(() => {
+                const apply = getApplyEligibility(competition, {
+                  isOrganizer: false,
+                });
+                return (
+                  <>
+                    <div className={styles.contestHead}>
+                      <span
+                        className={styles.contestHeadIcon}
+                        aria-hidden="true"
+                      >
+                        <ContestIcon />
+                      </span>
+                      <h1>{competition.name}</h1>
+                      <Link
+                        to={`/competitions/${id}/schedule`}
+                        className={styles.programLink}
+                      >
+                        Програма фестивалю
+                      </Link>
+                      {apply.allowed ? (
+                        <Link
+                          to={`/competitions/${id}/apply`}
+                          className={styles.applyButton}
+                        >
+                          Подати заявку
+                        </Link>
+                      ) : (
+                        <span
+                          className={`${styles.applyButton} ${styles.applyDisabled}`}
+                          aria-disabled="true"
+                          title={apply.reason ?? ''}
+                        >
+                          Подати заявку
+                        </span>
+                      )}
+                    </div>
+                    {!apply.allowed && (
+                      <p className={styles.applyNote}>{apply.reason}</p>
+                    )}
+                  </>
+                );
+              })()}
 
               <CompetitionDetails
                 competition={competition}

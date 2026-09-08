@@ -21,9 +21,18 @@ async function seedPasswordlessDancer(page: Page): Promise<string> {
   await page.getByLabel('Дата народження').fill('1990-01-01');
   await page.getByLabel('Пароль', { exact: true }).fill(PASSWORD);
   await page.getByLabel('Повторіть пароль').fill(PASSWORD);
-  await page.getByPlaceholder('…або впишіть нову назву').fill(`E2E ${s}`);
-  await page.getByRole('button', { name: 'Додати' }).click();
   await page.getByRole('button', { name: 'Зареєструватися' }).click();
+
+  // The profile-completion gate: the coach names their school and a mentor
+  // before the app opens.
+  await page.waitForURL('**/complete-profile');
+  await page.getByPlaceholder('…або впишіть нову назву').fill(`E2E ${s}`);
+  await page.getByRole('button', { name: 'Додати', exact: true }).click();
+  await page.getByRole('button', { name: 'Додати нового' }).click();
+  await page.getByPlaceholder('Імʼя').fill('Ментор');
+  await page.getByPlaceholder('Прізвище').fill(`Тренер${s}`);
+  await page.getByPlaceholder('Телефон').fill(`+38066${s.slice(-7)}`);
+  await page.getByRole('button', { name: 'Зберегти та продовжити' }).click();
   await page.waitForURL('**/profile');
 
   const dancerPhone = `+38063${s.slice(-7)}`;

@@ -4,7 +4,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AuthError, register, saveSession } from '../lib/auth';
 import { MIN_PASSWORD_LENGTH } from '../lib/auth.constants';
 import PhoneField from '../components/PhoneField';
-import SchoolPicker from '../components/SchoolPicker';
 import { ACCESS_LEVEL } from '../lib/roles';
 import type { AccessLevel } from '../lib/roles';
 import styles from './LoginPage.module.css';
@@ -19,7 +18,6 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState<AccessLevel>(ACCESS_LEVEL.PARTICIPANT);
-  const [schoolId, setSchoolId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -35,10 +33,6 @@ export default function RegisterPage() {
       setError('Паролі не збігаються');
       return;
     }
-    if (role === ACCESS_LEVEL.COACH && !schoolId) {
-      setError('Оберіть або створіть школу.');
-      return;
-    }
 
     setSubmitting(true);
     try {
@@ -50,7 +44,6 @@ export default function RegisterPage() {
         password,
         birthDate,
         role,
-        schoolId: role === ACCESS_LEVEL.COACH ? schoolId : undefined,
       });
       saveSession(session);
       navigate('/profile');
@@ -191,12 +184,6 @@ export default function RegisterPage() {
               Потрібна, щоб подавати власну участь у конкурсах.
             </p>
           </div>
-
-          {role === ACCESS_LEVEL.COACH && (
-            <div className={styles.field}>
-              <SchoolPicker value={schoolId} onChange={setSchoolId} />
-            </div>
-          )}
 
           <div className={styles.field}>
             <label htmlFor="password">Пароль</label>

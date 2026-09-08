@@ -4,7 +4,7 @@ import CabinetLayout from '../components/CabinetLayout';
 import LevelUpgrade from '../components/LevelUpgrade';
 import MentorCoachField from '../components/MentorCoachField';
 import { getSession, getToken } from '../lib/auth';
-import { ACCESS_LEVEL, ACCESS_LEVEL_LABELS, meetsLevel } from '../lib/roles';
+import { ACCESS_LEVEL_LABELS, canHaveMentorCoach } from '../lib/roles';
 import { getMyProfile } from '../lib/users';
 import type { MyProfile } from '../lib/users';
 import { formatContestDate } from '../lib/homeContests';
@@ -76,9 +76,7 @@ export default function ProfilePage() {
 
           <LevelUpgrade session={session} />
 
-          {meetsLevel(profile.accessLevel, ACCESS_LEVEL.COACH) && (
-            <MentorCoachField />
-          )}
+          {canHaveMentorCoach(profile.accessLevel) && <MentorCoachField />}
         </>
       )}
     </CabinetLayout>

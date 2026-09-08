@@ -278,3 +278,16 @@
     transform: none;
   }
 }
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.pagerInfo {
+  font-size: 14px;
+  color: var(--text-muted, #667085);
+}

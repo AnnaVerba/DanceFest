@@ -7,6 +7,7 @@ import {
   ACTIONS_COLUMN_COUNT,
   ALL,
   BASE_COLUMN_COUNT,
+  ENTRIES_SERVER_PAGE,
   PAGE_SIZE,
   SORT_LABELS,
 } from './EntriesPanel.constants';
@@ -17,6 +18,8 @@ interface EntriesPanelProps {
   competitionId: string;
   canManage: boolean;
   onError: (message: string) => void;
+  // Non-null when the apply form must not be opened (reason to show).
+  applyBlockedReason?: string | null;
 }
 
 function formatScore(score: number | null): string {
@@ -40,8 +43,12 @@ export default function EntriesPanel({
   competitionId,
   canManage,
   onError,
+  applyBlockedReason = null,
 }: EntriesPanelProps) {
   const [entries, setEntries] = useState<Entry[] | null>(null);
+  const [entriesTotal, setEntriesTotal] = useState(0);
+  const [serverPage, setServerPage] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pendingDelete, setPendingDelete] = useState<Entry | null>(null);
 
@@ -55,9 +62,12 @@ export default function EntriesPanel({
 
   useEffect(() => {
     let cancelled = false;
-    getEntries(competitionId)
+    getEntries(competitionId, { page: 0, pageSize: ENTRIES_SERVER_PAGE })
       .then((data) => {
-        if (!cancelled) setEntries(data);
+        if (cancelled) return;
+        setEntries(data.rows);
+        setEntriesTotal(data.total);
+        setServerPage(0);
       })
       .catch(() => {
         if (!cancelled) onError('Не вдалося завантажити заявки.');
@@ -70,6 +80,21 @@ export default function EntriesPanel({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [competitionId]);
+
+  const loadMoreEntries = () => {
+    setLoadingMore(true);
+    getEntries(competitionId, {
+      page: serverPage + 1,
+      pageSize: ENTRIES_SERVER_PAGE,
+    })
+      .then((data) => {
+        setEntries((prev) => [...(prev ?? []), ...data.rows]);
+        setServerPage(data.page);
+        setEntriesTotal(data.total);
+      })
+      .catch(() => onError('Не вдалося завантажити ще заявки.'))
+      .finally(() => setLoadingMore(false));
+  };
 
   const handleDelete = async (entry: Entry) => {
     try {
@@ -140,14 +165,25 @@ export default function EntriesPanel({
   return (
     <section className={styles.panel}>
       <div className={styles.intro}>
-        <a
-          className={styles.btn}
-          href={`/competitions/${competitionId}/apply`}
-          target="_blank"
-          rel="noopener"
-        >
-          Форма подачі заявки ↗
-        </a>
+        {applyBlockedReason ? (
+          <span
+            className={styles.btn}
+            aria-disabled="true"
+            title={applyBlockedReason}
+            style={{ opacity: 0.5, cursor: 'not-allowed' }}
+          >
+            Форма подачі заявки — {applyBlockedReason}
+          </span>
+        ) : (
+          <a
+            className={styles.btn}
+            href={`/competitions/${competitionId}/apply`}
+            target="_blank"
+            rel="noopener"
+          >
+            Форма подачі заявки ↗
+          </a>
+        )}
       </div>
 
       <div className={styles.filters}>
@@ -342,6 +378,21 @@ export default function EntriesPanel({
               </button>
             </span>
           </div>
+
+          {entries.length < entriesTotal && (
+            <div className={styles.pager}>
+              <button
+                className={styles.btnSm}
+                type="button"
+                disabled={loadingMore}
+                onClick={loadMoreEntries}
+              >
+                {loadingMore
+                  ? 'Завантаження…'
+                  : `Показати ще (завантажено ${entries.length} із ${entriesTotal})`}
+              </button>
+            </div>
+          )}
         </>
       )}
 

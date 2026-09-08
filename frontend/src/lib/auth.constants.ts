@@ -1,6 +1,8 @@
 export const MIN_PASSWORD_LENGTH = 6;
 
 export const SESSION_STORAGE_KEY = 'dansefest.session';
+export const DEVICE_ID_STORAGE_KEY = 'dansefest.deviceId';
+export const DEVICE_ID_HEADER = 'X-Device-Id';
 
 export const UNEXPECTED_SERVER_RESPONSE_MESSAGE =
   'Сервер повернув неочікувану відповідь';

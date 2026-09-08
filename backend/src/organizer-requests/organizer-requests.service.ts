@@ -22,6 +22,8 @@ import {
   REQUEST_NOT_PENDING_MESSAGE,
 } from './organizer-requests.constants';
 
+const MAX_ORGANIZER_REQUESTS = 2000;
+
 @Injectable()
 export class OrganizerRequestsService {
   constructor(
@@ -68,6 +70,7 @@ export class OrganizerRequestsService {
       where: { userId: user.id },
       include: this.listInclude,
       order: [['createdAt', 'DESC']],
+      limit: MAX_ORGANIZER_REQUESTS,
     });
   }
 
@@ -76,6 +79,7 @@ export class OrganizerRequestsService {
       where: status ? { status } : undefined,
       include: this.listInclude,
       order: [['createdAt', 'DESC']],
+      limit: MAX_ORGANIZER_REQUESTS,
     });
   }
 

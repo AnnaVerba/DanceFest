@@ -16,13 +16,15 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { OtpVerifyDto } from './dto/otp-verify.dto';
 import { OtpResendDto } from './dto/otp-resend.dto';
 import { JwtPayload, RefreshTokenPayload } from './jwt-payload.interface';
-import { RefreshTokenStoreService } from './refresh-token-store.service';
+import { SessionStoreService } from './session-store.service';
+import { ClientContext } from './client-context.interface';
 import { OtpService } from './otp.service';
 import { OtpRequired } from './otp-required.interface';
 import { isRealPhone, maskPhone } from './mask-phone';
 import {
   DEFAULT_REFRESH_EXPIRES_IN_SECONDS,
   EMAIL_OR_PHONE_TAKEN_MESSAGE,
+  FINGERPRINT_MISMATCH_MESSAGE,
   INVALID_CREDENTIALS_MESSAGE,
   MIN_PASSWORD_LENGTH,
   PASSWORD_TOO_SHORT_MESSAGE,
@@ -30,7 +32,6 @@ import {
   SALT_ROUNDS,
 } from './auth.constants';
 import { AuthResult } from './auth-result.interface';
-import { SCHOOL_REQUIRED_FOR_COACH_MESSAGE } from '../users/users.constants';
 
 @Injectable()
 export class AuthService {
@@ -38,15 +39,12 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
-    private readonly refreshTokenStore: RefreshTokenStoreService,
+    private readonly sessionStore: SessionStoreService,
     private readonly otpService: OtpService,
   ) {}
 
-  async register(dto: RegisterDto): Promise<AuthResult> {
-    if (dto.role === AccessLevel.COACH && !dto.schoolId) {
-      throw new BadRequestException(SCHOOL_REQUIRED_FOR_COACH_MESSAGE);
-    }
-
+  async register(dto: RegisterDto, ctx: ClientContext): Promise<AuthResult> {
+    // A coach names their school later, on /complete-profile.
     const phone = dto.phone.trim();
     const [byEmail, byPhone] = await Promise.all([
       this.usersService.findByEmail(dto.email),
@@ -76,10 +74,12 @@ export class AuthService {
         birthDate: dto.birthDate,
         accessLevel,
         schoolId:
-          dto.role === AccessLevel.COACH ? dto.schoolId : byPhone.schoolId,
+          dto.role === AccessLevel.COACH
+            ? (dto.schoolId ?? byPhone.schoolId)
+            : byPhone.schoolId,
         confirmed: true,
       });
-      return this.issueSession(linked);
+      return this.issueSession(linked, ctx);
     }
 
     const user = await this.usersService.create({
@@ -90,14 +90,17 @@ export class AuthService {
       passwordHash,
       birthDate: dto.birthDate,
       accessLevel: dto.role,
-      schoolId: dto.role === AccessLevel.COACH ? dto.schoolId! : null,
+      schoolId: dto.role === AccessLevel.COACH ? (dto.schoolId ?? null) : null,
       coachId: null,
       confirmed: true,
     });
-    return this.issueSession(user);
+    return this.issueSession(user, ctx);
   }
 
-  async login(dto: LoginDto): Promise<AuthResult | OtpRequired> {
+  async login(
+    dto: LoginDto,
+    ctx: ClientContext,
+  ): Promise<AuthResult | OtpRequired> {
     const user = await this.usersService.findByEmailOrPhone(dto.login.trim());
     if (!user) {
       throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
@@ -105,7 +108,7 @@ export class AuthService {
 
     if (user.passwordHash) {
       await this.assertPassword(user.passwordHash, dto.password);
-      return this.issueSession(user);
+      return this.issueSession(user, ctx);
     }
 
     // First login: no password yet — verify the phone with an SMS code.
@@ -119,31 +122,39 @@ export class AuthService {
     return { otpRequired: true, phone: maskPhone(user.phone) };
   }
 
-  async refresh(dto: RefreshTokenDto): Promise<AuthResult> {
+  async refresh(dto: RefreshTokenDto, ctx: ClientContext): Promise<AuthResult> {
     const payload = await this.verifyRefreshToken(dto.refreshToken);
 
-    const isActive = await this.refreshTokenStore.isActive(
+    const session = await this.sessionStore.findActive(
       payload.sub,
       payload.jti,
     );
-    if (!isActive) {
+    if (!session) {
       throw new UnauthorizedException(REFRESH_TOKEN_REVOKED_MESSAGE);
     }
-    await this.refreshTokenStore.revoke(payload.sub, payload.jti);
+    if (
+      session.fingerprint &&
+      ctx.fingerprint &&
+      session.fingerprint !== ctx.fingerprint
+    ) {
+      await this.sessionStore.revoke(payload.sub, payload.jti);
+      throw new UnauthorizedException(FINGERPRINT_MISMATCH_MESSAGE);
+    }
+    await this.sessionStore.revoke(payload.sub, payload.jti);
 
     const user = await this.usersService.findById(payload.sub);
     if (!user) throw new UnauthorizedException('Недійсний refresh-токен');
-    return this.issueSession(user);
+    return this.issueSession(user, ctx);
   }
 
   async logout(dto: RefreshTokenDto): Promise<void> {
     const payload = await this.verifyRefreshToken(dto.refreshToken);
-    await this.refreshTokenStore.revoke(payload.sub, payload.jti);
+    await this.sessionStore.revoke(payload.sub, payload.jti);
   }
 
   // First login, step 2: check the SMS code, set the password the user
   // chose, and issue a session. `confirmed` flips true inside claimAccount.
-  async verifyOtp(dto: OtpVerifyDto): Promise<AuthResult> {
+  async verifyOtp(dto: OtpVerifyDto, ctx: ClientContext): Promise<AuthResult> {
     const user = await this.usersService.findByEmailOrPhone(dto.login.trim());
     if (!user || !isRealPhone(user.phone)) {
       throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
@@ -153,7 +164,10 @@ export class AuthService {
       user.id,
       await bcrypt.hash(dto.password, SALT_ROUNDS),
     );
-    return this.issueSession(await this.usersService.findByIdOrFail(user.id));
+    return this.issueSession(
+      await this.usersService.findByIdOrFail(user.id),
+      ctx,
+    );
   }
 
   async resendOtp(dto: OtpResendDto): Promise<{ phone: string }> {
@@ -174,7 +188,10 @@ export class AuthService {
     }
   }
 
-  private async issueSession(user: User): Promise<AuthResult> {
+  private async issueSession(
+    user: User,
+    ctx: ClientContext,
+  ): Promise<AuthResult> {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email ?? '',
@@ -194,7 +211,7 @@ export class AuthService {
       secret: this.refreshSecret(),
       expiresIn: refreshExpiresIn,
     });
-    await this.refreshTokenStore.save(user.id, jti);
+    await this.sessionStore.create(user.id, jti, ctx);
 
     return {
       accessToken: this.jwtService.sign(payload),

@@ -50,12 +50,40 @@ function extractMessage(payload: ErrorPayload | null, fallback: string): string 
   return Array.isArray(payload.message) ? payload.message.join(', ') : payload.message;
 }
 
-export async function getCompetitions(): Promise<Competition[]> {
-  const response = await fetch(`${API_BASE_URL}/competitions`);
+export interface CompetitionsQuery {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  year?: number;
+}
+
+export interface PagedCompetitions {
+  rows: Competition[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export async function getCompetitions(
+  query: CompetitionsQuery = {},
+): Promise<PagedCompetitions> {
+  const params = new URLSearchParams();
+  if (query.page != null) params.set('page', String(query.page));
+  if (query.pageSize != null) params.set('pageSize', String(query.pageSize));
+  if (query.q?.trim()) params.set('q', query.q.trim());
+  if (query.year != null) params.set('year', String(query.year));
+  const suffix = params.toString() ? `?${params}` : '';
+  const response = await fetch(`${API_BASE_URL}/competitions${suffix}`);
   if (!response.ok) {
     throw new Error('Не вдалося завантажити конкурси');
   }
-  return response.json() as Promise<Competition[]>;
+  return response.json() as Promise<PagedCompetitions>;
+}
+
+export async function getCompetitionYears(): Promise<number[]> {
+  const response = await fetch(`${API_BASE_URL}/competitions/years`);
+  if (!response.ok) return [];
+  return response.json() as Promise<number[]>;
 }
 
 export async function getCompetition(id: string): Promise<Competition> {
@@ -154,4 +182,38 @@ export function getCompetitionStatus(c: Competition): CompetitionStatus {
   if (now < dateFrom) return COMPETITION_STATUS.REGISTRATION_CLOSED;
   if (now <= dateTo) return COMPETITION_STATUS.ONGOING;
   return COMPETITION_STATUS.FINISHED;
+}
+
+export const APPLY_BLOCKED_COMPETITION_OVER =
+  'Конкурс завершено — подання заявок закрите.';
+export const APPLY_BLOCKED_REGISTRATION_OVER =
+  'Реєстрацію на цей конкурс закрито.';
+
+// Deadlines are whole calendar days — dates are stored without a time. A
+// day counts as "passed" once the current UTC date is strictly after it,
+// so the deadline day itself is still open.
+function dayHasPassed(dateStr: string): boolean {
+  return new Date().toISOString().slice(0, 10) > String(dateStr).slice(0, 10);
+}
+
+export interface ApplyEligibility {
+  allowed: boolean;
+  /** User-facing reason when not allowed. */
+  reason: string | null;
+}
+
+// Can this actor still start / submit an application to this competition?
+// - competition day passed → no one (organizers included)
+// - registration day passed → only organizers / admins
+export function getApplyEligibility(
+  c: Pick<Competition, 'registrationTo' | 'dateTo'>,
+  opts: { isOrganizer: boolean },
+): ApplyEligibility {
+  if (dayHasPassed(c.dateTo)) {
+    return { allowed: false, reason: APPLY_BLOCKED_COMPETITION_OVER };
+  }
+  if (dayHasPassed(c.registrationTo) && !opts.isOrganizer) {
+    return { allowed: false, reason: APPLY_BLOCKED_REGISTRATION_OVER };
+  }
+  return { allowed: true, reason: null };
 }

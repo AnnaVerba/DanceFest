@@ -23,6 +23,10 @@ import {
   COMPETITION_NOT_FOUND_MESSAGE,
   NO_COMPETITION_ACCESS_MESSAGE,
 } from '../competitions/competitions.constants';
+import { TYPEAHEAD_LIMIT } from '../common/pagination';
+
+// A very generous ceiling for a single competition's nomination list.
+const MAX_NOMINATIONS = 2000;
 
 @Injectable()
 export class NominationsService {
@@ -37,11 +41,17 @@ export class NominationsService {
     private readonly categoryModel: typeof Category,
   ) {}
 
-  async listPublic(competitionId: string) {
+  // `q` turns this into a name typeahead (a festival can have 500+
+  // nominations); without it, the whole list is returned but sanity-capped.
+  async listPublic(competitionId: string, rawQuery?: string) {
     await this.assertCompetitionExists(competitionId);
+    const q = rawQuery?.trim();
     const nominations = await this.nominationModel.findAll({
-      where: { competitionId },
+      where: q
+        ? { competitionId, name: { [Op.iLike]: `%${q}%` } }
+        : { competitionId },
       order: [['createdAt', 'ASC']],
+      limit: q ? TYPEAHEAD_LIMIT : MAX_NOMINATIONS,
     });
 
     const categories = await this.loadCategories(nominations);

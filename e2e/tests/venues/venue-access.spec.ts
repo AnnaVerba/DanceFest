@@ -29,9 +29,18 @@ async function registerCoachAndGetToken(page: Page): Promise<string> {
   await page.getByLabel('Дата народження').fill('1990-04-12');
   await page.getByLabel('Пароль', { exact: true }).fill(PASSWORD);
   await page.getByLabel('Повторіть пароль').fill(PASSWORD);
-  await page.getByPlaceholder('…або впишіть нову назву').fill(`E2E Студія ${s}`);
-  await page.getByRole('button', { name: 'Додати' }).click();
   await page.getByRole('button', { name: 'Зареєструватися' }).click();
+
+  // The profile-completion gate: name a school and a mentor coach before the
+  // app opens.
+  await page.waitForURL('**/complete-profile');
+  await page.getByPlaceholder('…або впишіть нову назву').fill(`E2E Студія ${s}`);
+  await page.getByRole('button', { name: 'Додати', exact: true }).click();
+  await page.getByRole('button', { name: 'Додати нового' }).click();
+  await page.getByPlaceholder('Імʼя').fill('Ментор');
+  await page.getByPlaceholder('Прізвище').fill(`Тренер${s}`);
+  await page.getByPlaceholder('Телефон').fill(`+38066${s.slice(-7)}`);
+  await page.getByRole('button', { name: 'Зберегти та продовжити' }).click();
   await page.waitForURL('**/profile');
 
   const token = await page.evaluate((key) => {

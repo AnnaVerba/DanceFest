@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { getCompetition } from '../lib/competitions';
+import { getApplyEligibility, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { getNominations } from '../lib/nominations';
 import type { Nomination, NominationAgeCategory } from '../lib/nominations';
@@ -528,6 +528,26 @@ export default function ApplyPage() {
     return (
       <main className={styles.main}>
         <div className={styles.card}>Завантаження...</div>
+      </main>
+    );
+  }
+
+  // Registration closed → only organizers/admins may still add entries here.
+  // Competition over → no one.
+  const applyEligibility = getApplyEligibility(competition, {
+    isOrganizer: !!session && meetsLevel(session.profile.accessLevel, ACCESS_LEVEL.ORGANIZER),
+  });
+  if (!applyEligibility.allowed) {
+    return (
+      <main className={styles.main}>
+        <div className={styles.card}>
+          <p className={styles.eyebrow}>Заявка на конкурс</p>
+          <h1>{competition.name}</h1>
+          <p className={styles.error}>{applyEligibility.reason}</p>
+          <Link to={`/competitions/${id}`} className={styles.home}>
+            ← До конкурсу
+          </Link>
+        </div>
       </main>
     );
   }

@@ -12,6 +12,8 @@ import {
   SESSION_EXPIRED_MESSAGE,
   OTP_VERIFY_FAILED_MESSAGE,
   OTP_RESEND_FAILED_MESSAGE,
+  DEVICE_ID_STORAGE_KEY,
+  DEVICE_ID_HEADER,
 } from './auth.constants';
 import { HTTP_STATUS_UNAUTHORIZED } from './api.constants';
 
@@ -80,6 +82,18 @@ function toSession(raw: RawAuthResponse): Session {
   };
 }
 
+// A stable per-browser id, generated once and kept in localStorage. The
+// backend stores it on the session and rejects a refresh whose device id
+// no longer matches.
+function getDeviceId(): string {
+  let id = localStorage.getItem(DEVICE_ID_STORAGE_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(DEVICE_ID_STORAGE_KEY, id);
+  }
+  return id;
+}
+
 async function postAuth(
   path: string,
   body: unknown,
@@ -89,7 +103,10 @@ async function postAuth(
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        [DEVICE_ID_HEADER]: getDeviceId(),
+      },
       body: JSON.stringify(body),
     });
   } catch {
@@ -211,8 +228,14 @@ export interface MentorCoach {
   confirmed: boolean;
 }
 
-export async function getSelectableCoaches(): Promise<CoachSummary[]> {
-  const response = await authorizedFetch('/users/coaches');
+// Typeahead: [] until the caller sends 2+ letters.
+export async function getSelectableCoaches(
+  q: string,
+): Promise<CoachSummary[]> {
+  if (q.trim().length < 2) return [];
+  const response = await authorizedFetch(
+    `/users/coaches?q=${encodeURIComponent(q.trim())}`,
+  );
   if (!response.ok) {
     throw new AuthError(UNEXPECTED_SERVER_RESPONSE_MESSAGE);
   }
@@ -312,7 +335,10 @@ export async function refreshSession(): Promise<Session> {
   try {
     response = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        [DEVICE_ID_HEADER]: getDeviceId(),
+      },
       body: JSON.stringify({ refreshToken }),
     });
   } catch {

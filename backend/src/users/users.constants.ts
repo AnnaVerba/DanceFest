@@ -14,3 +14,4 @@ export const ONLY_COACH_SELF_UPGRADE_MESSAGE =
 export const MENTOR_COACH_NOT_FOUND_MESSAGE = 'Вказаного тренера не знайдено';
 export const MENTOR_COACH_ONE_OF_MESSAGE =
   'Вкажіть або наявного тренера, або дані нового — але не обидва';
+export const MENTOR_COACH_REQUIRED_MESSAGE = 'Вкажіть тренера';

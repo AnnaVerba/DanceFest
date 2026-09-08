@@ -4,6 +4,8 @@ export const ROUTES = {
   LOGIN: '/login',
   REGISTER: '/register',
   DASHBOARD: '/dashboard',
+  PROFILE: '/profile',
+  COMPLETE_PROFILE: '/complete-profile',
   NEW_COMPETITION: '/competitions/new',
   CATEGORY_TEMPLATES: '/category-templates',
   CATEGORY_TEMPLATE_NEW: '/category-templates/new',
