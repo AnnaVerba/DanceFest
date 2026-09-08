@@ -37,10 +37,14 @@ import {
   FORK_NAME_MUST_DIFFER_MESSAGE,
   UNKNOWN_CATEGORIES_MESSAGE_PREFIX,
 } from './category-templates.constants';
+import { resolvePage } from '../common/pagination';
 
 const AUTHOR_INCLUDE = [
   { model: User, as: 'author', attributes: ['id', 'firstName', 'lastName'] },
 ];
+
+const DEFAULT_TEMPLATES_PAGE_SIZE = 20;
+const MAX_TEMPLATES_PAGE_SIZE = 100;
 
 @Injectable()
 export class CategoryTemplatesService {
@@ -54,21 +58,39 @@ export class CategoryTemplatesService {
     private readonly categoriesService: CategoriesService,
   ) {}
 
-  async list(requesterId: string, search?: string) {
+  async list(
+    requesterId: string,
+    search?: string,
+    rawPage?: string,
+    rawPageSize?: string,
+  ) {
     const visible = {
       [Op.or]: [{ isPublic: true }, { authorId: requesterId }],
     };
     const trimmed = search?.trim();
+    const { page, pageSize, limit, offset } = resolvePage(
+      rawPage,
+      rawPageSize,
+      DEFAULT_TEMPLATES_PAGE_SIZE,
+      MAX_TEMPLATES_PAGE_SIZE,
+    );
 
-    const templates = await this.templateModel.findAll({
-      where: trimmed
-        ? { [Op.and]: [visible, { name: { [Op.iLike]: `%${trimmed}%` } }] }
-        : visible,
-      include: AUTHOR_INCLUDE,
-      order: [['createdAt', 'DESC']],
-    });
+    const { rows: templates, count } = await this.templateModel.findAndCountAll(
+      {
+        where: trimmed
+          ? { [Op.and]: [visible, { name: { [Op.iLike]: `%${trimmed}%` } }] }
+          : visible,
+        include: AUTHOR_INCLUDE,
+        order: [['createdAt', 'DESC']],
+        limit,
+        offset,
+        distinct: true,
+      },
+    );
 
-    if (templates.length === 0) return [];
+    if (templates.length === 0) {
+      return { rows: [], total: count, page, pageSize };
+    }
 
     const templateIds = templates.map((t) => t.id);
     const nominations = await this.nominationModel.findAll({
@@ -89,15 +111,20 @@ export class CategoryTemplatesService {
       byTemplate.set(nomination.templateId, bucket);
     }
 
-    return templates.map((t) => {
-      const own = byTemplate.get(t.id) ?? [];
-      return {
-        ...this.toDto(t),
-        nominationsCount: own.length,
-        criteria: this.buildCriteria(own, categories),
-        specials: this.buildSpecials(own),
-      };
-    });
+    return {
+      rows: templates.map((t) => {
+        const own = byTemplate.get(t.id) ?? [];
+        return {
+          ...this.toDto(t),
+          nominationsCount: own.length,
+          criteria: this.buildCriteria(own, categories),
+          specials: this.buildSpecials(own),
+        };
+      }),
+      total: count,
+      page,
+      pageSize,
+    };
   }
 
   async findOne(templateId: string, requesterId: string) {

@@ -7,9 +7,9 @@ export default function CompetitionPreviewRedirect() {
 
   useEffect(() => {
     let cancelled = false;
-    getCompetitions()
+    getCompetitions({ pageSize: 1 })
       .then((data) => {
-        if (!cancelled) setTargetId(data[0]?.id ?? null);
+        if (!cancelled) setTargetId(data.rows[0]?.id ?? null);
       })
       .catch(() => {
         if (!cancelled) setTargetId(null);

@@ -174,3 +174,16 @@
   font-size: 13px;
   color: var(--g-muted);
 }
+
+.applyDisabled {
+  background: var(--border, #d0d5dd);
+  color: var(--text-muted, #667085);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.applyNote {
+  margin: 4px 0 0;
+  color: #b42318;
+  font-size: 13.5px;
+}

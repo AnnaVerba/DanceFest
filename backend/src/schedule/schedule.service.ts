@@ -207,9 +207,11 @@ export class ScheduleService {
     competitionId: string,
     items: SectionItem[],
   ): Promise<ParticipantNumbersByEntry> {
-    const lookup = await this.participantNumbersService.loadLookup([
-      competitionId,
-    ]);
+    const personIds = items.flatMap((i) => i.entry?.participantIds ?? []);
+    const lookup = await this.participantNumbersService.loadLookup(
+      [competitionId],
+      personIds,
+    );
     const byEntry: ParticipantNumbersByEntry = new Map();
     for (const item of items) {
       const entry = item.entry;

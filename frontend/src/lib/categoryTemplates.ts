@@ -99,8 +99,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as unknown as T;
 }
 
-export function getCategoryTemplates(): Promise<CategoryTemplate[]> {
-  return request<CategoryTemplate[]>('/category-templates');
+export interface PagedCategoryTemplates {
+  rows: CategoryTemplate[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export function getCategoryTemplates(
+  query: { page?: number; pageSize?: number; search?: string } = {},
+): Promise<PagedCategoryTemplates> {
+  const params = new URLSearchParams();
+  if (query.page != null) params.set('page', String(query.page));
+  if (query.pageSize != null) params.set('pageSize', String(query.pageSize));
+  if (query.search?.trim()) params.set('search', query.search.trim());
+  const suffix = params.toString() ? `?${params}` : '';
+  return request<PagedCategoryTemplates>(`/category-templates${suffix}`);
 }
 
 export function getCategoryTemplate(id: string): Promise<CategoryTemplateDetail> {

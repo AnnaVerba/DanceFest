@@ -1,0 +1,74 @@
+.wrap {
+  display: grid;
+  gap: 10px;
+}
+.toggle {
+  display: flex;
+  gap: 8px;
+}
+.toggleOn,
+.toggleOff {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font: inherit;
+  cursor: pointer;
+}
+.toggleOn {
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+.toggleOff {
+  border: 1px solid var(--border, #d0d5dd);
+  background: transparent;
+  color: inherit;
+}
+.combo {
+  position: relative;
+}
+.newForm {
+  display: grid;
+  gap: 8px;
+}
+.input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #d0d5dd);
+  border-radius: 8px;
+  font: inherit;
+}
+.comboList {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 4px;
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--g-surface, #fff);
+  border: 1px solid var(--border, #d0d5dd);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.12);
+}
+.comboItem {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.comboItem:hover {
+  background: var(--g-field, #f2f4f7);
+}
+.comboEmpty {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--g-muted, #667085);
+}

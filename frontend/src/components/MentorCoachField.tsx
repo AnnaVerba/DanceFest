@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   getMyMentorCoach,
   getSelectableCoaches,
@@ -12,8 +12,6 @@ import type {
 import styles from './MentorCoachField.module.css';
 
 type Mode = 'view' | 'pick' | 'new';
-
-const MAX_SUGGESTIONS = 8;
 
 function coachLabel(c: CoachSummary): string {
   const name = `${c.lastName} ${c.firstName}`.trim();
@@ -41,18 +39,20 @@ export default function MentorCoachField() {
 
   useEffect(() => {
     loadMentor();
-    getSelectableCoaches()
-      .then(setCoaches)
-      .catch(() => setCoaches([]));
   }, []);
 
-  const suggestions = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return coaches
-      .filter((c) => coachLabel(c).toLowerCase().includes(q))
-      .slice(0, MAX_SUGGESTIONS);
-  }, [coaches, query]);
+  // Server typeahead — search as the user types past 2 letters.
+  useEffect(() => {
+    if (pickId) return;
+    const t = setTimeout(() => {
+      getSelectableCoaches(query)
+        .then(setCoaches)
+        .catch(() => setCoaches([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [query, pickId]);
+
+  const suggestions = coaches;
 
   const save = async (body: SetMentorCoachBody) => {
     setBusy(true);

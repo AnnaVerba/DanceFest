@@ -12,7 +12,11 @@ import ScheduleSettings from '../components/admin/schedule/ScheduleSettings';
 import { ToastStack } from '../components/admin/Toast';
 import { useToasts } from '../components/admin/useToasts';
 import { getStoredAdmin, getToken } from '../lib/auth';
-import { deleteCompetition, getCompetition } from '../lib/competitions';
+import {
+  deleteCompetition,
+  getApplyEligibility,
+  getCompetition,
+} from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { FEATURES } from '../lib/features';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
@@ -167,6 +171,11 @@ export default function CompetitionDetailPage() {
                   competitionId={id}
                   canManage={canManageEntries}
                   onError={(message) => showToast(message)}
+                  applyBlockedReason={
+                    getApplyEligibility(competition, {
+                      isOrganizer: canManageEntries,
+                    }).reason
+                  }
                 />
               )}
 

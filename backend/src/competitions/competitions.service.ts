@@ -4,7 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { CreationAttributes } from 'sequelize';
+import { CreationAttributes, Op } from 'sequelize';
+import { PagedResult, resolvePage } from '../common/pagination';
 import { Competition } from './competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { User } from '../users/user.model';
@@ -23,6 +24,18 @@ const OWNER_INCLUDE = [
   { model: PaymentDetails, as: 'paymentDetails' },
 ];
 
+const DEFAULT_COMPETITIONS_PAGE_SIZE = 24;
+const MAX_COMPETITIONS_PAGE_SIZE = 100;
+// Sanity ceiling for the year-list scan.
+const MAX_COMPETITIONS_SCAN = 5000;
+
+export interface CompetitionListQuery {
+  page?: string;
+  pageSize?: string;
+  q?: string;
+  year?: string;
+}
+
 @Injectable()
 export class CompetitionsService {
   constructor(
@@ -34,8 +47,43 @@ export class CompetitionsService {
     private readonly competitionRuleModel: typeof CompetitionRule,
   ) {}
 
-  findAll(): Promise<Competition[]> {
-    return this.competitionModel.findAll({ include: OWNER_INCLUDE });
+  async findAll(
+    query: CompetitionListQuery = {},
+  ): Promise<PagedResult<Competition>> {
+    const { page, pageSize, limit, offset } = resolvePage(
+      query.page,
+      query.pageSize,
+      DEFAULT_COMPETITIONS_PAGE_SIZE,
+      MAX_COMPETITIONS_PAGE_SIZE,
+    );
+    const where: Record<string, unknown> = {};
+    const q = query.q?.trim();
+    if (q) where.name = { [Op.iLike]: `%${q}%` };
+    if (query.year && /^\d{4}$/.test(query.year)) {
+      where.dateFrom = {
+        [Op.between]: [`${query.year}-01-01`, `${query.year}-12-31`],
+      };
+    }
+    const { rows, count } = await this.competitionModel.findAndCountAll({
+      where,
+      include: OWNER_INCLUDE,
+      order: [['dateFrom', 'DESC']],
+      limit,
+      offset,
+      distinct: true,
+    });
+    return { rows, total: count, page, pageSize };
+  }
+
+  // Distinct years for the list's year filter.
+  async listYears(): Promise<number[]> {
+    const rows = await this.competitionModel.findAll({
+      attributes: ['dateFrom'],
+      limit: MAX_COMPETITIONS_SCAN,
+    });
+    const years = new Set<number>();
+    for (const r of rows) years.add(new Date(r.dateFrom).getFullYear());
+    return [...years].sort((a, b) => b - a);
   }
 
   async findOne(id: string): Promise<Competition> {

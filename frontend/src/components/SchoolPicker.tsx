@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { createSchool, getSchools } from '../lib/schools';
+import { createSchool, getSchool, searchSchools } from '../lib/schools';
 import type { School } from '../lib/schools';
 import styles from './SchoolPicker.module.css';
 
@@ -8,30 +8,54 @@ interface SchoolPickerProps {
   onChange: (schoolId: string) => void;
 }
 
-// Resolves to an existing school id, or creates one from a typed name and
-// then reports its id. The parent only ever receives a real school id.
+// Typeahead over schools: type a couple of letters, pick a match, or type
+// a new name and create it. The parent only ever receives a real id.
 export default function SchoolPicker({ value, onChange }: SchoolPickerProps) {
-  const [schools, setSchools] = useState<School[]>([]);
-  const [newName, setNewName] = useState('');
+  const [selected, setSelected] = useState<School | null>(null);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<School[]>([]);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Resolve the incoming id to a name for display.
   useEffect(() => {
-    getSchools()
-      .then(setSchools)
-      .catch(() => setSchools([]));
-  }, []);
+    let cancelled = false;
+    void (async () => {
+      if (!value) {
+        if (!cancelled) setSelected(null);
+        return;
+      }
+      try {
+        const s = await getSchool(value);
+        if (!cancelled) setSelected(s);
+      } catch {
+        if (!cancelled) setSelected(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [value]);
+
+  useEffect(() => {
+    if (selected) return;
+    const t = setTimeout(() => {
+      searchSchools(query)
+        .then(setResults)
+        .catch(() => setResults([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [query, selected]);
 
   const handleCreate = async () => {
-    const name = newName.trim();
+    const name = query.trim();
     if (!name) return;
     setCreating(true);
     setError(null);
     try {
       const school = await createSchool(name);
-      setSchools((prev) => [...prev, school]);
       onChange(school.id);
-      setNewName('');
+      setQuery('');
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Не вдалося створити школу.',
@@ -44,35 +68,53 @@ export default function SchoolPicker({ value, onChange }: SchoolPickerProps) {
   return (
     <div className={styles.wrap}>
       <label className={styles.label}>Школа / студія</label>
-      <select
-        className={styles.select}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        <option value="">Оберіть школу…</option>
-        {schools.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.name}
-          </option>
-        ))}
-      </select>
-      {!value && (
+
+      {selected ? (
         <div className={styles.createRow}>
-          <input
-            className={styles.input}
-            placeholder="…або впишіть нову назву"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-          />
+          <span className={styles.select}>{selected.name}</span>
           <button
             type="button"
             className={styles.createBtn}
-            disabled={creating || !newName.trim()}
-            onClick={handleCreate}
+            onClick={() => onChange('')}
           >
-            {creating ? '…' : 'Додати'}
+            Змінити
           </button>
         </div>
+      ) : (
+        <>
+          <div className={styles.createRow}>
+            <input
+              className={styles.select}
+              placeholder="…або впишіть нову назву"
+              autoComplete="off"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <button
+              type="button"
+              className={styles.createBtn}
+              disabled={creating || query.trim().length < 2}
+              onClick={handleCreate}
+            >
+              {creating ? '…' : 'Додати'}
+            </button>
+          </div>
+          {query.trim().length >= 2 && results.length > 0 && (
+            <ul className={styles.comboList}>
+              {results.map((s) => (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    className={styles.comboItem}
+                    onClick={() => onChange(s.id)}
+                  >
+                    {s.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
       {error && <p className={styles.error}>{error}</p>}
     </div>
