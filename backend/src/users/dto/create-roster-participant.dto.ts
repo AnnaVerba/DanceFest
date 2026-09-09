@@ -12,6 +12,9 @@ import {
   MIN_PASSWORD_LENGTH,
   LEAGUE_NOT_ALLOWED_ON_REGISTER_MESSAGE,
 } from '../../auth/auth.constants';
+import { IsE164Phone } from '../../common/validation/is-e164-phone.validator';
+import { IsValidBirthDate } from '../../common/validation/is-valid-birth-date.validator';
+import { NormalizeEmail } from '../../common/validation/normalize-email.transform';
 
 export class CreateRosterParticipantDto {
   @ApiProperty({ example: 'Іван' })
@@ -23,15 +26,17 @@ export class CreateRosterParticipantDto {
   lastName: string;
 
   @ApiProperty({ example: '+380501234567' })
-  @IsNotEmpty()
+  @IsE164Phone()
   phone: string;
 
   @ApiProperty({ example: '2010-05-20' })
   @IsDateString()
+  @IsValidBirthDate()
   birthDate: string;
 
   @ApiProperty({ example: 'participant@example.com', required: false })
   @IsOptional()
+  @NormalizeEmail()
   @IsEmail()
   email?: string;
 

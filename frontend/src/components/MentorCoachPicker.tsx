@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getSelectableCoaches } from '../lib/auth';
 import type { CoachSummary, SetMentorCoachBody } from '../lib/auth';
+import { isValidPhone } from '../lib/validation';
+import { PHONE_INVALID_MESSAGE } from '../lib/validation.constants';
 import styles from './MentorCoachPicker.module.css';
 
 interface MentorCoachPickerProps {
@@ -28,6 +30,7 @@ export default function MentorCoachPicker({ onChange }: MentorCoachPickerProps) 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
+  const [phoneError, setPhoneError] = useState(false);
 
   useEffect(() => {
     if (mode !== 'pick' || picked || query.trim().length < MIN_QUERY_CHARS) {
@@ -49,6 +52,7 @@ export default function MentorCoachPicker({ onChange }: MentorCoachPickerProps) 
     setFirstName('');
     setLastName('');
     setPhone('');
+    setPhoneError(false);
     onChange(null);
   };
 
@@ -82,8 +86,13 @@ export default function MentorCoachPicker({ onChange }: MentorCoachPickerProps) 
     const trimmedFirst = draft.firstName.trim();
     const trimmedLast = draft.lastName.trim();
     const trimmedPhone = draft.phone.trim();
+    const complete =
+      Boolean(trimmedFirst) &&
+      Boolean(trimmedLast) &&
+      isValidPhone(trimmedPhone);
+    setPhoneError(trimmedPhone !== '' && !isValidPhone(trimmedPhone));
     onChange(
-      trimmedFirst && trimmedLast && trimmedPhone
+      complete
         ? {
             newCoach: {
               firstName: trimmedFirst,
@@ -163,6 +172,7 @@ export default function MentorCoachPicker({ onChange }: MentorCoachPickerProps) 
             value={phone}
             onChange={(event) => editNewCoach('phone', event.target.value)}
           />
+          {phoneError && <p className={styles.error}>{PHONE_INVALID_MESSAGE}</p>}
         </div>
       )}
     </div>

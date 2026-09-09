@@ -10,6 +10,9 @@ import {
 } from 'class-validator';
 import { MIN_PASSWORD_LENGTH } from '../auth.constants';
 import { AccessLevel } from '../access-level.enum';
+import { IsE164Phone } from '../../common/validation/is-e164-phone.validator';
+import { IsValidBirthDate } from '../../common/validation/is-valid-birth-date.validator';
+import { NormalizeEmail } from '../../common/validation/normalize-email.transform';
 
 const REGISTRABLE_ROLES = [AccessLevel.PARTICIPANT, AccessLevel.COACH];
 
@@ -26,10 +29,11 @@ export class RegisterDto {
   lastName: string;
 
   @ApiProperty({ example: '+380501234567' })
-  @IsNotEmpty()
+  @IsE164Phone()
   phone: string;
 
   @ApiProperty({ example: 'user@example.com' })
+  @NormalizeEmail()
   @IsEmail()
   email: string;
 
@@ -39,6 +43,7 @@ export class RegisterDto {
 
   @ApiProperty({ example: '2010-05-20' })
   @IsDateString()
+  @IsValidBirthDate()
   birthDate: string;
 
   @ApiProperty({ enum: REGISTRABLE_ROLES, example: AccessLevel.PARTICIPANT })
