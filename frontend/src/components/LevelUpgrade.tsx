@@ -10,7 +10,7 @@ interface LevelUpgradeProps {
   session: Session;
 }
 
-type Mode = 'idle' | 'coach' | 'organizer';
+type Mode = 'idle' | 'coach';
 
 export default function LevelUpgrade({ session }: LevelUpgradeProps) {
   const { accessLevel } = session.profile;
@@ -53,26 +53,15 @@ export default function LevelUpgrade({ session }: LevelUpgradeProps) {
 
       {error && <p className={styles.error}>{error}</p>}
 
-      {mode === 'idle' && (
+      {mode === 'idle' && canBeCoach && (
         <div className={styles.actions}>
-          {canBeCoach && (
-            <button
-              type="button"
-              className={styles.primary}
-              onClick={() => setMode('coach')}
-            >
-              Стати тренером
-            </button>
-          )}
-          {canRequestOrganizer && (
-            <button
-              type="button"
-              className={styles.ghost}
-              onClick={() => setMode('organizer')}
-            >
-              Стати організатором
-            </button>
-          )}
+          <button
+            type="button"
+            className={styles.primary}
+            onClick={() => setMode('coach')}
+          >
+            Стати тренером
+          </button>
         </div>
       )}
 
@@ -104,16 +93,9 @@ export default function LevelUpgrade({ session }: LevelUpgradeProps) {
         </div>
       )}
 
-      {mode === 'organizer' && (
+      {mode === 'idle' && canRequestOrganizer && (
         <div className={styles.coachForm}>
           <OrganizerRequestForm />
-          <button
-            type="button"
-            className={styles.ghost}
-            onClick={() => setMode('idle')}
-          >
-            Назад
-          </button>
         </div>
       )}
     </section>
