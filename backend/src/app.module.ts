@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { BullModule } from '@nestjs/bullmq';
-import { ScheduleModule } from '@nestjs/schedule';
 import { CompetitionsModule } from './competitions/competitions.module';
 import { AuthModule } from './auth/auth.module';
 import { TeamModule } from './team/team.module';
@@ -16,6 +15,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { CategoryTemplatesModule } from './category-templates/category-templates.module';
 import { PaymentDetailsModule } from './payment-details/payment-details.module';
 import { CompetitionRulesModule } from './competition-rules/competition-rules.module';
+import { ScheduleModule as NestScheduleModule } from '@nestjs/schedule';
 import { ScheduleModule } from './schedule/schedule.module';
 import { MailModule } from './mail/mail.module';
 import { SmsModule } from './sms/sms.module';
@@ -31,7 +31,7 @@ import { AppBootstrapModule } from './app-bootstrap/app-bootstrap.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    ScheduleModule.forRoot(),
+    NestScheduleModule.forRoot(),
     MailModule,
     SmsModule,
     SequelizeModule.forRootAsync({
@@ -53,8 +53,11 @@ import { AppBootstrapModule } from './app-bootstrap/app-bootstrap.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         connection: {
-          host: config.get<string>('REDIS_HOST'),
-          port: config.get<number>('REDIS_PORT'),
+          // IPv4 literal, not "localhost": Node resolves "localhost" to ::1
+          // first, while a Docker-published port binds IPv4 only, so a bare
+          // "localhost" here fails with ECONNREFUSED ::1.
+          host: config.get<string>('REDIS_HOST') || '127.0.0.1',
+          port: Number(config.get<string>('REDIS_PORT')) || 6380,
         },
       }),
     }),
