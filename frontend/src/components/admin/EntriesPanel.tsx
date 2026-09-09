@@ -12,6 +12,7 @@ import {
   SORT_LABELS,
 } from './EntriesPanel.constants';
 import type { SortKey } from './EntriesPanel.constants';
+import { FEATURES } from '../../lib/features';
 import styles from './EntriesPanel.module.css';
 
 interface EntriesPanelProps {
@@ -253,11 +254,13 @@ export default function EntriesPanel({
           value={sort}
           onChange={(e) => setSort(e.target.value as SortKey)}
         >
-          {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
-            <option key={key} value={key}>
-              {SORT_LABELS[key]}
-            </option>
-          ))}
+          {(Object.keys(SORT_LABELS) as SortKey[])
+            .filter((key) => FEATURES.judges || key !== 'score')
+            .map((key) => (
+              <option key={key} value={key}>
+                {SORT_LABELS[key]}
+              </option>
+            ))}
         </select>
       </div>
 
@@ -283,7 +286,7 @@ export default function EntriesPanel({
                   <th scope="col">К-сть уч.</th>
                   <th scope="col">Студія</th>
                   <th scope="col">Хореограф</th>
-                  <th scope="col">Бал</th>
+                  {FEATURES.judges && <th scope="col">Бал</th>}
                   {canManage && (
                     <th scope="col" className={styles.colActions}>
                       <span hidden>Дії</span>
@@ -296,9 +299,10 @@ export default function EntriesPanel({
                   <tr>
                     <td
                       colSpan={
-                        canManage
-                          ? BASE_COLUMN_COUNT + ACTIONS_COLUMN_COUNT
-                          : BASE_COLUMN_COUNT
+                        (FEATURES.judges
+                          ? BASE_COLUMN_COUNT
+                          : BASE_COLUMN_COUNT - 1) +
+                        (canManage ? ACTIONS_COLUMN_COUNT : 0)
                       }
                       className={styles.noMatches}
                     >
@@ -318,15 +322,17 @@ export default function EntriesPanel({
                     <td>{entry.participantsCount ?? ''}</td>
                     <td>{entry.studioName}</td>
                     <td>{entry.choreographer}</td>
-                    <td
-                      className={
-                        entry.score === null
-                          ? `${styles.score} ${styles.scoreEmpty}`
-                          : styles.score
-                      }
-                    >
-                      {formatScore(entry.score)}
-                    </td>
+                    {FEATURES.judges && (
+                      <td
+                        className={
+                          entry.score === null
+                            ? `${styles.score} ${styles.scoreEmpty}`
+                            : styles.score
+                        }
+                      >
+                        {formatScore(entry.score)}
+                      </td>
+                    )}
                     {canManage && (
                       <td className={styles.colActions}>
                         <button

@@ -565,9 +565,14 @@ export default function ApplyPage() {
           <p className={styles.eyebrow}>Заявка на конкурс</p>
           <h1>{competition.name}</h1>
           <p className={styles.error}>{applyEligibility.reason}</p>
-          <Link to={`/competitions/${id}`} className={styles.home}>
-            ← До конкурсу
-          </Link>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+            <Link to={MY_ENTRIES_PATH} className={styles.home}>
+              Переглянути подані заявки →
+            </Link>
+            <Link to={`/competitions/${id}`} className={styles.home}>
+              ← До конкурсу
+            </Link>
+          </div>
         </div>
       </main>
     );
