@@ -35,6 +35,21 @@ import {
 
 export const DEFAULT_DURATION_LIMIT_SECONDS = 180;
 
+// Keep only "league name -> positive whole number of seconds" pairs; the DTO
+// only guarantees the value is an object.
+function sanitizeLeagueLimits(
+  raw: Record<string, unknown>,
+): Record<string, number> {
+  const clean: Record<string, number> = {};
+  for (const [league, value] of Object.entries(raw)) {
+    const seconds = Number(value);
+    if (Number.isInteger(seconds) && seconds > 0) {
+      clean[league.trim()] = seconds;
+    }
+  }
+  return clean;
+}
+
 const AXIS_PRIORITY: CategoryType[] = [
   'level',
   'age',
@@ -78,6 +93,9 @@ export class CompetitionRulesService {
   ): Promise<CompetitionRule> {
     await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
     const rules = await this.getRules(competitionId);
+    if (dto.leagueLimits !== undefined) {
+      dto.leagueLimits = sanitizeLeagueLimits(dto.leagueLimits);
+    }
     return rules.update(dto);
   }
 

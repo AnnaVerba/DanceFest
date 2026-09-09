@@ -93,8 +93,24 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as unknown as T;
 }
 
-export function getEntries(competitionId: string): Promise<Entry[]> {
-  return request<Entry[]>(`/competitions/${competitionId}/entries`);
+export interface PagedEntries {
+  rows: Entry[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export function getEntries(
+  competitionId: string,
+  query: { page?: number; pageSize?: number } = {},
+): Promise<PagedEntries> {
+  const params = new URLSearchParams();
+  if (query.page != null) params.set('page', String(query.page));
+  if (query.pageSize != null) params.set('pageSize', String(query.pageSize));
+  const suffix = params.toString() ? `?${params}` : '';
+  return request<PagedEntries>(
+    `/competitions/${competitionId}/entries${suffix}`,
+  );
 }
 
 export interface MyEntry extends Entry {

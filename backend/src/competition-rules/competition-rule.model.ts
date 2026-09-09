@@ -27,6 +27,13 @@ export class CompetitionRule extends Model<CompetitionRule> {
   @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 20 })
   declare pauseSeconds: number;
 
+  // Per-league on-stage limit in seconds, keyed by the league name as it
+  // appears on an entry: { "Дебют": 90, "Профі": 150 }. The simple knob the
+  // schedule settings expose; duration_limits stay as the fine-grained
+  // per-nomination / per-axis override.
+  @Column({ type: DataType.JSONB, allowNull: false, defaultValue: {} })
+  declare leagueLimits: Record<string, number>;
+
   @Column({
     type: DataType.ENUM(...TIME_SOURCES),
     allowNull: false,

@@ -31,8 +31,11 @@ export default function CategoryTemplatesPage() {
   const admin = getStoredAdmin();
 
   const [templates, setTemplates] = useState<CategoryTemplate[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [scope, setScope] = useState<Scope>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [nominationsById, setNominationsById] = useState<
@@ -41,26 +44,44 @@ export default function CategoryTemplatesPage() {
   const [pendingDelete, setPendingDelete] = useState<CategoryTemplate | null>(null);
   const { toasts, showToast } = useToasts();
 
+  const TEMPLATES_PAGE_SIZE = 20;
+
   const loadTemplates = () => {
-    getCategoryTemplates()
-      .then(setTemplates)
+    getCategoryTemplates({
+      page,
+      pageSize: TEMPLATES_PAGE_SIZE,
+      search: debouncedSearch || undefined,
+    })
+      .then((data) => {
+        setTemplates(data.rows);
+        setTotal(data.total);
+      })
       .catch(() => setLoadError('Не вдалося завантажити шаблони.'));
   };
 
   useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  useEffect(() => {
     loadTemplates();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, debouncedSearch]);
+
+  const templatesPageCount = Math.max(
+    1,
+    Math.ceil(total / TEMPLATES_PAGE_SIZE),
+  );
 
   const filtered = useMemo(() => {
     const list = templates ?? [];
-    const q = search.trim().toLowerCase();
     return list.filter((t) => {
       if (scope === 'public' && !t.isPublic) return false;
       if (scope === 'mine' && t.author?.id !== admin?.id) return false;
-      if (q && !(t.name + ' ' + (t.description ?? '')).toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [templates, search, scope, admin?.id]);
+  }, [templates, scope, admin?.id]);
 
   const toggleExpanded = async (template: CategoryTemplate) => {
     if (expandedId === template.id) {
@@ -158,7 +179,10 @@ export default function CategoryTemplatesPage() {
               placeholder="Пошук шаблонів..."
               aria-label="Пошук шаблонів"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(0);
+              }}
             />
             <div className={styles.segmented} role="group" aria-label="Фільтр шаблонів">
               <button
@@ -278,6 +302,32 @@ export default function CategoryTemplatesPage() {
                   </article>
                 );
               })}
+            </div>
+          )}
+
+          {!loadError && templates !== null && templatesPageCount > 1 && (
+            <div className={styles.pager}>
+              <button
+                type="button"
+                className={styles.btn}
+                disabled={page <= 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                ‹ Попередні
+              </button>
+              <span>
+                Сторінка {page + 1} з {templatesPageCount}
+              </span>
+              <button
+                type="button"
+                className={styles.btn}
+                disabled={page >= templatesPageCount - 1}
+                onClick={() =>
+                  setPage((p) => Math.min(templatesPageCount - 1, p + 1))
+                }
+              >
+                Наступні ›
+              </button>
             </div>
           )}
         </div>

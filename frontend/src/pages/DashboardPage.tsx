@@ -51,9 +51,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let cancelled = false;
-    getCompetitions()
+    getCompetitions({ pageSize: 100 })
       .then((data) => {
-        if (!cancelled) setCompetitions(data);
+        if (!cancelled) setCompetitions(data.rows);
       })
       .catch(() => {
         if (!cancelled) setLoadError('Не вдалося завантажити конкурси.');

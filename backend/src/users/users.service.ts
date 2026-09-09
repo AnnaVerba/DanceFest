@@ -11,17 +11,28 @@ import { School } from '../schools/school.model';
 import { User } from './user.model';
 import { PlaceholderCoachData } from './placeholder-coach.data';
 import { MentorCoach } from './mentor-coach.interface';
+import { MentorCoachSelection } from './mentor-coach-selection.interface';
+import { CompleteProfileInput } from './complete-profile-input.interface';
+import { isProfileComplete } from './profile-completeness';
 import {
   PARTICIPANT_SEARCH_LIMIT,
   PARTICIPANT_SEARCH_MIN_CHARS,
   nameWhere,
 } from './participant-search';
+import { TYPEAHEAD_LIMIT, resolveTypeahead } from '../common/pagination';
 import {
   LEVEL_ONLY_GOES_UP_MESSAGE,
   MENTOR_COACH_NOT_FOUND_MESSAGE,
+  MENTOR_COACH_ONE_OF_MESSAGE,
+  MENTOR_COACH_REQUIRED_MESSAGE,
   ONLY_COACH_SELF_UPGRADE_MESSAGE,
+  SCHOOL_REQUIRED_FOR_COACH_MESSAGE,
   USER_NOT_FOUND_MESSAGE,
 } from './users.constants';
+
+// A coach's roster fits comfortably under this; the cap only stops an
+// unbounded scan.
+const MAX_ROSTER = 1000;
 
 export interface CreateUserData {
   firstName: string;
@@ -118,6 +129,7 @@ export class UsersService {
     schoolId: string | null;
     schoolName: string | null;
     coachId: string | null;
+    profileComplete: boolean;
   }> {
     const user = await this.findByIdOrFail(userId);
     const school = user.schoolId
@@ -134,6 +146,7 @@ export class UsersService {
       schoolId: user.schoolId,
       schoolName: school?.name ?? null,
       coachId: user.coachId,
+      profileComplete: isProfileComplete(user),
     };
   }
 
@@ -178,12 +191,54 @@ export class UsersService {
     );
   }
 
-  async setMentorCoach(userId: string, coachId: string): Promise<void> {
-    const coach = await this.findById(coachId);
-    if (!coach) {
-      throw new NotFoundException(MENTOR_COACH_NOT_FOUND_MESSAGE);
+  // Turn a "pick existing / describe new" choice into a concrete coach id,
+  // creating a placeholder row for a named new coach. Does not persist the
+  // link — the caller decides when and alongside what.
+  async resolveMentorCoachId(selection: MentorCoachSelection): Promise<string> {
+    const hasExisting = Boolean(selection.coachId);
+    const hasNew = Boolean(selection.newCoach);
+    if (hasExisting === hasNew) {
+      throw new BadRequestException(
+        hasExisting
+          ? MENTOR_COACH_ONE_OF_MESSAGE
+          : MENTOR_COACH_REQUIRED_MESSAGE,
+      );
     }
-    await this.userModel.update({ coachId }, { where: { id: userId } });
+    if (selection.coachId) {
+      const coach = await this.findById(selection.coachId);
+      if (!coach) {
+        throw new NotFoundException(MENTOR_COACH_NOT_FOUND_MESSAGE);
+      }
+      return selection.coachId;
+    }
+    const created = await this.createPlaceholderCoach(selection.newCoach!);
+    return created.id;
+  }
+
+  // Fill in the fields a user must have before using the app: a mentor
+  // coach for everyone, plus the school for a coach.
+  async completeProfile(
+    userId: string,
+    accessLevel: AccessLevel,
+    input: CompleteProfileInput,
+  ): Promise<{ schoolId: string | null; coachId: string }> {
+    const requiresSchool = accessLevel === AccessLevel.COACH;
+    if (requiresSchool && !input.schoolId) {
+      throw new BadRequestException(SCHOOL_REQUIRED_FOR_COACH_MESSAGE);
+    }
+    if (requiresSchool) {
+      await this.schoolsService.findByIdOrFail(input.schoolId!);
+    }
+    const coachId = await this.resolveMentorCoachId(input);
+    const fields: Partial<Pick<User, 'schoolId' | 'coachId'>> = { coachId };
+    if (requiresSchool) {
+      fields.schoolId = input.schoolId!;
+    }
+    await this.updateFields(userId, fields);
+    return {
+      schoolId: requiresSchool ? input.schoolId! : null,
+      coachId,
+    };
   }
 
   // The coach this user trains under, with contact details, or null.
@@ -210,8 +265,11 @@ export class UsersService {
   }
 
   // Coaches a user may pick as their own mentor: real (confirmed) rows at
-  // COACH level or above. Stubs are excluded.
-  listSelectableCoaches(): Promise<User[]> {
+  // COACH level or above. Typeahead — needs a couple of letters.
+  listSelectableCoaches(query?: string): Promise<User[]> {
+    const q = resolveTypeahead(query);
+    if (q === null) return Promise.resolve([]);
+    const like = { [Op.iLike]: `%${q}%` };
     return this.userModel.findAll({
       where: {
         confirmed: true,
@@ -222,18 +280,28 @@ export class UsersService {
             AccessLevel.ADMIN,
           ],
         },
+        [Op.or]: [{ firstName: like }, { lastName: like }],
       },
       include: [School],
       order: [['lastName', 'ASC']],
+      limit: TYPEAHEAD_LIMIT,
     });
   }
 
-  // Organizers a competition can be attributed to — confirmed rows at
-  // ORGANIZER level exactly (not ADMIN).
-  listSelectableOrganizers(): Promise<User[]> {
+  // Organizers a competition can be attributed to — confirmed ORGANIZER
+  // rows (not ADMIN). Typeahead.
+  listSelectableOrganizers(query?: string): Promise<User[]> {
+    const q = resolveTypeahead(query);
+    if (q === null) return Promise.resolve([]);
+    const like = { [Op.iLike]: `%${q}%` };
     return this.userModel.findAll({
-      where: { confirmed: true, accessLevel: AccessLevel.ORGANIZER },
+      where: {
+        confirmed: true,
+        accessLevel: AccessLevel.ORGANIZER,
+        [Op.or]: [{ firstName: like }, { lastName: like }],
+      },
       order: [['lastName', 'ASC']],
+      limit: TYPEAHEAD_LIMIT,
     });
   }
 
@@ -270,10 +338,23 @@ export class UsersService {
     return this.findByIdOrFail(userId);
   }
 
-  listRosterByCoach(coachUserId: string, query?: string): Promise<User[]> {
+  // The coach's whole roster — for internal use (my-entries, my-program
+  // highlighting). Sanity-capped, never truly unbounded.
+  listRosterByCoach(coachUserId: string): Promise<User[]> {
+    return this.userModel.findAll({
+      where: { coachId: coachUserId },
+      order: [['lastName', 'ASC']],
+      limit: MAX_ROSTER,
+    });
+  }
+
+  // The picker: first 10 of the roster, or the first 10 matching a typed
+  // name.
+  searchRoster(coachUserId: string, query?: string): Promise<User[]> {
     return this.userModel.findAll({
       where: { coachId: coachUserId, ...nameWhere(query) },
       order: [['lastName', 'ASC']],
+      limit: TYPEAHEAD_LIMIT,
     });
   }
 

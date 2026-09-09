@@ -11,6 +11,10 @@ import type { CategoryType } from './category.model';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CATEGORY_NOT_FOUND_MESSAGE } from './categories.constants';
 
+// Reference data (age categories, leagues, styles) is a small curated set;
+// the cap only stops an unbounded scan.
+const MAX_CATEGORIES = 1000;
+
 export const DEFAULT_CATEGORY_SORT_ORDER = 0;
 
 @Injectable()
@@ -34,6 +38,7 @@ export class CategoriesService {
         ['sortOrder', 'ASC'],
         ['name', 'ASC'],
       ],
+      limit: MAX_CATEGORIES,
     });
     return categories.map((c) => this.toDto(c));
   }

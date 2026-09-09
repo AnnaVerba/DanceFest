@@ -11,6 +11,7 @@ import {
   SCHOOL_ALREADY_EXISTS_MESSAGE,
   SCHOOL_NOT_FOUND_MESSAGE,
 } from './schools.constants';
+import { TYPEAHEAD_LIMIT, resolveTypeahead } from '../common/pagination';
 
 @Injectable()
 export class SchoolsService {
@@ -19,8 +20,16 @@ export class SchoolsService {
     private readonly schoolModel: typeof School,
   ) {}
 
-  findAll(): Promise<School[]> {
-    return this.schoolModel.findAll({ order: [['name', 'ASC']] });
+  // Typeahead: the picker sends `q` once the user has typed a couple of
+  // letters; before that it gets nothing back.
+  search(rawQuery?: string): Promise<School[]> {
+    const q = resolveTypeahead(rawQuery);
+    if (q === null) return Promise.resolve([]);
+    return this.schoolModel.findAll({
+      where: { name: { [Op.iLike]: `%${q}%` } },
+      order: [['name', 'ASC']],
+      limit: TYPEAHEAD_LIMIT,
+    });
   }
 
   async findByIdOrFail(id: string): Promise<School> {

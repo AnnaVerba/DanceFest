@@ -1,0 +1,534 @@
+/* Palette and metrics ported from .claude/standalone.html — the "Програма"
+   screen. Slate + blue, small type, soft cards. */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: #334155;
+  font-size: 13px;
+}
+
+/* ---- top bar ---- */
+
+.topbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.kicker {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.pill {
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  background: #fff;
+  color: #475569;
+  border: 1.5px solid #e2e8f0;
+}
+
+.pillOn {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.seg {
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  background: #fff;
+  color: #475569;
+  border: 1.5px solid #e2e8f0;
+}
+
+.segLeft {
+  border-radius: 8px 0 0 8px;
+}
+
+.segRight {
+  border-radius: 0 8px 8px 0;
+  margin-left: -1px;
+}
+
+.segOn {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+  z-index: 1;
+}
+
+.primaryBtn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.primaryBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.darkBtn {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #334155;
+  color: #fff;
+  font-weight: 600;
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.ghostBtn {
+  padding: 7px 13px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.ghostBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---- edit panel ---- */
+
+.editPanel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.fieldRow {
+  display: flex;
+  gap: 20px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 5px;
+}
+
+.numInput {
+  width: 90px;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #fff;
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 5px 9px;
+}
+
+.chipName {
+  font-size: 12.5px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.chipInput {
+  width: 68px;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-family: inherit;
+  background: #f8fafc;
+}
+
+.divider {
+  height: 1px;
+  background: #e2e8f0;
+}
+
+.select {
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-family: inherit;
+  background: #fff;
+  color: #334155;
+}
+
+.rowActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.muted {
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+/* ---- counters ---- */
+
+.counters {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.stat {
+  border-radius: 10px;
+  padding: 10px 16px;
+}
+
+.statNum {
+  font-size: 19px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.statLabel {
+  font-size: 11.5px;
+  color: #475569;
+}
+
+.statBlue {
+  background: #eff6ff;
+}
+.statPlain {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.statRed {
+  background: #fef2f2;
+}
+.statRed .statNum {
+  color: #b91c1c;
+}
+.statAmber {
+  background: #fffbeb;
+}
+.statAmber .statNum {
+  color: #b45309;
+}
+
+/* ---- filter row ---- */
+
+.filterRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search {
+  flex: 1;
+  min-width: 240px;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #fff;
+}
+
+.vrule {
+  width: 1px;
+  height: 24px;
+  background: #e2e8f0;
+}
+
+.shown {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* ---- table ---- */
+
+.tableWrap {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: auto;
+  max-height: 640px;
+}
+
+.table {
+  width: 100%;
+  min-width: 940px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f1f5f9;
+  border-bottom: 1px solid #cbd5e1;
+  text-align: left;
+  padding: 9px 10px;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+.dayRow td {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #0f172a;
+  color: #fff;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.serviceRow {
+  background: #eff6ff;
+}
+
+.serviceLabel {
+  padding: 10px;
+  font-weight: 700;
+  font-size: 13.5px;
+  color: #1d4ed8;
+  white-space: nowrap;
+  border-top: 1px solid #cbd5e1;
+}
+
+.serviceCell {
+  padding: 10px;
+  white-space: nowrap;
+  border-top: 1px solid #cbd5e1;
+}
+
+.blockRow {
+  background: #f8fafc;
+}
+
+.blockCell {
+  padding: 10px;
+  white-space: nowrap;
+  border-top: 1px solid #e2e8f0;
+}
+
+.blockF {
+  padding: 10px;
+  font-weight: 800;
+  font-size: 13px;
+  color: #0f172a;
+  border-top: 1px solid #e2e8f0;
+}
+
+.blockHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.blockTitle {
+  font-weight: 700;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.count {
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+.badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.badgeMerged {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badgeWarn {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.perfRow {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.perfRow:hover {
+  background: #f8fafc;
+}
+
+.td {
+  padding: 7px 10px;
+  color: #334155;
+  border-top: 1px solid #f1f5f9;
+}
+
+.tdNum {
+  font-weight: 600;
+}
+
+.tdName {
+  color: #0f172a;
+}
+
+.tdNote {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tdActions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.iconBtn {
+  border: none;
+  background: none;
+  color: #334155;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.iconBtnDanger {
+  color: #dc2626;
+  font-size: 12px;
+}
+
+.iconBtnBlue {
+  color: #2563eb;
+  font-size: 12px;
+}
+
+.collapseBtn {
+  border: none;
+  background: none;
+  color: #64748b;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 2px;
+  font-family: inherit;
+}
+
+.check {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 4px;
+  border: 1.5px solid #cbd5e1;
+  background: #fff;
+  cursor: pointer;
+  padding: 0;
+}
+
+.checkOn {
+  border-color: #2563eb;
+  background: #2563eb;
+}
+
+.timeInput {
+  width: 78px;
+  box-sizing: border-box;
+  padding: 5px 7px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-family: inherit;
+  background: #fff;
+}
+
+.empty {
+  padding: 24px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
+  background: #f8fafc;
+  border: 1px dashed #e2e8f0;
+  border-radius: 10px;
+}
+
+.warnLine {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12.5px;
+}
+
+/* build flow */
+
+.buildCols {
+  display: grid;
+  grid-template-columns: minmax(260px, 360px) 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .buildCols {
+    grid-template-columns: 1fr;
+  }
+}

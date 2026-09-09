@@ -26,6 +26,12 @@ export function meetsLevel(have: AccessLevel, need: AccessLevel): boolean {
   return RANK[have] >= RANK[need];
 }
 
+// Who trains under a mentor coach: participants, coaches and organizers
+// (an organizer is an upgraded coach). An admin never has one.
+export function canHaveMentorCoach(level: AccessLevel): boolean {
+  return level !== ACCESS_LEVEL.ADMIN;
+}
+
 // Levels a user can grant themselves (COACH only; ORGANIZER needs an
 // admin-approved request, ADMIN is admin-granted).
 export const SELF_UPGRADABLE_LEVELS: AccessLevel[] = [ACCESS_LEVEL.COACH];

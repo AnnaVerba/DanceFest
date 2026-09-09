@@ -78,8 +78,26 @@
   letter-spacing: -0.02em;
 }
 
-.applyButton {
+.programLink {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  padding: 0 20px;
+  border-radius: 8px;
+  border: 1px solid var(--g-accent);
+  color: var(--g-accent);
+  font-weight: 600;
+  font-size: 14.5px;
+  text-decoration: none;
+}
+
+.programLink:hover {
+  background: color-mix(in srgb, var(--g-accent) 8%, transparent);
+}
+
+.applyButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -110,6 +128,7 @@
     font-size: 21px;
   }
 
+  .programLink,
   .applyButton {
     margin-left: 0;
     width: 100%;
@@ -154,4 +173,17 @@
 .venueDesc {
   font-size: 13px;
   color: var(--g-muted);
+}
+
+.applyDisabled {
+  background: var(--border, #d0d5dd);
+  color: var(--text-muted, #667085);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.applyNote {
+  margin: 4px 0 0;
+  color: #b42318;
+  font-size: 13.5px;
 }

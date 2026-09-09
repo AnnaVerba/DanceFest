@@ -28,15 +28,13 @@ import { CreateRosterParticipantDto } from './dto/create-roster-participant.dto'
 import { UpgradeLevelDto } from './dto/upgrade-level.dto';
 import { SetLevelDto } from './dto/set-level.dto';
 import { SetMentorCoachDto } from './dto/set-mentor-coach.dto';
+import { CompleteProfileDto } from './dto/complete-profile.dto';
 import { User } from './user.model';
 import { ParticipantSummary } from './participant-summary.interface';
 import { CoachSummary } from './coach-summary.interface';
 import { OrganizerSummary } from './organizer-summary.interface';
 import { MentorCoach } from './mentor-coach.interface';
-import {
-  COACH_ID_REQUIRED_FOR_ORGANIZER_MESSAGE,
-  MENTOR_COACH_ONE_OF_MESSAGE,
-} from './users.constants';
+import { COACH_ID_REQUIRED_FOR_ORGANIZER_MESSAGE } from './users.constants';
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -66,7 +64,7 @@ export class UsersController {
   ): Promise<ParticipantSummary[]> {
     const participants =
       user.accessLevel === AccessLevel.COACH
-        ? await this.usersService.listRosterByCoach(user.id, q)
+        ? await this.usersService.searchRoster(user.id, q)
         : await this.usersService.searchParticipants(q ?? '');
     return participants.map((participant) => this.toSummary(participant));
   }
@@ -122,31 +120,44 @@ export class UsersController {
     summary: 'Set your own mentor coach (pick one or name a new one)',
   })
   @ApiResponse({ status: 200, description: 'Mentor coach set.' })
-  @MinLevel(AccessLevel.COACH)
+  @MinLevel(AccessLevel.PARTICIPANT)
   @Patch('me/coach')
   async setMyCoach(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: SetMentorCoachDto,
   ): Promise<{ coachId: string }> {
-    if (!dto.coachId === !dto.newCoach) {
-      throw new BadRequestException(MENTOR_COACH_ONE_OF_MESSAGE);
-    }
-    const coachId = dto.coachId
-      ? dto.coachId
-      : (
-          await this.usersService.createPlaceholderCoach({
-            firstName: dto.newCoach!.firstName,
-            lastName: dto.newCoach!.lastName,
-            phone: dto.newCoach!.phone,
-          })
-        ).id;
-    await this.usersService.setMentorCoach(user.id, coachId);
+    const coachId = await this.usersService.resolveMentorCoachId(dto);
+    await this.usersService.updateFields(user.id, { coachId });
     return { coachId };
+  }
+
+  @ApiOperation({
+    summary:
+      'Complete your profile (participant: coach; coach: school + coach)',
+  })
+  @ApiResponse({ status: 200, description: 'Profile completed.' })
+  @ApiResponse({ status: 400, description: 'A required field is missing.' })
+  @MinLevel(AccessLevel.PARTICIPANT)
+  @Patch('me/profile')
+  async completeMyProfile(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CompleteProfileDto,
+  ): Promise<{
+    schoolId: string | null;
+    coachId: string;
+    profileComplete: true;
+  }> {
+    const { schoolId, coachId } = await this.usersService.completeProfile(
+      user.id,
+      user.accessLevel,
+      dto,
+    );
+    return { schoolId, coachId, profileComplete: true };
   }
 
   @ApiOperation({ summary: 'Your own mentor coach, with contact details' })
   @ApiResponse({ status: 200, description: 'Mentor coach or null.' })
-  @MinLevel(AccessLevel.COACH)
+  @MinLevel(AccessLevel.PARTICIPANT)
   @Get('me/coach')
   getMyCoach(
     @CurrentUser() user: AuthenticatedUser,
@@ -156,12 +167,13 @@ export class UsersController {
 
   @ApiOperation({ summary: 'Coaches you can pick as your own mentor' })
   @ApiResponse({ status: 200, description: 'Coaches returned.' })
-  @MinLevel(AccessLevel.COACH)
+  @MinLevel(AccessLevel.PARTICIPANT)
   @Get('coaches')
   async findSelectableCoaches(
     @CurrentUser() user: AuthenticatedUser,
+    @Query('q') q?: string,
   ): Promise<CoachSummary[]> {
-    const coaches = await this.usersService.listSelectableCoaches();
+    const coaches = await this.usersService.listSelectableCoaches(q);
     return coaches
       .filter((coach) => coach.id !== user.id)
       .map((coach) => ({
@@ -176,8 +188,10 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'Organizers returned.' })
   @MinLevel(AccessLevel.ORGANIZER)
   @Get('organizers')
-  async findSelectableOrganizers(): Promise<OrganizerSummary[]> {
-    const organizers = await this.usersService.listSelectableOrganizers();
+  async findSelectableOrganizers(
+    @Query('q') q?: string,
+  ): Promise<OrganizerSummary[]> {
+    const organizers = await this.usersService.listSelectableOrganizers(q);
     return organizers.map((organizer) => ({
       id: organizer.id,
       firstName: organizer.firstName,

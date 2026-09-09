@@ -11,10 +11,20 @@ export type OrganizerRequestStatus =
   | 'REJECTED'
   | 'CANCELLED';
 
+export interface OrganizerRequestUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phone: string;
+}
+
 export interface OrganizerRequest {
   id: string;
   userId: string;
+  user?: OrganizerRequestUser | null;
   schoolId: string;
+  school?: { id: string; name: string } | null;
   note: string | null;
   status: OrganizerRequestStatus;
   reviewedByUserId: string | null;

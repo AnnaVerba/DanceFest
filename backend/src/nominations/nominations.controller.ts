@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -40,8 +41,11 @@ export class NominationsController {
     description: 'No competition exists with the given id.',
   })
   @Get()
-  listPublic(@Param('competitionId') competitionId: string) {
-    return this.nominationsService.listPublic(competitionId);
+  listPublic(
+    @Param('competitionId') competitionId: string,
+    @Query('q') q?: string,
+  ) {
+    return this.nominationsService.listPublic(competitionId, q);
   }
 
   @ApiOperation({ summary: 'Add a nomination to a competition' })

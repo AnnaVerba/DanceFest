@@ -22,6 +22,8 @@ import {
   REQUEST_NOT_PENDING_MESSAGE,
 } from './organizer-requests.constants';
 
+const MAX_ORGANIZER_REQUESTS = 2000;
+
 @Injectable()
 export class OrganizerRequestsService {
   constructor(
@@ -54,17 +56,30 @@ export class OrganizerRequestsService {
     } as CreationAttributes<OrganizerRequest>);
   }
 
+  // The list views show who applied and for which school, not raw ids.
+  private readonly listInclude = [
+    {
+      association: 'user',
+      attributes: ['id', 'firstName', 'lastName', 'email', 'phone'],
+    },
+    { association: 'school', attributes: ['id', 'name'] },
+  ];
+
   findMine(user: AuthenticatedUser): Promise<OrganizerRequest[]> {
     return this.requestModel.findAll({
       where: { userId: user.id },
+      include: this.listInclude,
       order: [['createdAt', 'DESC']],
+      limit: MAX_ORGANIZER_REQUESTS,
     });
   }
 
   findAll(status?: ApplicationStatus): Promise<OrganizerRequest[]> {
     return this.requestModel.findAll({
       where: status ? { status } : undefined,
+      include: this.listInclude,
       order: [['createdAt', 'DESC']],
+      limit: MAX_ORGANIZER_REQUESTS,
     });
   }
 

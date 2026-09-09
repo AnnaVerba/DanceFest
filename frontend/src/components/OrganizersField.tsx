@@ -6,6 +6,8 @@ interface OrganizersFieldProps {
   values: string[];
   onChange: (values: string[]) => void;
   suggestions?: string[];
+  // Fires as the user types so the parent can fetch name suggestions.
+  onQuery?: (query: string) => void;
   invalid?: boolean;
   placeholder?: string;
   ariaLabel?: string;
@@ -16,6 +18,7 @@ export default function OrganizersField({
   values,
   onChange,
   suggestions = [],
+  onQuery,
   invalid,
   placeholder,
   ariaLabel,
@@ -68,7 +71,10 @@ export default function OrganizersField({
           aria-label={ariaLabel}
           placeholder={placeholder ?? "Ім'я або назва організатора"}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value);
+            onQuery?.(e.target.value);
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();

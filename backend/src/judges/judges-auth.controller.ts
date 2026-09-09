@@ -15,11 +15,15 @@ import {
 } from '@nestjs/swagger';
 import { JudgesAuthService } from './judges-auth.service';
 import { JudgeAuthGuard } from './judge-auth.guard';
+import { Public } from '../auth/public.decorator';
 import { CurrentJudge } from './current-judge.decorator';
 import type { AuthenticatedJudge } from './current-judge.decorator';
 import { JudgeLoginDto } from './dto/judge-login.dto';
 import { SubmitScoreDto } from './dto/submit-score.dto';
 
+// Judges carry their own token, checked by JudgeAuthGuard on the /me
+// routes; @Public() keeps the app-wide JWT guard from rejecting them.
+@Public()
 @ApiTags('judges')
 @Controller('judges')
 export class JudgesAuthController {

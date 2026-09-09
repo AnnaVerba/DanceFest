@@ -28,13 +28,20 @@ export class CompetitionParticipantNumbersService {
     }
   }
 
-  async loadLookup(competitionIds: string[]): Promise<ParticipantNumberLookup> {
-    if (competitionIds.length === 0) {
+  // `personIds`, when given, scopes the load to just those people — so a
+  // paged list of entries never pulls every number of the competition.
+  async loadLookup(
+    competitionIds: string[],
+    personIds?: string[],
+  ): Promise<ParticipantNumberLookup> {
+    if (competitionIds.length === 0 || personIds?.length === 0) {
       return new ParticipantNumberLookup([]);
     }
-    const rows = await this.numberModel.findAll({
-      where: { competitionId: { [Op.in]: competitionIds } },
-    });
+    const where: Record<string, unknown> = {
+      competitionId: { [Op.in]: competitionIds },
+    };
+    if (personIds) where.personId = { [Op.in]: [...new Set(personIds)] };
+    const rows = await this.numberModel.findAll({ where });
     return new ParticipantNumberLookup(rows);
   }
 

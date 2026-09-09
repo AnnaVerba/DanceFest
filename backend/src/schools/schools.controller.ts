@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { SchoolsService } from './schools.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
@@ -8,11 +8,11 @@ import { CreateSchoolDto } from './dto/create-school.dto';
 export class SchoolsController {
   constructor(private readonly schoolsService: SchoolsService) {}
 
-  @ApiOperation({ summary: 'List all schools' })
-  @ApiResponse({ status: 200, description: 'Schools returned.' })
+  @ApiOperation({ summary: 'Search schools by name (typeahead, needs q)' })
+  @ApiResponse({ status: 200, description: 'Matching schools returned.' })
   @Get()
-  findAll() {
-    return this.schoolsService.findAll();
+  search(@Query('q') q?: string) {
+    return this.schoolsService.search(q);
   }
 
   @ApiOperation({ summary: 'Get a school by id' })

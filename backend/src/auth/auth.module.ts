@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -8,14 +9,16 @@ import { SchoolsModule } from '../schools/schools.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
-import { RefreshTokenStoreService } from './refresh-token-store.service';
-import { RefreshToken } from './refresh-token.model';
+import { GlobalJwtAuthGuard } from './global-jwt-auth.guard';
+import { SessionStoreService } from './session-store.service';
+import { Session } from './session.model';
 import { OtpCode } from './otp-code.model';
 import { OtpService } from './otp.service';
+import { DEFAULT_ACCESS_EXPIRES_IN_SECONDS } from './auth.constants';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([RefreshToken, OtpCode]),
+    SequelizeModule.forFeature([Session, OtpCode]),
     UsersModule,
     SchoolsModule,
     PassportModule,
@@ -26,12 +29,19 @@ import { OtpService } from './otp.service';
         secret: config.get<string>('JWT_SECRET'),
         signOptions: {
           expiresIn:
-            Number(config.get<string>('JWT_EXPIRES_IN_SECONDS')) || 86400,
+            Number(config.get<string>('JWT_EXPIRES_IN_SECONDS')) ||
+            DEFAULT_ACCESS_EXPIRES_IN_SECONDS,
         },
       }),
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, RefreshTokenStoreService, OtpService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    SessionStoreService,
+    OtpService,
+    { provide: APP_GUARD, useClass: GlobalJwtAuthGuard },
+  ],
 })
 export class AuthModule {}

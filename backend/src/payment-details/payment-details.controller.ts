@@ -6,6 +6,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Public } from '../auth/public.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedAdmin } from '../auth/current-user.decorator';
 import { PaymentDetailsService } from './payment-details.service';
@@ -25,6 +26,7 @@ export class PaymentDetailsController {
     status: 404,
     description: 'No competition exists with the given id.',
   })
+  @Public()
   @Get()
   get(@Param('competitionId') competitionId: string) {
     return this.paymentDetailsService.get(competitionId);

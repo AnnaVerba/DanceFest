@@ -14,13 +14,14 @@ import { UsersService } from '../users/users.service';
 import { SchoolsService } from '../schools/schools.service';
 import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
 import { ParticipantNumberLookup } from '../competition-participant-numbers/participant-number-lookup';
-import { AccessLevel } from '../auth/access-level.enum';
+import { AccessLevel, meetsLevel } from '../auth/access-level.enum';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Entry } from './entry.model';
 import { resolveLineup } from './lineup';
 import { Score } from './score.model';
 import { User } from '../users/user.model';
 import { CreateEntryDto } from './dto/create-entry.dto';
+import { resolvePage } from '../common/pagination';
 import {
   NOMINATION_REQUIRED_MESSAGE,
   ENTRY_NOT_FOUND_MESSAGE,
@@ -28,6 +29,11 @@ import {
   MAX_ENTRY_NUMBER_ASSIGNMENT_ATTEMPTS,
   ROUTINE_NAME_REQUIRED_MESSAGE,
   NOT_OWN_PARTICIPANT_MESSAGE,
+  DEFAULT_ENTRIES_PAGE_SIZE,
+  MAX_ENTRIES_PAGE_SIZE,
+  MAX_MY_ENTRIES,
+  COMPETITION_OVER_APPLY_MESSAGE,
+  REGISTRATION_CLOSED_APPLY_MESSAGE,
 } from './entries.constants';
 import {
   COMPETITION_NOT_FOUND_MESSAGE,
@@ -75,21 +81,40 @@ export class EntriesService {
     competitionId: string,
     requesterId: string,
     requesterLevel: AccessLevel,
+    rawPage?: string,
+    rawPageSize?: string,
   ) {
     await this.loadCompetitionAndAssertAccess(
       competitionId,
       requesterId,
       requesterLevel,
     );
-    const entries = await this.entryModel.findAll({
+    const { page, pageSize, limit, offset } = resolvePage(
+      rawPage,
+      rawPageSize,
+      DEFAULT_ENTRIES_PAGE_SIZE,
+      MAX_ENTRIES_PAGE_SIZE,
+    );
+    const { rows, count } = await this.entryModel.findAndCountAll({
       where: { competitionId },
       include: [Score],
       order: [['number', 'ASC']],
+      limit,
+      offset,
+      distinct: true,
     });
-    const numbers = await this.participantNumbersService.loadLookup([
-      competitionId,
-    ]);
-    return entries.map((e) => this.toDto(e, numbers));
+    // Only the numbers for the people on this page.
+    const personIds = rows.flatMap((e) => e.participantIds ?? []);
+    const numbers = await this.participantNumbersService.loadLookup(
+      [competitionId],
+      personIds,
+    );
+    return {
+      rows: rows.map((e) => this.toDto(e, numbers)),
+      total: count,
+      page,
+      pageSize,
+    };
   }
 
   async count(competitionId: string): Promise<{ count: number }> {
@@ -113,6 +138,24 @@ export class EntriesService {
   // performance, but they are inserted in a single transaction with one
   // running-number sequence — if any row fails, the whole submission rolls
   // back and nothing half-lands.
+  // Deadlines are date-only. A day is "passed" once today's UTC date is
+  // strictly after it, so the deadline day itself is still open.
+  private assertApplicationsOpen(
+    competition: Competition,
+    user: AuthenticatedUser,
+  ): void {
+    const today = new Date().toISOString().slice(0, 10);
+    if (today > String(competition.dateTo).slice(0, 10)) {
+      throw new ForbiddenException(COMPETITION_OVER_APPLY_MESSAGE);
+    }
+    if (
+      today > String(competition.registrationTo).slice(0, 10) &&
+      !meetsLevel(user.accessLevel, AccessLevel.ORGANIZER)
+    ) {
+      throw new ForbiddenException(REGISTRATION_CLOSED_APPLY_MESSAGE);
+    }
+  }
+
   async createMany(
     competitionId: string,
     dtos: CreateEntryDto[],
@@ -122,6 +165,7 @@ export class EntriesService {
     if (!competition) {
       throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
+    this.assertApplicationsOpen(competition, user);
 
     // All reads (validation, participant + nomination resolution) happen
     // before the transaction opens.
@@ -330,6 +374,7 @@ export class EntriesService {
       },
       include: [Score],
       order: [['createdAt', 'DESC']],
+      limit: MAX_MY_ENTRIES,
     });
 
     const competitionIds = [...new Set(entries.map((e) => e.competitionId))];
@@ -337,8 +382,10 @@ export class EntriesService {
       where: { id: { [Op.in]: competitionIds } },
     });
     const byId = new Map(competitions.map((c) => [c.id, c]));
-    const numbers =
-      await this.participantNumbersService.loadLookup(competitionIds);
+    const numbers = await this.participantNumbersService.loadLookup(
+      competitionIds,
+      entries.flatMap((e) => e.participantIds ?? []),
+    );
 
     return entries.map((entry) => {
       const competition = byId.get(entry.competitionId);

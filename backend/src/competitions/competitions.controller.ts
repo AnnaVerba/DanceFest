@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -20,6 +21,7 @@ import { CompetitionsService } from './competitions.service';
 import { CreateCompetitionDto } from './dto/create-competition.dto';
 import { UpdateCompetitionDto } from './dto/update-competition.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Public } from '../auth/public.decorator';
 import { MinLevelGuard } from '../auth/min-level.guard';
 import { MinLevel } from '../auth/min-level.decorator';
 import { AccessLevel } from '../auth/access-level.enum';
@@ -31,14 +33,27 @@ import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 export class CompetitionsController {
   constructor(private readonly competitionsService: CompetitionsService) {}
 
-  @ApiOperation({ summary: 'List all competitions' })
+  @ApiOperation({ summary: 'List competitions (paged; filter by q / year)' })
   @ApiResponse({
     status: 200,
     description: 'Competitions returned successfully.',
   })
+  @Public()
   @Get()
-  findAll() {
-    return this.competitionsService.findAll();
+  findAll(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('q') q?: string,
+    @Query('year') year?: string,
+  ) {
+    return this.competitionsService.findAll({ page, pageSize, q, year });
+  }
+
+  @ApiOperation({ summary: 'Distinct years for the list filter' })
+  @Public()
+  @Get('years')
+  listYears() {
+    return this.competitionsService.listYears();
   }
 
   @ApiOperation({ summary: 'Get a single competition by id' })
@@ -47,6 +62,7 @@ export class CompetitionsController {
     status: 404,
     description: 'No competition exists with the given id.',
   })
+  @Public()
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.competitionsService.findOne(id);

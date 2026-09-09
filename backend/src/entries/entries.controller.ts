@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -16,6 +17,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Public } from '../auth/public.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedAdmin } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
@@ -45,8 +47,16 @@ export class EntriesController {
   list(
     @Param('competitionId') competitionId: string,
     @CurrentUser() admin: AuthenticatedAdmin,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
-    return this.entriesService.list(competitionId, admin.id, admin.accessLevel);
+    return this.entriesService.list(
+      competitionId,
+      admin.id,
+      admin.accessLevel,
+      page,
+      pageSize,
+    );
   }
 
   @ApiOperation({
@@ -60,6 +70,7 @@ export class EntriesController {
     status: 404,
     description: 'No competition exists with the given id.',
   })
+  @Public()
   @Get('count')
   count(@Param('competitionId') competitionId: string) {
     return this.entriesService.count(competitionId);

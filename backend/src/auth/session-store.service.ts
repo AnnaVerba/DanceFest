@@ -2,34 +2,42 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { ConfigService } from '@nestjs/config';
 import { CreationAttributes, Op } from 'sequelize';
-import { RefreshToken } from './refresh-token.model';
+import { Session } from './session.model';
+import { ClientContext } from './client-context.interface';
 import { DEFAULT_REFRESH_EXPIRES_IN_SECONDS } from './auth.constants';
 
 @Injectable()
-export class RefreshTokenStoreService {
+export class SessionStoreService {
   constructor(
-    @InjectModel(RefreshToken)
-    private readonly refreshTokenModel: typeof RefreshToken,
+    @InjectModel(Session)
+    private readonly sessionModel: typeof Session,
     private readonly config: ConfigService,
   ) {}
 
-  async save(userId: string, tokenId: string): Promise<void> {
-    await this.refreshTokenModel.create({
+  async create(
+    userId: string,
+    tokenId: string,
+    ctx: ClientContext,
+  ): Promise<void> {
+    await this.sessionModel.create({
       userId,
       tokenId,
       expiresAt: new Date(Date.now() + this.ttlSeconds() * 1000),
-    } as CreationAttributes<RefreshToken>);
+      fingerprint: ctx.fingerprint,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      lastUsedAt: new Date(),
+    } as CreationAttributes<Session>);
   }
 
-  async isActive(userId: string, tokenId: string): Promise<boolean> {
-    const record = await this.refreshTokenModel.findOne({
+  async findActive(userId: string, tokenId: string): Promise<Session | null> {
+    return this.sessionModel.findOne({
       where: { userId, tokenId, expiresAt: { [Op.gt]: new Date() } },
     });
-    return record !== null;
   }
 
   async revoke(userId: string, tokenId: string): Promise<void> {
-    await this.refreshTokenModel.destroy({ where: { userId, tokenId } });
+    await this.sessionModel.destroy({ where: { userId, tokenId } });
   }
 
   private ttlSeconds(): number {

@@ -52,8 +52,10 @@ export class CategoryTemplatesController {
   list(
     @CurrentUser() admin: AuthenticatedAdmin,
     @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
-    return this.categoryTemplatesService.list(admin.id, search);
+    return this.categoryTemplatesService.list(admin.id, search, page, pageSize);
   }
 
   @ApiOperation({

@@ -34,11 +34,6 @@ export const HOME_STATUS_FILTERS: readonly HomeStatusFilter[] = [
   },
 ];
 
-export interface HomeContestFilter {
-  search: string;
-  year: string;
-  statusId: HomeStatusFilterId;
-}
 
 export interface MonthGroup {
   key: string;
@@ -71,32 +66,17 @@ export function formatContestDateRange(dateFrom: string, dateTo: string): string
     : `${formatContestDate(dateFrom)} – ${formatContestDate(dateTo)}`;
 }
 
-export function listContestYears(competitions: Competition[]): number[] {
-  const years = new Set<number>();
-  for (const c of competitions) years.add(new Date(c.dateFrom).getFullYear());
-  return [...years].sort((a, b) => a - b);
-}
-
+// Name / year filtering and paging now happen on the server; only the
+// status filter is applied to the loaded page here.
 export function filterHomeContests(
   competitions: Competition[],
-  filter: HomeContestFilter,
+  statusId: HomeStatusFilterId,
 ): Competition[] {
-  const query = filter.search.trim().toLowerCase();
-  const active = HOME_STATUS_FILTERS.find((f) => f.id === filter.statusId);
-
-  return competitions.filter((c) => {
-    if (query) {
-      const haystack = `${c.name} ${c.location} ${c.organizers.join(' ')}`.toLowerCase();
-      if (!haystack.includes(query)) return false;
-    }
-    if (filter.year && new Date(c.dateFrom).getFullYear() !== Number(filter.year)) {
-      return false;
-    }
-    if (active && active.statuses.length > 0) {
-      if (!active.statuses.includes(getCompetitionStatus(c))) return false;
-    }
-    return true;
-  });
+  const active = HOME_STATUS_FILTERS.find((f) => f.id === statusId);
+  if (!active || active.statuses.length === 0) return competitions;
+  return competitions.filter((c) =>
+    active.statuses.includes(getCompetitionStatus(c)),
+  );
 }
 
 export function groupContestsByMonth(competitions: Competition[]): MonthGroup[] {
@@ -109,12 +89,21 @@ export function groupContestsByMonth(competitions: Competition[]): MonthGroup[] 
     else buckets.set(key, [c]);
   }
 
-  // Newest month first; newest competition first within a month.
+  // Calendar rotated to "now": the current month first, then the coming
+  // months in order, then past months most-recent-first (people still
+  // browse finished contests). Month grouping is kept.
+  const now = new Date();
+  const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const isPast = (key: string) => key < currentKey;
+
   return [...buckets.entries()]
-    .sort(([a], [b]) => b.localeCompare(a))
+    .sort(([a], [b]) => {
+      if (isPast(a) !== isPast(b)) return isPast(a) ? 1 : -1;
+      return isPast(a) ? b.localeCompare(a) : a.localeCompare(b);
+    })
     .map(([key, items]) => {
       const competitions = [...items].sort(
-        (a, b) => new Date(b.dateFrom).getTime() - new Date(a.dateFrom).getTime(),
+        (a, b) => new Date(a.dateFrom).getTime() - new Date(b.dateFrom).getTime(),
       );
       const first = new Date(competitions[0].dateFrom);
       const monthName = first.toLocaleDateString(DATE_LOCALE, { month: 'long' });

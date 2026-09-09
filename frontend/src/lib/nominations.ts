@@ -104,8 +104,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as unknown as T;
 }
 
-export function getNominations(competitionId: string): Promise<Nomination[]> {
-  return request<Nomination[]>(`/competitions/${competitionId}/nominations`);
+export function getNominations(
+  competitionId: string,
+  q?: string,
+): Promise<Nomination[]> {
+  const suffix = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
+  return request<Nomination[]>(
+    `/competitions/${competitionId}/nominations${suffix}`,
+  );
 }
 
 export function createNomination(

@@ -44,12 +44,26 @@ async function registerCoach(
   await page.getByLabel('Пароль', { exact: true }).fill(PASSWORD);
   await page.getByLabel('Повторіть пароль').fill(PASSWORD);
 
-  await page.getByPlaceholder('…або впишіть нову назву').fill(`E2E Студія ${s}`);
-  await page.getByRole('button', { name: 'Додати' }).click();
-
   await page.getByRole('button', { name: 'Зареєструватися' }).click();
-  await page.waitForURL('**/profile');
+  await completeProfileWithNewCoach(page, s);
   return coach;
+}
+
+// After registration a coach is held on /complete-profile until they name
+// their school and a mentor coach.
+async function completeProfileWithNewCoach(
+  page: Page,
+  suffix: string,
+): Promise<void> {
+  await page.waitForURL('**/complete-profile');
+  await page.getByPlaceholder('…або впишіть нову назву').fill(`E2E Студія ${suffix}`);
+  await page.getByRole('button', { name: 'Додати', exact: true }).click();
+  await page.getByRole('button', { name: 'Додати нового' }).click();
+  await page.getByPlaceholder('Імʼя').fill('Ментор');
+  await page.getByPlaceholder('Прізвище').fill(`Тренер${suffix}`);
+  await page.getByPlaceholder('Телефон').fill(`+38066${suffix.slice(-7)}`);
+  await page.getByRole('button', { name: 'Зберегти та продовжити' }).click();
+  await page.waitForURL('**/profile');
 }
 
 async function addRosterParticipant(
@@ -247,9 +261,8 @@ test.describe('Coach applications', () => {
     const card = page
       .locator('section', { hasText: 'Ваш тренер' })
       .first();
-    await expect(card.getByText('Не вказано')).toBeVisible();
 
-    // Name an off-system mentor.
+    // Replace the mentor named during registration with an off-system one.
     await card.getByRole('button', { name: 'Вписати нового' }).click();
     await card.getByPlaceholder('Імʼя').fill('Петро');
     await card.getByPlaceholder('Прізвище').fill('Наставник');

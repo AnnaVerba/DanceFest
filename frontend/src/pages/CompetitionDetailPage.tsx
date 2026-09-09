@@ -7,10 +7,16 @@ import EntriesPanel from '../components/admin/EntriesPanel';
 import JudgesPanel from '../components/admin/JudgesPanel';
 import NominationsPanel from '../components/admin/NominationsPanel';
 import VenuesPanel from '../components/admin/VenuesPanel';
+import SchedulePanel from '../components/admin/schedule/SchedulePanel';
+import ScheduleSettings from '../components/admin/schedule/ScheduleSettings';
 import { ToastStack } from '../components/admin/Toast';
 import { useToasts } from '../components/admin/useToasts';
 import { getStoredAdmin, getToken } from '../lib/auth';
-import { deleteCompetition, getCompetition } from '../lib/competitions';
+import {
+  deleteCompetition,
+  getApplyEligibility,
+  getCompetition,
+} from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { FEATURES } from '../lib/features';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
@@ -19,7 +25,15 @@ import styles from './CompetitionDetailPage.module.css';
 
 const USE_MOCK_DATA = false;
 
-const ALL_TABS = ['Деталі', 'Номінації', 'Судді', 'Майданчики', 'Заявки'] as const;
+const ALL_TABS = [
+  'Деталі',
+  'Номінації',
+  'Судді',
+  'Майданчики',
+  'Заявки',
+  'Таймінги',
+  'Програма',
+] as const;
 type Tab = (typeof ALL_TABS)[number];
 const TABS: readonly Tab[] = ALL_TABS.filter(
   (tab) => FEATURES.judges || tab !== 'Судді',
@@ -157,6 +171,11 @@ export default function CompetitionDetailPage() {
                   competitionId={id}
                   canManage={canManageEntries}
                   onError={(message) => showToast(message)}
+                  applyBlockedReason={
+                    getApplyEligibility(competition, {
+                      isOrganizer: canManageEntries,
+                    }).reason
+                  }
                 />
               )}
 
@@ -174,6 +193,33 @@ export default function CompetitionDetailPage() {
                   canManage={!!admin}
                   onError={(message) => showToast(message)}
                 />
+              )}
+
+              {activeTab === 'Таймінги' && (
+                <ScheduleSettings
+                  competitionId={id}
+                  canManage={isOwner}
+                  onError={(message) => showToast(message)}
+                  onSaved={(message) => showToast(message)}
+                />
+              )}
+
+              {activeTab === 'Програма' && (
+                <>
+                  <Link
+                    to={`/competitions/${id}/schedule`}
+                    className={styles.back}
+                  >
+                    Відкрити повну програму фестивалю →
+                  </Link>
+                  <SchedulePanel
+                    competitionId={id}
+                    competition={competition}
+                    canManage={isOwner}
+                    onError={(message) => showToast(message)}
+                    onNotice={(message) => showToast(message)}
+                  />
+                </>
               )}
 
               {activeTab === 'Деталі' && (

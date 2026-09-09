@@ -147,18 +147,22 @@ export default function NewCompetitionPage() {
   const [extraCategories, setExtraCategories] = useState<Category[]>([]);
   const [loadingNominations, setLoadingNominations] = useState(false);
 
+  const [organizerQuery, setOrganizerQuery] = useState('');
   useEffect(() => {
-    getOrganizerSuggestions()
-      .then(setOrganizerSuggestions)
-      .catch(() => setOrganizerSuggestions([]));
-  }, []);
+    const t = setTimeout(() => {
+      getOrganizerSuggestions(organizerQuery)
+        .then(setOrganizerSuggestions)
+        .catch(() => setOrganizerSuggestions([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [organizerQuery]);
 
   useEffect(() => {
-    getCategoryTemplates()
-      .then((templates) => {
-        setCategoryTemplates(templates);
-        if (!selectedTemplateId && templates.length > 0) {
-          setSelectedTemplateId(templates[0].id);
+    getCategoryTemplates({ pageSize: 100 })
+      .then(({ rows }) => {
+        setCategoryTemplates(rows);
+        if (!selectedTemplateId && rows.length > 0) {
+          setSelectedTemplateId(rows[0].id);
         }
       })
       .catch(() => setCategoryTemplates([]));
@@ -783,6 +787,7 @@ export default function NewCompetitionPage() {
                   Організатори <span className={styles.req}>*</span>
                 </label>
                 <OrganizersField
+                  onQuery={setOrganizerQuery}
                   id="w-org"
                   ariaLabel="Організатори конкурсу"
                   invalid={Boolean(fieldErrors.organizers)}
@@ -1175,7 +1180,9 @@ export default function NewCompetitionPage() {
                                 aria-label={`Ціна номінації «${n.name}»`}
                                 value={n.price}
                                 onChange={(e) =>
-                                  patchNomination(n.signature, { price: e.target.value })
+                                  patchNomination(n.signature, {
+                                    price: e.target.value,
+                                  })
                                 }
                               />
                             </td>

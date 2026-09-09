@@ -29,6 +29,11 @@
   color: #2563eb;
   cursor: pointer;
 }
+.sub {
+  margin-top: 2px;
+  color: var(--text-muted, #667085);
+  font-size: 12.5px;
+}
 .error {
   color: #b42318;
 }
