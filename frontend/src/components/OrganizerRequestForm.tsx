@@ -16,6 +16,7 @@ const STATUS_LABELS: Record<OrganizerRequest['status'], string> = {
 
 export default function OrganizerRequestForm() {
   const [latest, setLatest] = useState<OrganizerRequest | null>(null);
+  const [showForm, setShowForm] = useState(false);
   const [schoolId, setSchoolId] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -40,6 +41,9 @@ export default function OrganizerRequestForm() {
         note: note.trim() || undefined,
       });
       setLatest(created);
+      setShowForm(false);
+      setSchoolId('');
+      setNote('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не вдалося подати заявку.');
     } finally {
@@ -47,38 +51,48 @@ export default function OrganizerRequestForm() {
     }
   };
 
-  if (latest && latest.status === 'PENDING') {
-    return (
-      <p className={styles.status}>
-        Заявка на організатора: <strong>{STATUS_LABELS[latest.status]}</strong>
-      </p>
-    );
-  }
+  const pending = latest?.status === 'PENDING';
 
   return (
     <div className={styles.form}>
       {latest && (
         <p className={styles.status}>
-          Попередня заявка: <strong>{STATUS_LABELS[latest.status]}</strong>
-          {latest.decisionNote ? ` — ${latest.decisionNote}` : ''}
+          {pending ? 'Заявка на організатора' : 'Попередня заявка'}:{' '}
+          <strong>{STATUS_LABELS[latest.status]}</strong>
+          {!pending && latest.decisionNote ? ` — ${latest.decisionNote}` : ''}
         </p>
       )}
-      <SchoolPicker value={schoolId} onChange={setSchoolId} />
-      <textarea
-        className={styles.note}
-        placeholder="Кілька слів про себе (необовʼязково)"
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-      />
-      {error && <p className={styles.error}>{error}</p>}
-      <button
-        type="button"
-        className={styles.submit}
-        disabled={busy}
-        onClick={submit}
-      >
-        {busy ? '…' : 'Подати заявку на організатора'}
-      </button>
+
+      {!pending && !showForm && (
+        <button
+          type="button"
+          className={styles.submit}
+          onClick={() => setShowForm(true)}
+        >
+          {latest ? 'Подати нову заявку' : 'Стати організатором'}
+        </button>
+      )}
+
+      {!pending && showForm && (
+        <>
+          <SchoolPicker value={schoolId} onChange={setSchoolId} />
+          <textarea
+            className={styles.note}
+            placeholder="Кілька слів про себе (необовʼязково)"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          {error && <p className={styles.error}>{error}</p>}
+          <button
+            type="button"
+            className={styles.submit}
+            disabled={busy}
+            onClick={submit}
+          >
+            {busy ? '…' : 'Подати заявку на організатора'}
+          </button>
+        </>
+      )}
     </div>
   );
 }

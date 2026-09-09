@@ -3,6 +3,19 @@ import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthError, register, saveSession } from '../lib/auth';
 import { MIN_PASSWORD_LENGTH } from '../lib/auth.constants';
+import {
+  isValidBirthDate,
+  isValidEmail,
+  isValidName,
+  isValidPhone,
+} from '../lib/validation';
+import {
+  BIRTH_DATE_INVALID_MESSAGE,
+  EMAIL_INVALID_MESSAGE,
+  MIN_BIRTH_DATE,
+  NAME_INVALID_MESSAGE,
+  PHONE_INVALID_MESSAGE,
+} from '../lib/validation.constants';
 import PhoneField from '../components/PhoneField';
 import { ACCESS_LEVEL } from '../lib/roles';
 import type { AccessLevel } from '../lib/roles';
@@ -20,11 +33,28 @@ export default function RegisterPage() {
   const [role, setRole] = useState<AccessLevel>(ACCESS_LEVEL.PARTICIPANT);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const maxBirthDate = new Date().toISOString().slice(0, 10);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
 
+    if (!isValidName(firstName) || !isValidName(lastName)) {
+      setError(NAME_INVALID_MESSAGE);
+      return;
+    }
+    if (!isValidPhone(phone)) {
+      setError(PHONE_INVALID_MESSAGE);
+      return;
+    }
+    if (!isValidEmail(email)) {
+      setError(EMAIL_INVALID_MESSAGE);
+      return;
+    }
+    if (!isValidBirthDate(birthDate)) {
+      setError(BIRTH_DATE_INVALID_MESSAGE);
+      return;
+    }
     if (password.length < MIN_PASSWORD_LENGTH) {
       setError(`Пароль має містити щонайменше ${MIN_PASSWORD_LENGTH} символів`);
       return;
@@ -37,10 +67,10 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       const session = await register({
-        firstName,
-        lastName,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
         phone,
-        email,
+        email: email.trim(),
         password,
         birthDate,
         role,
@@ -176,6 +206,8 @@ export default function RegisterPage() {
               type="date"
               id="birthDate"
               name="birthDate"
+              min={MIN_BIRTH_DATE}
+              max={maxBirthDate}
               value={birthDate}
               onChange={(e) => setBirthDate(e.target.value)}
               required
