@@ -1,35 +1,52 @@
+import { Suspense, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import ThemeToggle from './components/ThemeToggle';
 import AppShell from './components/AppShell';
+import RequireCompleteProfile from './components/RequireCompleteProfile';
 import { getToken } from './lib/auth';
 import { FEATURES } from './lib/features';
+// The two cold-entry screens load eagerly; every other page is a separate
+// chunk fetched on first navigation, so the initial bundle stays small.
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import TeamPage from './pages/TeamPage';
-import DashboardPage from './pages/DashboardPage';
-import NewCompetitionPage from './pages/NewCompetitionPage';
-import CompetitionEditPage from './pages/CompetitionEditPage';
-import CompetitionDetailPage from './pages/CompetitionDetailPage';
-import SchedulePage from './pages/SchedulePage';
-import PublicCompetitionPage from './pages/PublicCompetitionPage';
 import CompetitionPreviewRedirect from './pages/CompetitionPreviewRedirect';
-import JudgePage from './pages/JudgePage';
-import ApplyPage from './pages/ApplyPage';
-import ParticipantCabinetPage from './pages/ParticipantCabinetPage';
-import ProfilePage from './pages/ProfilePage';
-import CompleteProfilePage from './pages/CompleteProfilePage';
-import RequireCompleteProfile from './components/RequireCompleteProfile';
-import MyParticipantsPage from './pages/MyParticipantsPage';
-import OrganizerRequestsPage from './pages/OrganizerRequestsPage';
-import CategoryTemplatesPage from './pages/CategoryTemplatesPage';
-import CategoryTemplateFormPage from './pages/CategoryTemplateFormPage';
 import './App.css';
+
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const TeamPage = lazy(() => import('./pages/TeamPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const NewCompetitionPage = lazy(() => import('./pages/NewCompetitionPage'));
+const CompetitionEditPage = lazy(() => import('./pages/CompetitionEditPage'));
+const CompetitionDetailPage = lazy(
+  () => import('./pages/CompetitionDetailPage'),
+);
+const SchedulePage = lazy(() => import('./pages/SchedulePage'));
+const PublicCompetitionPage = lazy(
+  () => import('./pages/PublicCompetitionPage'),
+);
+const JudgePage = lazy(() => import('./pages/JudgePage'));
+const ApplyPage = lazy(() => import('./pages/ApplyPage'));
+const ParticipantCabinetPage = lazy(
+  () => import('./pages/ParticipantCabinetPage'),
+);
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const CompleteProfilePage = lazy(() => import('./pages/CompleteProfilePage'));
+const MyParticipantsPage = lazy(() => import('./pages/MyParticipantsPage'));
+const OrganizerRequestsPage = lazy(
+  () => import('./pages/OrganizerRequestsPage'),
+);
+const CategoryTemplatesPage = lazy(
+  () => import('./pages/CategoryTemplatesPage'),
+);
+const CategoryTemplateFormPage = lazy(
+  () => import('./pages/CategoryTemplateFormPage'),
+);
 
 function App() {
   return (
     <>
       <ThemeToggle />
+      <Suspense fallback={<div style={{ padding: 24 }}>Завантаження…</div>}>
       <Routes>
         {/* Auth screens stand alone — no shared chrome. */}
         <Route path="/login" element={<LoginPage />} />
@@ -84,6 +101,7 @@ function App() {
           </Route>
         </Route>
       </Routes>
+      </Suspense>
     </>
   );
 }

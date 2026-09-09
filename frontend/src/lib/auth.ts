@@ -16,6 +16,7 @@ import {
   DEVICE_ID_HEADER,
 } from './auth.constants';
 import { HTTP_STATUS_UNAUTHORIZED } from './api.constants';
+import { clearProfileCompletionSkip } from './profileCompletion';
 
 export interface UserProfile {
   id: string;
@@ -322,6 +323,7 @@ function getRefreshToken(): string | null {
 
 export function clearSession() {
   localStorage.removeItem(SESSION_STORAGE_KEY);
+  clearProfileCompletionSkip();
 }
 
 export async function refreshSession(): Promise<Session> {

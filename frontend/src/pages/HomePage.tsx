@@ -17,10 +17,8 @@ import {
   groupContestsByMonth,
 } from '../lib/homeContests';
 import type { HomeStatusFilterId } from '../lib/homeContests';
-import { mockCompetitions } from '../lib/mockCompetitions';
 import styles from './HomePage.module.css';
 
-const USE_MOCK_DATA = false;
 const PAGE_SIZE = 24;
 
 const STATUS_PILL_CLASS: Record<CompetitionStatus, string> = {
@@ -52,7 +50,6 @@ export default function HomePage() {
   }, [search]);
 
   useEffect(() => {
-    if (USE_MOCK_DATA) return;
     getCompetitionYears()
       .then(setYears)
       .catch(() => setYears([]));
@@ -61,12 +58,6 @@ export default function HomePage() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      if (USE_MOCK_DATA) {
-        setCompetitions(mockCompetitions);
-        setTotal(mockCompetitions.length);
-        setLoading(false);
-        return;
-      }
       setLoading(true);
       try {
         const data = await getCompetitions({

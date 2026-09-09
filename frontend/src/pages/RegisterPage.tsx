@@ -159,7 +159,7 @@ export default function RegisterPage() {
                 type="text"
                 id="firstName"
                 name="firstName"
-                placeholder="Іван"
+                placeholder="Олена"
                 autoComplete="given-name"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
@@ -172,7 +172,7 @@ export default function RegisterPage() {
                 type="text"
                 id="lastName"
                 name="lastName"
-                placeholder="Іванов"
+                placeholder="Коваленко"
                 autoComplete="family-name"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
@@ -192,7 +192,7 @@ export default function RegisterPage() {
               type="email"
               id="email"
               name="email"
-              placeholder="user@example.com"
+              placeholder="olena@example.com"
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}

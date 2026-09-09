@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getSelectableCoaches } from '../lib/auth';
 import type { CoachSummary, SetMentorCoachBody } from '../lib/auth';
-import { isValidPhone } from '../lib/validation';
-import { PHONE_INVALID_MESSAGE } from '../lib/validation.constants';
 import styles from './MentorCoachPicker.module.css';
 
 interface MentorCoachPickerProps {
@@ -12,7 +10,9 @@ interface MentorCoachPickerProps {
 type Mode = 'pick' | 'new';
 
 const SEARCH_DEBOUNCE_MS = 250;
-const MIN_QUERY_CHARS = 2;
+// The picker waits for this many characters before it searches, and says
+// so. The server accepts fewer; the picker stays stricter on purpose.
+const MIN_QUERY_CHARS = 3;
 
 function coachLabel(coach: CoachSummary): string {
   const name = `${coach.lastName} ${coach.firstName}`.trim();
@@ -30,7 +30,6 @@ export default function MentorCoachPicker({ onChange }: MentorCoachPickerProps) 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
-  const [phoneError, setPhoneError] = useState(false);
 
   useEffect(() => {
     if (mode !== 'pick' || picked || query.trim().length < MIN_QUERY_CHARS) {
@@ -52,7 +51,6 @@ export default function MentorCoachPicker({ onChange }: MentorCoachPickerProps) 
     setFirstName('');
     setLastName('');
     setPhone('');
-    setPhoneError(false);
     onChange(null);
   };
 
@@ -86,13 +84,8 @@ export default function MentorCoachPicker({ onChange }: MentorCoachPickerProps) 
     const trimmedFirst = draft.firstName.trim();
     const trimmedLast = draft.lastName.trim();
     const trimmedPhone = draft.phone.trim();
-    const complete =
-      Boolean(trimmedFirst) &&
-      Boolean(trimmedLast) &&
-      isValidPhone(trimmedPhone);
-    setPhoneError(trimmedPhone !== '' && !isValidPhone(trimmedPhone));
     onChange(
-      complete
+      trimmedFirst && trimmedLast && trimmedPhone
         ? {
             newCoach: {
               firstName: trimmedFirst,
@@ -106,74 +99,80 @@ export default function MentorCoachPicker({ onChange }: MentorCoachPickerProps) 
 
   return (
     <div className={styles.wrap}>
-      <div className={styles.toggle}>
-        <button
-          type="button"
-          className={mode === 'pick' ? styles.toggleOn : styles.toggleOff}
-          onClick={() => switchMode('pick')}
-        >
-          Обрати зі списку
-        </button>
-        <button
-          type="button"
-          className={mode === 'new' ? styles.toggleOn : styles.toggleOff}
-          onClick={() => switchMode('new')}
-        >
-          Додати нового
-        </button>
-      </div>
-
       {mode === 'pick' ? (
-        <div className={styles.combo}>
-          <input
-            className={styles.input}
-            autoComplete="off"
-            placeholder="Почніть вводити ім'я тренера…"
-            value={query}
-            onChange={(event) => editQuery(event.target.value)}
-          />
-          {query.trim().length >= MIN_QUERY_CHARS && !picked && (
-            <ul className={styles.comboList}>
-              {results.length === 0 ? (
-                <li className={styles.comboEmpty}>Нікого не знайдено</li>
-              ) : (
-                results.map((coach) => (
-                  <li key={coach.id}>
-                    <button
-                      type="button"
-                      className={styles.comboItem}
-                      onClick={() => pickCoach(coach)}
-                    >
-                      {coachLabel(coach)}
-                    </button>
-                  </li>
-                ))
-              )}
-            </ul>
+        <>
+          <div className={styles.combo}>
+            <input
+              className={styles.input}
+              autoComplete="off"
+              placeholder="Почніть вводити ім'я тренера…"
+              value={query}
+              onChange={(event) => editQuery(event.target.value)}
+            />
+            {query.trim().length >= MIN_QUERY_CHARS && !picked && (
+              <ul className={styles.comboList}>
+                {results.length === 0 ? (
+                  <li className={styles.comboEmpty}>Нікого не знайдено</li>
+                ) : (
+                  results.map((coach) => (
+                    <li key={coach.id}>
+                      <button
+                        type="button"
+                        className={styles.comboItem}
+                        onClick={() => pickCoach(coach)}
+                      >
+                        {coachLabel(coach)}
+                      </button>
+                    </li>
+                  ))
+                )}
+              </ul>
+            )}
+          </div>
+          {query.trim().length < MIN_QUERY_CHARS && !picked && (
+            <p className={styles.hint}>
+              Введіть щонайменше {MIN_QUERY_CHARS} символи, щоб побачити список
+              наявних тренерів.
+            </p>
           )}
-        </div>
+          <button
+            type="button"
+            className={styles.linkBtn}
+            onClick={() => switchMode('new')}
+          >
+            Тренера немає у списку? Додати вручну
+          </button>
+        </>
       ) : (
-        <div className={styles.newForm}>
-          <input
-            className={styles.input}
-            placeholder="Імʼя"
-            value={firstName}
-            onChange={(event) => editNewCoach('firstName', event.target.value)}
-          />
-          <input
-            className={styles.input}
-            placeholder="Прізвище"
-            value={lastName}
-            onChange={(event) => editNewCoach('lastName', event.target.value)}
-          />
-          <input
-            className={styles.input}
-            placeholder="Телефон"
-            value={phone}
-            onChange={(event) => editNewCoach('phone', event.target.value)}
-          />
-          {phoneError && <p className={styles.error}>{PHONE_INVALID_MESSAGE}</p>}
-        </div>
+        <>
+          <button
+            type="button"
+            className={styles.linkBtn}
+            onClick={() => switchMode('pick')}
+          >
+            ← Обрати зі списку
+          </button>
+          <div className={styles.newForm}>
+            <input
+              className={styles.input}
+              placeholder="Імʼя"
+              value={firstName}
+              onChange={(event) => editNewCoach('firstName', event.target.value)}
+            />
+            <input
+              className={styles.input}
+              placeholder="Прізвище"
+              value={lastName}
+              onChange={(event) => editNewCoach('lastName', event.target.value)}
+            />
+            <input
+              className={styles.input}
+              placeholder="Телефон"
+              value={phone}
+              onChange={(event) => editNewCoach('phone', event.target.value)}
+            />
+          </div>
+        </>
       )}
     </div>
   );

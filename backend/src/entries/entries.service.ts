@@ -5,7 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { CreationAttributes, Op, Transaction } from 'sequelize';
+import {
+  CreationAttributes,
+  Op,
+  Transaction,
+  UniqueConstraintError,
+} from 'sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { NominationsService } from '../nominations/nominations.service';
@@ -244,7 +249,11 @@ export class EntriesService {
           },
         );
       } catch (err) {
-        if (attempt === 0) continue;
+        // Only the running-number unique index is worth another attempt —
+        // the row lock above should make this rare, but a lost race stays
+        // possible. Anything else (validation, FK, null) fails for good and
+        // must surface instead of costing another wasted transaction.
+        if (err instanceof UniqueConstraintError) continue;
         throw err;
       }
     }
@@ -528,7 +537,7 @@ export class EntriesService {
     const averageScore =
       scores.length > 0
         ? scores.reduce((sum, s) => sum + Number(s.value), 0) / scores.length
-        : entry.score === null
+        : entry.score == null
           ? null
           : Number(entry.score);
 

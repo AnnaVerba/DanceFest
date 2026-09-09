@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { createSchool, getSchool, searchSchools } from '../lib/schools';
 import type { School } from '../lib/schools';
+import {
+  SCHOOLS_LOAD_FAILED_MESSAGE,
+  SCHOOL_TYPEAHEAD_MIN_CHARS,
+} from '../lib/schools.constants';
 import styles from './SchoolPicker.module.css';
 
 interface SchoolPickerProps {
@@ -14,6 +18,7 @@ export default function SchoolPicker({ value, onChange }: SchoolPickerProps) {
   const [selected, setSelected] = useState<School | null>(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<School[]>([]);
+  const [searching, setSearching] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,12 +44,31 @@ export default function SchoolPicker({ value, onChange }: SchoolPickerProps) {
 
   useEffect(() => {
     if (selected) return;
+    const trimmed = query.trim();
+    if (trimmed.length < SCHOOL_TYPEAHEAD_MIN_CHARS) return;
+
+    let active = true;
     const t = setTimeout(() => {
-      searchSchools(query)
-        .then(setResults)
-        .catch(() => setResults([]));
+      setSearching(true);
+      searchSchools(trimmed)
+        .then((found) => {
+          if (!active) return;
+          setResults(found);
+          setError(null);
+        })
+        .catch(() => {
+          if (!active) return;
+          setResults([]);
+          setError(SCHOOLS_LOAD_FAILED_MESSAGE);
+        })
+        .finally(() => {
+          if (active) setSearching(false);
+        });
     }, 250);
-    return () => clearTimeout(t);
+    return () => {
+      active = false;
+      clearTimeout(t);
+    };
   }, [query, selected]);
 
   const handleCreate = async () => {
@@ -85,7 +109,7 @@ export default function SchoolPicker({ value, onChange }: SchoolPickerProps) {
           <div className={styles.createRow}>
             <input
               className={styles.select}
-              placeholder="…або впишіть нову назву"
+              placeholder="Почніть вводити назву школи"
               autoComplete="off"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -93,26 +117,44 @@ export default function SchoolPicker({ value, onChange }: SchoolPickerProps) {
             <button
               type="button"
               className={styles.createBtn}
-              disabled={creating || query.trim().length < 2}
+              disabled={
+                creating || query.trim().length < SCHOOL_TYPEAHEAD_MIN_CHARS
+              }
               onClick={handleCreate}
             >
               {creating ? '…' : 'Додати'}
             </button>
           </div>
-          {query.trim().length >= 2 && results.length > 0 && (
-            <ul className={styles.comboList}>
-              {results.map((s) => (
-                <li key={s.id}>
-                  <button
-                    type="button"
-                    className={styles.comboItem}
-                    onClick={() => onChange(s.id)}
-                  >
-                    {s.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
+          {query.trim().length < SCHOOL_TYPEAHEAD_MIN_CHARS && (
+            <p className={styles.hint}>
+              Введіть щонайменше {SCHOOL_TYPEAHEAD_MIN_CHARS} символи, щоб
+              побачити список наявних шкіл.
+            </p>
+          )}
+          {query.trim().length >= SCHOOL_TYPEAHEAD_MIN_CHARS && (
+            <>
+              {searching && <p className={styles.comboEmpty}>Пошук…</p>}
+              {!searching && results.length > 0 && (
+                <ul className={styles.comboList}>
+                  {results.map((s) => (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        className={styles.comboItem}
+                        onClick={() => onChange(s.id)}
+                      >
+                        {s.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {!searching && !error && results.length === 0 && (
+                <p className={styles.comboEmpty}>
+                  Нічого не знайдено. Натисніть «Додати», щоб створити нову.
+                </p>
+              )}
+            </>
           )}
         </>
       )}
