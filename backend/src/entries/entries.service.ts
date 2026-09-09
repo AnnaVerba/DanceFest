@@ -46,6 +46,7 @@ interface SubmitterContext {
 interface PreparedEntry {
   dto: CreateEntryDto;
   submitter: SubmitterContext;
+  submittedByUserId: string;
   routineName: string;
   nominationId: string;
   exits: NominationExit[];
@@ -231,6 +232,7 @@ export class EntriesService {
     return {
       dto,
       submitter,
+      submittedByUserId: user.id,
       routineName,
       nominationId: nomination.id,
       exits,
@@ -267,6 +269,7 @@ export class EntriesService {
       improv: dto.improv ?? false,
       paymentMethod: dto.paymentMethod ?? null,
       musicName: dto.musicName?.trim() || null,
+      submittedByUserId: entry.submittedByUserId,
     } as CreationAttributes<Entry>;
   }
 
@@ -285,27 +288,32 @@ export class EntriesService {
     return (entry.participantIds ?? []).some((id) => set.has(id));
   }
 
-  // Set / replace the track file name for one of the user's own entries —
-  // e.g. a dancer who applied without music adding it later.
-  async updateMusic(
-    entryId: string,
+  // Who may upload/replace/remove this entry's track (TracksService): the
+  // entry's submitter, the entry's performer (entryBelongsTo, checked for
+  // this user only — not their whole coach roster), or the competition's
+  // organizer/admin. Deliberately wider than "заявка належить тому, хто її
+  // подав" (§8.5) so a dancer whose coach submitted the entry can still add
+  // or change its music if the coach hasn't.
+  async assertCanManageTrack(
+    entry: Entry,
     user: AuthenticatedUser,
-    musicName: string,
-  ) {
-    const entry = await this.entryModel.findByPk(entryId, { include: [Score] });
-    if (!entry) {
-      throw new NotFoundException(ENTRY_NOT_FOUND_MESSAGE);
+  ): Promise<void> {
+    try {
+      await this.loadCompetitionAndAssertAccess(
+        entry.competitionId,
+        user.id,
+        user.accessLevel,
+      );
+      return;
+    } catch (err) {
+      if (!(err instanceof ForbiddenException)) throw err;
     }
-    const ids = await this.ownParticipantIds(user);
-    if (!this.entryBelongsTo(entry, ids)) {
+    if (
+      entry.submittedByUserId !== user.id &&
+      !this.entryBelongsTo(entry, [user.id])
+    ) {
       throw new ForbiddenException(NOT_OWN_PARTICIPANT_MESSAGE);
     }
-    entry.musicName = musicName.trim();
-    await entry.save();
-    const numbers = await this.participantNumbersService.loadLookup([
-      entry.competitionId,
-    ]);
-    return this.toDto(entry, numbers);
   }
 
   // Entries the current user is involved in — their own performances and,
@@ -509,6 +517,7 @@ export class EntriesService {
       improv: entry.improv,
       paymentMethod: entry.paymentMethod,
       musicName: entry.musicName,
+      musicUrl: entry.musicUrl,
       score: averageScore,
       scoresCount: scores.length,
       createdAt: entry.createdAt,

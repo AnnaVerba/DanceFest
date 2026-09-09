@@ -49,6 +49,12 @@ export class Competition extends Model<Competition> {
   @Column({ type: DataType.DATEONLY, allowNull: false })
   declare registrationTo: string;
 
+  // Separate from registrationTo (§8.1) — set by the organizer; after this
+  // date the entry's track can no longer be uploaded, replaced, or removed.
+  // Null means no deadline is enforced.
+  @Column({ type: DataType.DATEONLY, allowNull: true })
+  declare musicDeadline: string | null;
+
   @Column({ type: DataType.STRING, allowNull: false })
   declare contactNumber: string;
 

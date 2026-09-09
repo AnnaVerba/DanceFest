@@ -4,7 +4,7 @@ import { Navigate } from 'react-router-dom';
 import CabinetLayout from '../components/CabinetLayout';
 import { getSession, getToken } from '../lib/auth';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
-import { getMyEntries, updateEntryMusic } from '../lib/entries';
+import { getMyEntries, uploadEntryTrack } from '../lib/entries';
 import type { MyEntry } from '../lib/entries';
 import { formatParticipantNumbers } from '../lib/participantNumbers';
 import styles from './ParticipantCabinetPage.module.css';
@@ -70,14 +70,18 @@ export default function ParticipantCabinetPage() {
     if (!file) return;
     setError(null);
     try {
-      const updated = await updateEntryMusic(entryId, file.name);
+      const uploaded = await uploadEntryTrack(entryId, file);
       setMyEntries((prev) =>
         (prev ?? []).map((e) =>
-          e.id === entryId ? { ...e, musicName: updated.musicName } : e,
+          e.id === entryId
+            ? { ...e, musicName: uploaded.fileName, musicUrl: uploaded.musicUrl }
+            : e,
         ),
       );
-    } catch {
-      setError('Не вдалося зберегти музику.');
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Не вдалося зберегти музику.',
+      );
     }
   };
 
@@ -129,21 +133,34 @@ export default function ParticipantCabinetPage() {
                         <td>{entry.lineup ?? '—'}</td>
                         <td>{entry.ageCategory ?? '—'}</td>
                         <td>
-                          <label className={styles.musicCell}>
-                            <span>
-                              {entry.musicName ??
-                                (entry.improv ? 'Імпровізація' : '—')}
-                            </span>
-                            <input
-                              type="file"
-                              accept="audio/*"
-                              hidden
-                              onChange={(e) => onMusicPick(entry.id, e)}
-                            />
-                            <span className={styles.musicEdit}>
-                              {entry.musicName ? 'змінити' : 'додати'}
-                            </span>
-                          </label>
+                          <div className={styles.musicCell}>
+                            {entry.musicUrl ? (
+                              <a
+                                href={entry.musicUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={styles.musicListen}
+                              >
+                                {entry.musicName}
+                              </a>
+                            ) : (
+                              <span>
+                                {entry.musicName ??
+                                  (entry.improv ? 'Імпровізація' : '—')}
+                              </span>
+                            )}
+                            <label className={styles.musicUploadLabel}>
+                              <input
+                                type="file"
+                                accept="audio/*"
+                                hidden
+                                onChange={(e) => onMusicPick(entry.id, e)}
+                              />
+                              <span className={styles.musicEdit}>
+                                {entry.musicName ? 'змінити' : 'додати'}
+                              </span>
+                            </label>
+                          </div>
                         </td>
                       </tr>
                     ))}
