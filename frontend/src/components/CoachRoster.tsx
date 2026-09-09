@@ -41,12 +41,6 @@ export default function CoachRoster() {
       );
   }, []);
 
-  const canSubmit =
-    isValidName(draft.firstName) &&
-    isValidName(draft.lastName) &&
-    isValidPhone(draft.phone) &&
-    isValidBirthDate(draft.birthDate);
-
   const submit = async () => {
     if (!isValidName(draft.firstName) || !isValidName(draft.lastName)) {
       setFormError('Заповніть імʼя та прізвище.');
@@ -154,7 +148,7 @@ export default function CoachRoster() {
             <button
               type="button"
               className={styles.primary}
-              disabled={busy || !canSubmit}
+              disabled={busy}
               onClick={submit}
             >
               {busy ? '…' : 'Зберегти'}

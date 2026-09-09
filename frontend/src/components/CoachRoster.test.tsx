@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import CoachRoster from './CoachRoster';
+import { PHONE_INVALID_MESSAGE } from '../lib/validation.constants';
 
 const createParticipant = vi.fn();
 const getParticipants = vi.fn();
@@ -28,10 +29,8 @@ function saveButton() {
 }
 
 describe('CoachRoster — додавання учасника', () => {
-  it('тримає кнопку "Зберегти" неактивною, поки дані некоректні', async () => {
+  it('показує помилку телефону при спробі зберегти з некоректним номером', async () => {
     const { container } = await openForm();
-
-    expect(saveButton()).toBeDisabled();
 
     fireEvent.change(screen.getByPlaceholderText('Імʼя'), {
       target: { value: 'Іван' },
@@ -39,14 +38,17 @@ describe('CoachRoster — додавання учасника', () => {
     fireEvent.change(screen.getByPlaceholderText('Прізвище'), {
       target: { value: 'Іванов' },
     });
-    // Incomplete phone — still invalid.
+    // Incomplete phone — invalid.
     const tel = container.querySelector('input[type="tel"]') as HTMLInputElement;
     fireEvent.change(tel, { target: { value: '+38050' } });
     fireEvent.change(container.querySelector('input[type="date"]')!, {
       target: { value: '2012-03-10' },
     });
 
-    expect(saveButton()).toBeDisabled();
+    fireEvent.click(saveButton());
+
+    expect(await screen.findByText(PHONE_INVALID_MESSAGE)).toBeInTheDocument();
+    expect(createParticipant).not.toHaveBeenCalled();
   });
 
   it('активує "Зберегти" і надсилає запит, коли всі поля коректні', async () => {
