@@ -26,7 +26,9 @@ export default function CabinetSidebar() {
       label: 'Мої учасники',
       show: level === ACCESS_LEVEL.COACH,
     },
-    { to: '/my-entries', label: 'Мої заявки', show: true },
+    // An admin has no entries of their own; they review a competition's
+    // entries from its page.
+    { to: '/my-entries', label: 'Мої заявки', show: !isAdmin },
     { to: '/dashboard', label: 'Мої конкурси', show: isOrganizer },
     {
       to: '/category-templates',

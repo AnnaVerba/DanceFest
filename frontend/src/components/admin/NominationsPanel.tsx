@@ -292,12 +292,6 @@ export default function NominationsPanel({
 
   return (
     <section className={styles.panel}>
-      <p className={styles.note}>
-        Номінація — це те, на що подають заявку. Звичайна дає один вихід на
-        сцену. Спеціальна категорія («Кубок», «Корона», батл) тримає кілька
-        програм всередині й може давати окремий вихід на кожну з них.
-      </p>
-
       {canManage && (
         <>
           <form className={styles.add} onSubmit={handleAdd}>
