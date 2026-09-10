@@ -543,6 +543,16 @@
   white-space: nowrap;
 }
 
+.invalid {
+  border-color: var(--danger) !important;
+}
+
+.chipsInvalid {
+  padding: 8px;
+  border: 1px solid var(--danger);
+  border-radius: 10px;
+}
+
 .readonlyBox {
   padding: 11px 12px;
   border: 1px solid var(--line);

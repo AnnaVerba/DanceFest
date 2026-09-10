@@ -134,32 +134,35 @@ export default function ParticipantCabinetPage() {
                         <td>{entry.ageCategory ?? '—'}</td>
                         <td>
                           <div className={styles.musicCell}>
-                            {entry.musicUrl ? (
-                              <a
-                                href={entry.musicUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className={styles.musicListen}
-                              >
-                                {entry.musicName}
-                              </a>
+                            {entry.improv ? (
+                              <span>Імпровізація</span>
                             ) : (
-                              <span>
-                                {entry.musicName ??
-                                  (entry.improv ? 'Імпровізація' : '—')}
-                              </span>
+                              <>
+                                {entry.musicUrl ? (
+                                  <a
+                                    href={entry.musicUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className={styles.musicListen}
+                                  >
+                                    {entry.musicName}
+                                  </a>
+                                ) : (
+                                  <span>{entry.musicName ?? '—'}</span>
+                                )}
+                                <label className={styles.musicUploadLabel}>
+                                  <input
+                                    type="file"
+                                    accept="audio/*"
+                                    hidden
+                                    onChange={(e) => onMusicPick(entry.id, e)}
+                                  />
+                                  <span className={styles.musicEdit}>
+                                    {entry.musicName ? 'змінити' : 'додати'}
+                                  </span>
+                                </label>
+                              </>
                             )}
-                            <label className={styles.musicUploadLabel}>
-                              <input
-                                type="file"
-                                accept="audio/*"
-                                hidden
-                                onChange={(e) => onMusicPick(entry.id, e)}
-                              />
-                              <span className={styles.musicEdit}>
-                                {entry.musicName ? 'змінити' : 'додати'}
-                              </span>
-                            </label>
                           </div>
                         </td>
                       </tr>
