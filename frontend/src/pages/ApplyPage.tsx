@@ -345,6 +345,13 @@ export default function ApplyPage() {
   const selectedRows = allRows.filter((r) => selectedKeys.includes(r.key));
   const total = selectedRows.reduce((sum, r) => sum + (r.price ?? 0), 0);
 
+  // Which required field to highlight red — mirrors the checks in
+  // handleSubmit, so the invalid one stays marked until it's actually fixed.
+  const participantsInvalid =
+    submitError != null && effectiveParticipantIds.length === 0;
+  const leagueInvalid = submitError != null && !league;
+  const nominationsInvalid = submitError != null && selectedRows.length === 0;
+
   const ageLabel = (() => {
     if (activeParticipants.length === 0) return '—';
     if (activeParticipants.length > 1) {
@@ -654,7 +661,9 @@ export default function ApplyPage() {
                 )}
 
                 <input
-                  className={styles.textInput}
+                  className={`${styles.textInput} ${
+                    participantsInvalid ? styles.invalid : ''
+                  }`}
                   type="text"
                   placeholder="Почніть вводити прізвище учасника…"
                   value={participantQuery}
@@ -794,7 +803,9 @@ export default function ApplyPage() {
                     Ліга <span className={styles.req}>*</span>
                   </label>
                   <select
-                    className={styles.select}
+                    className={`${styles.select} ${
+                      leagueInvalid ? styles.invalid : ''
+                    }`}
                     value={league}
                     onChange={(e) => {
                       setLeague(e.target.value);
@@ -837,7 +848,13 @@ export default function ApplyPage() {
             <label className={styles.label}>
               Стилі <span className={styles.req}>*</span>
             </label>
-            <div className={styles.chips}>
+            <div
+              className={`${styles.chips} ${
+                nominationsInvalid && selectedStyles.length === 0
+                  ? styles.chipsInvalid
+                  : ''
+              }`}
+            >
               {styleOptions.map((style) => {
                 const on = selectedStyles.includes(style);
                 return (
@@ -872,7 +889,11 @@ export default function ApplyPage() {
                   Немає номінацій для цього поєднання ліги та стилів.
                 </p>
               ) : (
-                <div className={styles.nomList}>
+                <div
+                  className={`${styles.nomList} ${
+                    nominationsInvalid ? styles.invalid : ''
+                  }`}
+                >
                   {styleRows.map((row) => {
                     const on = selectedKeys.includes(row.key);
                     return (
@@ -902,7 +923,11 @@ export default function ApplyPage() {
           {specialRows.length > 0 && (
             <div>
               <label className={styles.label}>Спеціальні номінації</label>
-              <div className={styles.nomList}>
+              <div
+                className={`${styles.nomList} ${
+                  nominationsInvalid ? styles.invalid : ''
+                }`}
+              >
                 {specialRows.map((row) => {
                   const on = selectedKeys.includes(row.key);
                   return (
@@ -995,22 +1020,31 @@ export default function ApplyPage() {
             <div>
               <label className={styles.label}>Музика для виступів</label>
               <div className={styles.musicList}>
-                {selectedRows.map((row) => (
-                  <div key={row.key} className={styles.musicRow}>
-                    <span className={styles.musicLabel}>{row.label}</span>
-                    <input
-                      className={styles.fileInput}
-                      type="file"
-                      accept="audio/*"
-                      onChange={(e) => setMusicForRow(row.key, e)}
-                    />
-                    {musicFileByKey[row.key] && (
+                {selectedRows.map((row) =>
+                  row.improv ? (
+                    <div key={row.key} className={styles.musicRow}>
+                      <span className={styles.musicLabel}>{row.label}</span>
                       <span className={styles.hint}>
-                        Обрано: {musicFileByKey[row.key].name}
+                        Для імпровізації трек не завантажується.
                       </span>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  ) : (
+                    <div key={row.key} className={styles.musicRow}>
+                      <span className={styles.musicLabel}>{row.label}</span>
+                      <input
+                        className={styles.fileInput}
+                        type="file"
+                        accept="audio/*"
+                        onChange={(e) => setMusicForRow(row.key, e)}
+                      />
+                      {musicFileByKey[row.key] && (
+                        <span className={styles.hint}>
+                          Обрано: {musicFileByKey[row.key].name}
+                        </span>
+                      )}
+                    </div>
+                  ),
+                )}
               </div>
             </div>
           )}

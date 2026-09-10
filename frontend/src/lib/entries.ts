@@ -2,6 +2,9 @@ import { API_BASE_URL } from './api';
 import { authorizedFetch } from './auth';
 import { GENERIC_REQUEST_ERROR_MESSAGE } from './api.constants';
 import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
+import { publicRequest } from './http';
+import { withPageParams } from './pagination';
+import type { Paged } from './pagination';
 
 export interface Entry {
   id: string;
@@ -164,6 +167,31 @@ export async function uploadEntryTrack(
   }
 
   return payload as TrackUploadResult;
+}
+
+// The view-only row a logged-out visitor gets from the public listing — no
+// payment method, choreographer, studio, city, or music file.
+export interface PublicEntry {
+  id: string;
+  number: number;
+  participantNumbers: (number | null)[];
+  nomination: string;
+  ageCategory: string | null;
+  league: string | null;
+  lineup: string | null;
+  improv: boolean;
+  hasMusic: boolean;
+}
+
+export function getPublicEntries(
+  competitionId: string,
+  query: { page?: number; pageSize?: number } = {},
+): Promise<Paged<PublicEntry>> {
+  const params = withPageParams(new URLSearchParams(), query.page, query.pageSize);
+  const suffix = params.toString() ? `?${params}` : '';
+  return publicRequest<Paged<PublicEntry>>(
+    `/competitions/${competitionId}/entries/public${suffix}`,
+  );
 }
 
 export async function getEntriesCount(competitionId: string): Promise<number> {

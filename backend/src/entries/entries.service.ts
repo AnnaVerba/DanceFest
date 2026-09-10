@@ -118,6 +118,46 @@ export class EntriesService {
     };
   }
 
+  // Public, read-only counterpart to `list`: no login required, no
+  // organizer/admin access check, and a limited field set — no payment
+  // method, choreographer, studio, city, or the music file itself (its name
+  // follows the №_Ім'я_Прізвище_Ліга_Стиль convention and would leak a
+  // performer's name).
+  async listPublic(
+    competitionId: string,
+    rawPage?: string,
+    rawPageSize?: string,
+  ) {
+    const competition = await this.competitionModel.findByPk(competitionId);
+    if (!competition) {
+      throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
+    }
+    const { page, pageSize, limit, offset } = resolvePage(
+      rawPage,
+      rawPageSize,
+      DEFAULT_ENTRIES_PAGE_SIZE,
+      MAX_ENTRIES_PAGE_SIZE,
+    );
+    const { rows, count } = await this.entryModel.findAndCountAll({
+      where: { competitionId },
+      order: [['number', 'ASC']],
+      limit,
+      offset,
+      distinct: true,
+    });
+    const personIds = rows.flatMap((e) => e.participantIds ?? []);
+    const numbers = await this.participantNumbersService.loadLookup(
+      [competitionId],
+      personIds,
+    );
+    return {
+      rows: rows.map((e) => this.toPublicDto(e, numbers)),
+      total: count,
+      page,
+      pageSize,
+    };
+  }
+
   async count(competitionId: string): Promise<{ count: number }> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
@@ -540,6 +580,24 @@ export class EntriesService {
       throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);
     }
     return competition;
+  }
+
+  private toPublicDto(entry: Entry, numbers: ParticipantNumberLookup) {
+    const participantIds = entry.participantIds ?? [];
+    return {
+      id: entry.id,
+      number: entry.number,
+      participantNumbers: numbers.numbersFor(
+        entry.competitionId,
+        participantIds,
+      ),
+      nomination: entry.nomination,
+      ageCategory: entry.ageCategory,
+      league: entry.league,
+      lineup: entry.lineup,
+      improv: entry.improv,
+      hasMusic: entry.musicName != null,
+    };
   }
 
   private toDto(entry: Entry, numbers: ParticipantNumberLookup) {

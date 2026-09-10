@@ -105,6 +105,12 @@ export default function PublicCompetitionPage() {
                       >
                         Програма фестивалю
                       </Link>
+                      <Link
+                        to={`/competitions/${id}/entries`}
+                        className={styles.programLink}
+                      >
+                        Заявки
+                      </Link>
                       {apply.allowed ? (
                         <Link
                           to={`/competitions/${id}/apply`}

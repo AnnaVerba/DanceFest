@@ -21,6 +21,9 @@ const CompetitionDetailPage = lazy(
   () => import('./pages/CompetitionDetailPage'),
 );
 const SchedulePage = lazy(() => import('./pages/SchedulePage'));
+const CompetitionEntriesPage = lazy(
+  () => import('./pages/CompetitionEntriesPage'),
+);
 const PublicCompetitionPage = lazy(
   () => import('./pages/PublicCompetitionPage'),
 );
@@ -73,6 +76,10 @@ function App() {
           <Route
             path="/competitions/:id/schedule"
             element={<SchedulePage />}
+          />
+          <Route
+            path="/competitions/:id/entries"
+            element={<CompetitionEntriesPage />}
           />
           <Route path="/competitions/:id/team" element={<TeamPage />} />
           <Route
