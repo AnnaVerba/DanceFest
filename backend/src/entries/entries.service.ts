@@ -338,17 +338,21 @@ export class EntriesService {
   // organizer/admin. Deliberately wider than "заявка належить тому, хто її
   // подав" (§8.5) so a dancer whose coach submitted the entry can still add
   // or change its music if the coach hasn't.
+  //
+  // Returns whether access came via the competition's organizer/admin —
+  // TracksService uses this to exempt them from the registrationTo music
+  // change window, which still applies to a submitter/performer.
   async assertCanManageTrack(
     entry: Entry,
     user: AuthenticatedUser,
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       await this.loadCompetitionAndAssertAccess(
         entry.competitionId,
         user.id,
         user.accessLevel,
       );
-      return;
+      return true;
     } catch (err) {
       if (!(err instanceof ForbiddenException)) throw err;
     }
@@ -358,6 +362,7 @@ export class EntriesService {
     ) {
       throw new ForbiddenException(NOT_OWN_PARTICIPANT_MESSAGE);
     }
+    return false;
   }
 
   // Entries the current user is involved in — their own performances and,

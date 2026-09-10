@@ -9,7 +9,7 @@ import { buildPublicObjectUrl } from './build-public-object-url';
 import {
   STORAGE_NOT_CONFIGURED_MESSAGE,
   IMAGE_UPLOAD_CONFIG,
-  OCP_REGION_ENV_KEY,
+  OCP_ENDPOINT_ENV_KEY,
   OCP_BUCKET_ENV_KEY,
   OCP_PUBLIC_URL_ENV_KEY,
 } from './uploads.constants';
@@ -55,7 +55,7 @@ export class UploadsService {
       key,
       bucket,
       this.config.get<string>(OCP_PUBLIC_URL_ENV_KEY) ?? null,
-      this.config.get<string>(OCP_REGION_ENV_KEY) ?? null,
+      this.config.get<string>(OCP_ENDPOINT_ENV_KEY) ?? null,
     );
   }
 }

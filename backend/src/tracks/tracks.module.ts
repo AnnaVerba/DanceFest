@@ -11,7 +11,6 @@ import { CompetitionRulesModule } from '../competition-rules/competition-rules.m
 import { UploadsModule } from '../uploads/uploads.module';
 import { Track } from './track.model';
 import { TracksController } from './tracks.controller';
-import { MusicDeadlineController } from './music-deadline.controller';
 import { TracksService } from './tracks.service';
 import { TrackFileNameResolver } from './track-file-name-resolver.service';
 
@@ -30,7 +29,7 @@ import { TrackFileNameResolver } from './track-file-name-resolver.service';
     CompetitionRulesModule,
     UploadsModule,
   ],
-  controllers: [TracksController, MusicDeadlineController],
+  controllers: [TracksController],
   providers: [TracksService, TrackFileNameResolver],
 })
 export class TracksModule {}

@@ -29,7 +29,7 @@ import {
   STORAGE_NOT_CONFIGURED_MESSAGE,
   OCP_BUCKET_ENV_KEY,
   OCP_PUBLIC_URL_ENV_KEY,
-  OCP_REGION_ENV_KEY,
+  OCP_ENDPOINT_ENV_KEY,
 } from '../uploads/uploads.constants';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Track } from './track.model';
@@ -75,9 +75,12 @@ export class TracksService {
     user: AuthenticatedUser,
   ): Promise<UploadTrackResult> {
     const { entry, competition } = await this.loadContext(entryId);
-    await this.entriesService.assertCanManageTrack(entry, user);
+    const isOrganizerAccess = await this.entriesService.assertCanManageTrack(
+      entry,
+      user,
+    );
     this.assertNotImprov(entry);
-    this.assertBeforeDeadline(competition);
+    this.assertWithinMusicChangeWindow(competition, isOrganizerAccess);
     this.assertSupportedFormat(file);
     this.assertNotTooLarge(file);
     const durationSec = await this.readDurationSeconds(file);
@@ -94,7 +97,7 @@ export class TracksService {
       entry,
       extension,
     );
-    const objectKey = `${ENTRY_TRACKS_KEY_PREFIX}/${competition.id}/${entryId}/${displayFileName}`;
+    const objectKey = `${ENTRY_TRACKS_KEY_PREFIX}_${competition.id}_${entryId}_${displayFileName}`;
 
     const existing = await this.trackModel.findOne({
       where: { performanceId: entryId },
@@ -109,12 +112,6 @@ export class TracksService {
         ContentDisposition: buildContentDisposition(displayFileName),
       }),
     );
-    // Only delete the old object if the new upload landed on a different
-    // key — a same-named re-upload already overwrote it in place above.
-    if (existing && existing.objectKey !== objectKey) {
-      await this.deleteObjectQuietly(bucket, existing.objectKey);
-    }
-
     const publicUrl = this.buildPublicUrl(bucket, objectKey);
     const attrs = {
       originalFileName: file.originalname,
@@ -138,6 +135,14 @@ export class TracksService {
     entry.musicName = displayFileName;
     entry.musicUrl = publicUrl;
     await entry.save();
+
+    // Only delete the old object if the new upload landed on a different
+    // key — a same-named re-upload already overwrote it in place above.
+    // Deferred until both DB writes commit, so a failure there doesn't
+    // leave the DB pointing at an object we've already removed.
+    if (existing && existing.objectKey !== objectKey) {
+      await this.deleteObjectQuietly(bucket, existing.objectKey);
+    }
 
     return {
       musicUrl: publicUrl,
@@ -167,8 +172,11 @@ export class TracksService {
 
   async remove(entryId: string, user: AuthenticatedUser): Promise<void> {
     const { entry, competition } = await this.loadContext(entryId);
-    await this.entriesService.assertCanManageTrack(entry, user);
-    this.assertBeforeDeadline(competition);
+    const isOrganizerAccess = await this.entriesService.assertCanManageTrack(
+      entry,
+      user,
+    );
+    this.assertWithinMusicChangeWindow(competition, isOrganizerAccess);
 
     const track = await this.trackModel.findOne({
       where: { performanceId: entryId },
@@ -177,7 +185,11 @@ export class TracksService {
       throw new NotFoundException(TRACK_NOT_FOUND_MESSAGE);
     }
 
-    await this.deleteObjectQuietly(this.requireBucket(), track.objectKey);
+    // Unlike upload's old-key cleanup, this delete must not be swallowed:
+    // the track row is the only reference to this object, so if the delete
+    // fails we need to keep the row (and objectKey) intact for a retry
+    // rather than destroying the row and orphaning the object.
+    await this.deleteObject(this.requireBucket(), track.objectKey);
     await track.destroy();
 
     entry.musicName = null;
@@ -208,12 +220,16 @@ export class TracksService {
   }
 
   // "Changes" = upload/replace/remove; playback (GET) stays available past
-  // the deadline so the track can still be played at the event.
-  private assertBeforeDeadline(competition: Competition): void {
-    const deadline = competition.musicDeadline;
-    if (!deadline) return;
+  // the window so the track can still be played at the event. A submitter
+  // or performer may only change music through registrationTo; the
+  // competition's organizer/admin can do so at any time.
+  private assertWithinMusicChangeWindow(
+    competition: Competition,
+    isOrganizerAccess: boolean,
+  ): void {
+    if (isOrganizerAccess) return;
     const today = new Date().toISOString().slice(0, 10);
-    if (today > deadline) {
+    if (today > competition.registrationTo) {
       throw new ForbiddenException(MUSIC_LOCKED_MESSAGE);
     }
   }
@@ -275,21 +291,28 @@ export class TracksService {
       objectKey,
       bucket,
       this.config.get<string>(OCP_PUBLIC_URL_ENV_KEY) ?? null,
-      this.config.get<string>(OCP_REGION_ENV_KEY) ?? null,
+      this.config.get<string>(OCP_ENDPOINT_ENV_KEY) ?? null,
     );
   }
 
+  // Best-effort cleanup for the replaced object on upload — the new track
+  // row already references the new object, so a failure here only leaves a
+  // stray object behind, not a broken reference.
   private async deleteObjectQuietly(
     bucket: string,
     objectKey: string,
   ): Promise<void> {
     try {
-      await this.s3
-        .getClient()
-        .send(new DeleteObjectCommand({ Bucket: bucket, Key: objectKey }));
+      await this.deleteObject(bucket, objectKey);
     } catch {
       // Already gone (or never existed) — nothing to clean up.
     }
+  }
+
+  private async deleteObject(bucket: string, objectKey: string): Promise<void> {
+    await this.s3
+      .getClient()
+      .send(new DeleteObjectCommand({ Bucket: bucket, Key: objectKey }));
   }
 
   private async applyUpdate(

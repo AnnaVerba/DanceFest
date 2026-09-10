@@ -1,11 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { OrganizerOption } from '../lib/organizerOption';
+import {
+  SELF_ORGANIZER_OPTION_LABEL,
+  ORGANIZER_INPUT_PLACEHOLDER,
+  ORGANIZER_MANUAL_ADD_HINT,
+} from './OrganizersField.constants';
 import styles from './OrganizersField.module.css';
 
 interface OrganizersFieldProps {
   id?: string;
   values: string[];
   onChange: (values: string[]) => void;
-  suggestions?: string[];
+  suggestions?: OrganizerOption[];
   // Fires as the user types so the parent can fetch name suggestions.
   onQuery?: (query: string) => void;
   invalid?: boolean;
@@ -24,27 +30,40 @@ export default function OrganizersField({
   ariaLabel,
 }: OrganizersFieldProps) {
   const [input, setInput] = useState('');
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
-  const add = () => {
-    const name = input.trim();
-    if (!name) return;
-    if (values.some((v) => v.toLowerCase() === name.toLowerCase())) {
+  useEffect(() => {
+    function onOutsideClick(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onOutsideClick);
+    return () => document.removeEventListener('mousedown', onOutsideClick);
+  }, []);
+
+  const add = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (values.some((v) => v.toLowerCase() === trimmed.toLowerCase())) {
       setInput('');
       return;
     }
-    onChange([...values, name]);
+    onChange([...values, trimmed]);
     setInput('');
   };
 
   const remove = (name: string) => onChange(values.filter((v) => v !== name));
 
-  const datalistId = id ? `${id}-suggestions` : undefined;
-  const availableSuggestions = suggestions.filter(
-    (s) => !values.some((v) => v.toLowerCase() === s.toLowerCase()),
-  );
+  const query = input.trim().toLowerCase();
+  const options = suggestions.filter((o) => {
+    if (values.some((v) => v.toLowerCase() === o.name.toLowerCase())) return false;
+    return !query || o.name.toLowerCase().includes(query);
+  });
 
   return (
-    <div className={styles.wrap}>
+    <div className={styles.wrap} ref={wrapRef}>
       {values.length > 0 && (
         <div className={styles.chips}>
           {values.map((name) => (
@@ -61,38 +80,54 @@ export default function OrganizersField({
           ))}
         </div>
       )}
-      <div className={`${styles.add} ${invalid ? styles.invalid : ''}`}>
-        <input
-          id={id}
-          type="text"
-          list={datalistId}
-          autoComplete="off"
-          className={styles.input}
-          aria-label={ariaLabel}
-          placeholder={placeholder ?? "Ім'я або назва організатора"}
-          value={input}
-          onChange={(e) => {
-            setInput(e.target.value);
-            onQuery?.(e.target.value);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              add();
-            }
-          }}
-        />
-        <button type="button" className={styles.btnAdd} onClick={add}>
-          Додати
-        </button>
+      <div className={styles.comboWrap}>
+        <div className={`${styles.field} ${invalid ? styles.invalid : ''}`}>
+          <input
+            id={id}
+            type="text"
+            autoComplete="off"
+            className={styles.input}
+            aria-label={ariaLabel}
+            placeholder={placeholder ?? ORGANIZER_INPUT_PLACEHOLDER}
+            value={input}
+            onFocus={() => setOpen(true)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              setOpen(true);
+              onQuery?.(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                add(input);
+                setOpen(false);
+              }
+              if (e.key === 'Escape') {
+                setOpen(false);
+              }
+            }}
+          />
+        </div>
+        {open && options.length > 0 && (
+          <ul className={styles.dropdown} role="listbox" aria-label={ariaLabel}>
+            {options.map((o) => (
+              <li key={o.id}>
+                <button
+                  type="button"
+                  className={styles.option}
+                  onClick={() => {
+                    add(o.name);
+                    setOpen(false);
+                  }}
+                >
+                  {o.isSelf ? SELF_ORGANIZER_OPTION_LABEL : o.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-      {datalistId && (
-        <datalist id={datalistId}>
-          {availableSuggestions.map((s) => (
-            <option key={s} value={s} />
-          ))}
-        </datalist>
-      )}
+      <p className={styles.hint}>{ORGANIZER_MANUAL_ADD_HINT}</p>
     </div>
   );
 }

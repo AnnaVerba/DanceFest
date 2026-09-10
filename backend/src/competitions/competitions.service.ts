@@ -123,22 +123,6 @@ export class CompetitionsService {
     return competition.update(dto);
   }
 
-  // Sets the deadline after which an entry's track can no longer be
-  // uploaded, replaced, or removed (see TracksService). Same edit
-  // permission as the rest of the competition (organizer/owner or admin).
-  async updateMusicDeadline(
-    id: string,
-    musicDeadline: string,
-    requesterId: string,
-    requesterLevel: AccessLevel,
-  ): Promise<Competition> {
-    const competition = await this.findOne(id);
-    await this.assertCanEdit(competition, requesterId, requesterLevel);
-    competition.musicDeadline = musicDeadline;
-    await competition.save();
-    return competition;
-  }
-
   // Same "organizer/owner or admin" edit permission as update() — exposed
   // for other modules (e.g. music-export) that need to gate an action on a
   // competition without going through the full update() flow.

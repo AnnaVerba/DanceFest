@@ -5,7 +5,8 @@ import PhoneField from '../components/PhoneField';
 import { getToken } from '../lib/auth';
 import { FEATURES } from '../lib/features';
 import { CompetitionApiError, createCompetition } from '../lib/competitions';
-import { getOrganizerSuggestions } from '../lib/users';
+import { getOrganizerOptions } from '../lib/users';
+import type { OrganizerOption } from '../lib/organizerOption';
 import OrganizersField from '../components/OrganizersField';
 import { createJudge } from '../lib/judges';
 import type { CreatedJudge } from '../lib/judges';
@@ -111,7 +112,7 @@ export default function NewCompetitionPage() {
   const [dateTo, setDateTo] = useState('');
   const [location, setLocation] = useState('');
   const [organizers, setOrganizers] = useState<string[]>([]);
-  const [organizerSuggestions, setOrganizerSuggestions] = useState<string[]>([]);
+  const [organizerSuggestions, setOrganizerSuggestions] = useState<OrganizerOption[]>([]);
   const [registrationFrom, setRegistrationFrom] = useState('');
   const [registrationTo, setRegistrationTo] = useState('');
   const [bannerName, setBannerName] = useState<string | null>(null);
@@ -150,7 +151,7 @@ export default function NewCompetitionPage() {
   const [organizerQuery, setOrganizerQuery] = useState('');
   useEffect(() => {
     const t = setTimeout(() => {
-      getOrganizerSuggestions(organizerQuery)
+      getOrganizerOptions(organizerQuery)
         .then(setOrganizerSuggestions)
         .catch(() => setOrganizerSuggestions([]));
     }, 250);

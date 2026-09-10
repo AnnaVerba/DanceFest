@@ -3,9 +3,8 @@ import { InjectModel } from '@nestjs/sequelize';
 import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
 import { Op } from 'sequelize';
-import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
-import { PassThrough, Readable } from 'stream';
+import { PassThrough } from 'stream';
 import { Entry } from '../entries/entry.model';
 import { Nomination } from '../nominations/nomination.model';
 import { Category } from '../categories/category.model';
@@ -16,6 +15,7 @@ import { OcpS3ClientFactory } from '../uploads/ocp-s3-client.factory';
 import { OCP_BUCKET_ENV_KEY } from '../uploads/uploads.constants';
 import { ExportJob, MissingTrack } from './export-job.model';
 import { buildTrackFileName } from './build-track-filename';
+import { LazyS3ObjectStream } from './lazy-s3-object-stream';
 import {
   MUSIC_EXPORT_QUEUE_NAME,
   MUSIC_EXPORTS_KEY_PREFIX,
@@ -235,22 +235,39 @@ export class MusicExportProcessor extends WorkerHost {
       },
     });
     const uploadDone = upload.done();
+    // Observe immediately so a rejection here doesn't crash the process as
+    // an unhandled rejection before we get around to awaiting it below.
+    uploadDone.catch(() => {});
+    let archiveError: unknown;
+    archive.on('error', (err) => {
+      archiveError = err;
+    });
 
-    let processed = 0;
-    for (const item of items) {
-      const object = await this.s3
-        .getClient()
-        .send(
-          new GetObjectCommand({ Bucket: bucket, Key: item.track.objectKey }),
-        );
-      archive.append(object.Body as Readable, { name: item.fileName });
-      processed++;
-      // Last 10% reserved for finalize()/upload flushing after the loop.
-      onProgress(Math.round((processed / Math.max(items.length, 1)) * 90));
+    try {
+      let processed = 0;
+      for (const item of items) {
+        const stream = new LazyS3ObjectStream(this.s3.getClient(), {
+          bucket,
+          key: item.track.objectKey,
+        });
+        archive.append(stream, { name: item.fileName });
+        processed++;
+        // Last 10% reserved for finalize()/upload flushing after the loop.
+        onProgress(Math.round((processed / Math.max(items.length, 1)) * 90));
+      }
+
+      await archive.finalize();
+      if (archiveError) throw archiveError;
+      await uploadDone;
+    } catch (err) {
+      archive.abort();
+      // Unblocks the multipart upload, which is waiting on more data from
+      // passThrough.
+      passThrough.destroy();
+      await upload.abort().catch(() => {});
+      throw err;
     }
 
-    await archive.finalize();
-    await uploadDone;
     onProgress(100);
     return objectKey;
   }

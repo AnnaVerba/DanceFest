@@ -450,6 +450,7 @@ export default function ApplyPage() {
     setPayMethod('card');
     setMusicFileByKey({});
     setCreatedCount(0);
+    setSubmitError(null);
   };
 
   const handleSubmit = async () => {
@@ -589,6 +590,7 @@ export default function ApplyPage() {
             <p className={styles.hint}>
               Організатор отримав вашу заявку та розгляне її найближчим часом.
             </p>
+            {submitError && <p className={styles.error}>{submitError}</p>}
             <div className={styles.successActions}>
               <button
                 type="button"

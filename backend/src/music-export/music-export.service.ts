@@ -104,6 +104,8 @@ export class MusicExportService {
       throw new BadRequestException(STORAGE_NOT_CONFIGURED_MESSAGE);
     }
     const command = new GetObjectCommand({ Bucket: bucket, Key: objectKey });
-    return getSignedUrl(this.s3.getClient(), command, { expiresIn: 3600 });
+    return getSignedUrl(this.s3.getPresignClient(), command, {
+      expiresIn: 3600,
+    });
   }
 }
