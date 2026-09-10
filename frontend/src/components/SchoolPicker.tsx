@@ -45,11 +45,19 @@ export default function SchoolPicker({ value, onChange }: SchoolPickerProps) {
   useEffect(() => {
     if (selected) return;
     const trimmed = query.trim();
-    if (trimmed.length < SCHOOL_TYPEAHEAD_MIN_CHARS) return;
+    if (trimmed.length < SCHOOL_TYPEAHEAD_MIN_CHARS) {
+      setSearching(false);
+      return;
+    }
 
     let active = true;
+    // Drop the previous query's matches right away so a stale list (or a
+    // stale "nothing found") never shows under the new query — the loading
+    // state below stands in until this search resolves.
+    setResults([]);
+    setError(null);
+    setSearching(true);
     const t = setTimeout(() => {
-      setSearching(true);
       searchSchools(trimmed)
         .then((found) => {
           if (!active) return;

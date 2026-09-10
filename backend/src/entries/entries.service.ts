@@ -5,12 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import {
-  CreationAttributes,
-  Op,
-  Transaction,
-  UniqueConstraintError,
-} from 'sequelize';
+import { CreationAttributes, Op, Transaction } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { NominationsService } from '../nominations/nominations.service';
@@ -22,6 +17,7 @@ import { ParticipantNumberLookup } from '../competition-participant-numbers/part
 import { AccessLevel, meetsLevel } from '../auth/access-level.enum';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Entry } from './entry.model';
+import { isNumberAllocationRace } from './number-allocation-race';
 import { resolveLineup } from './lineup';
 import { Score } from './score.model';
 import { User } from '../users/user.model';
@@ -249,11 +245,13 @@ export class EntriesService {
           },
         );
       } catch (err) {
-        // Only the running-number unique index is worth another attempt —
-        // the row lock above should make this rare, but a lost race stays
-        // possible. Anything else (validation, FK, null) fails for good and
-        // must surface instead of costing another wasted transaction.
-        if (err instanceof UniqueConstraintError) continue;
+        // Only a running number lost to a concurrent submission is worth
+        // another attempt — the row lock above should make this rare, but a
+        // lost race stays possible. Every other unique violation (a person
+        // already numbered here) and anything non-unique (validation, FK,
+        // null) fails for good and must surface instead of costing another
+        // wasted transaction.
+        if (isNumberAllocationRace(err)) continue;
         throw err;
       }
     }

@@ -15,7 +15,7 @@ beforeEach(() => {
 });
 
 function openNewCoachForm() {
-  fireEvent.click(screen.getByRole('button', { name: /Додати нового/ }));
+  fireEvent.click(screen.getByRole('button', { name: /Додати вручну/ }));
 }
 
 describe('MentorCoachPicker — новий тренер', () => {

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getSelectableCoaches } from '../lib/auth';
 import type { CoachSummary, SetMentorCoachBody } from '../lib/auth';
+import { isValidPhone } from '../lib/validation';
+import { PHONE_INVALID_MESSAGE } from '../lib/validation.constants';
 import styles from './MentorCoachPicker.module.css';
 
 interface MentorCoachPickerProps {
@@ -26,31 +28,47 @@ export default function MentorCoachPicker({ onChange }: MentorCoachPickerProps) 
   const [mode, setMode] = useState<Mode>('pick');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CoachSummary[]>([]);
+  const [searching, setSearching] = useState(false);
   const [picked, setPicked] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
+  const [phoneError, setPhoneError] = useState(false);
 
   useEffect(() => {
     if (mode !== 'pick' || picked || query.trim().length < MIN_QUERY_CHARS) {
       return;
     }
+    let active = true;
+    setSearching(true);
     const timer = setTimeout(() => {
       getSelectableCoaches(query)
-        .then(setResults)
-        .catch(() => setResults([]));
+        .then((found) => {
+          if (active) setResults(found);
+        })
+        .catch(() => {
+          if (active) setResults([]);
+        })
+        .finally(() => {
+          if (active) setSearching(false);
+        });
     }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, [query, picked, mode]);
 
   const switchMode = (next: Mode) => {
     setMode(next);
     setQuery('');
     setResults([]);
+    setSearching(false);
     setPicked(false);
     setFirstName('');
     setLastName('');
     setPhone('');
+    setPhoneError(false);
     onChange(null);
   };
 
@@ -58,6 +76,7 @@ export default function MentorCoachPicker({ onChange }: MentorCoachPickerProps) 
     setPicked(true);
     setQuery(coachLabel(coach));
     setResults([]);
+    setSearching(false);
     onChange({ coachId: coach.id });
   };
 
@@ -65,6 +84,7 @@ export default function MentorCoachPicker({ onChange }: MentorCoachPickerProps) 
     setQuery(next);
     if (next.trim().length < MIN_QUERY_CHARS) {
       setResults([]);
+      setSearching(false);
     }
     if (picked) {
       setPicked(false);
@@ -84,8 +104,10 @@ export default function MentorCoachPicker({ onChange }: MentorCoachPickerProps) 
     const trimmedFirst = draft.firstName.trim();
     const trimmedLast = draft.lastName.trim();
     const trimmedPhone = draft.phone.trim();
+    const phoneValid = isValidPhone(trimmedPhone);
+    setPhoneError(trimmedPhone !== '' && !phoneValid);
     onChange(
-      trimmedFirst && trimmedLast && trimmedPhone
+      trimmedFirst && trimmedLast && phoneValid
         ? {
             newCoach: {
               firstName: trimmedFirst,
@@ -111,7 +133,9 @@ export default function MentorCoachPicker({ onChange }: MentorCoachPickerProps) 
             />
             {query.trim().length >= MIN_QUERY_CHARS && !picked && (
               <ul className={styles.comboList}>
-                {results.length === 0 ? (
+                {searching ? (
+                  <li className={styles.comboEmpty}>Пошук…</li>
+                ) : results.length === 0 ? (
                   <li className={styles.comboEmpty}>Нікого не знайдено</li>
                 ) : (
                   results.map((coach) => (
@@ -171,6 +195,9 @@ export default function MentorCoachPicker({ onChange }: MentorCoachPickerProps) 
               value={phone}
               onChange={(event) => editNewCoach('phone', event.target.value)}
             />
+            {phoneError && (
+              <p className={styles.error}>{PHONE_INVALID_MESSAGE}</p>
+            )}
           </div>
         </>
       )}
