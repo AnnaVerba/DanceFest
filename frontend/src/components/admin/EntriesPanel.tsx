@@ -23,8 +23,8 @@ interface EntriesPanelProps {
   applyBlockedReason?: string | null;
 }
 
-function formatScore(score: number | null): string {
-  return score === null ? '—' : score.toFixed(1);
+function formatScore(score: number | null | undefined): string {
+  return score == null ? '—' : score.toFixed(1);
 }
 
 function uniqueValues(entries: Entry[], pick: (e: Entry) => string | null): string[] {
@@ -46,6 +46,9 @@ export default function EntriesPanel({
   onError,
   applyBlockedReason = null,
 }: EntriesPanelProps) {
+  // The score column is staff-only: a non-managing viewer gets the plain
+  // start list, and the server omits `score` from their entry payload.
+  const showScore = FEATURES.judges && canManage;
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [entriesTotal, setEntriesTotal] = useState(0);
   const [serverPage, setServerPage] = useState(0);
@@ -255,7 +258,7 @@ export default function EntriesPanel({
           onChange={(e) => setSort(e.target.value as SortKey)}
         >
           {(Object.keys(SORT_LABELS) as SortKey[])
-            .filter((key) => FEATURES.judges || key !== 'score')
+            .filter((key) => showScore || key !== 'score')
             .map((key) => (
               <option key={key} value={key}>
                 {SORT_LABELS[key]}
@@ -286,7 +289,7 @@ export default function EntriesPanel({
                   <th scope="col">К-сть уч.</th>
                   <th scope="col">Студія</th>
                   <th scope="col">Хореограф</th>
-                  {FEATURES.judges && <th scope="col">Бал</th>}
+                  {showScore && <th scope="col">Бал</th>}
                   {canManage && (
                     <th scope="col" className={styles.colActions}>
                       <span hidden>Дії</span>
@@ -299,7 +302,7 @@ export default function EntriesPanel({
                   <tr>
                     <td
                       colSpan={
-                        (FEATURES.judges
+                        (showScore
                           ? BASE_COLUMN_COUNT
                           : BASE_COLUMN_COUNT - 1) +
                         (canManage ? ACTIONS_COLUMN_COUNT : 0)
@@ -322,10 +325,10 @@ export default function EntriesPanel({
                     <td>{entry.participantsCount ?? ''}</td>
                     <td>{entry.studioName}</td>
                     <td>{entry.choreographer}</td>
-                    {FEATURES.judges && (
+                    {showScore && (
                       <td
                         className={
-                          entry.score === null
+                          entry.score == null
                             ? `${styles.score} ${styles.scoreEmpty}`
                             : styles.score
                         }

@@ -85,8 +85,14 @@ export class EntriesService {
     rawPage?: string,
     rawPageSize?: string,
   ) {
-    await this.loadCompetitionAndAssertAccess(
-      competitionId,
+    const competition = await this.competitionModel.findByPk(competitionId);
+    if (!competition) {
+      throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
+    }
+    // Any signed-in user may read the start list; only staff also get the
+    // payment method and the judging scores.
+    const staff = await this.isCompetitionStaff(
+      competition,
       requesterId,
       requesterLevel,
     );
@@ -111,7 +117,7 @@ export class EntriesService {
       personIds,
     );
     return {
-      rows: rows.map((e) => this.toDto(e, numbers)),
+      rows: rows.map((e) => this.toDto(e, numbers, staff)),
       total: count,
       page,
       pageSize,
@@ -528,31 +534,39 @@ export class EntriesService {
     if (!competition) {
       throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
-    // An admin can see/manage any competition's entries; an organizer only
-    // their own.
-    if (requesterLevel === AccessLevel.ADMIN) return competition;
-    if (competition.ownerId === requesterId) return competition;
-
-    const membership = await this.competitionAdminModel.findOne({
-      where: { competitionId, adminId: requesterId },
-    });
-    if (!membership) {
+    if (
+      !(await this.isCompetitionStaff(competition, requesterId, requesterLevel))
+    ) {
       throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);
     }
     return competition;
   }
 
-  private toDto(entry: Entry, numbers: ParticipantNumberLookup) {
-    const scores = entry.scores ?? [];
-    const participantIds = entry.participantIds ?? [];
-    const averageScore =
-      scores.length > 0
-        ? scores.reduce((sum, s) => sum + Number(s.value), 0) / scores.length
-        : entry.score == null
-          ? null
-          : Number(entry.score);
+  // Staff of a competition: an admin (any competition), its owner, or a
+  // named competition-admin. They manage entries and see the payment
+  // method and scores; everyone else gets a read-only start list.
+  private async isCompetitionStaff(
+    competition: Competition,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+  ): Promise<boolean> {
+    if (requesterLevel === AccessLevel.ADMIN) return true;
+    if (competition.ownerId === requesterId) return true;
+    const membership = await this.competitionAdminModel.findOne({
+      where: { competitionId: competition.id, adminId: requesterId },
+    });
+    return membership !== null;
+  }
 
-    return {
+  // `includeStaffFields` off returns the start-list view any signed-in
+  // user may read: no payment method, no music link, no judging scores.
+  private toDto(
+    entry: Entry,
+    numbers: ParticipantNumberLookup,
+    includeStaffFields = true,
+  ) {
+    const participantIds = entry.participantIds ?? [];
+    const base = {
       id: entry.id,
       nominationId: entry.nominationId,
       participantId: entry.participantId,
@@ -574,12 +588,27 @@ export class EntriesService {
       choreographer: entry.choreographer,
       city: entry.city,
       improv: entry.improv,
-      paymentMethod: entry.paymentMethod,
       musicName: entry.musicName,
+      createdAt: entry.createdAt,
+    };
+    if (!includeStaffFields) {
+      return base;
+    }
+
+    const scores = entry.scores ?? [];
+    const averageScore =
+      scores.length > 0
+        ? scores.reduce((sum, s) => sum + Number(s.value), 0) / scores.length
+        : entry.score == null
+          ? null
+          : Number(entry.score);
+
+    return {
+      ...base,
+      paymentMethod: entry.paymentMethod,
       musicUrl: entry.musicUrl,
       score: averageScore,
       scoresCount: scores.length,
-      createdAt: entry.createdAt,
     };
   }
 }
