@@ -1,64 +1,61 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
+import type { FileUploadConfig } from './file-upload-config.interface';
+import { OcpS3ClientFactory } from './ocp-s3-client.factory';
+import { buildContentDisposition } from './content-disposition';
+import { buildPublicObjectUrl } from './build-public-object-url';
 import {
-  ALLOWED_MIME_TYPES,
-  MIME_EXTENSIONS,
   STORAGE_NOT_CONFIGURED_MESSAGE,
-  UNSUPPORTED_FILE_FORMAT_MESSAGE,
-  COMPETITION_BANNERS_KEY_PREFIX,
+  IMAGE_UPLOAD_CONFIG,
+  OCP_ENDPOINT_ENV_KEY,
+  OCP_BUCKET_ENV_KEY,
+  OCP_PUBLIC_URL_ENV_KEY,
 } from './uploads.constants';
 
 @Injectable()
 export class UploadsService {
-  private client: S3Client | null = null;
-
-  constructor(private readonly config: ConfigService) {}
-
-  private getClient(): S3Client {
-    if (this.client) return this.client;
-
-    const region = this.config.get<string>('AWS_REGION');
-    const accessKeyId = this.config.get<string>('AWS_ACCESS_KEY_ID');
-    const secretAccessKey = this.config.get<string>('AWS_SECRET_ACCESS_KEY');
-    if (!region || !accessKeyId || !secretAccessKey) {
-      throw new BadRequestException(STORAGE_NOT_CONFIGURED_MESSAGE);
-    }
-
-    this.client = new S3Client({
-      region,
-      credentials: { accessKeyId, secretAccessKey },
-    });
-    return this.client;
-  }
+  constructor(
+    private readonly config: ConfigService,
+    private readonly s3: OcpS3ClientFactory,
+  ) {}
 
   async uploadImage(file: Express.Multer.File): Promise<string> {
-    if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      throw new BadRequestException(UNSUPPORTED_FILE_FORMAT_MESSAGE);
+    return this.upload(file, IMAGE_UPLOAD_CONFIG);
+  }
+
+  private async upload(
+    file: Express.Multer.File,
+    uploadConfig: FileUploadConfig,
+  ): Promise<string> {
+    if (!uploadConfig.allowedMimeTypes.includes(file.mimetype)) {
+      throw new BadRequestException(uploadConfig.unsupportedFormatMessage);
     }
 
-    const bucket = this.config.get<string>('AWS_S3_BUCKET');
+    const bucket = this.config.get<string>(OCP_BUCKET_ENV_KEY);
     if (!bucket) {
       throw new BadRequestException(STORAGE_NOT_CONFIGURED_MESSAGE);
     }
 
-    const extension = MIME_EXTENSIONS[file.mimetype];
-    const key = `${COMPETITION_BANNERS_KEY_PREFIX}/${randomUUID()}.${extension}`;
+    const extension = uploadConfig.mimeExtensions[file.mimetype];
+    const key = `${uploadConfig.keyPrefix}/${randomUUID()}.${extension}`;
 
-    await this.getClient().send(
+    await this.s3.getClient().send(
       new PutObjectCommand({
         Bucket: bucket,
         Key: key,
         Body: file.buffer,
         ContentType: file.mimetype,
+        ContentDisposition: buildContentDisposition(file.originalname),
       }),
     );
 
-    const publicBaseUrl = this.config.get<string>('AWS_S3_PUBLIC_URL');
-    const region = this.config.get<string>('AWS_REGION');
-    return publicBaseUrl
-      ? `${publicBaseUrl.replace(/\/$/, '')}/${key}`
-      : `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+    return buildPublicObjectUrl(
+      key,
+      bucket,
+      this.config.get<string>(OCP_PUBLIC_URL_ENV_KEY) ?? null,
+      this.config.get<string>(OCP_ENDPOINT_ENV_KEY) ?? null,
+    );
   }
 }

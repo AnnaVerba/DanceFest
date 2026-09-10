@@ -37,12 +37,16 @@
   opacity: 1;
 }
 
-.add {
+.comboWrap {
+  position: relative;
+  width: 100%;
+}
+
+.field {
   display: flex;
   align-items: center;
-  gap: 8px;
   width: 100%;
-  padding: 4px 4px 4px 12px;
+  padding: 4px 12px;
   border: 1px solid var(--g-line);
   border-radius: 9px;
   background: var(--g-field);
@@ -52,25 +56,33 @@
     background 0.15s;
 }
 
-.add:focus-within {
+.field:focus-within {
   border-color: var(--g-accent);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
   background: var(--g-surface);
 }
 
-.add.invalid {
+.field.invalid {
   border-color: var(--g-danger);
 }
 
-.add.invalid:focus-within {
+.field.invalid:focus-within {
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
 }
 
-.input {
+/* Selectors are doubled up (.field .input) so this always outranks a
+   parent page's own ".field input" rule — otherwise that rule's border
+   and background leak onto this input too, on top of the box .field
+   already draws, making the field look doubled. */
+.field .input {
   flex: 1;
   min-width: 0;
+  width: 100%;
+  height: auto;
   border: 0;
+  border-radius: 0;
   outline: none;
+  box-shadow: none;
   background: transparent;
   font: inherit;
   font-size: 14.5px;
@@ -78,23 +90,55 @@
   padding: 8px 0;
 }
 
-.input::placeholder {
+.field .input::placeholder {
   color: var(--g-subtle);
 }
 
-.btnAdd {
-  flex: none;
+.field .input:focus {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--g-surface);
+  border: 1px solid var(--g-line);
+  border-radius: 9px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 20;
+}
+
+.option {
+  display: block;
+  width: 100%;
+  text-align: left;
   border: 0;
   border-radius: 6px;
-  padding: 7px 12px;
+  padding: 8px 10px;
   font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--g-accent);
-  background: var(--g-accent-bg-soft);
+  font-size: 14px;
+  color: var(--g-ink);
+  background: transparent;
   cursor: pointer;
 }
 
-.btnAdd:hover {
-  background: var(--g-line);
+.option:hover,
+.option:focus-visible {
+  background: var(--g-accent-bg-soft);
+  color: var(--g-accent);
+}
+
+.hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--g-subtle);
 }

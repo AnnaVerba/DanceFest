@@ -289,16 +289,14 @@ export class UsersService {
   }
 
   // Organizers a competition can be attributed to — confirmed ORGANIZER
-  // rows (not ADMIN). Typeahead.
+  // rows (not ADMIN). First 10 of the list, or the first 10 matching a
+  // typed name, so the picker has something to show before typing.
   listSelectableOrganizers(query?: string): Promise<User[]> {
-    const q = resolveTypeahead(query);
-    if (q === null) return Promise.resolve([]);
-    const like = { [Op.iLike]: `%${q}%` };
     return this.userModel.findAll({
       where: {
         confirmed: true,
         accessLevel: AccessLevel.ORGANIZER,
-        [Op.or]: [{ firstName: like }, { lastName: like }],
+        ...nameWhere(query),
       },
       order: [['lastName', 'ASC']],
       limit: TYPEAHEAD_LIMIT,
