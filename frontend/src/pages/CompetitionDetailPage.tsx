@@ -93,10 +93,6 @@ export default function CompetitionDetailPage() {
   const isAdmin = !!admin && meetsLevel(admin.accessLevel, ACCESS_LEVEL.ADMIN);
   const canManageEntries = isOwner || isAdmin;
 
-  // The entries list is staff-only (a participant only ever sees their own
-  // entries, in their cabinet) — so is its whole search/filter toolbar.
-  const visibleTabs = TABS.filter((tab) => tab !== 'Заявки' || !!admin);
-
   // The single apply entry point on this page lives in the header next to
   // the name; an owner/admin may still open it after registration closes.
   const apply = competition
@@ -161,7 +157,7 @@ export default function CompetitionDetailPage() {
               )}
 
               <div className={styles.tabs} role="tablist" aria-label="Розділи конкурсу">
-                {visibleTabs.map((tab) => (
+                {TABS.map((tab) => (
                   <button
                     key={tab}
                     type="button"
@@ -183,7 +179,7 @@ export default function CompetitionDetailPage() {
                 />
               )}
 
-              {activeTab === 'Заявки' && !!admin && (
+              {activeTab === 'Заявки' && (
                 <EntriesPanel
                   competitionId={id}
                   canManage={canManageEntries}

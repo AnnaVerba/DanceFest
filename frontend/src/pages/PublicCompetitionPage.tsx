@@ -2,12 +2,17 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import CompetitionDetails from '../components/CompetitionDetails';
 import ContestIcon from '../components/ContestIcon';
+import PublicEntriesList from '../components/PublicEntriesList';
+import PublicProgramList from '../components/PublicProgramList';
 import { getApplyEligibility, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { getEntriesCount } from '../lib/entries';
 import { getVenues } from '../lib/venues';
 import type { Venue } from '../lib/venues';
 import styles from './PublicCompetitionPage.module.css';
+
+const TABS = ['Деталі', 'Програма', 'Заявки'] as const;
+type Tab = (typeof TABS)[number];
 
 export default function PublicCompetitionPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +22,7 @@ export default function PublicCompetitionPage() {
   const [venues, setVenues] = useState<Venue[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>('Деталі');
 
   useEffect(() => {
     if (!id) return;
@@ -84,8 +90,8 @@ export default function PublicCompetitionPage() {
 
           {!loading && !loadError && competition && (
             <article className={styles.card}>
-              {/* A public visitor is never an organizer of this competition. */}
               {(() => {
+                // A public visitor is never an organizer of this competition.
                 const apply = getApplyEligibility(competition, {
                   isOrganizer: false,
                 });
@@ -99,18 +105,6 @@ export default function PublicCompetitionPage() {
                         <ContestIcon />
                       </span>
                       <h1>{competition.name}</h1>
-                      <Link
-                        to={`/competitions/${id}/schedule`}
-                        className={styles.programLink}
-                      >
-                        Програма фестивалю
-                      </Link>
-                      <Link
-                        to={`/competitions/${id}/entries`}
-                        className={styles.programLink}
-                      >
-                        Заявки
-                      </Link>
                       {apply.allowed ? (
                         <Link
                           to={`/competitions/${id}/apply`}
@@ -135,27 +129,60 @@ export default function PublicCompetitionPage() {
                 );
               })()}
 
-              <CompetitionDetails
-                competition={competition}
-                entriesCount={entriesCount}
-              />
+              <div
+                className={styles.tabs}
+                role="tablist"
+                aria-label="Розділи конкурсу"
+              >
+                {TABS.map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTab === tab}
+                    className={styles.tab}
+                    onClick={() => setActiveTab(tab)}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
 
-              {venues.length > 0 && (
-                <section className={styles.venues}>
-                  <h2 className={styles.venuesHeading}>Майданчики</h2>
-                  <ul className={styles.venueList}>
-                    {venues.map((venue) => (
-                      <li key={venue.id} className={styles.venueItem}>
-                        <span className={styles.venueName}>{venue.name}</span>
-                        {venue.description && (
-                          <span className={styles.venueDesc}>
-                            {venue.description}
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
+              {activeTab === 'Деталі' && (
+                <>
+                  <CompetitionDetails
+                    competition={competition}
+                    entriesCount={entriesCount}
+                  />
+
+                  {venues.length > 0 && (
+                    <section className={styles.venues}>
+                      <h2 className={styles.venuesHeading}>Майданчики</h2>
+                      <ul className={styles.venueList}>
+                        {venues.map((venue) => (
+                          <li key={venue.id} className={styles.venueItem}>
+                            <span className={styles.venueName}>
+                              {venue.name}
+                            </span>
+                            {venue.description && (
+                              <span className={styles.venueDesc}>
+                                {venue.description}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
+                </>
+              )}
+
+              {activeTab === 'Програма' && (
+                <PublicProgramList competitionId={id} />
+              )}
+
+              {activeTab === 'Заявки' && (
+                <PublicEntriesList competitionId={id} />
               )}
             </article>
           )}
