@@ -43,5 +43,6 @@ import { DEFAULT_ACCESS_EXPIRES_IN_SECONDS } from './auth.constants';
     OtpService,
     { provide: APP_GUARD, useClass: GlobalJwtAuthGuard },
   ],
+  exports: [SessionStoreService, OtpService],
 })
 export class AuthModule {}

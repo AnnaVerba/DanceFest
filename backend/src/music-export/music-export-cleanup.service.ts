@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/sequelize';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { Op } from 'sequelize';
 import { DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { OcpS3ClientFactory } from '../uploads/ocp-s3-client.factory';
@@ -11,7 +10,7 @@ import { ExportJob } from './export-job.model';
 // The 24h `expiresAt` on ExportJob already stops fileUrl from being
 // returned (see MusicExportService.getStatus) — this is what actually
 // deletes the .zip from OCP once that window passes, so archives don't
-// pile up in the bucket forever.
+// pile up in the bucket forever. Scheduling lives in HousekeepingService.
 @Injectable()
 export class MusicExportCleanupService {
   private readonly logger = new Logger(MusicExportCleanupService.name);
@@ -22,8 +21,7 @@ export class MusicExportCleanupService {
     private readonly config: ConfigService,
   ) {}
 
-  @Cron(CronExpression.EVERY_HOUR)
-  async removeExpiredArchives(): Promise<void> {
+  async removeExpiredArchives(): Promise<number> {
     const expired = await this.exportJobModel.findAll({
       where: {
         status: 'completed',
@@ -31,11 +29,12 @@ export class MusicExportCleanupService {
         expiresAt: { [Op.lt]: new Date() },
       },
     });
-    if (expired.length === 0) return;
+    if (expired.length === 0) return 0;
 
     const bucket = this.config.get<string>(OCP_BUCKET_ENV_KEY);
-    if (!bucket) return;
+    if (!bucket) return 0;
 
+    let removed = 0;
     for (const job of expired) {
       try {
         await this.s3.getClient().send(
@@ -52,6 +51,8 @@ export class MusicExportCleanupService {
       }
       job.objectKey = null;
       await job.save();
+      removed++;
     }
+    return removed;
   }
 }

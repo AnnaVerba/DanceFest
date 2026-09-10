@@ -40,6 +40,14 @@ export class SessionStoreService {
     await this.sessionModel.destroy({ where: { userId, tokenId } });
   }
 
+  // Refresh tokens are already rejected past expiresAt (see findActive); this
+  // is what stops the table growing forever. Called by HousekeepingService.
+  async deleteExpired(): Promise<number> {
+    return this.sessionModel.destroy({
+      where: { expiresAt: { [Op.lt]: new Date() } },
+    });
+  }
+
   private ttlSeconds(): number {
     return (
       Number(this.config.get<string>('JWT_REFRESH_EXPIRES_IN_SECONDS')) ||
