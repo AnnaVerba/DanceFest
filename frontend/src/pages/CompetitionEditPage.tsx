@@ -5,7 +5,8 @@ import PhoneField from '../components/PhoneField';
 import { getToken } from '../lib/auth';
 import { CompetitionApiError, getCompetition, updateCompetition } from '../lib/competitions';
 import type { CompetitionInput } from '../lib/competitions';
-import { getOrganizerSuggestions } from '../lib/users';
+import { getOrganizerOptions } from '../lib/users';
+import type { OrganizerOption } from '../lib/organizerOption';
 import OrganizersField from '../components/OrganizersField';
 import {
   PaymentDetailsApiError,
@@ -77,13 +78,13 @@ export default function CompetitionEditPage() {
   const [fieldErrors, setFieldErrors] = useState<ContactFieldErrors>({});
   const [bannerUploading, setBannerUploading] = useState(false);
   const [bannerError, setBannerError] = useState<string | null>(null);
-  const [organizerSuggestions, setOrganizerSuggestions] = useState<string[]>([]);
+  const [organizerSuggestions, setOrganizerSuggestions] = useState<OrganizerOption[]>([]);
   const [organizerQuery, setOrganizerQuery] = useState('');
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const t = setTimeout(() => {
-      getOrganizerSuggestions(organizerQuery)
+      getOrganizerOptions(organizerQuery)
         .then(setOrganizerSuggestions)
         .catch(() => setOrganizerSuggestions([]));
     }, 250);

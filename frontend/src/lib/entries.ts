@@ -26,6 +26,7 @@ export interface Entry {
   improv?: boolean;
   paymentMethod?: 'cash' | 'card' | null;
   musicName?: string | null;
+  musicUrl?: string | null;
   score: number | null;
   scoresCount?: number;
   createdAt: string;
@@ -122,15 +123,47 @@ export function getMyEntries(): Promise<MyEntry[]> {
   return request<MyEntry[]>('/me/entries');
 }
 
-// Set / replace the track file name for one of the user's own entries.
-export function updateEntryMusic(
+export interface TrackUploadResult {
+  musicUrl: string;
+  // Renamed per the competition's naming convention
+  // (№_Ім'я_Прізвище_Ліга_Стиль), not the file's original name.
+  fileName: string;
+  durationSec: number;
+  limitSec: number;
+  overageSec: number;
+}
+
+// Uploads (or replaces) the actual audio file for one of the user's own
+// entries and stores it in OCP object storage.
+export async function uploadEntryTrack(
   entryId: string,
-  musicName: string,
-): Promise<Entry> {
-  return request<Entry>(`/me/entries/${entryId}/music`, {
-    method: 'PATCH',
-    body: JSON.stringify({ musicName }),
-  });
+  file: File,
+): Promise<TrackUploadResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  let response: Response;
+  try {
+    response = await authorizedFetch(`/entries/${entryId}/music`, {
+      method: 'POST',
+      body: formData,
+    });
+  } catch {
+    throw new EntryApiError(CANNOT_CONNECT_TO_SERVER_MESSAGE, 0);
+  }
+
+  const payload = (await response.json().catch(() => null)) as
+    | (TrackUploadResult & ErrorPayload)
+    | null;
+
+  if (!response.ok) {
+    throw new EntryApiError(
+      extractMessage(payload, GENERIC_REQUEST_ERROR_MESSAGE),
+      response.status,
+    );
+  }
+
+  return payload as TrackUploadResult;
 }
 
 export async function getEntriesCount(competitionId: string): Promise<number> {

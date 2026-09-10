@@ -5,7 +5,11 @@ import { getApplyEligibility, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { getNominations } from '../lib/nominations';
 import type { Nomination, NominationAgeCategory } from '../lib/nominations';
-import { EntryApiError, createEntriesBulk } from '../lib/entries';
+import {
+  EntryApiError,
+  createEntriesBulk,
+  uploadEntryTrack,
+} from '../lib/entries';
 import {
   ParticipantApiError,
   createParticipant,
@@ -149,7 +153,9 @@ export default function ApplyPage() {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [city, setCity] = useState('');
   const [payMethod, setPayMethod] = useState<PayMethod>('card');
-  const [musicByKey, setMusicByKey] = useState<Record<string, string>>({});
+  const [musicFileByKey, setMusicFileByKey] = useState<Record<string, File>>(
+    {},
+  );
 
   const [showNewParticipant, setShowNewParticipant] = useState(false);
   const [newParticipant, setNewParticipant] = useState({
@@ -413,8 +419,9 @@ export default function ApplyPage() {
   };
 
   const setMusicForRow = (key: string, e: ChangeEvent<HTMLInputElement>) => {
-    const name = e.target.files?.[0]?.name ?? '';
-    setMusicByKey((prev) => ({ ...prev, [key]: name }));
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setMusicFileByKey((prev) => ({ ...prev, [key]: file }));
   };
 
   const handleCreateParticipant = async () => {
@@ -470,9 +477,10 @@ export default function ApplyPage() {
     setSelectedKeys([]);
     setCity('');
     setPayMethod('card');
-    setMusicByKey({});
+    setMusicFileByKey({});
     setMentor(null);
     setCreatedCount(0);
+    setSubmitError(null);
   };
 
   const handleSubmit = async () => {
@@ -525,10 +533,24 @@ export default function ApplyPage() {
           improv: r.improv,
           city: city.trim() || undefined,
           paymentMethod: payMethod,
-          musicName: musicByKey[r.key] || undefined,
         })),
       );
       setCreatedCount(created.length);
+
+      // Entries exist now, so their ids are stable — upload each picked
+      // file for real instead of just remembering its name.
+      const uploads = await Promise.allSettled(
+        rows.map((r, i) => {
+          const file = musicFileByKey[r.key];
+          return file ? uploadEntryTrack(created[i].id, file) : null;
+        }),
+      );
+      const failedCount = uploads.filter((u) => u.status === 'rejected').length;
+      if (failedCount > 0) {
+        setSubmitError(
+          `Заявку подано, але не вдалося завантажити музику для ${failedCount} з ${rows.length}. Довантажте її пізніше в кабінеті.`,
+        );
+      }
     } catch (err) {
       setSubmitError(
         err instanceof EntryApiError
@@ -620,6 +642,7 @@ export default function ApplyPage() {
             <p className={styles.hint}>
               Організатор отримав вашу заявку та розгляне її найближчим часом.
             </p>
+            {submitError && <p className={styles.error}>{submitError}</p>}
             <div className={styles.successActions}>
               <button
                 type="button"
@@ -1050,9 +1073,9 @@ export default function ApplyPage() {
                       accept="audio/*"
                       onChange={(e) => setMusicForRow(row.key, e)}
                     />
-                    {musicByKey[row.key] && (
+                    {musicFileByKey[row.key] && (
                       <span className={styles.hint}>
-                        Обрано: {musicByKey[row.key]}
+                        Обрано: {musicFileByKey[row.key].name}
                       </span>
                     )}
                   </div>

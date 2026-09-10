@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-Dance-Fest-Local}
     ports:
-      - '${DB_EXTERNAL_PORT:-5433}:5432'
+      - '${DB_EXTERNAL_PORT:-5432}:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -21,12 +21,50 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    container_name: dansefest-redis
+    restart: unless-stopped
+    ports:
+      - '${REDIS_EXTERNAL_PORT:-6380}:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Local, free stand-in for OneCloudPlanet — same S3 API, so the app code
+  # doesn't know the difference. Point OCP_ENDPOINT at it (see .env.example)
+  # to test uploads/tracks/export without real OCP credentials.
+  minio:
+    image: minio/minio:latest
+    container_name: dansefest-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+    command: server /data --console-address ":9001"
+    ports:
+      - '127.0.0.1:${MINIO_EXTERNAL_PORT:-9000}:9000'
+      - '127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001'
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
     build: ./backend
     container_name: dansefest-backend
     restart: unless-stopped
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     environment:
       PORT: 4000
@@ -43,11 +81,14 @@ services:
       GMAIL_USER: ${GMAIL_USER:-}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-CompAdmin}
-      AWS_REGION: ${AWS_REGION:-}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
-      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-}
-      AWS_S3_PUBLIC_URL: ${AWS_S3_PUBLIC_URL:-}
+      OCP_REGION: ${OCP_REGION:-}
+      OCP_ACCESS_KEY_ID: ${OCP_ACCESS_KEY_ID:-}
+      OCP_SECRET_ACCESS_KEY: ${OCP_SECRET_ACCESS_KEY:-}
+      OCP_BUCKET: ${OCP_BUCKET:-}
+      OCP_PUBLIC_URL: ${OCP_PUBLIC_URL:-}
+      OCP_ENDPOINT: ${OCP_ENDPOINT:-}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     ports:
       - '4000:4000'
     volumes:
@@ -70,3 +111,5 @@ services:
 
 volumes:
   pgdata:
+  redisdata:
+  miniodata:

@@ -5,6 +5,7 @@ import ContestIcon from '../components/ContestIcon';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import EntriesPanel from '../components/admin/EntriesPanel';
 import JudgesPanel from '../components/admin/JudgesPanel';
+import MusicExportPanel from '../components/admin/MusicExportPanel';
 import NominationsPanel from '../components/admin/NominationsPanel';
 import VenuesPanel from '../components/admin/VenuesPanel';
 import SchedulePanel from '../components/admin/schedule/SchedulePanel';
@@ -230,6 +231,7 @@ export default function CompetitionDetailPage() {
                     onError={(message) => showToast(message)}
                     onNotice={(message) => showToast(message)}
                   />
+                  <MusicExportPanel competitionId={id} canManage={canManageEntries} />
                 </>
               )}
 
