@@ -60,6 +60,29 @@ export class EntriesController {
   }
 
   @ApiOperation({
+    summary: "Public — list a competition's entries (read-only)",
+    description:
+      'No login required. Returns a limited, view-only field set — no ' +
+      'payment method, choreographer, studio, city, or the music file — so ' +
+      'anyone can browse who has applied without exposing organizer-only ' +
+      'or personal data.',
+  })
+  @ApiResponse({ status: 200, description: 'Entries returned.' })
+  @ApiResponse({
+    status: 404,
+    description: 'No competition exists with the given id.',
+  })
+  @Public()
+  @Get('public')
+  listPublic(
+    @Param('competitionId') competitionId: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.entriesService.listPublic(competitionId, page, pageSize);
+  }
+
+  @ApiOperation({
     summary: "Public — count a competition's entries",
     description:
       'No login required. Used by the public competition page to show how ' +
