@@ -264,15 +264,17 @@ export class UsersService {
     };
   }
 
-  // Coaches a user may pick as their own mentor: real (confirmed) rows at
-  // COACH level or above. Typeahead — needs a couple of letters.
+  // Coaches a user may pick as their own mentor: rows at COACH level or
+  // above, matched on first or last name. Unconfirmed rows are included so
+  // a coach added earlier via "add manually" (createPlaceholderCoach, which
+  // stores confirmed: false) can be found and reused instead of duplicated.
+  // Typeahead — needs a couple of letters.
   listSelectableCoaches(query?: string): Promise<User[]> {
     const q = resolveTypeahead(query);
     if (q === null) return Promise.resolve([]);
     const like = { [Op.iLike]: `%${q}%` };
     return this.userModel.findAll({
       where: {
-        confirmed: true,
         accessLevel: {
           [Op.in]: [
             AccessLevel.COACH,
