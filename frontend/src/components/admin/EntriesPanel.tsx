@@ -19,8 +19,6 @@ interface EntriesPanelProps {
   competitionId: string;
   canManage: boolean;
   onError: (message: string) => void;
-  // Non-null when the apply form must not be opened (reason to show).
-  applyBlockedReason?: string | null;
 }
 
 function formatScore(score: number | null | undefined): string {
@@ -44,7 +42,6 @@ export default function EntriesPanel({
   competitionId,
   canManage,
   onError,
-  applyBlockedReason = null,
 }: EntriesPanelProps) {
   // The score column is staff-only: a non-managing viewer gets the plain
   // start list, and the server omits `score` from their entry payload.
@@ -168,28 +165,6 @@ export default function EntriesPanel({
 
   return (
     <section className={styles.panel}>
-      <div className={styles.intro}>
-        {applyBlockedReason ? (
-          <span
-            className={styles.btn}
-            aria-disabled="true"
-            title={applyBlockedReason}
-            style={{ opacity: 0.5, cursor: 'not-allowed' }}
-          >
-            Форма подачі заявки — {applyBlockedReason}
-          </span>
-        ) : (
-          <a
-            className={styles.btn}
-            href={`/competitions/${competitionId}/apply`}
-            target="_blank"
-            rel="noopener"
-          >
-            Форма подачі заявки ↗
-          </a>
-        )}
-      </div>
-
       <div className={styles.filters}>
         <input
           className={`${styles.field} ${styles.search}`}

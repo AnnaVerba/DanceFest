@@ -21,7 +21,11 @@ import {
   PARTICIPANT_SEARCH_MIN_CHARS,
 } from '../lib/participants.constants';
 import { getSchool } from '../lib/schools';
-import { getSession } from '../lib/auth';
+import { getMyMentorCoach, getSession, refreshSession } from '../lib/auth';
+import type { SetMentorCoachBody } from '../lib/auth';
+import { completeProfile } from '../lib/users';
+import MentorCoachPicker from '../components/MentorCoachPicker';
+import SchoolPicker from '../components/SchoolPicker';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import styles from './ApplyPage.module.css';
 
@@ -137,6 +141,13 @@ export default function ApplyPage() {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [studioName, setStudioName] = useState<string | null>(null);
+  // Coach + studio for an applicant whose profile has no mentor coach yet:
+  // filled through the pickers below, saved to the profile on submit.
+  const [coachName, setCoachName] = useState<string | null>(null);
+  const [mentor, setMentor] = useState<SetMentorCoachBody | null>(null);
+  const [mentorSchoolId, setMentorSchoolId] = useState(
+    session?.profile.schoolId ?? '',
+  );
   const [league, setLeague] = useState('');
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
@@ -237,6 +248,23 @@ export default function ApplyPage() {
       cancelled = true;
     };
   }, [coachSchoolId]);
+
+  // A participant's studio and coach come from their mentor coach — pull
+  // them in for display when the profile already has one.
+  useEffect(() => {
+    if (!session?.profile.coachId) return;
+    let cancelled = false;
+    getMyMentorCoach()
+      .then((coach) => {
+        if (cancelled || !coach) return;
+        setCoachName(`${coach.lastName} ${coach.firstName}`.trim());
+        setStudioName((prev) => prev ?? coach.schoolName);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
 
   // Rows offered under the search box: the coach themselves (always
   // available, no search needed) plus whatever the current query matched,
@@ -356,8 +384,9 @@ export default function ApplyPage() {
     return category ? `${age} р. · ${category}` : `${age} р.`;
   })();
 
-  const coachLabel =
-    session && isCoach ? fullName(session.profile) : '—';
+  const coachLabel = isCoach && session
+    ? fullName(session.profile)
+    : coachName ?? '—';
 
   const studioLabel = studioName ?? '—';
 
@@ -449,6 +478,7 @@ export default function ApplyPage() {
     setCity('');
     setPayMethod('card');
     setMusicFileByKey({});
+    setMentor(null);
     setCreatedCount(0);
     setSubmitError(null);
   };
@@ -470,9 +500,31 @@ export default function ApplyPage() {
       setSubmitError('Оберіть хоча б одну номінацію.');
       return;
     }
+    if (mentor && isCoach && !mentorSchoolId.trim()) {
+      setSubmitError('Оберіть школу, щоб зберегти тренера.');
+      return;
+    }
 
     setSubmitting(true);
     try {
+      // A picked/typed coach is saved to the profile first; the backend
+      // then resolves the entry's studio and choreographer from it.
+      if (mentor) {
+        try {
+          await completeProfile(
+            isCoach ? { ...mentor, schoolId: mentorSchoolId.trim() } : mentor,
+          );
+          await refreshSession();
+          setMentor(null);
+        } catch (err) {
+          setSubmitError(
+            err instanceof Error
+              ? err.message
+              : 'Не вдалося зберегти тренера у профілі.',
+          );
+          return;
+        }
+      }
       const created = await createEntriesBulk(
         id,
         rows.map((r) => ({
@@ -939,18 +991,35 @@ export default function ApplyPage() {
             </p>
           )}
 
-          {activeParticipants.length > 0 && (
-            <div className={styles.two}>
-              <div>
-                <label className={styles.label}>Студія</label>
-                <div className={styles.readonlyBox}>{studioLabel}</div>
+          {activeParticipants.length > 0 &&
+            (session.profile.coachId ? (
+              <div className={styles.two}>
+                <div>
+                  <label className={styles.label}>Студія</label>
+                  <div className={styles.readonlyBox}>{studioLabel}</div>
+                </div>
+                <div>
+                  <label className={styles.label}>Тренер</label>
+                  <div className={styles.readonlyBox}>{coachLabel}</div>
+                </div>
               </div>
+            ) : (
               <div>
+                {isCoach && (
+                  <SchoolPicker
+                    value={mentorSchoolId}
+                    onChange={setMentorSchoolId}
+                  />
+                )}
                 <label className={styles.label}>Тренер</label>
-                <div className={styles.readonlyBox}>{coachLabel}</div>
+                <MentorCoachPicker onChange={setMentor} />
+                <p className={styles.hint}>
+                  Необовʼязково. Якщо вкажете тренера, він і його студія
+                  збережуться у вашому профілі та підтягнуться в майбутні
+                  заявки.
+                </p>
               </div>
-            </div>
-          )}
+            ))}
 
           <div>
             <label className={styles.label}>Місто</label>
