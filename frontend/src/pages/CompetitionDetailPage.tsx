@@ -92,6 +92,16 @@ export default function CompetitionDetailPage() {
   const isAdmin = !!admin && meetsLevel(admin.accessLevel, ACCESS_LEVEL.ADMIN);
   const canManageEntries = isOwner || isAdmin;
 
+  // The entries list is staff-only (a participant only ever sees their own
+  // entries, in their cabinet) — so is its whole search/filter toolbar.
+  const visibleTabs = TABS.filter((tab) => tab !== 'Заявки' || !!admin);
+
+  // The single apply entry point on this page lives in the header next to
+  // the name; an owner/admin may still open it after registration closes.
+  const apply = competition
+    ? getApplyEligibility(competition, { isOrganizer: canManageEntries })
+    : null;
+
   // "Назад до списку" always goes to a list, never the previous page:
   // staff to the dashboard, everyone else to the public list.
   const listPath = admin ? '/dashboard' : '/';
@@ -127,10 +137,30 @@ export default function CompetitionDetailPage() {
                   <ContestIcon />
                 </span>
                 <h1>{competition.name}</h1>
+                {apply &&
+                  (apply.allowed ? (
+                    <Link
+                      to={`/competitions/${id}/apply`}
+                      className={styles.applyButton}
+                    >
+                      Подати заявку
+                    </Link>
+                  ) : (
+                    <span
+                      className={`${styles.applyButton} ${styles.applyDisabled}`}
+                      aria-disabled="true"
+                      title={apply.reason ?? ''}
+                    >
+                      Подати заявку
+                    </span>
+                  ))}
               </div>
+              {apply && !apply.allowed && (
+                <p className={styles.applyNote}>{apply.reason}</p>
+              )}
 
               <div className={styles.tabs} role="tablist" aria-label="Розділи конкурсу">
-                {TABS.map((tab) => (
+                {visibleTabs.map((tab) => (
                   <button
                     key={tab}
                     type="button"
@@ -152,16 +182,11 @@ export default function CompetitionDetailPage() {
                 />
               )}
 
-              {activeTab === 'Заявки' && (
+              {activeTab === 'Заявки' && !!admin && (
                 <EntriesPanel
                   competitionId={id}
                   canManage={canManageEntries}
                   onError={(message) => showToast(message)}
-                  applyBlockedReason={
-                    getApplyEligibility(competition, {
-                      isOrganizer: canManageEntries,
-                    }).reason
-                  }
                 />
               )}
 
