@@ -30,7 +30,8 @@ export interface Entry {
   paymentMethod?: 'cash' | 'card' | null;
   musicName?: string | null;
   musicUrl?: string | null;
-  score: number | null;
+  // Absent from the start-list payload a non-staff viewer receives.
+  score?: number | null;
   scoresCount?: number;
   createdAt: string;
 }

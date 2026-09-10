@@ -25,6 +25,13 @@ import { UsersModule } from './users/users.module';
 import { CompetitionParticipantNumbersModule } from './competition-participant-numbers/competition-participant-numbers.module';
 import { OrganizerRequestsModule } from './organizer-requests/organizer-requests.module';
 import { AppBootstrapModule } from './app-bootstrap/app-bootstrap.module';
+import { HousekeepingModule } from './housekeeping/housekeeping.module';
+import { BackgroundJobsMode } from './background-jobs/background-jobs-mode.enum';
+import { currentBackgroundJobsMode } from './background-jobs/background-jobs-mode';
+
+// worker mode connects to Redis for the music-export queue; cloud-run-job
+// mode has no queue, so the connection is skipped entirely.
+const isWorkerMode = currentBackgroundJobsMode() === BackgroundJobsMode.Worker;
 
 @Module({
   imports: [
@@ -48,19 +55,24 @@ import { AppBootstrapModule } from './app-bootstrap/app-bootstrap.module';
         synchronize: false,
       }),
     }),
-    BullModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        connection: {
-          // IPv4 literal, not "localhost": Node resolves "localhost" to ::1
-          // first, while a Docker-published port binds IPv4 only, so a bare
-          // "localhost" here fails with ECONNREFUSED ::1.
-          host: config.get<string>('REDIS_HOST') || '127.0.0.1',
-          port: Number(config.get<string>('REDIS_PORT')) || 6380,
-        },
-      }),
-    }),
+    ...(isWorkerMode
+      ? [
+          BullModule.forRootAsync({
+            imports: [ConfigModule],
+            inject: [ConfigService],
+            useFactory: (config: ConfigService) => ({
+              connection: {
+                // IPv4 literal, not "localhost": Node resolves "localhost"
+                // to ::1 first, while a Docker-published port binds IPv4
+                // only, so a bare "localhost" here fails with ECONNREFUSED
+                // ::1.
+                host: config.get<string>('REDIS_HOST') || '127.0.0.1',
+                port: Number(config.get<string>('REDIS_PORT')) || 6380,
+              },
+            }),
+          }),
+        ]
+      : []),
     CompetitionsModule,
     AuthModule,
     TeamModule,
@@ -81,6 +93,7 @@ import { AppBootstrapModule } from './app-bootstrap/app-bootstrap.module';
     CompetitionParticipantNumbersModule,
     OrganizerRequestsModule,
     AppBootstrapModule,
+    HousekeepingModule,
   ],
 })
 export class AppModule {}

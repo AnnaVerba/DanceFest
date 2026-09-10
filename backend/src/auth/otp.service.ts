@@ -99,4 +99,12 @@ export class OtpService {
     }
     await row.update({ consumedAt: new Date() });
   }
+
+  // start()/verify() already ignore rows past expiresAt; this clears them
+  // out so the table doesn't grow forever. Called by HousekeepingService.
+  async deleteExpired(): Promise<number> {
+    return this.otpModel.destroy({
+      where: { expiresAt: { [Op.lt]: new Date() } },
+    });
+  }
 }

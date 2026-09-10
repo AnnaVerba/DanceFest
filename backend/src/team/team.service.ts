@@ -287,4 +287,15 @@ export class TeamService {
       `[invitations] ${invitation.email} → ${frontendUrl}/invite/${invitation.token} (діє до ${invitation.expiresAt.toISOString()})`,
     );
   }
+
+  // A pending invite past its expiresAt can never be redeemed — drop it so
+  // the table doesn't grow forever. Called by HousekeepingService.
+  async deleteExpiredInvitations(): Promise<number> {
+    return this.invitationModel.destroy({
+      where: {
+        status: PENDING_INVITATION_STATUS,
+        expiresAt: { [Op.lt]: new Date() },
+      },
+    });
+  }
 }

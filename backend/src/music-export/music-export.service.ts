@@ -1,12 +1,11 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/sequelize';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
 import type { CreationAttributes } from 'sequelize';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -19,11 +18,9 @@ import {
 } from '../uploads/uploads.constants';
 import { ExportJob } from './export-job.model';
 import { CreateMusicExportDto } from './dto/create-music-export.dto';
-import {
-  MUSIC_EXPORT_QUEUE_NAME,
-  BUILD_ARCHIVE_JOB_NAME,
-  EXPORT_JOB_NOT_FOUND_MESSAGE,
-} from './music-export.constants';
+import { EXPORT_DISPATCHER } from './export-dispatcher.token';
+import type { ExportDispatcher } from './export-dispatcher.interface';
+import { EXPORT_JOB_NOT_FOUND_MESSAGE } from './music-export.constants';
 
 export interface JobStatusResult {
   status: ExportJob['status'];
@@ -36,7 +33,7 @@ export interface JobStatusResult {
 export class MusicExportService {
   constructor(
     @InjectModel(ExportJob) private readonly exportJobModel: typeof ExportJob,
-    @InjectQueue(MUSIC_EXPORT_QUEUE_NAME) private readonly queue: Queue,
+    @Inject(EXPORT_DISPATCHER) private readonly dispatcher: ExportDispatcher,
     private readonly competitionsService: CompetitionsService,
     private readonly s3: OcpS3ClientFactory,
     private readonly config: ConfigService,
@@ -59,7 +56,7 @@ export class MusicExportService {
       requestedByUserId: user.id,
     } as CreationAttributes<ExportJob>);
 
-    await this.queue.add(BUILD_ARCHIVE_JOB_NAME, { exportJobId: job.id });
+    await this.dispatcher.dispatch(job.id);
 
     return { jobId: job.id };
   }
