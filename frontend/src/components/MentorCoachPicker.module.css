@@ -2,27 +2,21 @@
   display: grid;
   gap: 10px;
 }
-.toggle {
-  display: flex;
-  gap: 8px;
-}
-.toggleOn,
-.toggleOff {
-  flex: 1;
-  padding: 8px 10px;
-  border-radius: 8px;
+.linkBtn {
+  align-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
   font: inherit;
+  font-size: 13px;
+  color: var(--g-link, #2563eb);
+  text-decoration: underline;
   cursor: pointer;
 }
-.toggleOn {
-  border: 1px solid #2563eb;
-  background: #2563eb;
-  color: #fff;
-}
-.toggleOff {
-  border: 1px solid var(--border, #d0d5dd);
-  background: transparent;
-  color: inherit;
+.hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--g-muted, #667085);
 }
 .combo {
   position: relative;
