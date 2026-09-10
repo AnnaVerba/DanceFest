@@ -20,12 +20,10 @@ import {
   PARTICIPANT_SEARCH_DEBOUNCE_MS,
   PARTICIPANT_SEARCH_MIN_CHARS,
 } from '../lib/participants.constants';
-import { getSchool } from '../lib/schools';
 import { getMyMentorCoach, getSession, refreshSession } from '../lib/auth';
 import type { SetMentorCoachBody } from '../lib/auth';
 import { completeProfile } from '../lib/users';
 import MentorCoachPicker from '../components/MentorCoachPicker';
-import SchoolPicker from '../components/SchoolPicker';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import styles from './ApplyPage.module.css';
 
@@ -44,6 +42,11 @@ interface SelectableParticipant {
   firstName: string;
   lastName: string;
   birthDate: string;
+  coachId: string | null;
+  // Resolved from the participant's own coach — this is an entry for their
+  // performance, so the studio and choreographer come from their profile.
+  coachName: string | null;
+  studioName: string | null;
 }
 
 const MY_ENTRIES_PATH = '/my-entries';
@@ -140,14 +143,14 @@ export default function ApplyPage() {
   const [searchResults, setSearchResults] = useState<Participant[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  // The self-applying participant's own coach + studio (resolved from
+  // their mentor), shown read-only. A coach picking a roster dancer reads
+  // these off the picked participant instead.
   const [studioName, setStudioName] = useState<string | null>(null);
-  // Coach + studio for an applicant whose profile has no mentor coach yet:
-  // filled through the pickers below, saved to the profile on submit.
   const [coachName, setCoachName] = useState<string | null>(null);
+  // Set only when a mentor-less participant picks/adds one on the form; it
+  // is saved to their profile on submit.
   const [mentor, setMentor] = useState<SetMentorCoachBody | null>(null);
-  const [mentorSchoolId, setMentorSchoolId] = useState(
-    session?.profile.schoolId ?? '',
-  );
   const [league, setLeague] = useState('');
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
@@ -175,12 +178,21 @@ export default function ApplyPage() {
   const isCoach = session
     ? meetsLevel(session.profile.accessLevel, ACCESS_LEVEL.COACH)
     : false;
-  const coachSchoolId = session?.profile.schoolId ?? null;
   // Anyone with a birth date can enter themselves in a number.
   const selfAsOption = useMemo<SelectableParticipant | null>(() => {
     if (!session || !session.profile.birthDate) return null;
-    const { id, firstName, lastName, birthDate } = session.profile;
-    return { id, firstName, lastName, birthDate };
+    const { id, firstName, lastName, birthDate, coachId } = session.profile;
+    // coachName / studioName for self are resolved separately via
+    // getMyMentorCoach (see effect below).
+    return {
+      id,
+      firstName,
+      lastName,
+      birthDate,
+      coachId,
+      coachName: null,
+      studioName: null,
+    };
   }, [session]);
   // A plain participant applies only for themselves (a locked field). A
   // coach picks from their roster — and may include themselves in the list.
@@ -236,35 +248,23 @@ export default function ApplyPage() {
     };
   }, [participantQuery, isCoach]);
 
+  // A self-applying participant's studio and choreographer come from their
+  // own mentor coach — resolve them for the read-only preview. (A coach
+  // picking a roster dancer reads these off the picked participant.)
   useEffect(() => {
-    if (!coachSchoolId) return;
-    let cancelled = false;
-    getSchool(coachSchoolId)
-      .then((school) => {
-        if (!cancelled) setStudioName(school.name);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [coachSchoolId]);
-
-  // A participant's studio and coach come from their mentor coach — pull
-  // them in for display when the profile already has one.
-  useEffect(() => {
-    if (!session?.profile.coachId) return;
+    if (isCoach || !session?.profile.coachId) return;
     let cancelled = false;
     getMyMentorCoach()
       .then((coach) => {
         if (cancelled || !coach) return;
-        setCoachName(`${coach.lastName} ${coach.firstName}`.trim());
-        setStudioName((prev) => prev ?? coach.schoolName);
+        setCoachName(`${coach.firstName} ${coach.lastName}`.trim());
+        setStudioName(coach.schoolName);
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [session]);
+  }, [session, isCoach]);
 
   // Rows offered under the search box: the coach themselves (always
   // available, no search needed) plus whatever the current query matched,
@@ -278,6 +278,9 @@ export default function ApplyPage() {
         firstName: p.firstName,
         lastName: p.lastName,
         birthDate: p.birthDate,
+        coachId: p.coachId,
+        coachName: p.coachName,
+        studioName: p.studioName,
       }));
     const self =
       selfAsOption && !pickedIds.has(selfAsOption.id) ? [selfAsOption] : [];
@@ -391,11 +394,27 @@ export default function ApplyPage() {
     return category ? `${age} р. · ${category}` : `${age} р.`;
   })();
 
-  const coachLabel = isCoach && session
-    ? fullName(session.profile)
-    : coachName ?? '—';
-
-  const studioLabel = studioName ?? '—';
+  // The entry is for the (first) picked participant's performance, so the
+  // studio and choreographer are theirs: a self-applying participant's come
+  // from their mentor (coachName / studioName state), a picked roster
+  // dancer's straight off the participant row.
+  // For a group, mirror the server: take the studio and choreographer from
+  // the first picked participant who has a coach.
+  const previewParticipant =
+    activeParticipants.find((p) => p.coachId) ??
+    activeParticipants[0] ??
+    null;
+  const coachLabel =
+    (selfParticipant ? coachName : previewParticipant?.coachName ?? null) ??
+    '—';
+  const studioLabel =
+    (selfParticipant ? studioName : previewParticipant?.studioName ?? null) ??
+    '—';
+  // A plain participant applying for themselves with no mentor coach can
+  // add one right here; it is saved to their profile on submit.
+  const showMentorPicker = Boolean(
+    selfParticipant && !session?.profile.coachId,
+  );
 
   const toggleStyle = (style: string) => {
     setSubmitError(null);
@@ -458,6 +477,9 @@ export default function ApplyPage() {
         firstName: created.firstName,
         lastName: created.lastName,
         birthDate: created.birthDate,
+        coachId: created.coachId,
+        coachName: created.coachName,
+        studioName: created.studioName,
       });
       setNewParticipant({
         firstName: '',
@@ -507,20 +529,14 @@ export default function ApplyPage() {
       setSubmitError('Оберіть хоча б одну номінацію.');
       return;
     }
-    if (mentor && isCoach && !mentorSchoolId.trim()) {
-      setSubmitError('Оберіть школу, щоб зберегти тренера.');
-      return;
-    }
-
     setSubmitting(true);
     try {
-      // A picked/typed coach is saved to the profile first; the backend
-      // then resolves the entry's studio and choreographer from it.
+      // A mentor-less participant who picked/typed a coach: save it to
+      // their profile first, so the backend resolves the entry's studio
+      // and choreographer from it.
       if (mentor) {
         try {
-          await completeProfile(
-            isCoach ? { ...mentor, schoolId: mentorSchoolId.trim() } : mentor,
-          );
+          await completeProfile(mentor);
           await refreshSession();
           setMentor(null);
         } catch (err) {
@@ -1017,7 +1033,17 @@ export default function ApplyPage() {
           )}
 
           {activeParticipants.length > 0 &&
-            (session.profile.coachId ? (
+            (showMentorPicker ? (
+              <div>
+                <label className={styles.label}>Тренер</label>
+                <MentorCoachPicker onChange={setMentor} />
+                <p className={styles.hint}>
+                  Необовʼязково. Якщо вкажете тренера, він і його студія
+                  збережуться у вашому профілі та підтягнуться в майбутні
+                  заявки.
+                </p>
+              </div>
+            ) : (
               <div className={styles.two}>
                 <div>
                   <label className={styles.label}>Студія</label>
@@ -1027,22 +1053,6 @@ export default function ApplyPage() {
                   <label className={styles.label}>Тренер</label>
                   <div className={styles.readonlyBox}>{coachLabel}</div>
                 </div>
-              </div>
-            ) : (
-              <div>
-                {isCoach && (
-                  <SchoolPicker
-                    value={mentorSchoolId}
-                    onChange={setMentorSchoolId}
-                  />
-                )}
-                <label className={styles.label}>Тренер</label>
-                <MentorCoachPicker onChange={setMentor} />
-                <p className={styles.hint}>
-                  Необовʼязково. Якщо вкажете тренера, він і його студія
-                  збережуться у вашому профілі та підтягнуться в майбутні
-                  заявки.
-                </p>
               </div>
             ))}
 

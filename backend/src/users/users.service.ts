@@ -34,6 +34,12 @@ import {
 // unbounded scan.
 const MAX_ROSTER = 1000;
 
+// Eager-loads a participant's coach and that coach's school, so a
+// ParticipantSummary can carry the resolved choreographer and studio.
+const PARTICIPANT_COACH_INCLUDE = [
+  { model: User, as: 'coach', include: [School] },
+];
+
 export interface CreateUserData {
   firstName: string;
   lastName: string;
@@ -353,6 +359,7 @@ export class UsersService {
   searchRoster(coachUserId: string, query?: string): Promise<User[]> {
     return this.userModel.findAll({
       where: { coachId: coachUserId, ...nameWhere(query) },
+      include: PARTICIPANT_COACH_INCLUDE,
       order: [['lastName', 'ASC']],
       limit: TYPEAHEAD_LIMIT,
     });
@@ -366,6 +373,7 @@ export class UsersService {
     }
     return this.userModel.findAll({
       where: nameWhere(query),
+      include: PARTICIPANT_COACH_INCLUDE,
       order: [['lastName', 'ASC']],
       limit: PARTICIPANT_SEARCH_LIMIT,
     });
@@ -373,8 +381,8 @@ export class UsersService {
 
   // A coach adds a dancer to their roster: a credential-less PARTICIPANT
   // account until the dancer claims it by phone.
-  createRosterParticipant(data: RosterParticipantData): Promise<User> {
-    return this.userModel.create({
+  async createRosterParticipant(data: RosterParticipantData): Promise<User> {
+    const { id } = await this.userModel.create({
       firstName: data.firstName,
       lastName: data.lastName,
       phone: data.phone,
@@ -386,5 +394,9 @@ export class UsersService {
       coachId: data.coachId,
       confirmed: false,
     } as CreationAttributes<User>);
+    // Reload with the coach + school so the summary carries them.
+    return (await this.userModel.findByPk(id, {
+      include: PARTICIPANT_COACH_INCLUDE,
+    })) as User;
   }
 }

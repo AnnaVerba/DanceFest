@@ -225,6 +225,7 @@ export class UsersController {
   }
 
   private toSummary(participant: User): ParticipantSummary {
+    const coach = participant.coach ?? null;
     return {
       id: participant.id,
       firstName: participant.firstName,
@@ -234,6 +235,8 @@ export class UsersController {
       birthDate: participant.birthDate,
       hasPassword: Boolean(participant.passwordHash),
       coachId: participant.coachId,
+      coachName: coach ? `${coach.firstName} ${coach.lastName}`.trim() : null,
+      studioName: coach?.school?.name ?? null,
       createdAt: participant.createdAt,
       updatedAt: participant.updatedAt,
     };

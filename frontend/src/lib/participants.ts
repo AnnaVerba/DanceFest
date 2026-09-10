@@ -11,6 +11,8 @@ export interface Participant {
   birthDate: string;
   hasPassword: boolean;
   coachId: string | null;
+  coachName: string | null;
+  studioName: string | null;
   createdAt: string;
   updatedAt: string;
 }

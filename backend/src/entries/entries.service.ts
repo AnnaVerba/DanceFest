@@ -497,8 +497,11 @@ export class EntriesService {
     }
 
     const [first] = participants;
-    const coach = first.coachId
-      ? await this.usersService.findById(first.coachId)
+    // For a group, the studio and choreographer come from the first
+    // participant who actually has a coach.
+    const coachSource = participants.find((p) => p.coachId) ?? null;
+    const coach = coachSource?.coachId
+      ? await this.usersService.findById(coachSource.coachId)
       : null;
     const school = coach?.schoolId
       ? await this.schoolsService.findByIdOrFail(coach.schoolId)
