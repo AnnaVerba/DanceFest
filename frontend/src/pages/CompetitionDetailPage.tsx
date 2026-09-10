@@ -21,10 +21,7 @@ import {
 import type { Competition } from '../lib/competitions';
 import { FEATURES } from '../lib/features';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
-import { getMockCompetitionById } from '../lib/mockCompetitions';
 import styles from './CompetitionDetailPage.module.css';
-
-const USE_MOCK_DATA = false;
 
 const ALL_TABS = [
   'Деталі',
@@ -54,17 +51,6 @@ export default function CompetitionDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-
-    if (USE_MOCK_DATA) {
-      const mock = getMockCompetitionById(id);
-      if (mock) {
-        setCompetition(mock);
-      } else {
-        setLoadError('Не вдалося завантажити конкурс.');
-      }
-      setLoading(false);
-      return;
-    }
 
     let cancelled = false;
     getCompetition(id)

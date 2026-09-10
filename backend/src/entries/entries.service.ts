@@ -17,6 +17,7 @@ import { ParticipantNumberLookup } from '../competition-participant-numbers/part
 import { AccessLevel, meetsLevel } from '../auth/access-level.enum';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Entry } from './entry.model';
+import { isNumberAllocationRace } from './number-allocation-race';
 import { resolveLineup } from './lineup';
 import { Score } from './score.model';
 import { User } from '../users/user.model';
@@ -245,7 +246,13 @@ export class EntriesService {
           },
         );
       } catch (err) {
-        if (attempt === 0) continue;
+        // Only a running number lost to a concurrent submission is worth
+        // another attempt — the row lock above should make this rare, but a
+        // lost race stays possible. Every other unique violation (a person
+        // already numbered here) and anything non-unique (validation, FK,
+        // null) fails for good and must surface instead of costing another
+        // wasted transaction.
+        if (isNumberAllocationRace(err)) continue;
         throw err;
       }
     }
@@ -541,7 +548,7 @@ export class EntriesService {
     const averageScore =
       scores.length > 0
         ? scores.reduce((sum, s) => sum + Number(s.value), 0) / scores.length
-        : entry.score === null
+        : entry.score == null
           ? null
           : Number(entry.score);
 
