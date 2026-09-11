@@ -8,6 +8,10 @@
   gap: 16px;
   min-height: var(--topbar-h);
   padding: 18px 40px;
+  /* ThemeToggle renders separately (App.tsx) as position: fixed, top/right:
+     16px, var(--control-height) wide — reserve that corner so this bar's own
+     right-aligned content (profile pill, logout) never sits under it. */
+  padding-right: 80px;
   background: var(--g-surface);
   border-bottom: 1px solid var(--g-line);
 }
@@ -41,11 +45,11 @@
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  padding: 6px 12px 6px 8px;
+  height: var(--control-height);
+  padding: 0 12px 0 8px;
   border: 1px solid var(--g-line);
   border-radius: 999px;
   background: var(--g-surface);
-  line-height: 1.2;
   text-decoration: none;
   color: inherit;
   transition:
@@ -67,6 +71,9 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  /* Tight enough that name + role stay inside var(--control-height) no
+     matter how long the name is — height is fixed, not sized to fit. */
+  line-height: 1.1;
 }
 
 .userName {
@@ -84,7 +91,11 @@
 }
 
 .loginBtn {
-  padding: 9px 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--control-height);
+  padding: 0 18px;
   border: 1px solid var(--g-line);
   border-radius: 10px;
   background: var(--g-surface);
@@ -103,5 +114,8 @@
 @media (max-width: 680px) {
   .topbar {
     padding: 14px 16px;
+    /* Still clears the fixed toggle here — its inset shrinks at 640px, not
+       680px, so this stays generous rather than tracking two breakpoints. */
+    padding-right: 80px;
   }
 }
