@@ -32,7 +32,23 @@ export interface Entry {
   musicUrl?: string | null;
   score: number | null;
   scoresCount?: number;
+  purchasedExtraSeconds?: number;
+  extraFee?: number;
   createdAt: string;
+}
+
+// The only purchasable extra-time brackets for an overrun performance.
+export const EXTRA_TIME_SECONDS_OPTIONS = [30, 60] as const;
+export type ExtraTimeSeconds = (typeof EXTRA_TIME_SECONDS_OPTIONS)[number];
+
+export interface ExtraTimeInput {
+  purchasedSec: ExtraTimeSeconds;
+  fee: number;
+}
+
+export interface ExtraTimeResult {
+  entry: Entry;
+  totalDue: number;
 }
 
 export interface EntryInput {
@@ -234,4 +250,17 @@ export function deleteEntry(competitionId: string, entryId: string): Promise<voi
   return request(`/competitions/${competitionId}/entries/${entryId}`, {
     method: 'DELETE',
   });
+}
+
+// Records purchased additional on-stage time and its fee for an overrun
+// entry. Returns the updated entry and its total amount due.
+export function updateEntryExtraTime(
+  competitionId: string,
+  entryId: string,
+  input: ExtraTimeInput,
+): Promise<ExtraTimeResult> {
+  return request<ExtraTimeResult>(
+    `/competitions/${competitionId}/entries/${entryId}/extra-time`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
 }
