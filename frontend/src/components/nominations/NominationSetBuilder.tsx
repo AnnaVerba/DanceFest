@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import SpecialCategoryModal from './SpecialCategoryModal';
 import type { SpecialNominationDraft } from './SpecialCategoryModal';
@@ -22,6 +22,7 @@ import {
   MAX_NOMINATIONS,
   draftCategory,
   emptyAxisSelection,
+  isDraftCategory,
   pluralNominations,
   sameCategoryValue,
   signatureOf,
@@ -69,6 +70,13 @@ export default function NominationSetBuilder({
     staleTime: REFERENCE_STALE_TIME_MS,
   });
   const suggestions = categoriesQuery.data ?? EMPTY_CATEGORIES;
+
+  useEffect(() => {
+    if (!categoriesQuery.isError) return;
+    const message = 'Не вдалося завантажити довідник категорій.';
+    if (onNotice) onNotice(message);
+    else setError(message);
+  }, [categoriesQuery.isError, onNotice]);
 
   const seededSelection = useMemo(() => {
     const restored = emptyAxisSelection();
@@ -435,11 +443,14 @@ export default function NominationSetBuilder({
         }
         onClose={() => setSpecialOpen(false)}
         onCategoryCreated={(category) => {
-          // A real, persisted category — keep the reference cache in sync
-          // so every other picker sees it without waiting for a refetch.
-          queryClient.setQueryData<Category[]>(queryKeys.categories(), (prev) =>
-            prev?.some((s) => s.id === category.id) ? prev : [...(prev ?? []), category],
-          );
+          // Only a real, persisted category belongs in the shared reference
+          // cache — drafts get their `draft:` id resolved into a real one
+          // later, by resolveDraftCategories.
+          if (!isDraftCategory(category.id)) {
+            queryClient.setQueryData<Category[]>(queryKeys.categories(), (prev) =>
+              prev?.some((s) => s.id === category.id) ? prev : [...(prev ?? []), category],
+            );
+          }
           onCategoryCreated?.(category);
         }}
         onSubmit={addSpecial}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createParticipant, getParticipants } from '../lib/participants';
-import type { NewParticipant } from '../lib/participants';
+import type { NewParticipant, Participant } from '../lib/participants';
 import PhoneField from './PhoneField';
 import { isValidBirthDate, isValidName, isValidPhone } from '../lib/validation';
 import {
@@ -27,6 +27,7 @@ function formatBirthDate(iso: string): string {
 }
 
 export default function CoachRoster() {
+  const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<NewParticipant>(EMPTY_DRAFT);
   const [busy, setBusy] = useState(false);
@@ -58,12 +59,15 @@ export default function CoachRoster() {
     setBusy(true);
     setFormError(null);
     try {
-      await createParticipant({
+      const created = await createParticipant({
         ...draft,
         firstName: draft.firstName.trim(),
         lastName: draft.lastName.trim(),
       });
-      await participantsQuery.refetch();
+      queryClient.setQueryData<Participant[]>(queryKeys.participants(), (prev) => [
+        ...(prev ?? []),
+        created,
+      ]);
       setDraft(EMPTY_DRAFT);
       setAdding(false);
     } catch (err) {

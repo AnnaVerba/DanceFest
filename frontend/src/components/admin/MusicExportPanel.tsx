@@ -30,6 +30,8 @@ export default function MusicExportPanel({
     queryFn: () => getMusicExportJob(jobId!),
     enabled: !!jobId,
     staleTime: 0,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     retry: false,
     refetchInterval: (query) => {
       if (query.state.status === 'error') return false;

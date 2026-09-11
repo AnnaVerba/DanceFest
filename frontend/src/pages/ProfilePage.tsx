@@ -21,11 +21,14 @@ export default function ProfilePage() {
 
   // Never served from a stale cache: the profile is who-am-I data, and a
   // change (role upgrade, mentor coach) must show up the moment it happens.
+  // No retry: authorizedFetch already refreshes the token and retries once
+  // on a 401, so a query-level retry would only re-trigger that same cycle.
   const profileQuery = useQuery({
     queryKey: queryKeys.me(),
     queryFn: getMyProfile,
     enabled: !!getToken() && !!session,
     staleTime: ME_STALE_TIME_MS,
+    retry: false,
   });
   const profile = profileQuery.data ?? null;
   const loading = profileQuery.isLoading;

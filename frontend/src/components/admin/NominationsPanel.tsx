@@ -78,6 +78,9 @@ export default function NominationsPanel({
         queryKeys.nominations(competitionId),
         (prev) => [...(prev ?? []), created],
       );
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.nominations(competitionId),
+      });
     },
   });
 
@@ -89,6 +92,9 @@ export default function NominationsPanel({
         queryKeys.nominations(competitionId),
         (prev) => [...(prev ?? []), ...created],
       );
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.nominations(competitionId),
+      });
     },
   });
 
@@ -100,6 +106,9 @@ export default function NominationsPanel({
         queryKeys.nominations(competitionId),
         (prev) => prev?.map((n) => (n.id === updated.id ? updated : n)),
       );
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.nominations(competitionId),
+      });
     },
   });
 
@@ -110,6 +119,9 @@ export default function NominationsPanel({
         queryKeys.nominations(competitionId),
         (prev) => prev?.filter((n) => n.id !== nominationId),
       );
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.nominations(competitionId),
+      });
     },
   });
 
@@ -408,11 +420,16 @@ export default function NominationsPanel({
         categories={categories}
         submitLabel="Додати до конкурсу"
         onClose={() => setSpecialOpen(false)}
-        onCategoryCreated={(category) =>
-          queryClient.setQueryData<Category[]>(queryKeys.categories(), (prev) =>
-            prev?.some((c) => c.id === category.id) ? prev : [...(prev ?? []), category],
-          )
-        }
+        onCategoryCreated={(category) => {
+          const prev = queryClient.getQueryData<Category[]>(queryKeys.categories());
+          if (!prev) {
+            void queryClient.invalidateQueries({ queryKey: queryKeys.categories() });
+            return;
+          }
+          queryClient.setQueryData<Category[]>(queryKeys.categories(), (data) =>
+            data?.some((c) => c.id === category.id) ? data : [...(data ?? []), category],
+          );
+        }}
         onSubmit={(drafts) => void handleAddSpecial(drafts)}
       />
 
