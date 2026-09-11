@@ -41,7 +41,6 @@ export interface RegisterPayload {
   firstName: string;
   lastName: string;
   phone: string;
-  email: string;
   password: string;
   birthDate: string;
   role: AccessLevel;
@@ -125,8 +124,8 @@ async function postAuth(
   return payload as RawAuthResponse;
 }
 
-// `login` accepts a phone number or an email. A password-less account
-// (first login) gets `{ otpRequired, phone }` instead of a session.
+// `login` accepts a phone number. A password-less account (first login)
+// gets `{ otpRequired, phone }` instead of a session.
 export async function login(
   loginId: string,
   password: string,

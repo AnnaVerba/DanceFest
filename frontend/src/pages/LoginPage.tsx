@@ -9,6 +9,7 @@ import {
   verifyOtp,
 } from '../lib/auth';
 import { MIN_PASSWORD_LENGTH } from '../lib/auth.constants';
+import PhoneField from '../components/PhoneField';
 import styles from './LoginPage.module.css';
 
 const OTP_LENGTH = 4;
@@ -126,17 +127,8 @@ export default function LoginPage() {
 
             <form onSubmit={handleSubmit}>
               <div className={styles.field}>
-                <label htmlFor="loginId">Номер телефону або email</label>
-                <input
-                  type="text"
-                  id="loginId"
-                  name="loginId"
-                  placeholder="+380 67 123 45 67"
-                  autoComplete="username"
-                  value={loginId}
-                  onChange={(e) => setLoginId(e.target.value)}
-                  required
-                />
+                <label htmlFor="loginId">Номер телефону</label>
+                <PhoneField id="loginId" value={loginId} onChange={setLoginId} />
               </div>
 
               <div className={styles.field}>

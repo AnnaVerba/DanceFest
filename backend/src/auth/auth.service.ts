@@ -23,7 +23,7 @@ import { OtpRequired } from './otp-required.interface';
 import { isRealPhone, maskPhone } from './mask-phone';
 import {
   DEFAULT_REFRESH_EXPIRES_IN_SECONDS,
-  EMAIL_OR_PHONE_TAKEN_MESSAGE,
+  PHONE_TAKEN_MESSAGE,
   FINGERPRINT_MISMATCH_MESSAGE,
   INVALID_CREDENTIALS_MESSAGE,
   MIN_PASSWORD_LENGTH,
@@ -46,15 +46,9 @@ export class AuthService {
   async register(dto: RegisterDto, ctx: ClientContext): Promise<AuthResult> {
     // A coach names their school later, on /complete-profile.
     const phone = dto.phone.trim();
-    const [byEmail, byPhone] = await Promise.all([
-      this.usersService.findByEmail(dto.email),
-      this.usersService.findByPhone(phone),
-    ]);
-    if (byEmail) {
-      throw new UnauthorizedException(EMAIL_OR_PHONE_TAKEN_MESSAGE);
-    }
+    const byPhone = await this.usersService.findByPhone(phone);
     if (byPhone && byPhone.confirmed) {
-      throw new UnauthorizedException(EMAIL_OR_PHONE_TAKEN_MESSAGE);
+      throw new UnauthorizedException(PHONE_TAKEN_MESSAGE);
     }
 
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
@@ -69,7 +63,6 @@ export class AuthService {
       const linked = await this.usersService.linkRegistration(byPhone.id, {
         firstName: dto.firstName,
         lastName: dto.lastName,
-        email: dto.email,
         passwordHash,
         birthDate: dto.birthDate,
         accessLevel,
@@ -86,7 +79,7 @@ export class AuthService {
       firstName: dto.firstName,
       lastName: dto.lastName,
       phone,
-      email: dto.email,
+      email: null,
       passwordHash,
       birthDate: dto.birthDate,
       accessLevel: dto.role,
@@ -101,7 +94,7 @@ export class AuthService {
     dto: LoginDto,
     ctx: ClientContext,
   ): Promise<AuthResult | OtpRequired> {
-    const user = await this.usersService.findByEmailOrPhone(dto.login.trim());
+    const user = await this.usersService.findByPhone(dto.login.trim());
     if (!user) {
       throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
     }
@@ -155,7 +148,7 @@ export class AuthService {
   // First login, step 2: check the SMS code, set the password the user
   // chose, and issue a session. `confirmed` flips true inside claimAccount.
   async verifyOtp(dto: OtpVerifyDto, ctx: ClientContext): Promise<AuthResult> {
-    const user = await this.usersService.findByEmailOrPhone(dto.login.trim());
+    const user = await this.usersService.findByPhone(dto.login.trim());
     if (!user || !isRealPhone(user.phone)) {
       throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
     }
@@ -171,7 +164,7 @@ export class AuthService {
   }
 
   async resendOtp(dto: OtpResendDto): Promise<{ phone: string }> {
-    const user = await this.usersService.findByEmailOrPhone(dto.login.trim());
+    const user = await this.usersService.findByPhone(dto.login.trim());
     if (!user || user.passwordHash || !isRealPhone(user.phone)) {
       throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
     }
