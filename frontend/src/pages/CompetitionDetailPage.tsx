@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import CompetitionDetails from '../components/CompetitionDetails';
 import ContestIcon from '../components/ContestIcon';
@@ -18,9 +19,9 @@ import {
   getApplyEligibility,
   getCompetition,
 } from '../lib/competitions';
-import type { Competition } from '../lib/competitions';
 import { FEATURES } from '../lib/features';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
+import { queryKeys } from '../lib/queryKeys';
 import styles from './CompetitionDetailPage.module.css';
 
 const ALL_TABS = [
@@ -40,38 +41,30 @@ const TABS: readonly Tab[] = ALL_TABS.filter(
 export default function CompetitionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const admin = getStoredAdmin();
 
-  const [competition, setCompetition] = useState<Competition | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('Деталі');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const { toasts, showToast } = useToasts();
 
-  useEffect(() => {
-    if (!id) return;
-
-    let cancelled = false;
-    getCompetition(id)
-      .then((data) => {
-        if (!cancelled) setCompetition(data);
-      })
-      .catch(() => {
-        if (!cancelled) setLoadError('Не вдалося завантажити конкурс.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+  const competitionQuery = useQuery({
+    queryKey: queryKeys.competition(id ?? ''),
+    queryFn: () => getCompetition(id!),
+    enabled: !!id,
+  });
+  const competition = competitionQuery.data ?? null;
+  const loading = competitionQuery.isLoading;
+  const loadError = competitionQuery.isError
+    ? 'Не вдалося завантажити конкурс.'
+    : null;
 
   const handleDelete = async () => {
     if (!competition) return;
     try {
       await deleteCompetition(competition.id);
+      queryClient.removeQueries({ queryKey: queryKeys.competition(competition.id) });
+      await queryClient.invalidateQueries({ queryKey: ['competitions'] });
       showToast(`Конкурс «${competition.name}» видалено`);
       navigate('/dashboard');
     } catch {

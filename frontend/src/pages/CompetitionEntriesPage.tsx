@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { getCompetition } from '../lib/competitions';
-import type { Competition } from '../lib/competitions';
 import { getPublicEntries } from '../lib/entries';
-import type { PublicEntry } from '../lib/entries';
 import { formatParticipantNumbers } from '../lib/participantNumbers';
+import { queryKeys } from '../lib/queryKeys';
 import { PUBLIC_ENTRIES_PAGE_SIZE } from './CompetitionEntriesPage.constants';
 import styles from './CompetitionEntriesPage.module.css';
 
@@ -14,56 +13,31 @@ import styles from './CompetitionEntriesPage.module.css';
 // the music file itself.
 export default function CompetitionEntriesPage() {
   const { id } = useParams<{ id: string }>();
-  const [competition, setCompetition] = useState<Competition | null>(null);
-  const [entries, setEntries] = useState<PublicEntry[] | null>(null);
-  const [total, setTotal] = useState(0);
-  const [serverPage, setServerPage] = useState(0);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
+  const competitionQuery = useQuery({
+    queryKey: queryKeys.competition(id ?? ''),
+    queryFn: () => getCompetition(id!),
+    enabled: !!id,
+    retry: false,
+  });
+  const competition = competitionQuery.data ?? null; // absent name still renders the table
 
-    getCompetition(id)
-      .then((data) => {
-        if (!cancelled) setCompetition(data);
-      })
-      .catch(() => {
-        /* the table still renders without the competition name */
-      });
-
-    getPublicEntries(id, { page: 0, pageSize: PUBLIC_ENTRIES_PAGE_SIZE })
-      .then((data) => {
-        if (cancelled) return;
-        setEntries(data.rows);
-        setTotal(data.total);
-        setServerPage(0);
-      })
-      .catch(() => {
-        if (!cancelled) setLoadError('Не вдалося завантажити заявки.');
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
-
-  const loadMore = () => {
-    if (!id) return;
-    setLoadingMore(true);
-    getPublicEntries(id, {
-      page: serverPage + 1,
-      pageSize: PUBLIC_ENTRIES_PAGE_SIZE,
-    })
-      .then((data) => {
-        setEntries((prev) => [...(prev ?? []), ...data.rows]);
-        setServerPage(data.page);
-        setTotal(data.total);
-      })
-      .catch(() => setLoadError('Не вдалося завантажити ще заявки.'))
-      .finally(() => setLoadingMore(false));
-  };
+  const entriesQuery = useInfiniteQuery({
+    queryKey: queryKeys.publicEntries(id ?? ''),
+    queryFn: ({ pageParam }) =>
+      getPublicEntries(id!, { page: pageParam, pageSize: PUBLIC_ENTRIES_PAGE_SIZE }),
+    enabled: !!id,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((sum, p) => sum + p.rows.length, 0);
+      return loaded < lastPage.total ? lastPage.page + 1 : undefined;
+    },
+  });
+  const entries = entriesQuery.data?.pages.flatMap((p) => p.rows) ?? null;
+  const total = entriesQuery.data?.pages.at(-1)?.total ?? 0;
+  const loadingMore = entriesQuery.isFetchingNextPage;
+  const loadError = entriesQuery.isError ? 'Не вдалося завантажити заявки.' : null;
+  const loadMore = () => void entriesQuery.fetchNextPage();
 
   if (!id) return null;
 

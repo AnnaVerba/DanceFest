@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
 import CabinetLayout from '../components/CabinetLayout';
 import LevelUpgrade from '../components/LevelUpgrade';
@@ -6,8 +6,9 @@ import MentorCoachField from '../components/MentorCoachField';
 import { getSession, getToken } from '../lib/auth';
 import { ACCESS_LEVEL_LABELS, canHaveMentorCoach } from '../lib/roles';
 import { getMyProfile } from '../lib/users';
-import type { MyProfile } from '../lib/users';
 import { formatContestDate } from '../lib/homeContests';
+import { queryKeys } from '../lib/queryKeys';
+import { ME_STALE_TIME_MS } from '../lib/queryClient.constants';
 import styles from './ProfilePage.module.css';
 
 function formatBirthDate(iso: string | null): string {
@@ -17,26 +18,21 @@ function formatBirthDate(iso: string | null): string {
 
 export default function ProfilePage() {
   const session = getSession();
-  const [profile, setProfile] = useState<MyProfile | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
-    getMyProfile()
-      .then((p) => {
-        if (!cancelled) setProfile(p);
-      })
-      .catch(() => {
-        if (!cancelled) setError('Не вдалося завантажити профіль.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // Never served from a stale cache: the profile is who-am-I data, and a
+  // change (role upgrade, mentor coach) must show up the moment it happens.
+  // No retry: authorizedFetch already refreshes the token and retries once
+  // on a 401, so a query-level retry would only re-trigger that same cycle.
+  const profileQuery = useQuery({
+    queryKey: queryKeys.me(),
+    queryFn: getMyProfile,
+    enabled: !!getToken() && !!session,
+    staleTime: ME_STALE_TIME_MS,
+    retry: false,
+  });
+  const profile = profileQuery.data ?? null;
+  const loading = profileQuery.isLoading;
+  const error = profileQuery.isError ? 'Не вдалося завантажити профіль.' : null;
 
   if (!getToken() || !session) {
     return <Navigate to="/login" replace />;

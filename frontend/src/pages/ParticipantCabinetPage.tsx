@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
 import CabinetLayout from '../components/CabinetLayout';
 import { getSession, getToken } from '../lib/auth';
@@ -7,6 +8,7 @@ import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import { getMyEntries, uploadEntryTrack } from '../lib/entries';
 import type { MyEntry } from '../lib/entries';
 import { formatParticipantNumbers } from '../lib/participantNumbers';
+import { queryKeys } from '../lib/queryKeys';
 import styles from './ParticipantCabinetPage.module.css';
 
 interface CompetitionGroup {
@@ -35,26 +37,19 @@ function groupByCompetition(entries: MyEntry[]): CompetitionGroup[] {
 
 export default function ParticipantCabinetPage() {
   const session = getSession();
-  const [myEntries, setMyEntries] = useState<MyEntry[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    getMyEntries()
-      .then((entries) => {
-        if (!cancelled) setMyEntries(entries);
-      })
-      .catch(() => {
-        if (!cancelled) setError('Не вдалося завантажити заявки.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const entriesQuery = useQuery({
+    queryKey: queryKeys.myEntries(),
+    queryFn: getMyEntries,
+    enabled: !!getToken() && !!session,
+  });
+  const myEntries = entriesQuery.data ?? null;
+  const loading = entriesQuery.isLoading;
+  const error = entriesQuery.isError
+    ? 'Не вдалося завантажити заявки.'
+    : uploadError;
 
   const groups = useMemo(
     () => groupByCompetition(myEntries ?? []),
@@ -68,18 +63,26 @@ export default function ParticipantCabinetPage() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    setError(null);
+    setUploadError(null);
     try {
       const uploaded = await uploadEntryTrack(entryId, file);
-      setMyEntries((prev) =>
-        (prev ?? []).map((e) =>
+      const entry = myEntries?.find((e) => e.id === entryId);
+      queryClient.setQueryData<MyEntry[]>(queryKeys.myEntries(), (prev) =>
+        prev?.map((e) =>
           e.id === entryId
             ? { ...e, musicName: uploaded.fileName, musicUrl: uploaded.musicUrl }
             : e,
         ),
       );
+      // The track's duration can change the performance's timing — the
+      // schedule for this competition is no longer trustworthy as cached.
+      if (entry) {
+        await queryClient.invalidateQueries({
+          queryKey: ['timing', entry.competitionId],
+        });
+      }
     } catch (err) {
-      setError(
+      setUploadError(
         err instanceof Error ? err.message : 'Не вдалося зберегти музику.',
       );
     }

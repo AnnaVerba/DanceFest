@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import PhoneField from '../components/PhoneField';
 import { getToken } from '../lib/auth';
@@ -15,6 +16,7 @@ import {
 } from '../lib/paymentDetails';
 import { UploadApiError, uploadImage } from '../lib/uploads';
 import { isValidEmail, isValidPhone } from '../lib/validation';
+import { queryKeys } from '../lib/queryKeys';
 import styles from './CompetitionFormPage.module.css';
 
 interface ContactFieldErrors {
@@ -68,6 +70,7 @@ function toPayload(form: CompetitionInput): CompetitionInput {
 export default function CompetitionEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [form, setForm] = useState<CompetitionInput>(EMPTY_FORM);
   const [paymentForm, setPaymentForm] = useState<PaymentForm>(EMPTY_PAYMENT_FORM);
@@ -202,6 +205,11 @@ export default function CompetitionEditPage() {
           destination: paymentForm.destination.trim() || undefined,
         });
       }
+      // The competition and public list caches now hold a pre-edit
+      // snapshot — every screen that reads them (this competition's own
+      // page, the dashboard, the public list) needs the fresh version.
+      await queryClient.invalidateQueries({ queryKey: queryKeys.competition(id) });
+      await queryClient.invalidateQueries({ queryKey: ['competitions'] });
       navigate(`/competitions/${saved.id}`);
     } catch (err) {
       setSubmitError(

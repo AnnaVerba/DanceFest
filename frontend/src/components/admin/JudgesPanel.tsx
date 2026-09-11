@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import ConfirmDialog from './ConfirmDialog';
 import { createJudge, deleteJudge, getJudges } from '../../lib/judges';
-import type { CreatedJudge, Judge } from '../../lib/judges';
+import type { Judge } from '../../lib/judges';
+import { queryKeys } from '../../lib/queryKeys';
 import styles from './JudgesPanel.module.css';
 
 interface JudgesPanelProps {
@@ -11,58 +13,82 @@ interface JudgesPanelProps {
   onError: (message: string) => void;
 }
 
-type PanelJudge = Judge & { tempPassword?: string; emailSent?: boolean };
+// Shown once, right after creation, then gone for good — kept out of the
+// shared judges cache (see createJudgeMutation) so a window-focus refetch
+// or a remount can't make it reappear or vanish out from under the admin.
+interface TempCredential {
+  judgeId: string;
+  password: string;
+  emailSent: boolean;
+}
 
 export default function JudgesPanel({
   competitionId,
   canManage,
   onError,
 }: JudgesPanelProps) {
-  const [judges, setJudges] = useState<PanelJudge[] | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<PanelJudge | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Judge | null>(null);
+  const [tempCredential, setTempCredential] = useState<TempCredential | null>(
+    null,
+  );
+
+  const judgesQuery = useQuery({
+    queryKey: queryKeys.judges(competitionId),
+    queryFn: () => getJudges(competitionId),
+  });
+  const judges = judgesQuery.data ?? null;
+  const loading = judgesQuery.isLoading;
 
   useEffect(() => {
-    let cancelled = false;
-    getJudges(competitionId)
-      .then((data) => {
-        if (!cancelled) setJudges(data);
-      })
-      .catch(() => {
-        if (!cancelled) onError('Не вдалося завантажити суддів.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [competitionId]);
+    if (judgesQuery.isError) onError('Не вдалося завантажити суддів.');
+  }, [judgesQuery.isError, onError]);
+
+  // The cache holds only persistent Judge fields. tempPassword/emailSent
+  // come back solely on the create response, so they go to component state
+  // instead — mixing them into the cached list would make them vanish on
+  // any refetch (window focus, 30s staleTime) or reappear on a remount.
+  const createJudgeMutation = useMutation({
+    mutationFn: () => createJudge(competitionId, name, email),
+    onSuccess: ({ tempPassword, emailSent, ...judge }) => {
+      queryClient.setQueryData<Judge[]>(queryKeys.judges(competitionId), (prev) => [
+        ...(prev ?? []),
+        judge,
+      ]);
+      setTempCredential({ judgeId: judge.id, password: tempPassword, emailSent });
+    },
+  });
+
+  const deleteJudgeMutation = useMutation({
+    mutationFn: (judgeId: string) => deleteJudge(competitionId, judgeId),
+    onSuccess: (_data, judgeId) => {
+      queryClient.setQueryData<Judge[]>(
+        queryKeys.judges(competitionId),
+        (prev) => prev?.filter((j) => j.id !== judgeId),
+      );
+      setTempCredential((current) =>
+        current?.judgeId === judgeId ? null : current,
+      );
+    },
+  });
 
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !email.trim() || submitting) return;
-    setSubmitting(true);
+    if (!name.trim() || !email.trim() || createJudgeMutation.isPending) return;
     try {
-      const created: CreatedJudge = await createJudge(competitionId, name, email);
-      setJudges((prev) => [...(prev ?? []), created]);
+      await createJudgeMutation.mutateAsync();
       setName('');
       setEmail('');
     } catch {
       onError('Не вдалося додати суддю. Перевірте дані та спробуйте ще раз.');
-    } finally {
-      setSubmitting(false);
     }
   };
 
-  const handleDelete = async (judge: PanelJudge) => {
+  const handleDelete = async (judge: Judge) => {
     try {
-      await deleteJudge(competitionId, judge.id);
-      setJudges((prev) => prev?.filter((j) => j.id !== judge.id) ?? prev);
+      await deleteJudgeMutation.mutateAsync(judge.id);
     } catch {
       onError('Не вдалося видалити суддю. Спробуйте ще раз.');
     } finally {
@@ -110,13 +136,20 @@ export default function JudgesPanel({
                   </button>
                 )}
               </div>
-              {judge.tempPassword && (
+              {tempCredential?.judgeId === judge.id && (
                 <p className={styles.pass}>
-                  {judge.emailSent
+                  {tempCredential.emailSent
                     ? 'лист із паролем надіслано на email. '
                     : 'лист не надіслано — перекажіть пароль самі. '}
-                  тимчасовий пароль: <code>{judge.tempPassword}</code> — збережіть
-                  його зараз, більше він ніде не показується
+                  тимчасовий пароль: <code>{tempCredential.password}</code> —
+                  збережіть його зараз, більше він ніде не показується{' '}
+                  <button
+                    type="button"
+                    className={styles.btnLink}
+                    onClick={() => setTempCredential(null)}
+                  >
+                    Приховати
+                  </button>
                 </p>
               )}
             </li>
@@ -148,8 +181,12 @@ export default function JudgesPanel({
             onChange={(e) => setEmail(e.target.value)}
             required
           />
-          <button type="submit" className={styles.btnPrimary} disabled={submitting}>
-            {submitting ? 'Додавання…' : 'Додати'}
+          <button
+            type="submit"
+            className={styles.btnPrimary}
+            disabled={createJudgeMutation.isPending}
+          >
+            {createJudgeMutation.isPending ? 'Додавання…' : 'Додати'}
           </button>
         </form>
       )}
