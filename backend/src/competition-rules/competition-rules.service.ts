@@ -20,6 +20,7 @@ import { UpdateCompetitionRuleDto } from './dto/update-competition-rule.dto';
 import { DurationLimit, DEFAULT_DURATION_ROUND } from './duration-limit.model';
 import type { DurationRound } from './duration-limit.model';
 import { OverlimitTariff } from './overlimit-tariff.model';
+import type { EntryLimitInput } from './entry-limit-input.interface';
 import {
   TARIFF_NOT_FOUND_MESSAGE,
   DURATION_LIMIT_NOT_FOUND_MESSAGE,
@@ -237,6 +238,38 @@ export class CompetitionRulesService {
     this.logger.warn(
       `No duration limit configured for nomination ${nominationId} (round: ${round}); falling back to ${DEFAULT_DURATION_LIMIT_SECONDS}s`,
     );
+    return DEFAULT_DURATION_LIMIT_SECONDS;
+  }
+
+  // Priority for an entry's effective on-stage time limit: league limit
+  // (the simple per-league knob on CompetitionRule) → per-nomination/axis
+  // duration_limits → DEFAULT_DURATION_LIMIT_SECONDS. `limitCache`
+  // (nominationId -> seconds) lets a caller resolving many entries in one
+  // pass — e.g. a whole competition's overage list — skip repeat lookups
+  // for the same nomination.
+  async resolveEffectiveLimit(
+    entry: EntryLimitInput,
+    rules: CompetitionRule,
+    limitCache?: Map<string, number>,
+  ): Promise<number> {
+    // leagueLimits keys are stored trimmed (see sanitizeLeagueLimits).
+    const leagueKey = entry.league?.trim();
+    const leagueLimit = leagueKey ? rules.leagueLimits?.[leagueKey] : undefined;
+    if (typeof leagueLimit === 'number' && leagueLimit > 0) {
+      return leagueLimit;
+    }
+
+    if (entry.nominationId) {
+      const cached = limitCache?.get(entry.nominationId);
+      if (cached !== undefined) return cached;
+      const resolved = await this.resolveLimit(
+        entry.nominationId,
+        DEFAULT_DURATION_ROUND,
+      );
+      limitCache?.set(entry.nominationId, resolved);
+      return resolved;
+    }
+
     return DEFAULT_DURATION_LIMIT_SECONDS;
   }
 

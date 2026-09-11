@@ -23,3 +23,7 @@ export const PARTICIPANTS_STALE_TIME_MS = 60_000;
 
 // Сторінка таймінгів/програми.
 export const TIMING_STALE_TIME_MS = 10_000;
+
+// Доплати за час і переліміти — це гроші, тому без кешу: завжди перевіряємо
+// сервер перед показом (див. .claude/prompt-caching-strategy.md).
+export const OVERAGES_STALE_TIME_MS = 0;
