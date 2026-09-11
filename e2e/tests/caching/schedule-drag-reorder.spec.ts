@@ -186,6 +186,11 @@ test.describe.serial('Schedule drag-and-drop — optimistic cache update', () =>
 
     // --- Optimistic: the swap shows up before the delayed response lands.
     const rowOf = (name: string) => page.locator('tr', { hasText: name });
+    const orderResponse = page.waitForResponse(
+      (res) =>
+        res.url().includes(`/sections/${fixture.sectionId}/order`) &&
+        res.request().method() === 'PATCH',
+    );
     await rowOf(first).getByRole('button', { name: '↓', exact: true }).click();
 
     // Still in flight (throttled), yet the DOM already reflects the swap —
@@ -202,6 +207,12 @@ test.describe.serial('Schedule drag-and-drop — optimistic cache update', () =>
         timeout: REQUEST_DELAY_MS * 4,
       })
       .toEqual([second, first]);
+    // The poll above can pass on its very first (immediate) check — the
+    // optimistic DOM already equals the target order, so it proves nothing
+    // about the delayed PATCH actually landing. Wait for the real response
+    // before untethering the network throttle and reloading, or the
+    // persistence check below could race the server's own write.
+    await orderResponse;
     await cdp.send('Network.emulateNetworkConditions', {
       offline: false,
       latency: 0,

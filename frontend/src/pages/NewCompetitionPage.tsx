@@ -182,28 +182,33 @@ export default function NewCompetitionPage() {
   // Seed the editable nominations draft once per template — a React-endorsed
   // "adjust state during render" update (not inside an effect), so picking a
   // template re-seeds the draft without an extra render or an effect body
-  // set-state.
+  // set-state. seededTemplateId only advances on a successful fetch — an
+  // errored fetch leaves it unset so a later refetch (retry, window focus)
+  // still seeds the recovered template. Also reset when leaving "template"
+  // mode (see the "Скласти власний" button) so coming back to the same
+  // template re-seeds instead of keeping whatever custom mode left behind.
   const [seededTemplateId, setSeededTemplateId] = useState<string | null>(null);
-  if (
-    nominationSource === 'template' &&
-    effectiveTemplateId !== seededTemplateId &&
-    (selectedTemplateQuery.data || selectedTemplateQuery.isError)
-  ) {
-    setSeededTemplateId(effectiveTemplateId);
-    setNominations(
-      selectedTemplateQuery.data
-        ? selectedTemplateQuery.data.nominations.map((n) => ({
-            signature: savedSignatureOf(n),
-            name: n.name,
-            price: '',
-            allowsImprovisation: n.allowsImprovisation,
-            categoryIds: n.categoryIds,
-            isSpecial: n.isSpecial,
-            specialName: n.specialName ?? undefined,
-            exitMode: n.exitMode,
-          }))
-        : [],
-    );
+  if (nominationSource === 'template' && effectiveTemplateId !== seededTemplateId) {
+    if (selectedTemplateQuery.data) {
+      setSeededTemplateId(effectiveTemplateId);
+      setNominations(
+        selectedTemplateQuery.data.nominations.map((n) => ({
+          signature: savedSignatureOf(n),
+          name: n.name,
+          price: '',
+          allowsImprovisation: n.allowsImprovisation,
+          categoryIds: n.categoryIds,
+          isSpecial: n.isSpecial,
+          specialName: n.specialName ?? undefined,
+          exitMode: n.exitMode,
+        })),
+      );
+    } else if (selectedTemplateQuery.isError && nominations.length > 0) {
+      // Don't mark this template as seeded — clear the previous template's
+      // stale draft so it isn't shown under this one, but leave the door
+      // open for a later successful refetch to seed it for real.
+      setNominations([]);
+    }
   }
 
   const patchNomination = (signature: string, patch: Partial<DraftNomination>) =>
@@ -1083,6 +1088,7 @@ export default function NewCompetitionPage() {
                   onClick={() => {
                     setNominationSource('custom');
                     setNominations([]);
+                    setSeededTemplateId(null);
                   }}
                 >
                   <strong>Скласти власний</strong>
@@ -1126,7 +1132,18 @@ export default function NewCompetitionPage() {
               {nominationSource === 'template' && (
               <div className={styles.field}>
                 <label htmlFor="w-tpl">Шаблон номінацій</label>
-                {categoryTemplates === null ? (
+                {categoryTemplatesQuery.isError ? (
+                  <p className={styles.error}>
+                    Не вдалося завантажити шаблони.{' '}
+                    <button
+                      type="button"
+                      className={`${styles.btn} ${styles.btnSm} ${styles.btnGhost}`}
+                      onClick={() => categoryTemplatesQuery.refetch()}
+                    >
+                      Спробувати ще раз
+                    </button>
+                  </p>
+                ) : categoryTemplates === null ? (
                   <p className={styles.hint}>Завантаження шаблонів...</p>
                 ) : categoryTemplates.length === 0 ? (
                   <p className={styles.hint}>

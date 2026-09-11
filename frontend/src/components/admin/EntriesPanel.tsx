@@ -85,6 +85,7 @@ export default function EntriesPanel({
   const deleteEntryMutation = useMutation({
     mutationFn: (entryId: string) => deleteEntry(competitionId, entryId),
     onSuccess: (_data, entryId) => {
+      // Instant feedback: drop the row from whichever loaded page has it.
       queryClient.setQueryData<InfiniteData<PagedEntries>>(
         queryKeys.entries(competitionId),
         (old) =>
@@ -97,6 +98,13 @@ export default function EntriesPanel({
             })),
           },
       );
+      // Pages are fetched by server-side offset (getNextPageParam), so
+      // removing one row here leaves every later, not-yet-fetched page
+      // off by one. Refetch the already-loaded pages in the background so
+      // their offsets are correct again before "Показати ще" loads more.
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.entries(competitionId),
+      });
     },
   });
 

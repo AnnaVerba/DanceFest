@@ -13,7 +13,14 @@ interface JudgesPanelProps {
   onError: (message: string) => void;
 }
 
-type PanelJudge = Judge & { tempPassword?: string; emailSent?: boolean };
+// Shown once, right after creation, then gone for good — kept out of the
+// shared judges cache (see createJudgeMutation) so a window-focus refetch
+// or a remount can't make it reappear or vanish out from under the admin.
+interface TempCredential {
+  judgeId: string;
+  password: string;
+  emailSent: boolean;
+}
 
 export default function JudgesPanel({
   competitionId,
@@ -23,38 +30,46 @@ export default function JudgesPanel({
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [pendingDelete, setPendingDelete] = useState<PanelJudge | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Judge | null>(null);
+  const [tempCredential, setTempCredential] = useState<TempCredential | null>(
+    null,
+  );
 
   const judgesQuery = useQuery({
     queryKey: queryKeys.judges(competitionId),
     queryFn: () => getJudges(competitionId),
   });
-  const judges = judgesQuery.data as PanelJudge[] | undefined ?? null;
+  const judges = judgesQuery.data ?? null;
   const loading = judgesQuery.isLoading;
 
   useEffect(() => {
     if (judgesQuery.isError) onError('Не вдалося завантажити суддів.');
   }, [judgesQuery.isError, onError]);
 
-  // The temp password comes back only on the create response — a refetch
-  // of the plain judge list would never show it again, so this patches the
-  // cache with the mutation result instead of invalidating.
+  // The cache holds only persistent Judge fields. tempPassword/emailSent
+  // come back solely on the create response, so they go to component state
+  // instead — mixing them into the cached list would make them vanish on
+  // any refetch (window focus, 30s staleTime) or reappear on a remount.
   const createJudgeMutation = useMutation({
     mutationFn: () => createJudge(competitionId, name, email),
-    onSuccess: (created) => {
-      queryClient.setQueryData<PanelJudge[]>(
-        queryKeys.judges(competitionId),
-        (prev) => [...(prev ?? []), created],
-      );
+    onSuccess: ({ tempPassword, emailSent, ...judge }) => {
+      queryClient.setQueryData<Judge[]>(queryKeys.judges(competitionId), (prev) => [
+        ...(prev ?? []),
+        judge,
+      ]);
+      setTempCredential({ judgeId: judge.id, password: tempPassword, emailSent });
     },
   });
 
   const deleteJudgeMutation = useMutation({
     mutationFn: (judgeId: string) => deleteJudge(competitionId, judgeId),
     onSuccess: (_data, judgeId) => {
-      queryClient.setQueryData<PanelJudge[]>(
+      queryClient.setQueryData<Judge[]>(
         queryKeys.judges(competitionId),
         (prev) => prev?.filter((j) => j.id !== judgeId),
+      );
+      setTempCredential((current) =>
+        current?.judgeId === judgeId ? null : current,
       );
     },
   });
@@ -71,7 +86,7 @@ export default function JudgesPanel({
     }
   };
 
-  const handleDelete = async (judge: PanelJudge) => {
+  const handleDelete = async (judge: Judge) => {
     try {
       await deleteJudgeMutation.mutateAsync(judge.id);
     } catch {
@@ -121,13 +136,20 @@ export default function JudgesPanel({
                   </button>
                 )}
               </div>
-              {judge.tempPassword && (
+              {tempCredential?.judgeId === judge.id && (
                 <p className={styles.pass}>
-                  {judge.emailSent
+                  {tempCredential.emailSent
                     ? 'лист із паролем надіслано на email. '
                     : 'лист не надіслано — перекажіть пароль самі. '}
-                  тимчасовий пароль: <code>{judge.tempPassword}</code> — збережіть
-                  його зараз, більше він ніде не показується
+                  тимчасовий пароль: <code>{tempCredential.password}</code> —
+                  збережіть його зараз, більше він ніде не показується{' '}
+                  <button
+                    type="button"
+                    className={styles.btnLink}
+                    onClick={() => setTempCredential(null)}
+                  >
+                    Приховати
+                  </button>
                 </p>
               )}
             </li>
