@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getRules, patchRules } from '../../../lib/competitionRules';
-import type { CompetitionRules } from '../../../lib/competitionRules';
+import type { RulesPatch } from '../../../lib/competitionRules';
 import { getNominations } from '../../../lib/nominations';
 import { getSections } from '../../../lib/schedule';
 import { parseDuration } from '../../../lib/duration';
+import { queryKeys } from '../../../lib/queryKeys';
 import styles from './program.module.css';
 
 interface ScheduleSettingsProps {
@@ -29,51 +31,62 @@ export default function ScheduleSettings({
   onError,
   onSaved,
 }: ScheduleSettingsProps) {
-  const [rules, setRules] = useState<CompetitionRules | null>(null);
-  const [leagues, setLeagues] = useState<string[]>([]);
-  const [hasSections, setHasSections] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
   const [pause, setPause] = useState('');
   const [limits, setLimits] = useState<Record<string, string>>({});
 
+  const rulesQuery = useQuery({
+    queryKey: queryKeys.rules(competitionId),
+    queryFn: () => getRules(competitionId),
+  });
+  const nominationsQuery = useQuery({
+    queryKey: queryKeys.nominations(competitionId),
+    queryFn: () => getNominations(competitionId),
+  });
+  const sectionsExistQuery = useQuery({
+    queryKey: queryKeys.sections(competitionId, { pageSize: 1 }),
+    queryFn: () => getSections(competitionId, { pageSize: 1 }),
+  });
+
+  const rules = rulesQuery.data ?? null;
+  const hasSections = (sectionsExistQuery.data?.totalSections ?? 0) > 0;
+  const leagues = useMemo(() => {
+    const list = nominationsQuery.data ?? [];
+    return [...new Set(list.flatMap((n) => n.leagues))].filter(Boolean).sort();
+  }, [nominationsQuery.data]);
+  const loading =
+    rulesQuery.isLoading || nominationsQuery.isLoading || sectionsExistQuery.isLoading;
+
   useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      getRules(competitionId),
-      getNominations(competitionId),
-      getSections(competitionId, { pageSize: 1 }).then(
-        (s) => s.totalSections > 0,
+    if (rulesQuery.isError || nominationsQuery.isError || sectionsExistQuery.isError) {
+      onError('Не вдалося завантажити налаштування таймінгів.');
+    }
+  }, [
+    rulesQuery.isError,
+    nominationsQuery.isError,
+    sectionsExistQuery.isError,
+    onError,
+  ]);
+
+  // Seed the editable draft once per loaded rules row — a save round-trips
+  // the same id, so it doesn't clobber the fields the user just set.
+  const [seededRulesId, setSeededRulesId] = useState<string | null>(null);
+  if (rules && rules.id !== seededRulesId) {
+    setSeededRulesId(rules.id);
+    setPause(String(rules.pauseSeconds));
+    setLimits(
+      Object.fromEntries(
+        Object.entries(rules.leagueLimits).map(([k, v]) => [k, String(v)]),
       ),
-    ])
-      .then(([r, nominations, sectionsExist]) => {
-        if (cancelled) return;
-        setRules(r);
-        setHasSections(sectionsExist);
-        setLeagues(
-          [...new Set(nominations.flatMap((n) => n.leagues))]
-            .filter(Boolean)
-            .sort(),
-        );
-        setPause(String(r.pauseSeconds));
-        setLimits(
-          Object.fromEntries(
-            Object.entries(r.leagueLimits).map(([k, v]) => [k, String(v)]),
-          ),
-        );
-      })
-      .catch(() => {
-        if (!cancelled)
-          onError('Не вдалося завантажити налаштування таймінгів.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [competitionId]);
+    );
+  }
+
+  const patchRulesMutation = useMutation({
+    mutationFn: (patch: RulesPatch) => patchRules(competitionId, patch),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(queryKeys.rules(competitionId), saved);
+    },
+  });
 
   const leagueRows = useMemo(() => {
     const set = new Set<string>([...Object.keys(limits), ...leagues]);
@@ -94,18 +107,14 @@ export default function ScheduleSettings({
       const seconds = readSeconds(raw);
       if (seconds !== null && seconds > 0) nextLimits[league] = seconds;
     }
-    setSaving(true);
     try {
-      const saved = await patchRules(competitionId, {
+      await patchRulesMutation.mutateAsync({
         pauseSeconds: nextPause,
         leagueLimits: nextLimits,
       });
-      setRules(saved);
       onSaved('Налаштування таймінгів збережено.');
     } catch {
       onError('Не вдалося зберегти налаштування.');
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -167,10 +176,10 @@ export default function ScheduleSettings({
             <button
               type="button"
               className={styles.primaryBtn}
-              disabled={saving}
+              disabled={patchRulesMutation.isPending}
               onClick={handleSave}
             >
-              {saving ? 'Збереження…' : 'Зберегти'}
+              {patchRulesMutation.isPending ? 'Збереження…' : 'Зберегти'}
             </button>
           </div>
         )}

@@ -1,58 +1,44 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import CompetitionDetails from '../components/CompetitionDetails';
 import ContestIcon from '../components/ContestIcon';
 import { getApplyEligibility, getCompetition } from '../lib/competitions';
-import type { Competition } from '../lib/competitions';
 import { getEntriesCount } from '../lib/entries';
 import { getVenues } from '../lib/venues';
-import type { Venue } from '../lib/venues';
+import { queryKeys } from '../lib/queryKeys';
 import styles from './PublicCompetitionPage.module.css';
 
 export default function PublicCompetitionPage() {
   const { id } = useParams<{ id: string }>();
 
-  const [competition, setCompetition] = useState<Competition | null>(null);
-  const [entriesCount, setEntriesCount] = useState<number | null>(null);
-  const [venues, setVenues] = useState<Venue[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const competitionQuery = useQuery({
+    queryKey: queryKeys.competition(id ?? ''),
+    queryFn: () => getCompetition(id!),
+    enabled: !!id,
+  });
+  const competition = competitionQuery.data ?? null;
+  const loading = competitionQuery.isLoading;
+  const loadError = competitionQuery.isError
+    ? 'Не вдалося завантажити конкурс.'
+    : null;
 
-  useEffect(() => {
-    if (!id) return;
+  // Count and venues are optional embellishments — their own failure stays
+  // silent, the card still renders without them.
+  const entriesCountQuery = useQuery({
+    queryKey: queryKeys.entriesCount(id ?? ''),
+    queryFn: () => getEntriesCount(id!),
+    enabled: !!id,
+    retry: false,
+  });
+  const entriesCount = entriesCountQuery.data ?? null;
 
-    let cancelled = false;
-    getCompetition(id)
-      .then((data) => {
-        if (!cancelled) setCompetition(data);
-      })
-      .catch(() => {
-        if (!cancelled) setLoadError('Не вдалося завантажити конкурс.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    getEntriesCount(id)
-      .then((count) => {
-        if (!cancelled) setEntriesCount(count);
-      })
-      .catch(() => {
-        /* count is optional — leave it hidden on failure */
-      });
-
-    getVenues(id)
-      .then((data) => {
-        if (!cancelled) setVenues(data);
-      })
-      .catch(() => {
-        /* venues are optional — leave the section hidden on failure */
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+  const venuesQuery = useQuery({
+    queryKey: queryKeys.venues(id ?? ''),
+    queryFn: () => getVenues(id!),
+    enabled: !!id,
+    retry: false,
+  });
+  const venues = venuesQuery.data ?? [];
 
   if (!id) {
     return <Navigate to="/" replace />;

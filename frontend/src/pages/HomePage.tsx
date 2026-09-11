@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { getStoredAdmin } from '../lib/auth';
 import {
   getCompetitionStatus,
   getCompetitions,
   getCompetitionYears,
 } from '../lib/competitions';
-import type { Competition } from '../lib/competitions';
 import { COMPETITION_STATUS } from '../lib/competitionStatus';
 import type { CompetitionStatus } from '../lib/competitionStatus';
 import {
@@ -17,6 +17,8 @@ import {
   groupContestsByMonth,
 } from '../lib/homeContests';
 import type { HomeStatusFilterId } from '../lib/homeContests';
+import { queryKeys } from '../lib/queryKeys';
+import { PUBLIC_COMPETITIONS_STALE_TIME_MS } from '../lib/queryClient.constants';
 import styles from './HomePage.module.css';
 
 const PAGE_SIZE = 24;
@@ -30,12 +32,7 @@ const STATUS_PILL_CLASS: Record<CompetitionStatus, string> = {
 };
 
 export default function HomePage() {
-  const [competitions, setCompetitions] = useState<Competition[] | null>(null);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
-  const [years, setYears] = useState<number[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [year, setYear] = useState('');
@@ -49,39 +46,35 @@ export default function HomePage() {
     return () => clearTimeout(id);
   }, [search]);
 
-  useEffect(() => {
-    getCompetitionYears()
-      .then(setYears)
-      .catch(() => setYears([]));
-  }, []);
+  const yearsQuery = useQuery({
+    queryKey: queryKeys.competitionYears(),
+    queryFn: getCompetitionYears,
+    staleTime: PUBLIC_COMPETITIONS_STALE_TIME_MS,
+  });
+  const years = yearsQuery.data ?? [];
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      try {
-        const data = await getCompetitions({
-          page,
-          pageSize: PAGE_SIZE,
-          q: debouncedSearch || undefined,
-          year: year ? Number(year) : undefined,
-        });
-        if (cancelled) return;
-        setCompetitions(data.rows);
-        setTotal(data.total);
-      } catch {
-        if (!cancelled)
-          setError(
-            'Не вдалося завантажити конкурси. Спробуйте оновити сторінку.',
-          );
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [page, debouncedSearch, year]);
+  const competitionsQuery = useQuery({
+    queryKey: queryKeys.competitions({
+      page,
+      pageSize: PAGE_SIZE,
+      q: debouncedSearch || undefined,
+      year: year ? Number(year) : undefined,
+    }),
+    queryFn: () =>
+      getCompetitions({
+        page,
+        pageSize: PAGE_SIZE,
+        q: debouncedSearch || undefined,
+        year: year ? Number(year) : undefined,
+      }),
+    staleTime: PUBLIC_COMPETITIONS_STALE_TIME_MS,
+  });
+  const competitions = competitionsQuery.data?.rows ?? null;
+  const total = competitionsQuery.data?.total ?? 0;
+  const loading = competitionsQuery.isLoading;
+  const error = competitionsQuery.isError
+    ? 'Не вдалося завантажити конкурси. Спробуйте оновити сторінку.'
+    : null;
 
   const monthGroups = useMemo(() => {
     if (!competitions) return [];

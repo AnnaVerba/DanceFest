@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import CoachRoster from './CoachRoster';
 import { PHONE_INVALID_MESSAGE } from '../lib/validation.constants';
 
@@ -18,7 +19,14 @@ beforeEach(() => {
 });
 
 async function openForm() {
-  const utils = render(<CoachRoster />);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const utils = render(
+    <QueryClientProvider client={queryClient}>
+      <CoachRoster />
+    </QueryClientProvider>,
+  );
   await waitFor(() => expect(getParticipants).toHaveBeenCalled());
   fireEvent.click(screen.getByRole('button', { name: /Додати/ }));
   return utils;

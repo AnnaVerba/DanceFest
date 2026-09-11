@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ChangeEvent } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import PhoneField from '../components/PhoneField';
@@ -27,10 +28,11 @@ import {
   getCategoryTemplate,
   getCategoryTemplates,
 } from '../lib/categoryTemplates';
-import type { CategoryTemplate } from '../lib/categoryTemplates';
 import { upsertPaymentDetails } from '../lib/paymentDetails';
 import { UploadApiError, uploadImage } from '../lib/uploads';
 import { isValidEmail, isValidPhone } from '../lib/validation';
+import { queryKeys } from '../lib/queryKeys';
+import { REFERENCE_STALE_TIME_MS } from '../lib/queryClient.constants';
 import styles from './NewCompetitionPage.module.css';
 
 const STEP_LABELS = [
@@ -101,6 +103,7 @@ interface DraftVenue {
 
 export default function NewCompetitionPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -135,7 +138,6 @@ export default function NewCompetitionPage() {
   const judgeNameRef = useRef<HTMLInputElement>(null);
   const judgeEmailRef = useRef<HTMLInputElement>(null);
 
-  const [categoryTemplates, setCategoryTemplates] = useState<CategoryTemplate[] | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState(
     searchParams.get('template') ?? '',
   );
@@ -146,7 +148,6 @@ export default function NewCompetitionPage() {
   // Категорії зі спецмодалки, відсутні в axes — потрібні resolveDraftCategories,
   // щоб не загубити ageFrom/ageTo нової вікової категорії при збереженні.
   const [extraCategories, setExtraCategories] = useState<Category[]>([]);
-  const [loadingNominations, setLoadingNominations] = useState(false);
 
   const [organizerQuery, setOrganizerQuery] = useState('');
   useEffect(() => {
@@ -158,28 +159,40 @@ export default function NewCompetitionPage() {
     return () => clearTimeout(t);
   }, [organizerQuery]);
 
-  useEffect(() => {
-    getCategoryTemplates({ pageSize: 100 })
-      .then(({ rows }) => {
-        setCategoryTemplates(rows);
-        if (!selectedTemplateId && rows.length > 0) {
-          setSelectedTemplateId(rows[0].id);
-        }
-      })
-      .catch(() => setCategoryTemplates([]));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Reference data: the template list and a chosen template's contents
+  // rarely change, so both are cached indefinitely.
+  const categoryTemplatesQuery = useQuery({
+    queryKey: queryKeys.categoryTemplates({ pageSize: 100 }),
+    queryFn: () => getCategoryTemplates({ pageSize: 100 }),
+    staleTime: REFERENCE_STALE_TIME_MS,
+  });
+  const categoryTemplates = categoryTemplatesQuery.data?.rows ?? null;
+  // Defaults to the first template once the list loads, but an explicit
+  // pick always wins — derived during render, so no effect has to chase it.
+  const effectiveTemplateId = selectedTemplateId || categoryTemplates?.[0]?.id || '';
 
-  useEffect(() => {
-    if (!selectedTemplateId || nominationSource !== 'template') return;
+  const selectedTemplateQuery = useQuery({
+    queryKey: queryKeys.categoryTemplate(effectiveTemplateId),
+    queryFn: () => getCategoryTemplate(effectiveTemplateId),
+    enabled: !!effectiveTemplateId && nominationSource === 'template',
+    staleTime: REFERENCE_STALE_TIME_MS,
+  });
+  const loadingNominations = selectedTemplateQuery.isFetching;
 
-    let cancelled = false;
-    setLoadingNominations(true);
-    getCategoryTemplate(selectedTemplateId)
-      .then((detail) => {
-        if (cancelled) return;
-        setNominations(
-          detail.nominations.map((n) => ({
+  // Seed the editable nominations draft once per template — a React-endorsed
+  // "adjust state during render" update (not inside an effect), so picking a
+  // template re-seeds the draft without an extra render or an effect body
+  // set-state.
+  const [seededTemplateId, setSeededTemplateId] = useState<string | null>(null);
+  if (
+    nominationSource === 'template' &&
+    effectiveTemplateId !== seededTemplateId &&
+    (selectedTemplateQuery.data || selectedTemplateQuery.isError)
+  ) {
+    setSeededTemplateId(effectiveTemplateId);
+    setNominations(
+      selectedTemplateQuery.data
+        ? selectedTemplateQuery.data.nominations.map((n) => ({
             signature: savedSignatureOf(n),
             name: n.name,
             price: '',
@@ -188,19 +201,10 @@ export default function NewCompetitionPage() {
             isSpecial: n.isSpecial,
             specialName: n.specialName ?? undefined,
             exitMode: n.exitMode,
-          })),
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setNominations([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingNominations(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedTemplateId, nominationSource]);
+          }))
+        : [],
+    );
+  }
 
   const patchNomination = (signature: string, patch: Partial<DraftNomination>) =>
     setNominations((prev) =>
@@ -438,6 +442,11 @@ export default function NewCompetitionPage() {
             sortOrder: index,
           })),
         });
+        // A new template (and possibly new category values, e.g. a fresh
+        // age range) just landed on the server — both are references
+        // other screens cache indefinitely, so tell them to refetch.
+        await queryClient.invalidateQueries({ queryKey: ['category-templates'] });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.categories() });
       }
 
       const competition = await createCompetition({
@@ -453,6 +462,9 @@ export default function NewCompetitionPage() {
         contactNumber: contactNumber.trim(),
         contactEmail: contactEmail.trim(),
       });
+      // The new competition won't show up on the dashboard or public list
+      // until their cached pages are told to refetch.
+      await queryClient.invalidateQueries({ queryKey: ['competitions'] });
 
       const hasPaymentDetails =
         paymentRecipient.trim() ||
@@ -492,7 +504,7 @@ export default function NewCompetitionPage() {
                 saved.map((n) => ({
                   templateId:
                     nominationSource === 'template'
-                      ? selectedTemplateId || undefined
+                      ? effectiveTemplateId || undefined
                       : undefined,
                   name: n.name,
                   price: n.price.trim() === '' ? undefined : Number(n.price),
@@ -1124,7 +1136,7 @@ export default function NewCompetitionPage() {
                 ) : (
                   <select
                     id="w-tpl"
-                    value={selectedTemplateId}
+                    value={effectiveTemplateId}
                     onChange={(e) => setSelectedTemplateId(e.target.value)}
                   >
                     {categoryTemplates.map((t) => (

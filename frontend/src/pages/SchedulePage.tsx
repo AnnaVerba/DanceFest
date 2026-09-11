@@ -1,69 +1,47 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import {
   getMyProgram,
   getPublicProgram,
   hasSession,
 } from '../lib/program';
-import type { MineProgram, PublicProgramRow } from '../lib/program';
 import { formatParticipantNumbers } from '../lib/participantNumbers';
 import { formatClock, formatDuration } from '../lib/duration';
+import { queryKeys } from '../lib/queryKeys';
+import { TIMING_STALE_TIME_MS } from '../lib/queryClient.constants';
 import styles from './SchedulePage.module.css';
 
 export default function SchedulePage() {
   const { id } = useParams<{ id: string }>();
-  const [publicRows, setPublicRows] = useState<PublicProgramRow[] | null>(null);
-  const [programPage, setProgramPage] = useState(0);
-  const [programPageCount, setProgramPageCount] = useState(0);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [mine, setMine] = useState<MineProgram | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
-  const hasMore = programPage + 1 < programPageCount;
+  const publicProgramQuery = useInfiniteQuery({
+    queryKey: queryKeys.publicProgram(id ?? ''),
+    queryFn: ({ pageParam }) => getPublicProgram(id!, { page: pageParam }),
+    enabled: !!id,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) =>
+      lastPage.page + 1 < lastPage.pageCount ? lastPage.page + 1 : undefined,
+    staleTime: TIMING_STALE_TIME_MS,
+  });
+  const publicRows = publicProgramQuery.data?.pages.flatMap((p) => p.rows) ?? null;
+  const loadingMore = publicProgramQuery.isFetchingNextPage;
+  const hasMore = publicProgramQuery.hasNextPage;
+  const loadMore = () => void publicProgramQuery.fetchNextPage();
 
-  const loadMore = () => {
-    if (!id || loadingMore || !hasMore) return;
-    setLoadingMore(true);
-    getPublicProgram(id, { page: programPage + 1 })
-      .then((paged) => {
-        setPublicRows((prev) => [...(prev ?? []), ...paged.rows]);
-        setProgramPage(paged.page);
-        setProgramPageCount(paged.pageCount);
-      })
-      .catch(() => setLoadError('Не вдалося завантажити програму.'))
-      .finally(() => setLoadingMore(false));
-  };
+  const myProgramQuery = useQuery({
+    queryKey: queryKeys.myProgram(id ?? ''),
+    queryFn: () => getMyProgram(id!),
+    enabled: !!id && hasSession(),
+    staleTime: TIMING_STALE_TIME_MS,
+    retry: false, // the personal cut is optional — the poster still renders without it
+  });
+  const mine = myProgramQuery.data ?? null;
 
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-
-    getPublicProgram(id)
-      .then((paged) => {
-        if (cancelled) return;
-        setPublicRows(paged.rows);
-        setProgramPage(paged.page);
-        setProgramPageCount(paged.pageCount);
-      })
-      .catch(() => {
-        if (!cancelled) setLoadError('Не вдалося завантажити програму.');
-      });
-
-    if (hasSession()) {
-      getMyProgram(id)
-        .then((data) => {
-          if (!cancelled) setMine(data);
-        })
-        .catch(() => {
-          /* personal cut is optional — the poster still renders */
-        });
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+  const loadError = publicProgramQuery.isError
+    ? 'Не вдалося завантажити програму.'
+    : null;
 
   const filteredMine = useMemo(() => {
     if (!mine) return null;

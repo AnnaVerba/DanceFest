@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import { ToastStack } from '../components/admin/Toast';
 import { useToasts } from '../components/admin/useToasts';
@@ -11,7 +12,10 @@ import {
   getCompetitions,
 } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
+import { queryKeys } from '../lib/queryKeys';
 import styles from './DashboardPage.module.css';
+
+const DASHBOARD_PAGE_SIZE = 100;
 
 type SortKey = 'date' | 'name' | 'organizer';
 
@@ -27,6 +31,7 @@ function formatDate(iso: string): string {
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const admin = getStoredAdmin();
   const isStaff = !!admin;
 
@@ -41,30 +46,20 @@ export default function DashboardPage() {
     }
   }, [isStaff, navigate]);
 
-  const [competitions, setCompetitions] = useState<Competition[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [pendingDelete, setPendingDelete] = useState<Competition | null>(null);
   const { toasts, showToast } = useToasts();
 
-  useEffect(() => {
-    let cancelled = false;
-    getCompetitions({ pageSize: 100 })
-      .then((data) => {
-        if (!cancelled) setCompetitions(data.rows);
-      })
-      .catch(() => {
-        if (!cancelled) setLoadError('Не вдалося завантажити конкурси.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const competitionsQuery = useQuery({
+    queryKey: queryKeys.competitions({ pageSize: DASHBOARD_PAGE_SIZE }),
+    queryFn: () => getCompetitions({ pageSize: DASHBOARD_PAGE_SIZE }),
+  });
+  const competitions = competitionsQuery.data?.rows ?? null;
+  const loading = competitionsQuery.isLoading;
+  const loadError = competitionsQuery.isError
+    ? 'Не вдалося завантажити конкурси.'
+    : null;
 
   const filtered = useMemo(() => {
     const list = competitions ?? [];
@@ -109,7 +104,8 @@ export default function DashboardPage() {
   const handleDelete = async (competition: Competition) => {
     try {
       await deleteCompetition(competition.id);
-      setCompetitions((prev) => prev?.filter((c) => c.id !== competition.id) ?? prev);
+      queryClient.removeQueries({ queryKey: queryKeys.competition(competition.id) });
+      await queryClient.invalidateQueries({ queryKey: ['competitions'] });
       showToast(`Конкурс «${competition.name}» видалено`);
     } catch {
       showToast('Не вдалося видалити конкурс. Спробуйте ще раз.');

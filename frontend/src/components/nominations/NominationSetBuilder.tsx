@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import SpecialCategoryModal from './SpecialCategoryModal';
 import type { SpecialNominationDraft } from './SpecialCategoryModal';
 import AxisPriceInputs from './AxisPriceInputs';
@@ -8,6 +9,8 @@ import {
   CATEGORY_TYPE_LABELS,
   getCategories,
 } from '../../lib/categories';
+import { queryKeys } from '../../lib/queryKeys';
+import { REFERENCE_STALE_TIME_MS } from '../../lib/queryClient.constants';
 import AgeRangeFields from './AgeRangeFields';
 import { PRICED_AXES, resolvePrice } from '../../lib/nominationPricing';
 import type { AxisPriceMap } from '../../lib/nominationPricing';
@@ -25,6 +28,10 @@ import {
 } from '../../lib/nominationSet';
 import type { AxisSelection, DraftNomination } from '../../lib/nominationSet';
 import styles from './NominationSetBuilder.module.css';
+
+// Stable reference so useMemo below doesn't see a "new" array on every
+// render while the query has no data yet.
+const EMPTY_CATEGORIES: Category[] = [];
 
 interface NominationSetBuilderProps {
   nominations: DraftNomination[];
@@ -47,18 +54,21 @@ export default function NominationSetBuilder({
   seedCategoryIds,
   onCategoryCreated,
 }: NominationSetBuilderProps) {
+  const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<Category[]>([]);
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [ageRange, setAgeRange] = useState(EMPTY_AGE_RANGE);
   const [axisPrices, setAxisPrices] = useState<AxisPriceMap>({});
   const [specialOpen, setSpecialOpen] = useState(false);
 
-  useEffect(() => {
-    getCategories()
-      .then(setSuggestions)
-      .catch(() => setSuggestions([]));
-  }, []);
+  // Categories are a near-static reference used across many forms — cached
+  // indefinitely, refreshed only when an admin edit invalidates it.
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.categories(),
+    queryFn: () => getCategories(),
+    staleTime: REFERENCE_STALE_TIME_MS,
+  });
+  const suggestions = categoriesQuery.data ?? EMPTY_CATEGORIES;
 
   const seededSelection = useMemo(() => {
     const restored = emptyAxisSelection();
@@ -425,8 +435,10 @@ export default function NominationSetBuilder({
         }
         onClose={() => setSpecialOpen(false)}
         onCategoryCreated={(category) => {
-          setSuggestions((prev) =>
-            prev.some((s) => s.id === category.id) ? prev : [...prev, category],
+          // A real, persisted category — keep the reference cache in sync
+          // so every other picker sees it without waiting for a refetch.
+          queryClient.setQueryData<Category[]>(queryKeys.categories(), (prev) =>
+            prev?.some((s) => s.id === category.id) ? prev : [...(prev ?? []), category],
           );
           onCategoryCreated?.(category);
         }}

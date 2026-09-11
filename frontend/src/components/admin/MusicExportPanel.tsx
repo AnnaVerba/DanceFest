@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '../../lib/http';
 import { getMusicExportJob, queueMusicExport } from '../../lib/musicExport';
-import type { MusicExportJob } from '../../lib/musicExport';
 import {
   MUSIC_EXPORT_POLL_INTERVAL_MS,
   MUSIC_EXPORT_QUEUE_FAILED_MESSAGE,
   MUSIC_EXPORT_STATUS_FAILED_MESSAGE,
 } from '../../lib/musicExport.constants';
+import { queryKeys } from '../../lib/queryKeys';
 import styles from './MusicExportPanel.module.css';
 
 interface MusicExportPanelProps {
@@ -18,43 +19,58 @@ export default function MusicExportPanel({
   competitionId,
   canManage,
 }: MusicExportPanelProps) {
-  const [job, setJob] = useState<MusicExportJob | null>(null);
+  const queryClient = useQueryClient();
+  const [jobId, setJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [starting, setStarting] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
+  // A running job — not cached data, polled while it's in flight and
+  // dropped once done. Never persisted between sessions.
+  const jobQuery = useQuery({
+    queryKey: queryKeys.zipJob(jobId ?? ''),
+    queryFn: () => getMusicExportJob(jobId!),
+    enabled: !!jobId,
+    staleTime: 0,
+    retry: false,
+    refetchInterval: (query) => {
+      if (query.state.status === 'error') return false;
+      const status = query.state.data?.status;
+      return status === 'completed' || status === 'failed'
+        ? false
+        : MUSIC_EXPORT_POLL_INTERVAL_MS;
+    },
+  });
+  const job = jobQuery.data ?? null;
 
-  const poll = (jobId: string) => {
-    pollRef.current = setInterval(async () => {
-      try {
-        const status = await getMusicExportJob(jobId);
-        setJob(status);
-        if (status.status === 'completed' || status.status === 'failed') {
-          if (pollRef.current) clearInterval(pollRef.current);
-        }
-      } catch (err) {
-        if (pollRef.current) clearInterval(pollRef.current);
-        setError(err instanceof ApiError ? err.message : MUSIC_EXPORT_STATUS_FAILED_MESSAGE);
-      }
-    }, MUSIC_EXPORT_POLL_INTERVAL_MS);
-  };
+  // Surface a failed poll once, during render rather than in an effect —
+  // each new query error (a fresh object per failed fetch) is seeded in.
+  const [seenPollError, setSeenPollError] = useState<unknown>(undefined);
+  if (jobQuery.isError && jobQuery.error !== seenPollError) {
+    setSeenPollError(jobQuery.error);
+    setError(
+      jobQuery.error instanceof ApiError
+        ? jobQuery.error.message
+        : MUSIC_EXPORT_STATUS_FAILED_MESSAGE,
+    );
+  }
+
+  const queueMutation = useMutation({
+    mutationFn: () => queueMusicExport(competitionId),
+    onSuccess: ({ jobId: newJobId }) => {
+      queryClient.setQueryData(queryKeys.zipJob(newJobId), {
+        status: 'queued',
+        progress: 0,
+        missing: [],
+      });
+      setJobId(newJobId);
+    },
+  });
 
   const handleStart = async () => {
     setError(null);
-    setStarting(true);
     try {
-      const { jobId } = await queueMusicExport(competitionId);
-      setJob({ status: 'queued', progress: 0, missing: [] });
-      poll(jobId);
+      await queueMutation.mutateAsync();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : MUSIC_EXPORT_QUEUE_FAILED_MESSAGE);
-    } finally {
-      setStarting(false);
     }
   };
 
@@ -75,7 +91,7 @@ export default function MusicExportPanel({
           type="button"
           className={styles.btnPrimary}
           onClick={handleStart}
-          disabled={starting || inProgress}
+          disabled={queueMutation.isPending || inProgress}
         >
           {inProgress ? 'Готуємо архів...' : 'Скачати архів музики'}
         </button>

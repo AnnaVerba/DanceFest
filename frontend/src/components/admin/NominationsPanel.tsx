@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import ConfirmDialog from './ConfirmDialog';
 import SpecialCategoryModal from '../nominations/SpecialCategoryModal';
 import type { SpecialNominationDraft } from '../nominations/SpecialCategoryModal';
@@ -12,8 +13,10 @@ import {
   getNominations,
   updateNomination,
 } from '../../lib/nominations';
-import type { Nomination } from '../../lib/nominations';
+import type { Nomination, NominationInput } from '../../lib/nominations';
 import { formatDuration, parseDuration, pluralExits } from '../../lib/duration';
+import { queryKeys } from '../../lib/queryKeys';
+import { REFERENCE_STALE_TIME_MS } from '../../lib/queryClient.constants';
 import styles from './NominationsPanel.module.css';
 
 interface NominationsPanelProps {
@@ -32,51 +35,83 @@ export default function NominationsPanel({
   canManage,
   onError,
 }: NominationsPanelProps) {
-  const [nominations, setNominations] = useState<Nomination[] | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [duration, setDuration] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const [specialOpen, setSpecialOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Nomination | null>(null);
   const [editing, setEditing] = useState<Record<string, EditState>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    getNominations(competitionId)
-      .then((data) => {
-        if (!cancelled) setNominations(data);
-      })
-      .catch(() => {
-        if (!cancelled) onError('Не вдалося завантажити номінації.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [competitionId]);
+  const nominationsQuery = useQuery({
+    queryKey: queryKeys.nominations(competitionId),
+    queryFn: () => getNominations(competitionId),
+  });
+  const nominations = nominationsQuery.data ?? null;
+  const loading = nominationsQuery.isLoading;
 
   useEffect(() => {
-    if (!specialOpen || categories.length > 0) return;
-    let cancelled = false;
-    getCategories()
-      .then((data) => {
-        if (!cancelled) setCategories(data);
-      })
-      .catch(() => {
-        if (!cancelled) onError('Не вдалося завантажити довідник категорій.');
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [specialOpen]);
+    if (nominationsQuery.isError) onError('Не вдалося завантажити номінації.');
+  }, [nominationsQuery.isError, onError]);
+
+  // Same reference cache as everywhere else categories are picked from —
+  // opening this modal after visiting, say, the competition wizard is free.
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.categories(),
+    queryFn: () => getCategories(),
+    enabled: specialOpen,
+    staleTime: REFERENCE_STALE_TIME_MS,
+  });
+  const categories = categoriesQuery.data ?? [];
+
+  useEffect(() => {
+    if (specialOpen && categoriesQuery.isError) {
+      onError('Не вдалося завантажити довідник категорій.');
+    }
+  }, [specialOpen, categoriesQuery.isError, onError]);
+
+  const createNominationMutation = useMutation({
+    mutationFn: (input: NominationInput) => createNomination(competitionId, input),
+    onSuccess: (created) => {
+      queryClient.setQueryData<Nomination[]>(
+        queryKeys.nominations(competitionId),
+        (prev) => [...(prev ?? []), created],
+      );
+    },
+  });
+
+  const createNominationsBulkMutation = useMutation({
+    mutationFn: (inputs: NominationInput[]) =>
+      createNominationsBulk(competitionId, inputs),
+    onSuccess: (created) => {
+      queryClient.setQueryData<Nomination[]>(
+        queryKeys.nominations(competitionId),
+        (prev) => [...(prev ?? []), ...created],
+      );
+    },
+  });
+
+  const updateNominationMutation = useMutation({
+    mutationFn: (args: { id: string; input: Partial<NominationInput> }) =>
+      updateNomination(competitionId, args.id, args.input),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<Nomination[]>(
+        queryKeys.nominations(competitionId),
+        (prev) => prev?.map((n) => (n.id === updated.id ? updated : n)),
+      );
+    },
+  });
+
+  const deleteNominationMutation = useMutation({
+    mutationFn: (nominationId: string) => deleteNomination(competitionId, nominationId),
+    onSuccess: (_data, nominationId) => {
+      queryClient.setQueryData<Nomination[]>(
+        queryKeys.nominations(competitionId),
+        (prev) => prev?.filter((n) => n.id !== nominationId),
+      );
+    },
+  });
 
   const { regular, special } = useMemo(() => {
     const list = nominations ?? [];
@@ -88,7 +123,7 @@ export default function NominationsPanel({
 
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || submitting) return;
+    if (!name.trim() || createNominationMutation.isPending) return;
 
     const seconds = parseDuration(duration);
     if (duration.trim() !== '' && seconds === null) {
@@ -96,28 +131,23 @@ export default function NominationsPanel({
       return;
     }
 
-    setSubmitting(true);
     try {
-      const created = await createNomination(competitionId, {
+      await createNominationMutation.mutateAsync({
         name,
         price: price.trim() === '' ? undefined : Number(price),
         durationLimitSeconds: seconds ?? undefined,
       });
-      setNominations((prev) => [...(prev ?? []), created]);
       setName('');
       setPrice('');
       setDuration('');
     } catch {
       onError('Не вдалося додати номінацію. Спробуйте ще раз.');
-    } finally {
-      setSubmitting(false);
     }
   };
 
   const handleAddSpecial = async (drafts: SpecialNominationDraft[]) => {
     try {
-      const created = await createNominationsBulk(
-        competitionId,
+      await createNominationsBulkMutation.mutateAsync(
         drafts.map((d) => ({
           name: d.name,
           price: d.price.trim() === '' ? undefined : Number(d.price),
@@ -128,7 +158,6 @@ export default function NominationsPanel({
           programLimits: d.programLimits,
         })),
       );
-      setNominations((prev) => [...(prev ?? []), ...created]);
     } catch {
       onError('Не вдалося створити спеціальну категорію. Спробуйте ще раз.');
     }
@@ -159,13 +188,13 @@ export default function NominationsPanel({
 
     setSavingId(nomination.id);
     try {
-      const updated = await updateNomination(competitionId, nomination.id, {
-        price: state.price.trim() === '' ? undefined : Number(state.price),
-        durationLimitSeconds: seconds ?? undefined,
+      await updateNominationMutation.mutateAsync({
+        id: nomination.id,
+        input: {
+          price: state.price.trim() === '' ? undefined : Number(state.price),
+          durationLimitSeconds: seconds ?? undefined,
+        },
       });
-      setNominations((prev) =>
-        prev?.map((n) => (n.id === updated.id ? updated : n)) ?? prev,
-      );
       setEditing((prev) => {
         const next = { ...prev };
         delete next[nomination.id];
@@ -180,8 +209,7 @@ export default function NominationsPanel({
 
   const handleDelete = async (nomination: Nomination) => {
     try {
-      await deleteNomination(competitionId, nomination.id);
-      setNominations((prev) => prev?.filter((n) => n.id !== nomination.id) ?? prev);
+      await deleteNominationMutation.mutateAsync(nomination.id);
     } catch {
       onError('Не вдалося видалити номінацію. Спробуйте ще раз.');
     } finally {
@@ -329,8 +357,12 @@ export default function NominationsPanel({
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
             />
-            <button type="submit" className={styles.btnPrimary} disabled={submitting}>
-              {submitting ? 'Додавання…' : 'Додати'}
+            <button
+              type="submit"
+              className={styles.btnPrimary}
+              disabled={createNominationMutation.isPending}
+            >
+              {createNominationMutation.isPending ? 'Додавання…' : 'Додати'}
             </button>
           </form>
 
@@ -377,8 +409,8 @@ export default function NominationsPanel({
         submitLabel="Додати до конкурсу"
         onClose={() => setSpecialOpen(false)}
         onCategoryCreated={(category) =>
-          setCategories((prev) =>
-            prev.some((c) => c.id === category.id) ? prev : [...prev, category],
+          queryClient.setQueryData<Category[]>(queryKeys.categories(), (prev) =>
+            prev?.some((c) => c.id === category.id) ? prev : [...(prev ?? []), category],
           )
         }
         onSubmit={(drafts) => void handleAddSpecial(drafts)}

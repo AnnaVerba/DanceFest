@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.102.8",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-phone-number-input": "^3.4.17",
