@@ -9,7 +9,6 @@ const VALID: Record<string, unknown> = {
   firstName: 'Іван',
   lastName: 'Іванов',
   phone: '+380501234567',
-  email: 'user@example.com',
   password: 'strongPassword123',
   birthDate: '2010-05-20',
   role: AccessLevel.PARTICIPANT,
@@ -24,15 +23,6 @@ async function messagesFor(patch: Record<string, unknown>): Promise<string[]> {
 describe('RegisterDto', () => {
   it('приймає коректне тіло запиту', async () => {
     expect(await messagesFor({})).toEqual([]);
-  });
-
-  it('нормалізує email перед валідацією', async () => {
-    const dto = plainToInstance(RegisterDto, {
-      ...VALID,
-      email: '  User@Example.COM ',
-    });
-    expect(dto.email).toBe('user@example.com');
-    expect(await validate(dto)).toEqual([]);
   });
 
   it('відхиляє телефон не у форматі E.164', async () => {

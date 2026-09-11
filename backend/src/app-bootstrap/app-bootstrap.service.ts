@@ -1,16 +1,14 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomUUID } from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { AccessLevel } from '../auth/access-level.enum';
 import { SALT_ROUNDS } from '../auth/auth.constants';
 import {
-  ADMIN_EMAIL_ENV,
+  ADMIN_PHONE_ENV,
   ADMIN_PASSWORD_ENV,
   SEED_ADMIN_FIRST_NAME,
   SEED_ADMIN_LAST_NAME,
-  SEED_ADMIN_PHONE_PREFIX,
 } from './app-bootstrap.constants';
 
 @Injectable()
@@ -23,12 +21,12 @@ export class AppBootstrapService implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    const email = this.config.get<string>(ADMIN_EMAIL_ENV);
+    const phone = this.config.get<string>(ADMIN_PHONE_ENV);
     const password = this.config.get<string>(ADMIN_PASSWORD_ENV);
-    if (!email || !password) {
+    if (!phone || !password) {
       return;
     }
-    const existing = await this.usersService.findByEmail(email);
+    const existing = await this.usersService.findByPhone(phone);
     if (existing) {
       return;
     }
@@ -36,8 +34,8 @@ export class AppBootstrapService implements OnModuleInit {
     await this.usersService.create({
       firstName: SEED_ADMIN_FIRST_NAME,
       lastName: SEED_ADMIN_LAST_NAME,
-      phone: SEED_ADMIN_PHONE_PREFIX + randomUUID(),
-      email,
+      phone,
+      email: null,
       passwordHash,
       birthDate: null,
       accessLevel: AccessLevel.ADMIN,
@@ -45,6 +43,6 @@ export class AppBootstrapService implements OnModuleInit {
       coachId: null,
       confirmed: true,
     });
-    this.logger.log(`Seeded first admin ${email}`);
+    this.logger.log(`Seeded first admin ${phone}`);
   }
 }
