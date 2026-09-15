@@ -9,14 +9,14 @@
   --muted: var(--g-muted);
   --accent: var(--g-accent);
   --accent-hover: var(--g-accent-hover);
-  --gold: var(--g-gold);
-  --gold-hover: var(--g-gold-hover);
-  --gold-soft: var(--g-gold-bg);
+  --gold: var(--g-accent);
+  --gold-hover: var(--g-accent-hover);
+  --gold-soft: var(--g-accent-bg-soft);
   --danger: var(--g-danger);
   --r: 12px;
   --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.04);
 
-  background: var(--bg);
+  background: transparent;
   color: var(--ink);
   font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Arial,
@@ -32,7 +32,7 @@
   box-sizing: border-box;
 }
 
-.main button {
+:where(.main) button {
   font: inherit;
 }
 
@@ -116,7 +116,7 @@
 .search:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 0 0 3px rgba(53, 102, 76, 0.15);
 }
 
 .segmented {
@@ -294,6 +294,7 @@
   border: 0;
   background: var(--gold);
   color: #fff;
+  text-decoration: none;
   cursor: pointer;
   transition: background 0.15s ease;
 }

@@ -253,7 +253,7 @@ test.describe('Profile completion — UI gate', () => {
     ).toBeDisabled();
 
     // The gate follows the user around the app.
-    await page.goto('/dashboard');
+    await page.goto('/my-entries');
     await expect(page).toHaveURL(/\/complete-profile$/);
 
     const s = suffix();

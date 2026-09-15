@@ -6,12 +6,12 @@
    і жодної з цих змінних він не оголошує. */
 .builder {
   --surface: #fff;
-  --field: #f8fafc;
-  --line: #e5e7eb;
-  --line-strong: #cbd5e1;
-  --ink: #0f172a;
-  --ink-soft: #334155;
-  --muted: #64748b;
+  --field: var(--g-field);
+  --line: var(--g-line);
+  --line-strong: var(--g-line-strong);
+  --ink: var(--g-ink);
+  --ink-soft: var(--g-ink-soft);
+  --muted: var(--g-muted);
   --gold: #b07d1e;
   --gold-hover: #96690f;
   --gold-soft: #fdf3e0;
@@ -59,7 +59,7 @@
   border-radius: 9px;
   padding: 16px;
   margin-bottom: 16px;
-  background: #fff;
+  background: var(--g-surface);
 }
 
 .axisHead {
@@ -139,7 +139,7 @@
   font-size: 14px;
   font-weight: 500;
   border: 1px solid var(--line-strong);
-  background: #fff;
+  background: var(--g-surface);
   color: var(--ink);
   cursor: pointer;
   text-decoration: none;
@@ -148,7 +148,7 @@
 
 .btn:hover {
   background: var(--field);
-  border-color: #94a3b8;
+  border-color: var(--g-subtle);
 }
 
 .btnGold {
@@ -311,8 +311,8 @@
   padding: 3px 8px;
   border-radius: 999px;
   background: #e8effc;
-  border: 1px solid #dbeafe;
-  color: #1d4ed8;
+  border: 1px solid var(--g-accent-bg-soft);
+  color: var(--g-accent-hover);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.2px;

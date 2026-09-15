@@ -9,7 +9,7 @@
   background: none;
   font: inherit;
   font-size: 13px;
-  color: var(--g-link, #2563eb);
+  color: var(--g-accent);
   text-decoration: underline;
   cursor: pointer;
 }

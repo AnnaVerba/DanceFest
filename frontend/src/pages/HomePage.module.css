@@ -1,8 +1,13 @@
+/* «Каталог змагань»: mint ground with ornamental curves, deep-teal controls,
+   white cards. Colours come from the --g-mint / --g-teal tokens in index.css,
+   so the dark theme follows automatically. */
+
 .page {
+  position: relative;
   min-height: 100vh;
-  background: var(--g-field);
-  color: var(--g-ink);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+  overflow: hidden;
+  color: var(--g-teal-ink);
+  font-family: 'Segoe UI', 'Inter', -apple-system, BlinkMacSystemFont, Roboto,
     Arial, sans-serif;
   font-size: 14px;
   box-sizing: border-box;
@@ -14,280 +19,411 @@
   box-sizing: border-box;
 }
 
+/* A logged-out visitor's top bar floats over the page (PublicTopBar), so the
+   content starts below it. */
+.pageUnderHeader .container {
+  padding-top: 138px;
+}
+
 .container {
-  max-width: 1100px;
+  position: relative;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 40px 40px 64px;
+  padding: 56px 40px 72px;
 }
 
-.pageHead {
+.heroActions {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.pageTitle {
-  margin: 0 0 6px;
-  font-size: 28px;
-  font-weight: 800;
+  justify-content: flex-end;
+  margin-bottom: 8px;
 }
 
 .createBtn {
-  flex: none;
   display: inline-flex;
   align-items: center;
-  padding: 10px 16px;
-  border-radius: 10px;
-  background: var(--g-accent);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 700;
+  padding: 11px 20px;
+  border: 1.5px solid var(--g-teal);
+  border-radius: 12px;
+  background: var(--g-teal);
+  box-shadow: inset 0 0 0 2px var(--g-on-teal-ring);
+  color: var(--g-on-teal);
+  font-size: 15px;
+  font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
 }
 
 .createBtn:hover {
-  background: var(--g-accent-hover);
+  background: var(--g-teal-hover);
+  border-color: var(--g-teal-hover);
+}
+
+.hero {
+  margin-bottom: 44px;
+  text-align: center;
+}
+
+.pageTitle {
+  margin: 0 0 14px;
+  font-size: 46px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: var(--g-teal-ink);
 }
 
 .pageSubtitle {
-  margin: 0 0 24px;
-  font-size: 14.5px;
-  color: var(--g-muted);
+  margin: 0;
+  font-size: 18px;
+  color: var(--g-teal-ink-soft);
 }
 
 .filters {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.searchField {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.searchIcon {
+  position: absolute;
+  top: 50%;
+  left: 22px;
+  transform: translateY(-50%);
+  color: var(--g-teal-ink);
+  pointer-events: none;
+}
+
+.search,
+.yearSelect {
+  height: 60px;
+  border: 1.5px solid var(--g-teal);
+  border-radius: 14px;
+  background: var(--g-surface);
+  box-shadow: 0 6px 18px var(--g-teal-shadow);
+  color: var(--g-teal-ink);
+  font-family: inherit;
+  font-size: 17px;
 }
 
 .search {
-  flex: 1;
-  min-width: 260px;
-  padding: 11px 14px;
-  border: 1px solid var(--g-line);
-  border-radius: 12px;
-  font-size: 13.5px;
-  font-family: inherit;
-  background: var(--g-surface);
-  color: var(--g-ink);
+  width: 100%;
+  padding: 0 22px 0 60px;
+}
+
+.search::placeholder {
+  color: var(--g-teal-ink-soft);
+}
+
+.yearField {
+  position: relative;
+  flex: none;
 }
 
 .yearSelect {
-  padding: 11px 12px;
-  border: 1px solid var(--g-line);
-  border-radius: 12px;
-  font-size: 13.5px;
-  font-family: inherit;
-  background: var(--g-surface);
-  color: var(--g-ink-soft);
+  appearance: none;
+  min-width: 170px;
+  padding: 0 52px 0 22px;
+  cursor: pointer;
 }
 
-.search:focus,
-.yearSelect:focus {
-  outline: none;
-  border-color: var(--g-accent);
+.yearChevron {
+  position: absolute;
+  top: 50%;
+  right: 20px;
+  transform: translateY(-50%);
+  color: var(--g-teal-ink);
+  pointer-events: none;
+}
+
+.search:focus-visible,
+.yearSelect:focus-visible,
+.chip:focus-visible,
+.card:focus-visible,
+.createBtn:focus-visible {
+  outline: 3px solid var(--g-teal-focus);
+  outline-offset: 2px;
 }
 
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 28px;
+  gap: 14px;
+  margin-bottom: 52px;
 }
 
 .chip {
-  padding: 7px 14px;
-  border: 1.5px solid var(--g-line);
+  padding: 13px 24px;
+  border: 1.5px solid var(--g-teal);
   border-radius: 999px;
-  font-size: 12.5px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
   background: var(--g-surface);
-  color: var(--g-ink-soft);
+  color: var(--g-teal-ink);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
-.chipActive {
-  background: var(--g-accent);
-  border-color: var(--g-accent);
-  color: #fff;
+.chip:hover:not(:disabled) {
+  background: var(--g-teal-soft);
+}
+
+.chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.chipActive,
+.chipActive:hover:not(:disabled) {
+  background: var(--g-teal);
+  color: var(--g-on-teal);
 }
 
 .status {
   margin: 24px 0 0;
-  color: var(--g-muted);
+  color: var(--g-teal-ink-soft);
   font-style: italic;
 }
 
 .monthGroup {
-  margin-bottom: 34px;
+  margin-bottom: 44px;
 }
 
 .monthHead {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 22px;
+  margin-bottom: 26px;
 }
 
 .monthLabel {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--g-accent);
+  color: var(--g-teal-ink);
   white-space: nowrap;
 }
 
 .monthRule {
   flex: 1;
   height: 1px;
-  background: var(--g-line);
+  background: var(--g-teal-line);
 }
 
 .monthCount {
-  font-size: 12px;
-  color: var(--g-subtle);
+  font-size: 16px;
+  color: var(--g-teal-ink-soft);
   white-space: nowrap;
 }
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+  gap: 32px;
 }
 
 .card {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--g-line);
-  border-radius: 16px;
+  border: 1px solid var(--g-card-border);
+  border-radius: 20px;
   background: var(--g-surface);
+  box-shadow: 0 12px 32px var(--g-teal-shadow);
   color: inherit;
   text-align: left;
   text-decoration: none;
-  cursor: pointer;
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 }
 
 .card:hover {
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
-  transform: translateY(-2px);
+  box-shadow: 0 18px 40px var(--g-teal-shadow);
+  transform: translateY(-3px);
 }
 
 .cardBanner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 100%;
-  height: 160px;
-  background: var(--g-field-off);
-  color: var(--g-subtle);
-  font-size: 12.5px;
+  height: 270px;
+  background: var(--g-banner-base);
 }
 
 .cardBanner img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
+.cardBannerEmpty {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(55% 75% at 22% 72%, var(--g-banner-warm), transparent 72%),
+    radial-gradient(45% 65% at 78% 28%, var(--g-banner-cool), transparent 70%),
+    linear-gradient(135deg, var(--g-banner-base), var(--g-surface));
+}
+
 .cardBody {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 16px 18px;
+  gap: 16px;
+  padding: 26px 32px 30px;
+}
+
+.cardTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
 }
 
 .statusPill {
-  align-self: flex-start;
-  padding: 3px 9px;
+  padding: 6px 16px;
   border-radius: 999px;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .statusPlanned {
-  background: var(--g-field-off);
-  color: var(--g-muted);
+  background: var(--g-teal-soft);
+  color: var(--g-teal-ink);
 }
 
 .statusOpen {
-  background: var(--g-success-bg);
-  color: var(--g-success);
+  background: var(--g-teal);
+  color: var(--g-on-teal);
 }
 
 .statusClosed {
-  background: var(--g-warning-bg);
-  color: var(--g-warning);
+  background: var(--g-sand);
+  color: var(--g-on-teal);
 }
 
 .statusOngoing {
-  background: var(--g-accent-bg-soft);
-  color: var(--g-accent-hover);
+  background: var(--g-teal-bright);
+  color: var(--g-on-teal);
 }
 
 .statusFinished {
-  background: var(--g-field-off);
-  color: var(--g-muted);
-}
-
-.cardTitle {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--g-ink);
+  background: var(--g-terracotta);
+  color: var(--g-on-teal);
 }
 
 .cardMeta {
-  font-size: 12.5px;
-  color: var(--g-muted);
+  font-size: 16px;
+  color: var(--g-teal-ink-soft);
+  text-align: right;
+}
+
+.cardTitle {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--g-teal-ink);
 }
 
 .empty {
   padding: 40px;
-  border: 1px dashed var(--g-line);
-  border-radius: 14px;
+  border: 1.5px dashed var(--g-teal-line);
+  border-radius: 20px;
   background: var(--g-surface);
   text-align: center;
-  font-size: 14px;
-  color: var(--g-muted);
-}
-
-@media (max-width: 680px) {
-  .container {
-    padding: 24px 16px 48px;
-  }
-
-  .pageTitle {
-    font-size: 24px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .card,
-  .card:hover {
-    transition: none;
-    transform: none;
-  }
+  font-size: 16px;
+  color: var(--g-teal-ink-soft);
 }
 
 .pager {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  margin-top: 24px;
+  gap: 14px;
+  margin-top: 28px;
 }
 
 .pagerInfo {
-  font-size: 14px;
-  color: var(--text-muted, #667085);
+  font-size: 15px;
+  color: var(--g-teal-ink-soft);
+}
+
+@media (max-width: 680px) {
+  .container {
+    padding: 32px 16px 48px;
+  }
+
+  .pageUnderHeader .container {
+    padding-top: 104px;
+  }
+
+  .hero {
+    margin-bottom: 28px;
+  }
+
+  .pageTitle {
+    font-size: 32px;
+  }
+
+  .pageSubtitle {
+    font-size: 16px;
+  }
+
+  .filters {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .yearSelect {
+    width: 100%;
+  }
+
+  .chips {
+    gap: 10px;
+    margin-bottom: 36px;
+  }
+
+  .chip {
+    padding: 10px 18px;
+    font-size: 15px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .cardBanner {
+    height: 190px;
+  }
+
+  .cardBody {
+    padding: 20px 20px 24px;
+  }
+
+  .cardTitle {
+    font-size: 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .card:hover,
+  .chip {
+    transition: none;
+    transform: none;
+  }
 }

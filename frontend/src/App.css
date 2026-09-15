@@ -4,12 +4,26 @@
 
 body {
   margin: 0;
-  background: var(--g-page-bg);
+  /* The catalog's mint ground behind every page, pinned to the viewport. */
+  background-color: var(--g-mint-mid);
+  background-image:
+    radial-gradient(900px 620px at 0% 0%, var(--g-mint-start) 0%, transparent 70%),
+    linear-gradient(
+      125deg,
+      var(--g-mint-start) 0%,
+      var(--g-mint-mid) 50%,
+      var(--g-mint-end) 100%
+    );
+  background-attachment: fixed;
   color: var(--g-ink);
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 #root {
+  /* Own stacking context, so the fixed CatalogBackdrop (z-index: -1) paints
+     above the body's gradient but below every page. */
+  position: relative;
+  isolation: isolate;
   width: 100%;
   max-width: none;
   border: none;

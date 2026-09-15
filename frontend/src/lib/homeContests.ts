@@ -9,6 +9,7 @@ export const HOME_STATUS_FILTER_ID = {
   ALL: 'all',
   REGISTRATION_OPEN: 'open',
   UPCOMING: 'soon',
+  FINISHED: 'finished',
 } as const;
 
 export type HomeStatusFilterId =
@@ -21,16 +22,21 @@ export interface HomeStatusFilter {
 }
 
 export const HOME_STATUS_FILTERS: readonly HomeStatusFilter[] = [
-  { id: HOME_STATUS_FILTER_ID.ALL, label: 'Усі', statuses: [] },
+  { id: HOME_STATUS_FILTER_ID.ALL, label: 'Усі конкурси', statuses: [] },
   {
     id: HOME_STATUS_FILTER_ID.REGISTRATION_OPEN,
-    label: 'Відкрита реєстрація',
+    label: 'Реєстрація відкрита',
     statuses: [COMPETITION_STATUS.REGISTRATION_OPEN],
   },
   {
     id: HOME_STATUS_FILTER_ID.UPCOMING,
-    label: 'Незабаром',
+    label: 'Заплановані',
     statuses: [COMPETITION_STATUS.PLANNED],
+  },
+  {
+    id: HOME_STATUS_FILTER_ID.FINISHED,
+    label: 'Завершені',
+    statuses: [COMPETITION_STATUS.FINISHED],
   },
 ];
 
@@ -60,10 +66,32 @@ export function formatContestDate(iso: string): string {
   });
 }
 
+const DAY_MONTH_OPTIONS: Intl.DateTimeFormatOptions = {
+  day: 'numeric',
+  month: 'long',
+};
+const DAY_RANGE_DASH = '–';
+const DATE_RANGE_DASH = ' – ';
+
+function dayMonthOf(date: Date): string {
+  return date.toLocaleDateString(DATE_LOCALE, DAY_MONTH_OPTIONS);
+}
+
+// Compact card date — «5 вересня 2026», «10–12 вересня 2026»,
+// «30 вересня – 2 жовтня 2026»; the year repeats only across years.
 export function formatContestDateRange(dateFrom: string, dateTo: string): string {
-  return dateFrom === dateTo
-    ? formatContestDate(dateFrom)
-    : `${formatContestDate(dateFrom)} – ${formatContestDate(dateTo)}`;
+  const from = new Date(dateFrom);
+  const to = new Date(dateTo);
+  if (dateFrom === dateTo) {
+    return `${dayMonthOf(from)} ${from.getFullYear()}`;
+  }
+  if (from.getFullYear() !== to.getFullYear()) {
+    return `${dayMonthOf(from)} ${from.getFullYear()}${DATE_RANGE_DASH}${dayMonthOf(to)} ${to.getFullYear()}`;
+  }
+  if (from.getMonth() === to.getMonth()) {
+    return `${from.getDate()}${DAY_RANGE_DASH}${dayMonthOf(to)} ${to.getFullYear()}`;
+  }
+  return `${dayMonthOf(from)}${DATE_RANGE_DASH}${dayMonthOf(to)} ${to.getFullYear()}`;
 }
 
 // Name / year filtering and paging now happen on the server; only the

@@ -18,7 +18,7 @@
   --r: 12px;
   --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.04);
 
-  background: var(--bg);
+  background: transparent;
   color: var(--ink);
   font-size: 15px;
   line-height: 1.5;
@@ -255,7 +255,7 @@ td.cStudio {
   outline: none;
   background: var(--g-surface);
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+  box-shadow: 0 0 0 3px rgba(53, 102, 76, 0.14);
 }
 
 .scoreFilled {
@@ -376,7 +376,7 @@ td.cStudio {
   outline: none;
   background: var(--g-surface);
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+  box-shadow: 0 0 0 3px rgba(53, 102, 76, 0.14);
 }
 
 .error {

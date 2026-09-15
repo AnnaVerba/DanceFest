@@ -101,7 +101,7 @@
   padding: 8px 12px;
   border: 0;
   border-radius: 8px;
-  background: #2563eb;
+  background: var(--g-accent);
   color: #fff;
   cursor: pointer;
 }
@@ -111,10 +111,10 @@
 }
 .ghost {
   padding: 8px 12px;
-  border: 1px solid #2563eb;
+  border: 1px solid var(--g-accent);
   border-radius: 8px;
   background: transparent;
-  color: #2563eb;
+  color: var(--g-accent);
   cursor: pointer;
 }
 .error {

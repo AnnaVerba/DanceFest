@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Navigate, Routes, Route } from 'react-router-dom';
 import ThemeToggle from './components/ThemeToggle';
+import CatalogBackdrop from './components/home/CatalogBackdrop';
 import AppShell from './components/AppShell';
 import RequireCompleteProfile from './components/RequireCompleteProfile';
 import { getToken } from './lib/auth';
@@ -14,7 +15,6 @@ import './App.css';
 
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const TeamPage = lazy(() => import('./pages/TeamPage'));
-const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const NewCompetitionPage = lazy(() => import('./pages/NewCompetitionPage'));
 const CompetitionEditPage = lazy(() => import('./pages/CompetitionEditPage'));
 const CompetitionDetailPage = lazy(
@@ -48,6 +48,8 @@ const CategoryTemplateFormPage = lazy(
 function App() {
   return (
     <>
+      {/* The catalog's ornamental curves sit behind every page. */}
+      <CatalogBackdrop />
       <ThemeToggle />
       <Suspense fallback={<div style={{ padding: 24 }}>Завантаження…</div>}>
       <Routes>
@@ -66,7 +68,8 @@ function App() {
         <Route element={<RequireCompleteProfile />}>
           <Route element={<AppShell />}>
             <Route path="/" element={<HomePage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
+          {/* «Мої конкурси» now live on the home page as a filter. */}
+          <Route path="/dashboard" element={<Navigate to="/" replace />} />
           <Route
             path="/competitions/:id"
             element={

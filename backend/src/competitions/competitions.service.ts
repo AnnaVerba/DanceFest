@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { CreationAttributes, Op } from 'sequelize';
+import { col, CreationAttributes, fn, Op, where as sqlWhere } from 'sequelize';
 import { PagedResult, resolvePage } from '../common/pagination';
 import { Competition } from './competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
@@ -17,6 +17,9 @@ import { UpdateCompetitionDto } from './dto/update-competition.dto';
 import {
   NO_COMPETITION_ACCESS_MESSAGE,
   COMPETITION_OWNER_ONLY_MESSAGE,
+  ORGANIZERS_COLUMN,
+  ORGANIZERS_SEARCH_SEPARATOR,
+  SEARCH_WORDS_SEPARATOR,
 } from './competitions.constants';
 
 const OWNER_INCLUDE = [
@@ -47,8 +50,11 @@ export class CompetitionsService {
     private readonly competitionRuleModel: typeof CompetitionRule,
   ) {}
 
+  // `memberId` narrows the list to «Мої конкурси»: competitions that user
+  // owns or is on the team of.
   async findAll(
     query: CompetitionListQuery = {},
+    memberId?: string,
   ): Promise<PagedResult<Competition>> {
     const { page, pageSize, limit, offset } = resolvePage(
       query.page,
@@ -56,9 +62,36 @@ export class CompetitionsService {
       DEFAULT_COMPETITIONS_PAGE_SIZE,
       MAX_COMPETITIONS_PAGE_SIZE,
     );
-    const where: Record<string, unknown> = {};
+    const where: Record<string | symbol, unknown> = {};
+    if (memberId) {
+      where[Op.or] = [
+        { ownerId: memberId },
+        { id: { [Op.in]: await this.teamCompetitionIds(memberId) } },
+      ];
+    }
     const q = query.q?.trim();
-    if (q) where.name = { [Op.iLike]: `%${q}%` };
+    // The search box promises name, city or organizer. Every word of the
+    // query must appear in one of them, in any order — «Анна Верба» also
+    // finds an organizer typed as «Верба Анна».
+    if (q) {
+      where[Op.and] = q.split(SEARCH_WORDS_SEPARATOR).map((word) => {
+        const pattern = `%${word}%`;
+        return {
+          [Op.or]: [
+            { name: { [Op.iLike]: pattern } },
+            { location: { [Op.iLike]: pattern } },
+            sqlWhere(
+              fn(
+                'array_to_string',
+                col(ORGANIZERS_COLUMN),
+                ORGANIZERS_SEARCH_SEPARATOR,
+              ),
+              { [Op.iLike]: pattern },
+            ),
+          ],
+        };
+      });
+    }
     if (query.year && /^\d{4}$/.test(query.year)) {
       where.dateFrom = {
         [Op.between]: [`${query.year}-01-01`, `${query.year}-12-31`],
@@ -73,6 +106,16 @@ export class CompetitionsService {
       distinct: true,
     });
     return { rows, total: count, page, pageSize };
+  }
+
+  // Competitions the user helps run as a named team admin (not the owner).
+  private async teamCompetitionIds(adminId: string): Promise<string[]> {
+    const memberships = await this.competitionAdminModel.findAll({
+      where: { adminId },
+      attributes: ['competitionId'],
+      limit: MAX_COMPETITIONS_SCAN,
+    });
+    return memberships.map((membership) => membership.competitionId);
   }
 
   // Distinct years for the list's year filter.

@@ -7,8 +7,8 @@ import { randomUUID } from 'crypto';
 // сформовано, і в ній є все, що рахує калькулятор нагород — категорії, де
 // медальний залік змінює кількість медалей (7 соло, 4 дуети), ліги «медаль
 // кожному» («Дебют», «Перші кроки»), тріо з двох номерів, групи й формейшн
-// (кубки + медалі за участь), повторний вихід того самого танцюриста і
-// спецномінація з двох категорій.
+// (кубки + медалі за участь) і спецномінація з двох категорій. Кожен
+// танцюрист виступає в номінації лише один раз.
 //
 // Власник — наявний адміністратор або організатор, чию пошту передають
 // змінною середовища:
@@ -112,29 +112,26 @@ interface NominationPlan {
   special: boolean;
   // Скільки танцюристів у кожному номері.
   dancersPerPerformance: number[];
-  // Ще один вихід того самого танцюриста, що й у першому номері, —
-  // кожен вихід на сцену рахується окремою участю.
-  repeatsFirstDancer: boolean;
   section: number;
 }
 
 const PLANS: NominationPlan[] = [
   // 7 соло: 1/1/1 → 3/2/2.
-  { age: KIDS, league: PRO, lineup: SOLO, special: false, dancersPerPerformance: [1, 1, 1, 1, 1, 1, 1], repeatsFirstDancer: false, section: KIDS_SECTION },
+  { age: KIDS, league: PRO, lineup: SOLO, special: false, dancersPerPerformance: [1, 1, 1, 1, 1, 1, 1], section: KIDS_SECTION },
   // 2 тріо: 1/1/0 номерів у будь-якому режимі, по 3 медалі на номер.
-  { age: KIDS, league: PRO, lineup: TRIO, special: false, dancersPerPerformance: [3, 3], repeatsFirstDancer: false, section: KIDS_SECTION },
+  { age: KIDS, league: PRO, lineup: TRIO, special: false, dancersPerPerformance: [3, 3], section: KIDS_SECTION },
   // «Медаль кожному»: 2/2/1 в обох режимах.
-  { age: KIDS, league: DEBUT, lineup: SOLO, special: false, dancersPerPerformance: [1, 1, 1, 1, 1], repeatsFirstDancer: false, section: KIDS_SECTION },
+  { age: KIDS, league: DEBUT, lineup: SOLO, special: false, dancersPerPerformance: [1, 1, 1, 1, 1], section: KIDS_SECTION },
   // «Медаль кожному»: 2/1/1 в обох режимах.
-  { age: KIDS, league: FIRST_STEPS, lineup: SOLO, special: false, dancersPerPerformance: [1, 1, 1, 1], repeatsFirstDancer: false, section: KIDS_SECTION },
-  { age: KIDS, league: PRO, lineup: null, special: true, dancersPerPerformance: [1, 1, 1], repeatsFirstDancer: false, section: KIDS_SECTION },
-  // 5 виходів, один танцюрист виходить двічі — 5 участей: 1/1/1 → 2/2/1.
-  { age: ADULTS, league: PRO, lineup: SOLO, special: false, dancersPerPerformance: [1, 1, 1, 1], repeatsFirstDancer: true, section: ADULTS_SECTION },
+  { age: KIDS, league: FIRST_STEPS, lineup: SOLO, special: false, dancersPerPerformance: [1, 1, 1, 1], section: KIDS_SECTION },
+  { age: KIDS, league: PRO, lineup: null, special: true, dancersPerPerformance: [1, 1, 1], section: KIDS_SECTION },
+  // 5 соло: 1/1/1 → 2/2/1.
+  { age: ADULTS, league: PRO, lineup: SOLO, special: false, dancersPerPerformance: [1, 1, 1, 1, 1], section: ADULTS_SECTION },
   // 4 дуети по 2 медалі: 2/2/2 → 4/2/2.
-  { age: ADULTS, league: PRO, lineup: DUET, special: false, dancersPerPerformance: [2, 2, 2, 2], repeatsFirstDancer: false, section: ADULTS_SECTION },
-  { age: ADULTS, league: PRO, lineup: GROUP, special: false, dancersPerPerformance: [5, 6, 8], repeatsFirstDancer: false, section: ADULTS_SECTION },
-  { age: ADULTS, league: DEBUT, lineup: FORMATION, special: false, dancersPerPerformance: [10, 12], repeatsFirstDancer: false, section: ADULTS_SECTION },
-  { age: ADULTS, league: PRO, lineup: null, special: true, dancersPerPerformance: [1, 1, 1, 1], repeatsFirstDancer: false, section: ADULTS_SECTION },
+  { age: ADULTS, league: PRO, lineup: DUET, special: false, dancersPerPerformance: [2, 2, 2, 2], section: ADULTS_SECTION },
+  { age: ADULTS, league: PRO, lineup: GROUP, special: false, dancersPerPerformance: [5, 6, 8], section: ADULTS_SECTION },
+  { age: ADULTS, league: DEBUT, lineup: FORMATION, special: false, dancersPerPerformance: [10, 12], section: ADULTS_SECTION },
+  { age: ADULTS, league: PRO, lineup: null, special: true, dancersPerPerformance: [1, 1, 1, 1], section: ADULTS_SECTION },
 ];
 
 const CATEGORIES: { name: string; type: string }[] = [
@@ -382,9 +379,6 @@ async function seed(
         );
       }
       performances.push(dancers);
-    }
-    if (plan.repeatsFirstDancer) {
-      performances.push(performances[0]);
     }
 
     for (const dancers of performances) {

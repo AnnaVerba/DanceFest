@@ -591,7 +591,7 @@ export default function NewCompetitionPage() {
     <>
       <main className={styles.main}>
         <div className={styles.wrap}>
-          <Link to="/dashboard" className={styles.back}>
+          <Link to="/" className={styles.back}>
             <svg
               width="16"
               height="16"
@@ -1340,7 +1340,7 @@ export default function NewCompetitionPage() {
 
           <div className={styles.actions}>
             {step === 1 ? (
-              <Link to="/dashboard" className={styles.btn}>
+              <Link to="/" className={styles.btn}>
                 Скасувати
               </Link>
             ) : (

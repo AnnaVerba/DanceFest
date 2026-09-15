@@ -7,15 +7,15 @@
   --ink: var(--g-ink);
   --ink-soft: var(--g-ink-soft);
   --muted: var(--g-muted);
-  --gold: var(--g-gold);
-  --gold-hover: var(--g-gold-hover);
-  --gold-soft: var(--g-gold-bg);
-  --gold-line: var(--g-gold-border);
+  --gold: var(--g-accent);
+  --gold-hover: var(--g-accent-hover);
+  --gold-soft: var(--g-accent-bg-soft);
+  --gold-line: var(--g-line-strong);
   --danger: var(--g-danger);
   --r: 12px;
   --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.04);
 
-  background: var(--bg);
+  background: transparent;
   color: var(--ink);
   font-size: 15px;
   line-height: 1.5;
@@ -512,8 +512,8 @@
   padding: 3px 8px;
   border-radius: 999px;
   background: #e8effc;
-  border: 1px solid #dbeafe;
-  color: #1d4ed8;
+  border: 1px solid var(--g-accent-bg-soft);
+  color: var(--g-accent-hover);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.2px;

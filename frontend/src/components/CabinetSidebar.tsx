@@ -27,7 +27,6 @@ export default function CabinetSidebar() {
       show: level === ACCESS_LEVEL.COACH,
     },
     { to: '/my-entries', label: 'Мої заявки', show: true },
-    { to: '/dashboard', label: 'Мої конкурси', show: isOrganizer },
     {
       to: '/category-templates',
       label: 'Шаблони категорій',

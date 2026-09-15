@@ -1,12 +1,15 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
+  /* Legacy names some pages still read — mapped onto the catalog palette, so
+     both themes follow the --g-* tokens below. */
+  --text: var(--g-muted);
+  --text-h: var(--g-ink);
+  --bg: var(--g-surface);
+  --border: var(--g-line);
   --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
+  --accent: var(--g-accent);
+  --accent-hover: var(--g-accent-hover);
+  --accent-bg: var(--g-accent-bg-soft);
+  --accent-border: var(--g-line-strong);
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
@@ -18,19 +21,23 @@
   /* App-wide semantic tokens (admin/judge/apply UI). Every page module
      points its local color vars at these, so switching theme here
      re-themes the whole app. See ThemeProvider for the data-theme switch. */
-  --g-page-bg: #f1f5f9;
+  /* The whole app follows the catalog look: mint ground, deep-teal accent,
+     teal-tinted lines and ink. */
+  --g-page-bg: #edf4e6;
   --g-surface: #fff;
-  --g-field: #f8fafc;
-  --g-field-off: #eef2f7;
-  --g-line: #e5e7eb;
-  --g-line-strong: #cbd5e1;
-  --g-subtle: #94a3b8;
-  --g-muted: #64748b;
-  --g-ink-soft: #334155;
-  --g-ink: #0f172a;
-  --g-accent: #2563eb;
-  --g-accent-hover: #1d4ed8;
-  --g-accent-bg-soft: #dbeafe;
+  --g-field: #f6f9f1;
+  --g-field-off: #ebf2e3;
+  --g-line: #dbe6d2;
+  --g-line-strong: #bfd3b3;
+  --g-subtle: #8fa38f;
+  --g-muted: #607562;
+  --g-ink-soft: #3f5a45;
+  --g-ink: #213f2e;
+  --g-accent: #35664c;
+  --g-accent-hover: #2b543f;
+  --g-accent-bg-soft: #e0edd8;
+  /* Top bar and cabinet rail sit over the mint ground, frosted. */
+  --g-chrome-bg: rgba(255, 255, 255, 0.72);
 
   /* Fixed app chrome — the top bar and the cabinet's left nav rail. */
   --topbar-h: 64px;
@@ -53,7 +60,30 @@
   --g-cat-league: #0f766e;
   --g-cat-prog: #4f46e5;
   --g-cat-studio: #c2410c;
-  --g-dark-cta: #1e293b;
+  --g-dark-cta: #213f2e;
+  /* Competition catalog: mint ground, deep teal, terracotta badge. */
+  --g-mint-start: #fbf9f0;
+  --g-mint-mid: #e9f2df;
+  --g-mint-end: #cde5c6;
+  --g-teal: #35664c;
+  --g-teal-hover: #2b543f;
+  --g-teal-ink: #213f2e;
+  --g-teal-ink-soft: #3f5a45;
+  --g-teal-soft: rgba(53, 102, 76, 0.08);
+  --g-teal-line: rgba(33, 63, 46, 0.2);
+  --g-teal-focus: rgba(53, 102, 76, 0.35);
+  --g-teal-shadow: rgba(33, 63, 46, 0.08);
+  --g-teal-bright: #4a8a66;
+  --g-on-teal: #ffffff;
+  --g-on-teal-ring: rgba(255, 255, 255, 0.35);
+  --g-terracotta: #b8735c;
+  --g-sand: #b0894a;
+  --g-card-border: rgba(33, 63, 46, 0.08);
+  --g-backdrop-cool: rgba(84, 130, 98, 0.42);
+  --g-backdrop-warm: rgba(184, 150, 98, 0.55);
+  --g-banner-base: #f2ede5;
+  --g-banner-warm: rgba(201, 150, 105, 0.55);
+  --g-banner-cool: rgba(140, 180, 140, 0.45);
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
@@ -72,31 +102,25 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
     --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
     --social-bg: rgba(47, 48, 58, 0.5);
     --shadow:
       rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
 
-    --g-page-bg: #0d0e13;
-    --g-surface: #1a1c23;
-    --g-field: #22242e;
-    --g-field-off: #1f212a;
-    --g-line: #30323d;
-    --g-line-strong: #454859;
-    --g-subtle: #6b7280;
-    --g-muted: #9aa3b2;
-    --g-ink-soft: #cbd2dd;
-    --g-ink: #f3f4f6;
-    --g-accent: #5b9dff;
-    --g-accent-hover: #7db2ff;
-    --g-accent-bg-soft: rgba(91, 157, 255, 0.16);
+    --g-page-bg: #121812;
+    --g-surface: #1a2219;
+    --g-field: #202a1f;
+    --g-field-off: #1c251b;
+    --g-line: #2e3b2c;
+    --g-line-strong: #43553f;
+    --g-subtle: #748771;
+    --g-muted: #a2b59d;
+    --g-ink-soft: #d5e4cf;
+    --g-ink: #edf5e9;
+    --g-accent: #5c9f75;
+    --g-accent-hover: #72b389;
+    --g-accent-bg-soft: rgba(92, 159, 117, 0.18);
+    --g-chrome-bg: rgba(18, 24, 18, 0.72);
     --g-danger: #f87171;
     --g-danger-hover: #fca5a5;
     --g-danger-bg: rgba(248, 113, 113, 0.14);
@@ -115,7 +139,29 @@
     --g-cat-league: #2dd4bf;
     --g-cat-prog: #818cf8;
     --g-cat-studio: #fb923c;
-    --g-dark-cta: #475569;
+    --g-dark-cta: #35664c;
+    --g-mint-start: #10150f;
+    --g-mint-mid: #142016;
+    --g-mint-end: #1a2e1d;
+    --g-teal: #62a67b;
+    --g-teal-hover: #79ba90;
+    --g-teal-ink: #dcecd7;
+    --g-teal-ink-soft: #b0c8aa;
+    --g-teal-soft: rgba(98, 166, 123, 0.14);
+    --g-teal-line: rgba(220, 236, 215, 0.18);
+    --g-teal-focus: rgba(98, 166, 123, 0.45);
+    --g-teal-shadow: rgba(0, 0, 0, 0.35);
+    --g-teal-bright: #86c79c;
+    --g-on-teal: #0f170f;
+    --g-on-teal-ring: rgba(15, 23, 15, 0.35);
+    --g-terracotta: #d0917a;
+    --g-sand: #d0aa62;
+    --g-card-border: rgba(220, 236, 215, 0.08);
+    --g-backdrop-cool: rgba(98, 166, 123, 0.28);
+    --g-backdrop-warm: rgba(208, 170, 98, 0.3);
+    --g-banner-base: #232b20;
+    --g-banner-warm: rgba(201, 138, 114, 0.35);
+    --g-banner-cool: rgba(98, 166, 123, 0.3);
   }
 
   #social .button-icon {
@@ -125,31 +171,25 @@
 
 /* Explicit user choice wins over prefers-color-scheme in both directions. */
 :root[data-theme='dark'] {
-  --text: #9ca3af;
-  --text-h: #f3f4f6;
-  --bg: #16171d;
-  --border: #2e303a;
   --code-bg: #1f2028;
-  --accent: #c084fc;
-  --accent-bg: rgba(192, 132, 252, 0.15);
-  --accent-border: rgba(192, 132, 252, 0.5);
   --social-bg: rgba(47, 48, 58, 0.5);
   --shadow:
     rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
 
-  --g-page-bg: #0d0e13;
-  --g-surface: #1a1c23;
-  --g-field: #22242e;
-  --g-field-off: #1f212a;
-  --g-line: #30323d;
-  --g-line-strong: #454859;
-  --g-subtle: #6b7280;
-  --g-muted: #9aa3b2;
-  --g-ink-soft: #cbd2dd;
-  --g-ink: #f3f4f6;
-  --g-accent: #5b9dff;
-  --g-accent-hover: #7db2ff;
-  --g-accent-bg-soft: rgba(91, 157, 255, 0.16);
+  --g-page-bg: #121812;
+  --g-surface: #1a2219;
+  --g-field: #202a1f;
+  --g-field-off: #1c251b;
+  --g-line: #2e3b2c;
+  --g-line-strong: #43553f;
+  --g-subtle: #748771;
+  --g-muted: #a2b59d;
+  --g-ink-soft: #d5e4cf;
+  --g-ink: #edf5e9;
+  --g-accent: #5c9f75;
+  --g-accent-hover: #72b389;
+  --g-accent-bg-soft: rgba(92, 159, 117, 0.18);
+  --g-chrome-bg: rgba(18, 24, 18, 0.72);
   --g-danger: #f87171;
   --g-danger-hover: #fca5a5;
   --g-danger-bg: rgba(248, 113, 113, 0.14);
@@ -168,7 +208,29 @@
   --g-cat-league: #2dd4bf;
   --g-cat-prog: #818cf8;
   --g-cat-studio: #fb923c;
-  --g-dark-cta: #475569;
+  --g-dark-cta: #35664c;
+  --g-mint-start: #10150f;
+  --g-mint-mid: #142016;
+  --g-mint-end: #1a2e1d;
+  --g-teal: #62a67b;
+  --g-teal-hover: #79ba90;
+  --g-teal-ink: #dcecd7;
+  --g-teal-ink-soft: #b0c8aa;
+  --g-teal-soft: rgba(98, 166, 123, 0.14);
+  --g-teal-line: rgba(220, 236, 215, 0.18);
+  --g-teal-focus: rgba(98, 166, 123, 0.45);
+  --g-teal-shadow: rgba(0, 0, 0, 0.35);
+  --g-teal-bright: #86c79c;
+  --g-on-teal: #0f170f;
+  --g-on-teal-ring: rgba(15, 23, 15, 0.35);
+  --g-terracotta: #d0917a;
+  --g-sand: #d0aa62;
+  --g-card-border: rgba(220, 236, 215, 0.08);
+  --g-backdrop-cool: rgba(98, 166, 123, 0.28);
+  --g-backdrop-warm: rgba(208, 170, 98, 0.3);
+  --g-banner-base: #232b20;
+  --g-banner-warm: rgba(201, 138, 114, 0.35);
+  --g-banner-cool: rgba(98, 166, 123, 0.3);
 }
 
 :root[data-theme='dark'] #social .button-icon {

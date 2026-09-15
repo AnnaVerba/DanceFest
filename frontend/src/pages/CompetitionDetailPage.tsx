@@ -76,7 +76,7 @@ export default function CompetitionDetailPage() {
     try {
       await deleteCompetition(competition.id);
       showToast(`Конкурс «${competition.name}» видалено`);
-      navigate('/dashboard');
+      navigate('/');
     } catch {
       showToast('Не вдалося видалити конкурс. Спробуйте ще раз.');
       setConfirmingDelete(false);
@@ -110,9 +110,8 @@ export default function CompetitionDetailPage() {
     ? getApplyEligibility(competition, { isOrganizer: canManageEntries, isAdmin })
     : null;
 
-  // "Назад до списку" always goes to a list, never the previous page:
-  // staff to the dashboard, everyone else to the public list.
-  const listPath = admin ? '/dashboard' : '/';
+  // "Назад до списку" always goes to the catalog, never the previous page.
+  const listPath = '/';
 
   return (
     <>

@@ -56,6 +56,26 @@ export class CompetitionsController {
     return this.competitionsService.listYears();
   }
 
+  @ApiOperation({
+    summary:
+      'Competitions the caller owns or is on the team of (paged; filter by q / year)',
+  })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiBearerAuth()
+  @Get('mine')
+  findMine(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('q') q?: string,
+    @Query('year') year?: string,
+  ) {
+    return this.competitionsService.findAll(
+      { page, pageSize, q, year },
+      user.id,
+    );
+  }
+
   @ApiOperation({ summary: 'Get a single competition by id' })
   @ApiResponse({ status: 200, description: 'Competition found.' })
   @ApiResponse({

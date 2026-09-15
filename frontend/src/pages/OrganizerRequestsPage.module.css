@@ -23,10 +23,10 @@
 }
 .actions button {
   padding: 6px 10px;
-  border: 1px solid #2563eb;
+  border: 1px solid var(--g-accent);
   border-radius: 6px;
   background: #fff;
-  color: #2563eb;
+  color: var(--g-accent);
   cursor: pointer;
 }
 .sub {

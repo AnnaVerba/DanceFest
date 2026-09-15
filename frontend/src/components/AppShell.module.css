@@ -12,7 +12,8 @@
   width: var(--cabinet-rail-w);
   padding: 24px 16px;
   overflow-y: auto;
-  background: var(--g-surface);
+  background: var(--g-chrome-bg);
+  backdrop-filter: blur(12px);
   border-right: 1px solid var(--g-line);
   box-sizing: border-box;
   z-index: 10;

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -35,6 +36,8 @@ import {
   MAX_MY_ENTRIES,
   COMPETITION_OVER_APPLY_MESSAGE,
   REGISTRATION_CLOSED_APPLY_MESSAGE,
+  PARTICIPANT_ALREADY_IN_NOMINATION_MESSAGE,
+  NOMINATION_PARTICIPANT_KEY_SEPARATOR,
   ENTRY_STATS_ATTRIBUTES,
   MAX_ENTRY_STATS_ROWS,
 } from './entries.constants';
@@ -60,6 +63,7 @@ interface PreparedEntry {
   submittedByUserId: string;
   routineName: string;
   nominationId: string;
+  nominationName: string;
   exits: NominationExit[];
   ageCategory: string | null;
   league: string | null;
@@ -238,6 +242,7 @@ export class EntriesService {
     const prepared = await Promise.all(
       dtos.map((dto) => this.prepareEntry(competitionId, dto, user)),
     );
+    this.assertNoRepeatWithinSubmission(prepared);
 
     const created = await this.insertWithRetry(competitionId, prepared);
 
@@ -245,6 +250,52 @@ export class EntriesService {
       competitionId,
     ]);
     return created.map((entry) => this.toDto(entry, numbers));
+  }
+
+  // One dancer performs in a nomination once. The several exits of a
+  // per-program nomination come from one submitted entry, so they never trip
+  // this — only a second entry naming the same dancer does.
+  private assertNoRepeatWithinSubmission(prepared: PreparedEntry[]): void {
+    const seen = new Set<string>();
+    for (const entry of prepared) {
+      for (const participantId of entry.submitter.participantIds) {
+        const key = `${entry.nominationId}${NOMINATION_PARTICIPANT_KEY_SEPARATOR}${participantId}`;
+        if (seen.has(key)) {
+          throw this.alreadyInNomination(entry);
+        }
+        seen.add(key);
+      }
+    }
+  }
+
+  // Runs inside the insert transaction, after the competition row lock, so
+  // two concurrent submissions cannot both slip the same dancer in.
+  private async assertNotAlreadyInNominations(
+    competitionId: string,
+    prepared: PreparedEntry[],
+    transaction: Transaction,
+  ): Promise<void> {
+    for (const entry of prepared) {
+      if (entry.submitter.participantIds.length === 0) continue;
+      const existing = await this.entryModel.findOne({
+        where: {
+          competitionId,
+          nominationId: entry.nominationId,
+          participantIds: { [Op.overlap]: entry.submitter.participantIds },
+        },
+        attributes: ['id'],
+        transaction,
+      });
+      if (existing) {
+        throw this.alreadyInNomination(entry);
+      }
+    }
+  }
+
+  private alreadyInNomination(entry: PreparedEntry): ConflictException {
+    return new ConflictException(
+      `${PARTICIPANT_ALREADY_IN_NOMINATION_MESSAGE} «${entry.nominationName}»`,
+    );
   }
 
   private async insertWithRetry(
@@ -273,6 +324,12 @@ export class EntriesService {
               transaction,
               lock: transaction.LOCK.UPDATE,
             });
+
+            await this.assertNotAlreadyInNominations(
+              competitionId,
+              prepared,
+              transaction,
+            );
 
             const last = await this.entryModel.findOne({
               where: { competitionId },
@@ -351,6 +408,7 @@ export class EntriesService {
       submittedByUserId: user.id,
       routineName,
       nominationId: nomination.id,
+      nominationName: nomination.name,
       exits,
       ageCategory,
       league,

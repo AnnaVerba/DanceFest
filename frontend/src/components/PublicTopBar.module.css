@@ -7,9 +7,20 @@
   justify-content: space-between;
   gap: 16px;
   min-height: var(--topbar-h);
-  padding: 18px 40px;
-  background: var(--g-surface);
+  /* The right side leaves room for the fixed theme toggle (ThemeToggle). */
+  padding: 18px 76px 18px 40px;
+  background: var(--g-chrome-bg);
+  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--g-line);
+}
+
+/* Logged-out catalog home: the bar floats over the page's mint backdrop. */
+.topbarOverlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: transparent;
+  border-bottom-color: transparent;
 }
 
 .brand {
@@ -100,8 +111,21 @@
   border-color: var(--g-line-strong);
 }
 
+/* «Увійти» for a logged-out visitor — the catalog's deep-teal button. */
+.loginPrimary {
+  border: 1.5px solid var(--g-teal);
+  background: var(--g-teal);
+  box-shadow: inset 0 0 0 2px var(--g-on-teal-ring);
+  color: var(--g-on-teal);
+}
+
+.loginPrimary:hover {
+  border-color: var(--g-teal-hover);
+  background: var(--g-teal-hover);
+}
+
 @media (max-width: 680px) {
   .topbar {
-    padding: 14px 16px;
+    padding: 14px 58px 14px 16px;
   }
 }

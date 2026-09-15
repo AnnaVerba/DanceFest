@@ -9,6 +9,10 @@ export const COMPETITION_OVER_APPLY_MESSAGE =
   'Конкурс завершено — подання заявок закрите.';
 export const REGISTRATION_CLOSED_APPLY_MESSAGE =
   'Реєстрацію на цей конкурс закрито.';
+// One dancer performs in a nomination once; the nomination name follows.
+export const PARTICIPANT_ALREADY_IN_NOMINATION_MESSAGE =
+  'Учасник уже виступає в номінації';
+export const NOMINATION_PARTICIPANT_KEY_SEPARATOR = '|';
 export const DEFAULT_ENTRIES_PAGE_SIZE = 50;
 export const MAX_ENTRIES_PAGE_SIZE = 200;
 // A running number lost to a concurrent submission is the only unique
