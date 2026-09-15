@@ -5,6 +5,7 @@ import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
 import { publicRequest } from './http';
 import { withPageParams } from './pagination';
 import type { Paged } from './pagination';
+import type { EntryStats } from './entryStats.types';
 
 export interface Entry {
   id: string;
@@ -207,6 +208,12 @@ export async function getEntriesCount(competitionId: string): Promise<number> {
   }
   const payload = (await response.json()) as { count: number };
   return payload.count;
+}
+
+export function getEntryStats(competitionId: string): Promise<EntryStats> {
+  return publicRequest<EntryStats>(
+    `/competitions/${competitionId}/entries/stats`,
+  );
 }
 
 export function createEntry(

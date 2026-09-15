@@ -35,11 +35,15 @@ import {
   MAX_MY_ENTRIES,
   COMPETITION_OVER_APPLY_MESSAGE,
   REGISTRATION_CLOSED_APPLY_MESSAGE,
+  ENTRY_STATS_ATTRIBUTES,
+  MAX_ENTRY_STATS_ROWS,
 } from './entries.constants';
 import {
   COMPETITION_NOT_FOUND_MESSAGE,
   NO_COMPETITION_ACCESS_MESSAGE,
 } from '../competitions/competitions.constants';
+import { buildEntryStats } from './build-entry-stats';
+import type { EntryStats } from './entry-stats.interface';
 
 interface SubmitterContext {
   participantId: string | null;
@@ -173,6 +177,19 @@ export class EntriesService {
     return { count };
   }
 
+  async stats(competitionId: string): Promise<EntryStats> {
+    const competition = await this.competitionModel.findByPk(competitionId);
+    if (!competition) {
+      throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
+    }
+    const entries = await this.entryModel.findAll({
+      where: { competitionId },
+      attributes: ENTRY_STATS_ATTRIBUTES,
+      limit: MAX_ENTRY_STATS_ROWS,
+    });
+    return buildEntryStats(entries);
+  }
+
   async create(
     competitionId: string,
     dto: CreateEntryDto,
@@ -191,6 +208,8 @@ export class EntriesService {
     competition: Competition,
     user: AuthenticatedUser,
   ): void {
+    // A global admin may add entries at any time, deadlines included.
+    if (user.accessLevel === AccessLevel.ADMIN) return;
     const today = new Date().toISOString().slice(0, 10);
     if (today > String(competition.dateTo).slice(0, 10)) {
       throw new ForbiddenException(COMPETITION_OVER_APPLY_MESSAGE);
@@ -565,7 +584,7 @@ export class EntriesService {
     return [];
   }
 
-  private async loadCompetitionAndAssertAccess(
+  async loadCompetitionAndAssertAccess(
     competitionId: string,
     requesterId: string,
     requesterLevel: AccessLevel,

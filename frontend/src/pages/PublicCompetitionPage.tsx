@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import CompetitionDetails from '../components/CompetitionDetails';
+import CompetitionFacts from '../components/CompetitionFacts';
 import ContestIcon from '../components/ContestIcon';
+import FestivalProgram from '../components/program/FestivalProgram';
+import { PROGRAM_TITLE } from '../components/program/FestivalProgram.constants';
 import { getApplyEligibility, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
-import { getEntriesCount } from '../lib/entries';
+import { getEntriesCount, getEntryStats } from '../lib/entries';
+import type { EntryStats } from '../lib/entryStats.types';
 import { getVenues } from '../lib/venues';
 import type { Venue } from '../lib/venues';
 import styles from './PublicCompetitionPage.module.css';
@@ -14,6 +18,7 @@ export default function PublicCompetitionPage() {
 
   const [competition, setCompetition] = useState<Competition | null>(null);
   const [entriesCount, setEntriesCount] = useState<number | null>(null);
+  const [stats, setStats] = useState<EntryStats | null>(null);
   const [venues, setVenues] = useState<Venue[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -39,6 +44,14 @@ export default function PublicCompetitionPage() {
       })
       .catch(() => {
         /* count is optional — leave it hidden on failure */
+      });
+
+    getEntryStats(id)
+      .then((data) => {
+        if (!cancelled) setStats(data);
+      })
+      .catch(() => {
+        /* facts are optional — leave the block hidden on failure */
       });
 
     getVenues(id)
@@ -88,6 +101,7 @@ export default function PublicCompetitionPage() {
               {(() => {
                 const apply = getApplyEligibility(competition, {
                   isOrganizer: false,
+                  isAdmin: false,
                 });
                 return (
                   <>
@@ -99,12 +113,6 @@ export default function PublicCompetitionPage() {
                         <ContestIcon />
                       </span>
                       <h1>{competition.name}</h1>
-                      <Link
-                        to={`/competitions/${id}/schedule`}
-                        className={styles.programLink}
-                      >
-                        Програма фестивалю
-                      </Link>
                       <Link
                         to={`/competitions/${id}/entries`}
                         className={styles.programLink}
@@ -140,6 +148,10 @@ export default function PublicCompetitionPage() {
                 entriesCount={entriesCount}
               />
 
+              {stats && stats.performances > 0 && (
+                <CompetitionFacts stats={stats} />
+              )}
+
               {venues.length > 0 && (
                 <section className={styles.venues}>
                   <h2 className={styles.venuesHeading}>Майданчики</h2>
@@ -157,6 +169,11 @@ export default function PublicCompetitionPage() {
                   </ul>
                 </section>
               )}
+
+              <section className={styles.venues}>
+                <h2 className={styles.venuesHeading}>{PROGRAM_TITLE}</h2>
+                <FestivalProgram competitionId={id} />
+              </section>
             </article>
           )}
         </div>

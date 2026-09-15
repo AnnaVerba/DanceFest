@@ -24,3 +24,18 @@ export const NUMBER_ALLOCATION_UNIQUE_INDEXES: readonly string[] = [
 // A single person's entries across every competition — years of history,
 // still bounded.
 export const MAX_MY_ENTRIES = 1000;
+
+// An entry typed in by hand without dancers still puts one person on stage.
+export const MIN_PARTICIPANTS_PER_ENTRY = 1;
+
+// Public stats read every entry of one competition, capped for safety.
+export const MAX_ENTRY_STATS_ROWS = 10000;
+export const ENTRY_STATS_ATTRIBUTES: string[] = [
+  'participantIds',
+  'participantsCount',
+  'studioName',
+  'city',
+  'nominationId',
+  'nomination',
+  'lineup',
+];

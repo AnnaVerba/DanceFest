@@ -614,9 +614,10 @@ export default function ApplyPage() {
   }
 
   // Registration closed → only organizers/admins may still add entries here.
-  // Competition over → no one.
+  // Competition over → no one but admins.
   const applyEligibility = getApplyEligibility(competition, {
     isOrganizer: !!session && meetsLevel(session.profile.accessLevel, ACCESS_LEVEL.ORGANIZER),
+    isAdmin: !!session && meetsLevel(session.profile.accessLevel, ACCESS_LEVEL.ADMIN),
   });
   if (!applyEligibility.allowed) {
     return (

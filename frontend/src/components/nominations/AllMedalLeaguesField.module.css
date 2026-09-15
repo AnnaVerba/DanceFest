@@ -1,0 +1,23 @@
+.title {
+  margin: 0 0 4px;
+  font-weight: 700;
+}
+
+.hint {
+  margin: 0 0 12px;
+  color: var(--g-muted);
+  font-size: 13.5px;
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+}
+
+.option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}

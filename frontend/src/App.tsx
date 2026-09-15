@@ -20,7 +20,7 @@ const CompetitionEditPage = lazy(() => import('./pages/CompetitionEditPage'));
 const CompetitionDetailPage = lazy(
   () => import('./pages/CompetitionDetailPage'),
 );
-const SchedulePage = lazy(() => import('./pages/SchedulePage'));
+const ScheduleRedirect = lazy(() => import('./pages/ScheduleRedirect'));
 const CompetitionEntriesPage = lazy(
   () => import('./pages/CompetitionEntriesPage'),
 );
@@ -75,7 +75,7 @@ function App() {
           />
           <Route
             path="/competitions/:id/schedule"
-            element={<SchedulePage />}
+            element={<ScheduleRedirect />}
           />
           <Route
             path="/competitions/:id/entries"

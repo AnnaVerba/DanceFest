@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import CompetitionDetails from '../components/CompetitionDetails';
 import ContestIcon from '../components/ContestIcon';
+import AwardsSummary from '../components/awards/AwardsSummary';
+import FestivalProgram from '../components/program/FestivalProgram';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import EntriesPanel from '../components/admin/EntriesPanel';
 import JudgesPanel from '../components/admin/JudgesPanel';
@@ -31,6 +33,7 @@ const ALL_TABS = [
   'Заявки',
   'Таймінги',
   'Програма',
+  'Нагороди',
 ] as const;
 type Tab = (typeof ALL_TABS)[number];
 const TABS: readonly Tab[] = ALL_TABS.filter(
@@ -95,12 +98,16 @@ export default function CompetitionDetailPage() {
 
   // The entries list is staff-only (a participant only ever sees their own
   // entries, in their cabinet) — so is its whole search/filter toolbar.
-  const visibleTabs = TABS.filter((tab) => tab !== 'Заявки' || !!admin);
+  // Awards are staff-only too; the server still checks the team.
+  const visibleTabs = TABS.filter(
+    (tab) => (tab !== 'Заявки' && tab !== 'Нагороди') || !!admin,
+  );
 
   // The single apply entry point on this page lives in the header next to
-  // the name; an owner/admin may still open it after registration closes.
+  // the name; an owner/admin may still open it after registration closes,
+  // and an admin even after the competition is over.
   const apply = competition
-    ? getApplyEligibility(competition, { isOrganizer: canManageEntries })
+    ? getApplyEligibility(competition, { isOrganizer: canManageEntries, isAdmin })
     : null;
 
   // "Назад до списку" always goes to a list, never the previous page:
@@ -210,29 +217,34 @@ export default function CompetitionDetailPage() {
               {activeTab === 'Таймінги' && (
                 <ScheduleSettings
                   competitionId={id}
-                  canManage={isOwner}
+                  canManage={isOwner || isAdmin}
                   onError={(message) => showToast(message)}
                   onSaved={(message) => showToast(message)}
                 />
               )}
 
-              {activeTab === 'Програма' && (
-                <>
-                  <Link
-                    to={`/competitions/${id}/schedule`}
-                    className={styles.back}
-                  >
-                    Відкрити повну програму фестивалю →
-                  </Link>
-                  <SchedulePanel
-                    competitionId={id}
-                    competition={competition}
-                    canManage={isOwner}
-                    onError={(message) => showToast(message)}
-                    onNotice={(message) => showToast(message)}
-                  />
-                  <MusicExportPanel competitionId={id} canManage={canManageEntries} />
-                </>
+              {/* One programme view: the editor for whoever manages it,
+                  the read-only programme (with "your performances") for
+                  everyone else. */}
+              {activeTab === 'Програма' &&
+                (isOwner || isAdmin ? (
+                  <>
+                    <SchedulePanel
+                      competitionId={id}
+                      competition={competition}
+                      canManage
+                      canBuildAnytime={isAdmin}
+                      onError={(message) => showToast(message)}
+                      onNotice={(message) => showToast(message)}
+                    />
+                    <MusicExportPanel competitionId={id} canManage={canManageEntries} />
+                  </>
+                ) : (
+                  <FestivalProgram competitionId={id} />
+                ))}
+
+              {activeTab === 'Нагороди' && !!admin && (
+                <AwardsSummary competitionId={id} />
               )}
 
               {activeTab === 'Деталі' && (

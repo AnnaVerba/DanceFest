@@ -100,6 +100,22 @@ export class EntriesController {
   }
 
   @ApiOperation({
+    summary: "Public — aggregate numbers about a competition's entries",
+    description:
+      'No login required. Counts only — no names, studios or cities are listed.',
+  })
+  @ApiResponse({ status: 200, description: 'Stats returned.' })
+  @ApiResponse({
+    status: 404,
+    description: 'No competition exists with the given id.',
+  })
+  @Public()
+  @Get('stats')
+  stats(@Param('competitionId') competitionId: string) {
+    return this.entriesService.stats(competitionId);
+  }
+
+  @ApiOperation({
     summary: 'Submit an entry to a competition',
     description:
       'Requires a logged-in account. ' +

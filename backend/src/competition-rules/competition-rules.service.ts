@@ -13,6 +13,8 @@ import type { CategoryType } from '../categories/category.model';
 import { Competition } from '../competitions/competition.model';
 import { Nomination } from '../nominations/nomination.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
+import { AccessLevel } from '../auth/access-level.enum';
+import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { CompetitionRule } from './competition-rule.model';
 import { CreateDurationLimitDto } from './dto/create-duration-limit.dto';
 import { CreateOverlimitTariffDto } from './dto/create-overlimit-tariff.dto';
@@ -88,10 +90,10 @@ export class CompetitionRulesService {
 
   async updateRules(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
     dto: UpdateCompetitionRuleDto,
   ): Promise<CompetitionRule> {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+    await this.loadCompetitionAndAssertAccess(competitionId, requester);
     const rules = await this.getRules(competitionId);
     if (dto.leagueLimits !== undefined) {
       dto.leagueLimits = sanitizeLeagueLimits(dto.leagueLimits);
@@ -109,10 +111,10 @@ export class CompetitionRulesService {
 
   async createTariff(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
     dto: CreateOverlimitTariffDto,
   ): Promise<OverlimitTariff> {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+    await this.loadCompetitionAndAssertAccess(competitionId, requester);
     try {
       return await this.overlimitTariffModel.create({
         competitionId,
@@ -132,9 +134,9 @@ export class CompetitionRulesService {
   async removeTariff(
     competitionId: string,
     tariffId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
   ): Promise<void> {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+    await this.loadCompetitionAndAssertAccess(competitionId, requester);
     const tariff = await this.overlimitTariffModel.findOne({
       where: { id: tariffId, competitionId },
     });
@@ -154,10 +156,10 @@ export class CompetitionRulesService {
 
   async createDurationLimit(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
     dto: CreateDurationLimitDto,
   ): Promise<DurationLimit> {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+    await this.loadCompetitionAndAssertAccess(competitionId, requester);
 
     const hasNomination = Boolean(dto.nominationId);
     const hasCategory = Boolean(dto.categoryId);
@@ -188,9 +190,9 @@ export class CompetitionRulesService {
   async removeDurationLimit(
     competitionId: string,
     limitId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
   ): Promise<void> {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+    await this.loadCompetitionAndAssertAccess(competitionId, requester);
     const limit = await this.durationLimitModel.findOne({
       where: { id: limitId, competitionId },
     });
@@ -252,13 +254,15 @@ export class CompetitionRulesService {
 
   private async loadCompetitionAndAssertAccess(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
   ): Promise<Competition> {
     const competition = await this.assertCompetitionExists(competitionId);
-    if (competition.ownerId === requesterId) return competition;
+    // A global admin manages every competition's timings.
+    if (requester.accessLevel === AccessLevel.ADMIN) return competition;
+    if (competition.ownerId === requester.id) return competition;
 
     const membership = await this.competitionAdminModel.findOne({
-      where: { competitionId, adminId: requesterId },
+      where: { competitionId, adminId: requester.id },
     });
     if (!membership) {
       throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);

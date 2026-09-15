@@ -1,0 +1,99 @@
+.panel {
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  background: var(--accent-soft, #eef2ff);
+  margin-bottom: 1.5rem;
+}
+
+.title {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+}
+
+.subtitle {
+  margin: 0 0 0.75rem;
+  color: var(--text-muted, #667085);
+  font-size: 0.85rem;
+}
+
+.error {
+  margin: 0 0 0.75rem;
+  color: var(--danger, #b42318);
+}
+
+.toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.leagues {
+  margin-bottom: 1rem;
+}
+
+.leaguesNote {
+  margin: 0.5rem 0 0;
+}
+
+.toggleText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 10px;
+  background: var(--surface, #fff);
+}
+
+.label {
+  flex: 1 1 200px;
+}
+
+.input {
+  width: 6rem;
+  padding: 0.3rem 0.5rem;
+  font-weight: 700;
+}
+
+.inputOverridden {
+  border-color: var(--accent, #4f46e5);
+}
+
+.hint {
+  color: var(--text-muted, #667085);
+  font-size: 0.8rem;
+}
+
+.button {
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+
+.linkButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent, #4f46e5);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.subTitle {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.95rem;
+}

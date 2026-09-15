@@ -203,12 +203,16 @@ export interface ApplyEligibility {
 }
 
 // Can this actor still start / submit an application to this competition?
-// - competition day passed → no one (organizers included)
-// - registration day passed → only organizers / admins
+// - admin → always, deadlines included
+// - competition day passed → no one else (organizers included)
+// - registration day passed → only organizers
 export function getApplyEligibility(
   c: Pick<Competition, 'registrationTo' | 'dateTo'>,
-  opts: { isOrganizer: boolean },
+  opts: { isOrganizer: boolean; isAdmin: boolean },
 ): ApplyEligibility {
+  if (opts.isAdmin) {
+    return { allowed: true, reason: null };
+  }
   if (dayHasPassed(c.dateTo)) {
     return { allowed: false, reason: APPLY_BLOCKED_COMPETITION_OVER };
   }

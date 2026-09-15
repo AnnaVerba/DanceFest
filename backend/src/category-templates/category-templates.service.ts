@@ -38,6 +38,7 @@ import {
   UNKNOWN_CATEGORIES_MESSAGE_PREFIX,
 } from './category-templates.constants';
 import { resolvePage } from '../common/pagination';
+import { normalizeLeagueNames } from './normalize-league-names';
 
 const AUTHOR_INCLUDE = [
   { model: User, as: 'author', attributes: ['id', 'firstName', 'lastName'] },
@@ -156,6 +157,7 @@ export class CategoryTemplatesService {
       name: dto.name.trim(),
       description: dto.description?.trim() || null,
       isPublic: dto.isPublic ?? false,
+      allMedalLeagues: normalizeLeagueNames(dto.allMedalLeagues),
       authorId: requesterId,
       forkedFromId: null,
     } as CreationAttributes<CategoryTemplate>);
@@ -182,6 +184,9 @@ export class CategoryTemplatesService {
       template.description = dto.description?.trim() || null;
     }
     if (dto.isPublic !== undefined) template.isPublic = dto.isPublic;
+    if (dto.allMedalLeagues !== undefined) {
+      template.allMedalLeagues = normalizeLeagueNames(dto.allMedalLeagues);
+    }
     await template.save();
 
     if (dto.nominations) {
@@ -212,6 +217,7 @@ export class CategoryTemplatesService {
       name,
       description: source.description,
       isPublic: false,
+      allMedalLeagues: source.allMedalLeagues,
       authorId: requesterId,
       forkedFromId: source.id,
     } as CreationAttributes<CategoryTemplate>);
@@ -393,6 +399,7 @@ export class CategoryTemplatesService {
       name: template.name,
       description: template.description,
       isPublic: template.isPublic,
+      allMedalLeagues: template.allMedalLeagues ?? [],
       forkedFromId: template.forkedFromId,
       author: template.author
         ? {
