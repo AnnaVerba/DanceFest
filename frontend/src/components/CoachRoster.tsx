@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createParticipant, getParticipants } from '../lib/participants';
 import type { NewParticipant, Participant } from '../lib/participants';
 import PhoneField from './PhoneField';
@@ -8,6 +9,8 @@ import {
   MIN_BIRTH_DATE,
   PHONE_INVALID_MESSAGE,
 } from '../lib/validation.constants';
+import { queryKeys } from '../lib/queryKeys';
+import { PARTICIPANTS_STALE_TIME_MS } from '../lib/queryClient.constants';
 import styles from './CoachRoster.module.css';
 
 const EMPTY_DRAFT: NewParticipant = {
@@ -24,22 +27,21 @@ function formatBirthDate(iso: string): string {
 }
 
 export default function CoachRoster() {
-  const [participants, setParticipants] = useState<Participant[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<NewParticipant>(EMPTY_DRAFT);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  useEffect(() => {
-    getParticipants()
-      .then(setParticipants)
-      .catch((err) =>
-        setLoadError(
-          err instanceof Error ? err.message : 'Не вдалося завантажити список.',
-        ),
-      );
-  }, []);
+  const participantsQuery = useQuery({
+    queryKey: queryKeys.participants(),
+    queryFn: () => getParticipants(),
+    staleTime: PARTICIPANTS_STALE_TIME_MS,
+  });
+  const participants = participantsQuery.data ?? null;
+  const loadError = participantsQuery.isError
+    ? 'Не вдалося завантажити список.'
+    : null;
 
   const submit = async () => {
     if (!isValidName(draft.firstName) || !isValidName(draft.lastName)) {
@@ -62,7 +64,10 @@ export default function CoachRoster() {
         firstName: draft.firstName.trim(),
         lastName: draft.lastName.trim(),
       });
-      setParticipants((prev) => [...(prev ?? []), created]);
+      queryClient.setQueryData<Participant[]>(queryKeys.participants(), (prev) => [
+        ...(prev ?? []),
+        created,
+      ]);
       setDraft(EMPTY_DRAFT);
       setAdding(false);
     } catch (err) {

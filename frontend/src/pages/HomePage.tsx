@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { getSession, getStoredAdmin } from '../lib/auth';
 import {
   getCompetitionStatus,
@@ -37,6 +38,8 @@ import {
   SEARCH_PLACEHOLDER,
 } from './HomePage.constants';
 import CompetitionBannerPlaceholder from '../components/home/CompetitionBannerPlaceholder';
+import { queryKeys } from '../lib/queryKeys';
+import { PUBLIC_COMPETITIONS_STALE_TIME_MS } from '../lib/queryClient.constants';
 import styles from './HomePage.module.css';
 
 const STATUS_PILL_CLASS: Record<CompetitionStatus, string> = {
@@ -57,12 +60,7 @@ function cardMetaOf(competition: Competition): string {
 }
 
 export default function HomePage() {
-  const [competitions, setCompetitions] = useState<Competition[] | null>(null);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(FIRST_PAGE);
-  const [years, setYears] = useState<number[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [year, setYear] = useState('');
@@ -85,41 +83,34 @@ export default function HomePage() {
     return () => clearTimeout(id);
   }, [search]);
 
-  useEffect(() => {
-    getCompetitionYears()
-      .then(setYears)
-      .catch(() => setYears([]));
-  }, []);
+  const yearsQuery = useQuery({
+    queryKey: queryKeys.competitionYears(),
+    queryFn: getCompetitionYears,
+    staleTime: PUBLIC_COMPETITIONS_STALE_TIME_MS,
+  });
+  const years = yearsQuery.data ?? [];
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      setError(null);
-      const query = {
-        page,
-        pageSize: PAGE_SIZE,
-        q: debouncedSearch || undefined,
-        year: year ? Number(year) : undefined,
-        status: statusId === HOME_STATUS_FILTER_ID.ALL ? undefined : statusId,
-      };
-      try {
-        const data = await (mineOnly
-          ? getMyCompetitions(query)
-          : getCompetitions(query));
-        if (cancelled) return;
-        setCompetitions(data.rows);
-        setTotal(data.total);
-      } catch {
-        if (!cancelled) setError(LOAD_ERROR);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [page, debouncedSearch, year, statusId, mineOnly]);
+  const competitionsFilter = {
+    page,
+    pageSize: PAGE_SIZE,
+    q: debouncedSearch || undefined,
+    year: year ? Number(year) : undefined,
+    status: statusId === HOME_STATUS_FILTER_ID.ALL ? undefined : statusId,
+  };
+  const competitionsQuery = useQuery({
+    queryKey: mineOnly
+      ? queryKeys.myCompetitions(competitionsFilter)
+      : queryKeys.competitions(competitionsFilter),
+    queryFn: () =>
+      mineOnly
+        ? getMyCompetitions(competitionsFilter)
+        : getCompetitions(competitionsFilter),
+    staleTime: mineOnly ? undefined : PUBLIC_COMPETITIONS_STALE_TIME_MS,
+  });
+  const competitions = competitionsQuery.data?.rows ?? null;
+  const total = competitionsQuery.data?.total ?? 0;
+  const loading = competitionsQuery.isLoading;
+  const error = competitionsQuery.isError ? LOAD_ERROR : null;
 
   const monthGroups = useMemo(() => {
     if (!competitions) return [];

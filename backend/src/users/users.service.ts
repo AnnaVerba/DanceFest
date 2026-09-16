@@ -103,10 +103,6 @@ export class UsersService {
     return user;
   }
 
-  findByEmail(email: string): Promise<User | null> {
-    return this.userModel.findOne({ where: { email } });
-  }
-
   findByPhone(phone: string): Promise<User | null> {
     return this.userModel.findOne({ where: { phone } });
   }
