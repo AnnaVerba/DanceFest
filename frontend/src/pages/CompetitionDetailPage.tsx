@@ -20,6 +20,7 @@ import {
   getApplyEligibility,
   getCompetition,
 } from '../lib/competitions';
+import { getTeam } from '../lib/team';
 import { FEATURES } from '../lib/features';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import { queryKeys } from '../lib/queryKeys';
@@ -61,6 +62,19 @@ export default function CompetitionDetailPage() {
     ? 'Не вдалося завантажити конкурс.'
     : null;
 
+  // A competition's team (owner + invited co-organizers) can also manage
+  // it — /team 200s only for those two groups, 403s for everyone else, so
+  // a successful fetch is itself the membership check. Gated to ORGANIZER+
+  // so a participant/coach viewing a competition page doesn't fire it.
+  const teamQuery = useQuery({
+    queryKey: ['competition-team', id],
+    queryFn: () => getTeam(id!),
+    enabled:
+      !!id && !!admin && meetsLevel(admin.accessLevel, ACCESS_LEVEL.ORGANIZER),
+    retry: false,
+  });
+  const isTeamMember = teamQuery.isSuccess;
+
   const handleDelete = async () => {
     if (!competition) return;
     try {
@@ -84,9 +98,9 @@ export default function CompetitionDetailPage() {
 
   const isOwner = !!admin && !!competition && competition.ownerId === admin.id;
   // An admin manages every competition's applications; an organizer only
-  // the ones they own.
+  // the ones they own or are an invited co-organizer (team member) for.
   const isAdmin = !!admin && meetsLevel(admin.accessLevel, ACCESS_LEVEL.ADMIN);
-  const canManageEntries = isOwner || isAdmin;
+  const canManageEntries = isOwner || isAdmin || isTeamMember;
 
   // The entries list is staff-only (a participant only ever sees their own
   // entries, in their cabinet) — so is its whole search/filter toolbar.
@@ -250,15 +264,17 @@ export default function CompetitionDetailPage() {
                 <CompetitionDetails competition={competition} entriesCount={null} />
               )}
 
-              {isOwner && (
+              {canManageEntries && (
                 <div className={styles.actions}>
-                  <button
-                    type="button"
-                    className={styles.btnDanger}
-                    onClick={() => setConfirmingDelete(true)}
-                  >
-                    Видалити
-                  </button>
+                  {isOwner && (
+                    <button
+                      type="button"
+                      className={styles.btnDanger}
+                      onClick={() => setConfirmingDelete(true)}
+                    >
+                      Видалити
+                    </button>
+                  )}
                   <Link to={`/competitions/${id}/edit`} className={styles.btnPrimary}>
                     Редагувати
                   </Link>
