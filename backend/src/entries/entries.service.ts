@@ -22,6 +22,7 @@ import { resolveLineup } from './lineup';
 import { Score } from './score.model';
 import { User } from '../users/user.model';
 import { CreateEntryDto } from './dto/create-entry.dto';
+import { UpdateEntryExtraTimeDto } from './dto/update-entry-extra-time.dto';
 import { resolvePage } from '../common/pagination';
 import {
   NOMINATION_REQUIRED_MESSAGE,
@@ -471,6 +472,44 @@ export class EntriesService {
     await entry.destroy();
   }
 
+  // Records purchased additional on-stage time and its fee for an overrun
+  // performance. An overage the organizer hasn't recorded extra time for
+  // stays a warning elsewhere (see OveragesService) and never blocks the
+  // performance — this is the only place that turns it into something owed.
+  async updateExtraTime(
+    competitionId: string,
+    entryId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+    dto: UpdateEntryExtraTimeDto,
+  ) {
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
+
+    const entry = await this.entryModel.findOne({
+      where: { id: entryId, competitionId },
+    });
+    if (!entry) {
+      throw new NotFoundException(ENTRY_NOT_FOUND_MESSAGE);
+    }
+
+    entry.purchasedExtraSeconds = dto.purchasedSec;
+    entry.extraFee = dto.fee;
+    await entry.save();
+
+    const numbers = await this.participantNumbersService.loadLookup(
+      [competitionId],
+      entry.participantIds,
+    );
+    return {
+      entry: this.toDto(entry, numbers),
+      totalDue: Number(entry.extraFee),
+    };
+  }
+
   // The apply form always sends `participantIds` (one for a solo, many for
   // a group); an ADMIN/ORGANIZER adding an entry by hand may omit them and
   // pass `routineName` directly.
@@ -637,6 +676,8 @@ export class EntriesService {
       musicUrl: entry.musicUrl,
       score: averageScore,
       scoresCount: scores.length,
+      purchasedExtraSeconds: entry.purchasedExtraSeconds,
+      extraFee: Number(entry.extraFee),
       createdAt: entry.createdAt,
     };
   }

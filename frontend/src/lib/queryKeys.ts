@@ -19,6 +19,7 @@ export const queryKeys = {
   ) => ['applications', competitionId, 'public', query] as const,
   entries: (competitionId: string) => ['applications', competitionId, 'cabinet'] as const,
   myEntries: () => ['applications', 'mine'] as const,
+  overages: (competitionId: string) => ['overages', competitionId] as const,
 
   categories: (type?: CategoryType) => ['categories', type ?? 'all'] as const,
   categoryTemplates: (

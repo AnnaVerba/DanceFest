@@ -8,6 +8,7 @@ import EntriesPanel from '../components/admin/EntriesPanel';
 import JudgesPanel from '../components/admin/JudgesPanel';
 import MusicExportPanel from '../components/admin/MusicExportPanel';
 import NominationsPanel from '../components/admin/NominationsPanel';
+import OveragesPanel from '../components/admin/OveragesPanel';
 import VenuesPanel from '../components/admin/VenuesPanel';
 import SchedulePanel from '../components/admin/schedule/SchedulePanel';
 import ScheduleSettings from '../components/admin/schedule/ScheduleSettings';
@@ -30,6 +31,7 @@ const ALL_TABS = [
   'Судді',
   'Майданчики',
   'Заявки',
+  'Доплати',
   'Таймінги',
   'Програма',
 ] as const;
@@ -88,7 +90,13 @@ export default function CompetitionDetailPage() {
 
   // The entries list is staff-only (a participant only ever sees their own
   // entries, in their cabinet) — so is its whole search/filter toolbar.
-  const visibleTabs = TABS.filter((tab) => tab !== 'Заявки' || !!admin);
+  // Overages are organizer/admin-only money data — tighter than "Заявки",
+  // which any staff account can open.
+  const visibleTabs = TABS.filter((tab) => {
+    if (tab === 'Заявки') return !!admin;
+    if (tab === 'Доплати') return canManageEntries;
+    return true;
+  });
 
   // The single apply entry point on this page lives in the header next to
   // the name; an owner/admin may still open it after registration closes.
@@ -178,6 +186,14 @@ export default function CompetitionDetailPage() {
 
               {activeTab === 'Заявки' && !!admin && (
                 <EntriesPanel
+                  competitionId={id}
+                  canManage={canManageEntries}
+                  onError={(message) => showToast(message)}
+                />
+              )}
+
+              {activeTab === 'Доплати' && canManageEntries && (
+                <OveragesPanel
                   competitionId={id}
                   canManage={canManageEntries}
                   onError={(message) => showToast(message)}
