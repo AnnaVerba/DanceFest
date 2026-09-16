@@ -14,6 +14,9 @@ import {
   OTP_RESEND_FAILED_MESSAGE,
   DEVICE_ID_STORAGE_KEY,
   DEVICE_ID_HEADER,
+  DEVICE_ID_BYTE_LENGTH,
+  HEX_RADIX,
+  HEX_BYTE_WIDTH,
 } from './auth.constants';
 import { HTTP_STATUS_UNAUTHORIZED } from './api.constants';
 
@@ -84,11 +87,15 @@ function toSession(raw: RawAuthResponse): Session {
 
 // A stable per-browser id, generated once and kept in localStorage. The
 // backend stores it on the session and rejects a refresh whose device id
-// no longer matches.
+// no longer matches. Built from getRandomValues, not randomUUID: the latter
+// exists only in secure contexts (HTTPS/localhost), so it throws on plain HTTP.
 function getDeviceId(): string {
   let id = localStorage.getItem(DEVICE_ID_STORAGE_KEY);
   if (!id) {
-    id = crypto.randomUUID();
+    id = Array.from(
+      crypto.getRandomValues(new Uint8Array(DEVICE_ID_BYTE_LENGTH)),
+      (byte) => byte.toString(HEX_RADIX).padStart(HEX_BYTE_WIDTH, '0'),
+    ).join('');
     localStorage.setItem(DEVICE_ID_STORAGE_KEY, id);
   }
   return id;
