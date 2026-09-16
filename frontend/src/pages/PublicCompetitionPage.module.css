@@ -2,8 +2,7 @@
   min-height: 100vh;
   background: transparent;
   color: var(--g-ink);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    Arial, sans-serif;
+  font-family: var(--font-ui);
   font-size: 14px;
   box-sizing: border-box;
 }

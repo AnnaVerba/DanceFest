@@ -6,6 +6,7 @@ import { publicRequest } from './http';
 import { withPageParams } from './pagination';
 import type { Paged } from './pagination';
 import type { EntryStats } from './entryStats.types';
+import type { EntryDetails, EntryUpdateInput } from './entryEdit.types';
 
 export interface Entry {
   id: string;
@@ -242,4 +243,24 @@ export function deleteEntry(competitionId: string, entryId: string): Promise<voi
   return request(`/competitions/${competitionId}/entries/${entryId}`, {
     method: 'DELETE',
   });
+}
+
+export function getEntry(
+  competitionId: string,
+  entryId: string,
+): Promise<EntryDetails> {
+  return request<EntryDetails>(
+    `/competitions/${competitionId}/entries/${entryId}`,
+  );
+}
+
+export function updateEntry(
+  competitionId: string,
+  entryId: string,
+  input: EntryUpdateInput,
+): Promise<EntryDetails> {
+  return request<EntryDetails>(
+    `/competitions/${competitionId}/entries/${entryId}`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
 }

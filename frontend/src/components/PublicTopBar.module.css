@@ -9,18 +9,17 @@
   min-height: var(--topbar-h);
   /* The right side leaves room for the fixed theme toggle (ThemeToggle). */
   padding: 18px 76px 18px 40px;
-  background: var(--g-chrome-bg);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--g-line);
+  /* Transparent: the backdrop's curves read straight through the bar, so no
+     blur here either — it would smear the very thing we want visible. */
+  background: transparent;
+  border-bottom: 0;
 }
 
-/* Logged-out catalog home: the bar floats over the page's mint backdrop. */
+/* Logged-out catalog home: the bar floats over the hero instead of sticking. */
 .topbarOverlay {
   position: absolute;
   left: 0;
   right: 0;
-  background: transparent;
-  border-bottom-color: transparent;
 }
 
 .brand {
@@ -91,7 +90,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--g-accent);
+  color: var(--g-muted);
 }
 
 .loginBtn {

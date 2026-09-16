@@ -5,18 +5,18 @@
    редакторі шаблону, і в майстрі створення конкурсу, а в майстра своя палітра
    і жодної з цих змінних він не оголошує. */
 .builder {
-  --surface: #fff;
+  --surface: var(--g-surface);
   --field: var(--g-field);
   --line: var(--g-line);
   --line-strong: var(--g-line-strong);
   --ink: var(--g-ink);
   --ink-soft: var(--g-ink-soft);
   --muted: var(--g-muted);
-  --gold: #b07d1e;
-  --gold-hover: #96690f;
-  --gold-soft: #fdf3e0;
-  --gold-line: #d8b271;
-  --danger: #dc2626;
+  --gold: var(--g-gold);
+  --gold-hover: var(--g-gold-hover);
+  --gold-soft: var(--g-gold-bg);
+  --gold-line: var(--g-gold-border);
+  --danger: var(--g-danger);
   --r: 12px;
   --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.04);
 

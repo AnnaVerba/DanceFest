@@ -26,12 +26,14 @@ export default function CabinetSidebar() {
       label: 'Мої учасники',
       show: level === ACCESS_LEVEL.COACH,
     },
-    { to: '/my-entries', label: 'Мої заявки', show: true },
+    // An admin manages other people's entries, never their own.
+    { to: '/my-entries', label: 'Мої заявки', show: !isAdmin },
     {
       to: '/category-templates',
       label: 'Шаблони категорій',
       show: isOrganizer,
     },
+    { to: '/users', label: 'Користувачі', show: isAdmin },
     {
       to: '/organizer-requests',
       label: 'Заявки на організатора',

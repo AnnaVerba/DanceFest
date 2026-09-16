@@ -91,10 +91,10 @@ export default function CompetitionDetailPage() {
   }
 
   const isOwner = !!admin && !!competition && competition.ownerId === admin.id;
-  // An admin manages every competition's applications; an organizer only
-  // the ones they own.
+  // An admin manages every competition exactly like its owner (details,
+  // nominations, judges, applications); an organizer only the ones they own.
   const isAdmin = !!admin && meetsLevel(admin.accessLevel, ACCESS_LEVEL.ADMIN);
-  const canManageEntries = isOwner || isAdmin;
+  const canManage = isOwner || isAdmin;
 
   // The entries list is staff-only (a participant only ever sees their own
   // entries, in their cabinet) — so is its whole search/filter toolbar.
@@ -107,7 +107,7 @@ export default function CompetitionDetailPage() {
   // the name; an owner/admin may still open it after registration closes,
   // and an admin even after the competition is over.
   const apply = competition
-    ? getApplyEligibility(competition, { isOrganizer: canManageEntries, isAdmin })
+    ? getApplyEligibility(competition, { isOrganizer: canManage, isAdmin })
     : null;
 
   // "Назад до списку" always goes to the catalog, never the previous page.
@@ -184,7 +184,7 @@ export default function CompetitionDetailPage() {
               {activeTab === 'Номінації' && (
                 <NominationsPanel
                   competitionId={id}
-                  canManage={isOwner}
+                  canManage={canManage}
                   onError={(message) => showToast(message)}
                 />
               )}
@@ -192,7 +192,7 @@ export default function CompetitionDetailPage() {
               {activeTab === 'Заявки' && !!admin && (
                 <EntriesPanel
                   competitionId={id}
-                  canManage={canManageEntries}
+                  canManage={canManage}
                   onError={(message) => showToast(message)}
                 />
               )}
@@ -200,7 +200,7 @@ export default function CompetitionDetailPage() {
               {FEATURES.judges && activeTab === 'Судді' && (
                 <JudgesPanel
                   competitionId={id}
-                  canManage={isOwner}
+                  canManage={canManage}
                   onError={(message) => showToast(message)}
                 />
               )}
@@ -216,7 +216,7 @@ export default function CompetitionDetailPage() {
               {activeTab === 'Таймінги' && (
                 <ScheduleSettings
                   competitionId={id}
-                  canManage={isOwner || isAdmin}
+                  canManage={canManage}
                   onError={(message) => showToast(message)}
                   onSaved={(message) => showToast(message)}
                 />
@@ -226,7 +226,7 @@ export default function CompetitionDetailPage() {
                   the read-only programme (with "your performances") for
                   everyone else. */}
               {activeTab === 'Програма' &&
-                (isOwner || isAdmin ? (
+                (canManage ? (
                   <>
                     <SchedulePanel
                       competitionId={id}
@@ -236,7 +236,7 @@ export default function CompetitionDetailPage() {
                       onError={(message) => showToast(message)}
                       onNotice={(message) => showToast(message)}
                     />
-                    <MusicExportPanel competitionId={id} canManage={canManageEntries} />
+                    <MusicExportPanel competitionId={id} canManage={canManage} />
                   </>
                 ) : (
                   <FestivalProgram competitionId={id} />
@@ -250,7 +250,9 @@ export default function CompetitionDetailPage() {
                 <CompetitionDetails competition={competition} entriesCount={null} />
               )}
 
-              {isOwner && (
+              {/* Editing and deleting the competition itself belong to its
+                  details, not to every tab. */}
+              {activeTab === 'Деталі' && canManage && (
                 <div className={styles.actions}>
                   <button
                     type="button"

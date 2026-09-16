@@ -1,0 +1,105 @@
+.title {
+  font-size: 22px;
+  margin: 0 0 16px;
+}
+
+.search {
+  width: 100%;
+  max-width: 420px;
+  height: 38px;
+  padding: 0 12px;
+  margin-bottom: 14px;
+  border: 1px solid var(--g-line);
+  border-radius: 8px;
+  background: var(--g-field);
+  color: var(--g-ink);
+  font-family: inherit;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.search:focus {
+  outline: none;
+  background: var(--g-surface);
+  border-color: var(--g-accent);
+  box-shadow: 0 0 0 3px rgba(53, 102, 76, 0.15);
+}
+
+.tableScroll {
+  overflow-x: auto;
+  /* The table sits on its own card, like the panels inside a competition. */
+  background: var(--g-surface);
+  border: 1px solid var(--g-line);
+  border-radius: 10px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--g-line);
+  vertical-align: top;
+}
+
+.table tr:last-child td {
+  border-bottom: 0;
+}
+
+.sub {
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+  color: var(--g-muted);
+  font-size: 12.5px;
+}
+
+.status {
+  color: var(--g-muted);
+  font-style: italic;
+}
+
+.error {
+  color: var(--g-danger);
+}
+
+.btnSm {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--g-line);
+  background: var(--g-surface);
+  color: var(--g-ink);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.btnSm:hover:not(:disabled) {
+  border-color: var(--g-line-strong);
+  background: var(--g-field);
+}
+
+.btnSm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pager {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pagerInfo {
+  color: var(--g-muted);
+  font-size: 13px;
+}

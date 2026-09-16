@@ -43,3 +43,7 @@ export const ENTRY_STATS_ATTRIBUTES: string[] = [
   'nomination',
   'lineup',
 ];
+// Changing the nomination of one exit of a per-program nomination needs a
+// program the new nomination also has.
+export const NOMINATION_PROGRAM_MISMATCH_MESSAGE =
+  'У вибраній номінації немає програми цього виступу';

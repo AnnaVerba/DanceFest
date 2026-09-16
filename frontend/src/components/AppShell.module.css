@@ -2,15 +2,17 @@
   color: var(--g-ink);
 }
 
-/* Pinned to the left edge, below the sticky top bar. Fixed width and
-   position — it never shifts or resizes between pages. */
+/* Pinned to the left edge and running the viewport's full height, so it meets
+   the transparent top bar instead of starting below it. The links still begin
+   under the bar, clear of the logo. Fixed width and position — it never
+   shifts or resizes between pages. */
 .rail {
   position: fixed;
-  top: var(--topbar-h);
+  top: 0;
   left: 0;
   bottom: 0;
   width: var(--cabinet-rail-w);
-  padding: 24px 16px;
+  padding: calc(var(--topbar-h) + 24px) 16px 24px;
   overflow-y: auto;
   background: var(--g-chrome-bg);
   backdrop-filter: blur(12px);

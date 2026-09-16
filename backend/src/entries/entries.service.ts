@@ -23,6 +23,8 @@ import { resolveLineup } from './lineup';
 import { Score } from './score.model';
 import { User } from '../users/user.model';
 import { CreateEntryDto } from './dto/create-entry.dto';
+import { UpdateEntryDto } from './dto/update-entry.dto';
+import type { EntryParticipant } from './entry-participant.interface';
 import { resolvePage } from '../common/pagination';
 import {
   NOMINATION_REQUIRED_MESSAGE,
@@ -40,6 +42,8 @@ import {
   NOMINATION_PARTICIPANT_KEY_SEPARATOR,
   ENTRY_STATS_ATTRIBUTES,
   MAX_ENTRY_STATS_ROWS,
+  NOMINATION_PROGRAM_MISMATCH_MESSAGE,
+  MIN_PARTICIPANTS_PER_ENTRY,
 } from './entries.constants';
 import {
   COMPETITION_NOT_FOUND_MESSAGE,
@@ -261,7 +265,7 @@ export class EntriesService {
       for (const participantId of entry.submitter.participantIds) {
         const key = `${entry.nominationId}${NOMINATION_PARTICIPANT_KEY_SEPARATOR}${participantId}`;
         if (seen.has(key)) {
-          throw this.alreadyInNomination(entry);
+          throw this.alreadyInNomination(entry.nominationName);
         }
         seen.add(key);
       }
@@ -276,25 +280,44 @@ export class EntriesService {
     transaction: Transaction,
   ): Promise<void> {
     for (const entry of prepared) {
-      if (entry.submitter.participantIds.length === 0) continue;
-      const existing = await this.entryModel.findOne({
-        where: {
-          competitionId,
-          nominationId: entry.nominationId,
-          participantIds: { [Op.overlap]: entry.submitter.participantIds },
-        },
-        attributes: ['id'],
+      const clash = await this.hasNominationClash(
+        competitionId,
+        entry.nominationId,
+        entry.submitter.participantIds,
         transaction,
-      });
-      if (existing) {
-        throw this.alreadyInNomination(entry);
+      );
+      if (clash) {
+        throw this.alreadyInNomination(entry.nominationName);
       }
     }
   }
 
-  private alreadyInNomination(entry: PreparedEntry): ConflictException {
+  // Whether any of these dancers already performs in the nomination —
+  // `excludeEntryId` skips the entry being edited.
+  private async hasNominationClash(
+    competitionId: string,
+    nominationId: string,
+    participantIds: string[],
+    transaction: Transaction,
+    excludeEntryId?: string,
+  ): Promise<boolean> {
+    if (participantIds.length === 0) return false;
+    const existing = await this.entryModel.findOne({
+      where: {
+        competitionId,
+        nominationId,
+        participantIds: { [Op.overlap]: participantIds },
+        ...(excludeEntryId ? { id: { [Op.ne]: excludeEntryId } } : {}),
+      },
+      attributes: ['id'],
+      transaction,
+    });
+    return existing !== null;
+  }
+
+  private alreadyInNomination(nominationName: string): ConflictException {
     return new ConflictException(
-      `${PARTICIPANT_ALREADY_IN_NOMINATION_MESSAGE} «${entry.nominationName}»`,
+      `${PARTICIPANT_ALREADY_IN_NOMINATION_MESSAGE} «${nominationName}»`,
     );
   }
 
@@ -545,13 +568,175 @@ export class EntriesService {
       requesterLevel,
     );
 
+    const entry = await this.loadEntry(competitionId, entryId);
+    await entry.destroy();
+  }
+
+  // One entry with the dancers named on it — what the staff edit form
+  // starts from.
+  async findOneForStaff(
+    competitionId: string,
+    entryId: string,
+    user: AuthenticatedUser,
+  ) {
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      user.id,
+      user.accessLevel,
+    );
+    const entry = await this.loadEntry(competitionId, entryId);
+    return this.toStaffDetailsDto(entry);
+  }
+
+  // Staff edit of one entry row: its dancers, nomination, routine name and
+  // the rest of the form fields. A dancer still performs in a nomination
+  // only once, and every newly added dancer gets their participant number.
+  async update(
+    competitionId: string,
+    entryId: string,
+    dto: UpdateEntryDto,
+    user: AuthenticatedUser,
+  ) {
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      user.id,
+      user.accessLevel,
+    );
+    const entry = await this.loadEntry(competitionId, entryId);
+    const changes: Partial<CreationAttributes<Entry>> = {};
+    const currentIds = entry.participantIds ?? [];
+    let addedIds: string[] = [];
+
+    if (dto.participantIds) {
+      const submitter = await this.resolveSubmitter(dto, user);
+      changes.participantId = submitter.participantId;
+      changes.participantIds = submitter.participantIds;
+      addedIds = submitter.participantIds.filter(
+        (id) => !currentIds.includes(id),
+      );
+    }
+    const participantsCount =
+      dto.participantsCount ?? changes.participantIds?.length;
+    if (participantsCount !== undefined) {
+      changes.participantsCount = participantsCount;
+      changes.lineup = resolveLineup(
+        participantsCount || MIN_PARTICIPANTS_PER_ENTRY,
+      );
+    }
+
+    let nominationName = entry.nomination;
+    const nominationChanged =
+      dto.nominationId !== undefined && dto.nominationId !== entry.nominationId;
+    if (nominationChanged) {
+      const { nomination, exits, ageCategory, league } =
+        await this.nominationsService.resolveForEntry(competitionId, {
+          nominationId: dto.nominationId,
+        });
+      const exit = this.exitMatchingProgram(exits, entry.program);
+      nominationName = nomination.name;
+      changes.nominationId = nomination.id;
+      changes.nomination = exit.label;
+      changes.program = exit.programName;
+      changes.ageCategory = ageCategory;
+      changes.league = league;
+    }
+
+    if (dto.routineName !== undefined) {
+      changes.routineName = dto.routineName.trim();
+    }
+    if (dto.studioName !== undefined) {
+      changes.studioName = dto.studioName.trim() || null;
+    }
+    if (dto.choreographer !== undefined) {
+      changes.choreographer = dto.choreographer.trim() || null;
+    }
+    if (dto.city !== undefined) changes.city = dto.city.trim() || null;
+    if (dto.improv !== undefined) changes.improv = dto.improv;
+    if (dto.paymentMethod !== undefined) {
+      changes.paymentMethod = dto.paymentMethod;
+    }
+
+    // A new nomination is checked for every dancer on the entry; the same
+    // nomination only for the dancers just added.
+    const idsToCheck = nominationChanged
+      ? (changes.participantIds ?? currentIds)
+      : addedIds;
+    const finalNominationId = changes.nominationId ?? entry.nominationId;
+
+    await this.entryModel.sequelize!.transaction(
+      async (transaction: Transaction) => {
+        // Same competition row lock as a new submission, so an edit and a
+        // concurrent application cannot both slip one dancer in.
+        await this.competitionModel.findByPk(competitionId, {
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        });
+        const clash =
+          finalNominationId !== null &&
+          (await this.hasNominationClash(
+            competitionId,
+            finalNominationId,
+            idsToCheck,
+            transaction,
+            entry.id,
+          ));
+        if (clash) {
+          throw this.alreadyInNomination(nominationName);
+        }
+        await entry.update(changes, { transaction });
+        await this.participantNumbersService.assignAll(
+          competitionId,
+          addedIds,
+          transaction,
+        );
+      },
+    );
+
+    return this.toStaffDetailsDto(entry);
+  }
+
+  // A per-program nomination has one exit per program: the edited row keeps
+  // its program, so the new nomination must offer it too.
+  private exitMatchingProgram(
+    exits: NominationExit[],
+    currentProgram: string | null,
+  ): NominationExit {
+    if (exits.length === 1) return exits[0];
+    const match = exits.find((exit) => exit.programName === currentProgram);
+    if (!match) {
+      throw new BadRequestException(NOMINATION_PROGRAM_MISMATCH_MESSAGE);
+    }
+    return match;
+  }
+
+  private async loadEntry(competitionId: string, entryId: string) {
     const entry = await this.entryModel.findOne({
       where: { id: entryId, competitionId },
+      include: [Score],
     });
     if (!entry) {
       throw new NotFoundException(ENTRY_NOT_FOUND_MESSAGE);
     }
-    await entry.destroy();
+    return entry;
+  }
+
+  private async toStaffDetailsDto(entry: Entry) {
+    const participantIds = entry.participantIds ?? [];
+    const numbers = await this.participantNumbersService.loadLookup(
+      [entry.competitionId],
+      participantIds,
+    );
+    const people = await Promise.all(
+      participantIds.map((id) => this.usersService.findById(id)),
+    );
+    const participants: EntryParticipant[] = people
+      .filter((person): person is User => person !== null)
+      .map((person) => ({
+        id: person.id,
+        firstName: person.firstName,
+        lastName: person.lastName,
+      }));
+    return { ...this.toDto(entry, numbers), participants };
   }
 
   // The apply form always sends `participantIds` (one for a solo, many for

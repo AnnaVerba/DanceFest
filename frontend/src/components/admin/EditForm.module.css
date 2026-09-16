@@ -1,0 +1,156 @@
+/* Shared by the staff edit modals (entry, user). */
+
+.form {
+  margin-top: 14px;
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+.label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--g-ink);
+}
+
+.input {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--g-ink);
+  background: var(--g-field);
+  border: 1px solid var(--g-line);
+  border-radius: 9px;
+  outline: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.input:focus {
+  border-color: var(--g-accent);
+  box-shadow: 0 0 0 3px rgba(53, 102, 76, 0.15);
+  background: var(--g-surface);
+}
+
+.input::placeholder {
+  color: var(--g-subtle);
+}
+
+.invalid {
+  border-color: var(--g-danger);
+}
+
+.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--g-ink);
+}
+
+.hint {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--g-muted);
+}
+
+.error {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--g-danger);
+}
+
+.status {
+  margin: 16px 0;
+  color: var(--g-muted);
+  font-style: italic;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.chip {
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--g-accent);
+  background: var(--g-accent);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.results {
+  margin-top: 6px;
+  border: 1px solid var(--g-line);
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.result {
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-top: 1px solid var(--g-line);
+  background: var(--g-surface);
+  color: var(--g-ink);
+  font-family: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.result:first-child {
+  border-top: 0;
+}
+
+.result:hover {
+  background: var(--g-field);
+}
+
+.submit {
+  width: 100%;
+  height: 46px;
+  margin-top: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  color: #fff;
+  background: var(--g-accent);
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.submit:hover:not(:disabled) {
+  background: var(--g-accent-hover);
+}
+
+.submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+@media (max-width: 480px) {
+  .two {
+    grid-template-columns: 1fr;
+  }
+}

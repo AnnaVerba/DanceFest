@@ -224,7 +224,7 @@
 .count {
   font-size: 13px;
   font-weight: 600;
-  color: var(--g-accent);
+  color: var(--g-ink);
   font-variant-numeric: tabular-nums;
 }
 

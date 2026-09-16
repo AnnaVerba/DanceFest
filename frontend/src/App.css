@@ -7,16 +7,24 @@ body {
   /* The catalog's mint ground behind every page, pinned to the viewport. */
   background-color: var(--g-mint-mid);
   background-image:
-    radial-gradient(900px 620px at 0% 0%, var(--g-mint-start) 0%, transparent 70%),
+    /* White burn-out at the top-left corner, where the diagonal starts. It is
+       the only light pool on the ground: the top-right and bottom-left corners
+       stay on the linear ramp, so the darkening reads as one diagonal running
+       into the bottom-right corner instead of closing in from both sides. */
+    radial-gradient(900px 640px at 0% 0%, var(--g-mint-corner) 0%, transparent 68%),
+    /* The warm pool sits mid-right, where the backdrop's sand curves run. It
+       must stay off the bottom-right corner — that corner is the diagonal's
+       darkest point, and a light pool there erases the gradient. */
+    radial-gradient(520px 420px at 96% 42%, var(--g-brass-bg) 0%, transparent 70%),
     linear-gradient(
       125deg,
       var(--g-mint-start) 0%,
-      var(--g-mint-mid) 50%,
+      var(--g-mint-mid) 45%,
       var(--g-mint-end) 100%
     );
   background-attachment: fixed;
   color: var(--g-ink);
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--font-ui);
 }
 
 #root {

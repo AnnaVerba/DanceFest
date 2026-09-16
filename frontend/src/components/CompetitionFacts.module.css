@@ -5,7 +5,7 @@
 
 .title {
   margin: 0 0 14px;
-  color: var(--g-accent);
+  color: var(--g-muted);
   font-size: 12.5px;
   font-weight: 700;
   letter-spacing: 0.07em;
@@ -27,8 +27,8 @@
 
 .value {
   font-size: 26px;
-  font-weight: 800;
-  color: var(--g-accent);
+  font-weight: 700;
+  color: var(--g-ink);
 }
 
 .label {

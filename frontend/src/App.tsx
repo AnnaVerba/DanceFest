@@ -38,6 +38,7 @@ const MyParticipantsPage = lazy(() => import('./pages/MyParticipantsPage'));
 const OrganizerRequestsPage = lazy(
   () => import('./pages/OrganizerRequestsPage'),
 );
+const UsersPage = lazy(() => import('./pages/UsersPage'));
 const CategoryTemplatesPage = lazy(
   () => import('./pages/CategoryTemplatesPage'),
 );
@@ -96,6 +97,7 @@ function App() {
           <Route path="/my-participants" element={<MyParticipantsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/organizer-requests" element={<OrganizerRequestsPage />} />
+          <Route path="/users" element={<UsersPage />} />
           <Route
             path="/category-templates"
             element={<CategoryTemplatesPage />}

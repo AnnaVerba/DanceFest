@@ -7,6 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { AccessLevel } from '../auth/access-level.enum';
 import * as bcrypt from 'bcrypt';
 import { CreationAttributes, UniqueConstraintError } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
@@ -48,8 +49,16 @@ export class JudgesService {
     private readonly mailService: MailService,
   ) {}
 
-  async list(competitionId: string, requesterId: string) {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+  async list(
+    competitionId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+  ) {
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
     const judges = await this.judgeModel.findAll({
       where: { competitionId },
       order: [['createdAt', 'ASC']],
@@ -60,11 +69,13 @@ export class JudgesService {
   async create(
     competitionId: string,
     requesterId: string,
+    requesterLevel: AccessLevel,
     dto: CreateJudgeDto,
   ) {
     const competition = await this.loadCompetitionAndAssertAccess(
       competitionId,
       requesterId,
+      requesterLevel,
     );
 
     const tempPassword = generateTempPassword();
@@ -104,8 +115,13 @@ export class JudgesService {
     competitionId: string,
     judgeId: string,
     requesterId: string,
+    requesterLevel: AccessLevel,
   ): Promise<void> {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
 
     const judge = await this.judgeModel.findOne({
       where: { id: judgeId, competitionId },
@@ -135,11 +151,14 @@ export class JudgesService {
   private async loadCompetitionAndAssertAccess(
     competitionId: string,
     requesterId: string,
+    requesterLevel: AccessLevel,
   ): Promise<Competition> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
       throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
+    // A global admin manages every competition.
+    if (requesterLevel === AccessLevel.ADMIN) return competition;
     if (competition.ownerId === requesterId) return competition;
 
     const membership = await this.competitionAdminModel.findOne({

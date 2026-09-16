@@ -1,8 +1,6 @@
 .main {
   background: transparent;
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Arial,
-    sans-serif;
+  font-family: var(--font-ui);
   color: var(--g-ink);
   padding: 28px 0 64px;
   min-height: calc(100vh - 64px - 47px);
@@ -16,7 +14,10 @@
 }
 
 .wrap {
-  max-width: 940px;
+  /* Wide enough for the entries and programme tables (min 900px) to fit
+     without a horizontal scroll on a laptop screen; narrower screens still
+     scroll the table itself. */
+  max-width: 1120px;
   margin: 0 auto;
   padding: 0 24px;
 }
@@ -123,7 +124,7 @@
   border: 0;
   border-radius: 8px 8px 0 0;
   background: none;
-  color: var(--g-muted);
+  color: var(--g-ink-soft);
   font-family: inherit;
   font-size: 14.5px;
   font-weight: 600;

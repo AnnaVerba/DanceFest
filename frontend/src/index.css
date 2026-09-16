@@ -14,25 +14,55 @@
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  /* Components rendered outside a page that declares its own aliases (the
+     festival programme, the awards summary, the schedule panel) read these.
+     Undefined, they fell back to cold greys that fought the palette — so the
+     whole app follows one set of neutrals from here. */
+  --surface: var(--g-surface);
+  --field: var(--g-field);
+  --line: var(--g-line);
+  --line-strong: var(--g-line-strong);
+  --ink: var(--g-ink);
+  --ink-soft: var(--g-ink-soft);
+  --muted: var(--g-muted);
+  --text-muted: var(--g-muted);
+  --hover: var(--g-field);
+  --danger: var(--g-danger);
+  --gold: var(--g-gold);
+  --warning-text: var(--g-warning);
+
+  /* One face across the whole app: Onest, with full Ukrainian Cyrillic.
+     Titles carry themselves on size, weight and spacing instead. */
+  --font-ui: 'Onest', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --sans: var(--font-ui);
+  --heading: var(--font-ui);
   --mono: ui-monospace, Consolas, monospace;
+
+  /* One type ladder for the whole app, replacing the 13/14/15px drift. */
+  --fs-display: clamp(34px, 4.6vw, 52px);
+  --fs-h1: 32px;
+  --fs-h2: 24px;
+  --fs-h3: 19px;
+  --fs-body: 16px;
+  --fs-sm: 14px;
+  --fs-xs: 12.5px;
 
   /* App-wide semantic tokens (admin/judge/apply UI). Every page module
      points its local color vars at these, so switching theme here
      re-themes the whole app. See ThemeProvider for the data-theme switch. */
-  /* The whole app follows the catalog look: mint ground, deep-teal accent,
-     teal-tinted lines and ink. */
-  --g-page-bg: #edf4e6;
+  /* Green stays the brand, but it no longer plays every part: titles keep the
+     deep green voice while structure (lines, fields) and secondary text move
+     to warm stone, so something can actually stand out against them. */
+  --g-page-bg: #eef2e7;
   --g-surface: #fff;
-  --g-field: #f6f9f1;
-  --g-field-off: #ebf2e3;
-  --g-line: #dbe6d2;
-  --g-line-strong: #bfd3b3;
-  --g-subtle: #8fa38f;
-  --g-muted: #607562;
-  --g-ink-soft: #3f5a45;
-  --g-ink: #213f2e;
+  --g-field: #f5f2ea;
+  --g-field-off: #eeeade;
+  --g-line: #e2ddd0;
+  --g-line-strong: #cbc4b2;
+  --g-subtle: #9b9484;
+  --g-muted: #6e6a60;
+  --g-ink-soft: #3d423e;
+  --g-ink: #191b18;
   --g-accent: #35664c;
   --g-accent-hover: #2b543f;
   --g-accent-bg-soft: #e0edd8;
@@ -56,28 +86,50 @@
   --g-gold-bg: #fdf3e0;
   --g-gold-border: #d8b271;
   --g-violet-bg-soft: #f4f1fd;
-  --g-cat-age: #7c3aed;
-  --g-cat-league: #0f766e;
-  --g-cat-prog: #4f46e5;
-  --g-cat-studio: #c2410c;
+  /* Category hues: four that stay apart from each other and sit in the same
+     muted register as the rest of the palette. */
+  --g-cat-age: #6d5bd0;
+  --g-cat-league: #17706a;
+  --g-cat-prog: #8c4a72;
+  --g-cat-studio: #b8583a;
   --g-dark-cta: #213f2e;
-  /* Competition catalog: mint ground, deep teal, terracotta badge. */
-  --g-mint-start: #fbf9f0;
-  --g-mint-mid: #e9f2df;
-  --g-mint-end: #cde5c6;
+  /* Competition catalog: the ground keeps a whisper of mint, the controls
+     stay deep teal. */
+  /* The ground's diagonal: near-white paper at the top left falling to a
+     saturated mint at the bottom right. The spread between start and end is
+     what makes the gradient readable — keep it wide. */
+  --g-mint-start: #fcfaf3;
+  --g-mint-mid: #e6efdf;
+  --g-mint-end: #a1c99a;
+  /* The top-left corner burns out to pure white — the lightest point of the
+     ground, where the diagonal starts, opposite its saturated end. */
+  --g-mint-corner: #ffffff;
   --g-teal: #35664c;
   --g-teal-hover: #2b543f;
-  --g-teal-ink: #213f2e;
-  --g-teal-ink-soft: #3f5a45;
+  /* The catalog's own ink: deep green rather than the near-black the rest of
+     the app writes in, so the page reads as one green field instead of black
+     type dropped on a mint ground. Still ~9.7:1 on a card and ~5.3:1 on the
+     ground's saturated end. */
+  --g-teal-ink: #2c4a37;
+  --g-teal-ink-soft: #4f6555;
   --g-teal-soft: rgba(53, 102, 76, 0.08);
   --g-teal-line: rgba(33, 63, 46, 0.2);
   --g-teal-focus: rgba(53, 102, 76, 0.35);
   --g-teal-shadow: rgba(33, 63, 46, 0.08);
-  --g-teal-bright: #4a8a66;
   --g-on-teal: #ffffff;
   --g-on-teal-ring: rgba(255, 255, 255, 0.35);
+  /* The secondary family. Terracotta reads as costume and clay, brass as the
+     medals — both already lived in the catalog art, as one-off badges and the
+     backdrop's warm curves. Promoted here to full families so they can carry
+     meaning instead of decorating. */
   --g-terracotta: #b8735c;
-  --g-sand: #b0894a;
+  --g-terracotta-hover: #a3624c;
+  --g-terracotta-bg: #f7ece7;
+  --g-terracotta-border: #e3c3b7;
+  --g-brass: #a8812f;
+  --g-brass-ink: #7d5f1d;
+  --g-brass-bg: #f7f0dd;
+  --g-brass-border: #ddc890;
   --g-card-border: rgba(33, 63, 46, 0.08);
   --g-backdrop-cool: rgba(84, 130, 98, 0.42);
   --g-backdrop-warm: rgba(184, 150, 98, 0.55);
@@ -107,16 +159,16 @@
     --shadow:
       rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
 
-    --g-page-bg: #121812;
-    --g-surface: #1a2219;
-    --g-field: #202a1f;
-    --g-field-off: #1c251b;
-    --g-line: #2e3b2c;
-    --g-line-strong: #43553f;
-    --g-subtle: #748771;
-    --g-muted: #a2b59d;
-    --g-ink-soft: #d5e4cf;
-    --g-ink: #edf5e9;
+    --g-page-bg: #131612;
+    --g-surface: #1b201a;
+    --g-field: #23261f;
+    --g-field-off: #1e211a;
+    --g-line: #343a2f;
+    --g-line-strong: #4c5344;
+    --g-subtle: #8a8678;
+    --g-muted: #a9a496;
+    --g-ink-soft: #cdd0cb;
+    --g-ink: #eceeea;
     --g-accent: #5c9f75;
     --g-accent-hover: #72b389;
     --g-accent-bg-soft: rgba(92, 159, 117, 0.18);
@@ -135,27 +187,33 @@
     --g-gold-bg: rgba(224, 177, 72, 0.14);
     --g-gold-border: rgba(224, 177, 72, 0.35);
     --g-violet-bg-soft: rgba(167, 139, 250, 0.14);
-    --g-cat-age: #a78bfa;
-    --g-cat-league: #2dd4bf;
-    --g-cat-prog: #818cf8;
-    --g-cat-studio: #fb923c;
+    --g-cat-age: #9b8ae8;
+    --g-cat-league: #4fc7ba;
+    --g-cat-prog: #d089b4;
+    --g-cat-studio: #e08a63;
     --g-dark-cta: #35664c;
-    --g-mint-start: #10150f;
-    --g-mint-mid: #142016;
-    --g-mint-end: #1a2e1d;
+    --g-mint-start: #0e1210;
+    --g-mint-mid: #141d16;
+    --g-mint-end: #1f3623;
+    --g-mint-corner: #2b372d;
     --g-teal: #62a67b;
     --g-teal-hover: #79ba90;
-    --g-teal-ink: #dcecd7;
-    --g-teal-ink-soft: #b0c8aa;
+    --g-teal-ink: #e4e7e2;
+    --g-teal-ink-soft: #aeb2ad;
     --g-teal-soft: rgba(98, 166, 123, 0.14);
     --g-teal-line: rgba(220, 236, 215, 0.18);
     --g-teal-focus: rgba(98, 166, 123, 0.45);
     --g-teal-shadow: rgba(0, 0, 0, 0.35);
-    --g-teal-bright: #86c79c;
     --g-on-teal: #0f170f;
     --g-on-teal-ring: rgba(15, 23, 15, 0.35);
     --g-terracotta: #d0917a;
-    --g-sand: #d0aa62;
+    --g-terracotta-hover: #dda790;
+    --g-terracotta-bg: rgba(208, 145, 122, 0.16);
+    --g-terracotta-border: rgba(208, 145, 122, 0.38);
+    --g-brass: #d4ac5a;
+    --g-brass-ink: #e7c886;
+    --g-brass-bg: rgba(212, 172, 90, 0.14);
+    --g-brass-border: rgba(212, 172, 90, 0.34);
     --g-card-border: rgba(220, 236, 215, 0.08);
     --g-backdrop-cool: rgba(98, 166, 123, 0.28);
     --g-backdrop-warm: rgba(208, 170, 98, 0.3);
@@ -176,16 +234,16 @@
   --shadow:
     rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
 
-  --g-page-bg: #121812;
-  --g-surface: #1a2219;
-  --g-field: #202a1f;
-  --g-field-off: #1c251b;
-  --g-line: #2e3b2c;
-  --g-line-strong: #43553f;
-  --g-subtle: #748771;
-  --g-muted: #a2b59d;
-  --g-ink-soft: #d5e4cf;
-  --g-ink: #edf5e9;
+  --g-page-bg: #131612;
+  --g-surface: #1b201a;
+  --g-field: #23261f;
+  --g-field-off: #1e211a;
+  --g-line: #343a2f;
+  --g-line-strong: #4c5344;
+  --g-subtle: #8a8678;
+  --g-muted: #a9a496;
+  --g-ink-soft: #cdd0cb;
+  --g-ink: #eceeea;
   --g-accent: #5c9f75;
   --g-accent-hover: #72b389;
   --g-accent-bg-soft: rgba(92, 159, 117, 0.18);
@@ -204,27 +262,33 @@
   --g-gold-bg: rgba(224, 177, 72, 0.14);
   --g-gold-border: rgba(224, 177, 72, 0.35);
   --g-violet-bg-soft: rgba(167, 139, 250, 0.14);
-  --g-cat-age: #a78bfa;
-  --g-cat-league: #2dd4bf;
-  --g-cat-prog: #818cf8;
-  --g-cat-studio: #fb923c;
+  --g-cat-age: #9b8ae8;
+  --g-cat-league: #4fc7ba;
+  --g-cat-prog: #d089b4;
+  --g-cat-studio: #e08a63;
   --g-dark-cta: #35664c;
-  --g-mint-start: #10150f;
-  --g-mint-mid: #142016;
-  --g-mint-end: #1a2e1d;
+  --g-mint-start: #0e1210;
+  --g-mint-mid: #141d16;
+  --g-mint-end: #1f3623;
+  --g-mint-corner: #2b372d;
   --g-teal: #62a67b;
   --g-teal-hover: #79ba90;
-  --g-teal-ink: #dcecd7;
-  --g-teal-ink-soft: #b0c8aa;
+  --g-teal-ink: #e4e7e2;
+  --g-teal-ink-soft: #aeb2ad;
   --g-teal-soft: rgba(98, 166, 123, 0.14);
   --g-teal-line: rgba(220, 236, 215, 0.18);
   --g-teal-focus: rgba(98, 166, 123, 0.45);
   --g-teal-shadow: rgba(0, 0, 0, 0.35);
-  --g-teal-bright: #86c79c;
   --g-on-teal: #0f170f;
   --g-on-teal-ring: rgba(15, 23, 15, 0.35);
   --g-terracotta: #d0917a;
-  --g-sand: #d0aa62;
+  --g-terracotta-hover: #dda790;
+  --g-terracotta-bg: rgba(208, 145, 122, 0.16);
+  --g-terracotta-border: rgba(208, 145, 122, 0.38);
+  --g-brass: #d4ac5a;
+  --g-brass-ink: #e7c886;
+  --g-brass-bg: rgba(212, 172, 90, 0.14);
+  --g-brass-border: rgba(212, 172, 90, 0.34);
   --g-card-border: rgba(220, 236, 215, 0.08);
   --g-backdrop-cool: rgba(98, 166, 123, 0.28);
   --g-backdrop-warm: rgba(208, 170, 98, 0.3);
@@ -273,21 +337,21 @@ h2 {
 }
 
 h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
+  font-size: var(--fs-h1);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
   margin: 32px 0;
   @media (max-width: 1024px) {
-    font-size: 36px;
     margin: 20px 0;
   }
 }
 h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
+  font-size: var(--fs-h2);
+  line-height: 1.18;
+  letter-spacing: -0.015em;
   margin: 0 0 8px;
   @media (max-width: 1024px) {
-    font-size: 20px;
+    font-size: var(--fs-h3);
   }
 }
 p {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import ConfirmDialog from './ConfirmDialog';
+import EntryEditModal from './EntryEditModal';
 import { deleteEntry, getEntries } from '../../lib/entries';
 import type { Entry } from '../../lib/entries';
 import { formatParticipantNumbers } from '../../lib/participantNumbers';
@@ -52,6 +53,7 @@ export default function EntriesPanel({
   const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pendingDelete, setPendingDelete] = useState<Entry | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
   const [nomination, setNomination] = useState(ALL);
@@ -106,6 +108,13 @@ export default function EntriesPanel({
     } finally {
       setPendingDelete(null);
     }
+  };
+
+  const handleSaved = (saved: Entry) => {
+    setEntries(
+      (prev) => prev?.map((e) => (e.id === saved.id ? saved : e)) ?? prev,
+    );
+    setEditingId(null);
   };
 
   const nominations = useMemo(
@@ -314,6 +323,25 @@ export default function EntriesPanel({
                     {canManage && (
                       <td className={styles.colActions}>
                         <button
+                          className={styles.editBtn}
+                          type="button"
+                          aria-label={`Редагувати заявку №${entry.number}`}
+                          onClick={() => setEditingId(entry.id)}
+                        >
+                          <svg
+                            width="15"
+                            height="15"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                          </svg>
+                        </button>
+                        <button
                           className={styles.iconBtn}
                           type="button"
                           aria-label={`Видалити заявку №${entry.number}`}
@@ -378,6 +406,16 @@ export default function EntriesPanel({
             </div>
           )}
         </>
+      )}
+
+      {editingId && (
+        <EntryEditModal
+          key={editingId}
+          competitionId={competitionId}
+          entryId={editingId}
+          onClose={() => setEditingId(null)}
+          onSaved={handleSaved}
+        />
       )}
 
       <ConfirmDialog

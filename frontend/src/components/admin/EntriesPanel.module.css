@@ -163,7 +163,23 @@ tbody tr:hover {
 }
 
 .colActions {
-  width: 44px;
+  width: 76px;
+  white-space: nowrap;
+}
+
+.editBtn {
+  background: none;
+  border: 0;
+  padding: 5px;
+  border-radius: 6px;
+  color: var(--g-accent);
+  cursor: pointer;
+  line-height: 0;
+  transition: background 0.15s ease;
+}
+
+.editBtn:hover {
+  background: var(--g-field);
 }
 
 .iconBtn {

@@ -10,22 +10,22 @@
   border-radius: 10px;
   font-size: 14px;
   font-weight: 600;
-  color: var(--g-ink-soft, #475467);
+  color: var(--g-ink);
   text-decoration: none;
   transition: background 0.15s ease;
 }
 
 .link:hover {
-  background: var(--g-field, #f2f4f7);
+  background: var(--g-field);
 }
 
 .active {
-  background: var(--g-accent, #2563eb);
+  background: var(--g-accent);
   color: #fff;
 }
 
 .active:hover {
-  background: var(--g-accent, #2563eb);
+  background: var(--g-accent);
 }
 
 @media (max-width: 760px) {
