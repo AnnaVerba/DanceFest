@@ -7,6 +7,7 @@ import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import { getMyEntries, uploadEntryTrack } from '../lib/entries';
 import type { MyEntry } from '../lib/entries';
 import { formatParticipantNumbers } from '../lib/participantNumbers';
+import { ENTRY_COLUMN_LABEL } from './ParticipantCabinetPage.constants';
 import styles from './ParticipantCabinetPage.module.css';
 
 interface CompetitionGroup {
@@ -114,25 +115,27 @@ export default function ParticipantCabinetPage() {
                 <table className={styles.entryTable}>
                   <thead>
                     <tr>
-                      <th>№</th>
-                      <th>№ учасника</th>
-                      <th>Номінація</th>
-                      <th>Ліга</th>
-                      <th>Склад</th>
-                      <th>Вік. кат.</th>
-                      <th>Музика</th>
+                      {Object.values(ENTRY_COLUMN_LABEL).map((label) => (
+                        <th key={label}>{label}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {group.entries.map((entry) => (
                       <tr key={entry.id}>
-                        <td>{entry.number}</td>
-                        <td>{formatParticipantNumbers(entry.participantNumbers)}</td>
-                        <td>{entry.nomination}</td>
-                        <td>{entry.league ?? '—'}</td>
-                        <td>{entry.lineup ?? '—'}</td>
-                        <td>{entry.ageCategory ?? '—'}</td>
-                        <td>
+                        <td data-label={ENTRY_COLUMN_LABEL.NUMBER}>{entry.number}</td>
+                        <td data-label={ENTRY_COLUMN_LABEL.PARTICIPANT_NUMBERS}>
+                          {formatParticipantNumbers(entry.participantNumbers)}
+                        </td>
+                        <td data-label={ENTRY_COLUMN_LABEL.NOMINATION}>
+                          {entry.nomination}
+                        </td>
+                        <td data-label={ENTRY_COLUMN_LABEL.LEAGUE}>{entry.league ?? '—'}</td>
+                        <td data-label={ENTRY_COLUMN_LABEL.LINEUP}>{entry.lineup ?? '—'}</td>
+                        <td data-label={ENTRY_COLUMN_LABEL.AGE_CATEGORY}>
+                          {entry.ageCategory ?? '—'}
+                        </td>
+                        <td data-label={ENTRY_COLUMN_LABEL.MUSIC}>
                           <div className={styles.musicCell}>
                             {entry.improv ? (
                               <span>Імпровізація</span>

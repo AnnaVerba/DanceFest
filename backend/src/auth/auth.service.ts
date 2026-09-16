@@ -101,7 +101,7 @@ export class AuthService {
     dto: LoginDto,
     ctx: ClientContext,
   ): Promise<AuthResult | OtpRequired> {
-    const user = await this.usersService.findByEmailOrPhone(dto.login.trim());
+    const user = await this.usersService.findByPhone(dto.login.trim());
     if (!user) {
       throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
     }
@@ -155,7 +155,7 @@ export class AuthService {
   // First login, step 2: check the SMS code, set the password the user
   // chose, and issue a session. `confirmed` flips true inside claimAccount.
   async verifyOtp(dto: OtpVerifyDto, ctx: ClientContext): Promise<AuthResult> {
-    const user = await this.usersService.findByEmailOrPhone(dto.login.trim());
+    const user = await this.usersService.findByPhone(dto.login.trim());
     if (!user || !isRealPhone(user.phone)) {
       throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
     }
@@ -171,7 +171,7 @@ export class AuthService {
   }
 
   async resendOtp(dto: OtpResendDto): Promise<{ phone: string }> {
-    const user = await this.usersService.findByEmailOrPhone(dto.login.trim());
+    const user = await this.usersService.findByPhone(dto.login.trim());
     if (!user || user.passwordHash || !isRealPhone(user.phone)) {
       throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
     }

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import ConfirmDialog from './ConfirmDialog';
+import TemplateImportModal from './TemplateImportModal';
 import SpecialCategoryModal from '../nominations/SpecialCategoryModal';
 import type { SpecialNominationDraft } from '../nominations/SpecialCategoryModal';
-import { getCategories } from '../../lib/categories';
+import { LEAGUE_CATEGORY_TYPE, getCategories } from '../../lib/categories';
 import type { Category } from '../../lib/categories';
 import {
   createNomination,
@@ -14,6 +15,11 @@ import {
 } from '../../lib/nominations';
 import type { Nomination } from '../../lib/nominations';
 import { formatDuration, parseDuration, pluralExits } from '../../lib/duration';
+import {
+  NOMINATION_LEAGUE_ARIA_LABEL,
+  NOMINATION_LEAGUE_PLACEHOLDER,
+  NOMINATION_LEAGUE_SELECT_REQUIRED_MESSAGE,
+} from '../../lib/nominationLeague.constants';
 import styles from './NominationsPanel.module.css';
 
 interface NominationsPanelProps {
@@ -38,8 +44,11 @@ export default function NominationsPanel({
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [duration, setDuration] = useState('');
+  const [leagues, setLeagues] = useState<Category[]>([]);
+  const [leagueId, setLeagueId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [specialOpen, setSpecialOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Nomination | null>(null);
   const [editing, setEditing] = useState<Record<string, EditState>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -61,6 +70,14 @@ export default function NominationsPanel({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [competitionId]);
+
+  useEffect(() => {
+    if (!canManage) return;
+    getCategories(LEAGUE_CATEGORY_TYPE)
+      .then(setLeagues)
+      .catch(() => onError('Не вдалося завантажити довідник категорій.'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canManage]);
 
   useEffect(() => {
     if (!specialOpen || categories.length > 0) return;
@@ -89,6 +106,10 @@ export default function NominationsPanel({
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim() || submitting) return;
+    if (!leagueId) {
+      onError(NOMINATION_LEAGUE_SELECT_REQUIRED_MESSAGE);
+      return;
+    }
 
     const seconds = parseDuration(duration);
     if (duration.trim() !== '' && seconds === null) {
@@ -102,6 +123,7 @@ export default function NominationsPanel({
         name,
         price: price.trim() === '' ? undefined : Number(price),
         durationLimitSeconds: seconds ?? undefined,
+        categoryIds: [leagueId],
       });
       setNominations((prev) => [...(prev ?? []), created]);
       setName('');
@@ -310,6 +332,20 @@ export default function NominationsPanel({
               onChange={(e) => setName(e.target.value)}
               required
             />
+            <select
+              className={styles.input}
+              aria-label={NOMINATION_LEAGUE_ARIA_LABEL}
+              value={leagueId}
+              onChange={(e) => setLeagueId(e.target.value)}
+              required
+            >
+              <option value="">{NOMINATION_LEAGUE_PLACEHOLDER}</option>
+              {leagues.map((league) => (
+                <option key={league.id} value={league.id}>
+                  {league.name}
+                </option>
+              ))}
+            </select>
             <input
               className={styles.input}
               type="number"
@@ -347,10 +383,21 @@ export default function NominationsPanel({
       {loading && <p className={styles.status}>Завантаження...</p>}
 
       {!loading && nominations && nominations.length === 0 && (
-        <p className={styles.empty}>
-          Для цього конкурсу ще не сформовано номінацій. Додайте їх вручну або
-          скопіюйте набір із шаблону категорій.
-        </p>
+        <div className={styles.empty}>
+          <p className={styles.emptyText}>
+            Для цього конкурсу ще не сформовано номінацій. Додайте їх вручну або
+            скопіюйте набір із шаблону категорій.
+          </p>
+          {canManage && (
+            <button
+              type="button"
+              className={styles.btnSecondary}
+              onClick={() => setImportOpen(true)}
+            >
+              Скопіювати із шаблону
+            </button>
+          )}
+        </div>
       )}
 
       {special.length > 0 && (
@@ -369,6 +416,17 @@ export default function NominationsPanel({
           </h3>
           <ul className={styles.rows}>{regular.map(renderRow)}</ul>
         </>
+      )}
+
+      {importOpen && (
+        <TemplateImportModal
+          competitionId={competitionId}
+          onClose={() => setImportOpen(false)}
+          onImported={(created) => {
+            setNominations((prev) => [...(prev ?? []), ...created]);
+            setImportOpen(false);
+          }}
+        />
       )}
 
       <SpecialCategoryModal

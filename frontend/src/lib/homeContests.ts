@@ -1,7 +1,4 @@
-import { getCompetitionStatus } from './competitions';
 import type { Competition } from './competitions';
-import { COMPETITION_STATUS } from './competitionStatus';
-import type { CompetitionStatus } from './competitionStatus';
 
 const DATE_LOCALE = 'uk-UA';
 
@@ -15,29 +12,17 @@ export const HOME_STATUS_FILTER_ID = {
 export type HomeStatusFilterId =
   (typeof HOME_STATUS_FILTER_ID)[keyof typeof HOME_STATUS_FILTER_ID];
 
+// The id is sent to the server as the list's `status` filter (ALL sends none).
 export interface HomeStatusFilter {
   id: HomeStatusFilterId;
   label: string;
-  statuses: readonly CompetitionStatus[];
 }
 
 export const HOME_STATUS_FILTERS: readonly HomeStatusFilter[] = [
-  { id: HOME_STATUS_FILTER_ID.ALL, label: 'Усі конкурси', statuses: [] },
-  {
-    id: HOME_STATUS_FILTER_ID.REGISTRATION_OPEN,
-    label: 'Реєстрація відкрита',
-    statuses: [COMPETITION_STATUS.REGISTRATION_OPEN],
-  },
-  {
-    id: HOME_STATUS_FILTER_ID.UPCOMING,
-    label: 'Заплановані',
-    statuses: [COMPETITION_STATUS.PLANNED],
-  },
-  {
-    id: HOME_STATUS_FILTER_ID.FINISHED,
-    label: 'Завершені',
-    statuses: [COMPETITION_STATUS.FINISHED],
-  },
+  { id: HOME_STATUS_FILTER_ID.ALL, label: 'Усі конкурси' },
+  { id: HOME_STATUS_FILTER_ID.REGISTRATION_OPEN, label: 'Реєстрація відкрита' },
+  { id: HOME_STATUS_FILTER_ID.UPCOMING, label: 'Заплановані' },
+  { id: HOME_STATUS_FILTER_ID.FINISHED, label: 'Завершені' },
 ];
 
 
@@ -92,19 +77,6 @@ export function formatContestDateRange(dateFrom: string, dateTo: string): string
     return `${from.getDate()}${DAY_RANGE_DASH}${dayMonthOf(to)} ${to.getFullYear()}`;
   }
   return `${dayMonthOf(from)}${DATE_RANGE_DASH}${dayMonthOf(to)} ${to.getFullYear()}`;
-}
-
-// Name / year filtering and paging now happen on the server; only the
-// status filter is applied to the loaded page here.
-export function filterHomeContests(
-  competitions: Competition[],
-  statusId: HomeStatusFilterId,
-): Competition[] {
-  const active = HOME_STATUS_FILTERS.find((f) => f.id === statusId);
-  if (!active || active.statuses.length === 0) return competitions;
-  return competitions.filter((c) =>
-    active.statuses.includes(getCompetitionStatus(c)),
-  );
 }
 
 export function groupContestsByMonth(competitions: Competition[]): MonthGroup[] {

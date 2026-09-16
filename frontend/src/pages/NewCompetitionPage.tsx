@@ -13,13 +13,20 @@ import type { CreatedJudge } from '../lib/judges';
 import { createVenue } from '../lib/venues';
 import { createNominationsBulk } from '../lib/nominations';
 import NominationSetBuilder from '../components/nominations/NominationSetBuilder';
-import { CategoryApiError } from '../lib/categories';
+import {
+  CategoryApiError,
+  LEAGUE_CATEGORY_TYPE,
+  getCategories,
+} from '../lib/categories';
 import type { Category } from '../lib/categories';
 import {
+  missingLeagueMessage,
+  nominationsWithoutLeague,
   pluralNominations,
   resolveDraftCategories,
   savedSignatureOf,
 } from '../lib/nominationSet';
+import { COMPETITION_NOMINATIONS_REQUIRED_MESSAGE } from '../lib/nominationLeague.constants';
 import type { AxisSelection, DraftNomination } from '../lib/nominationSet';
 import {
   CategoryTemplateApiError,
@@ -146,6 +153,7 @@ export default function NewCompetitionPage() {
   // Категорії зі спецмодалки, відсутні в axes — потрібні resolveDraftCategories,
   // щоб не загубити ageFrom/ageTo нової вікової категорії при збереженні.
   const [extraCategories, setExtraCategories] = useState<Category[]>([]);
+  const [leagueCategories, setLeagueCategories] = useState<Category[]>([]);
   const [loadingNominations, setLoadingNominations] = useState(false);
 
   const [organizerQuery, setOrganizerQuery] = useState('');
@@ -168,6 +176,12 @@ export default function NewCompetitionPage() {
       })
       .catch(() => setCategoryTemplates([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    getCategories(LEAGUE_CATEGORY_TYPE)
+      .then(setLeagueCategories)
+      .catch(() => setLeagueCategories([]));
   }, []);
 
   useEffect(() => {
@@ -361,11 +375,24 @@ export default function NewCompetitionPage() {
   }
 
   function validateNominationSet(): string | null {
-    if (nominationSource !== 'custom') return null;
-    if (!templateName.trim()) return 'Вкажіть назву шаблону для власного набору.';
-    if (nominations.length === 0) {
-      return 'Складіть набір номінацій або оберіть готовий шаблон.';
+    if (nominationSource === 'custom') {
+      if (!templateName.trim()) return 'Вкажіть назву шаблону для власного набору.';
+      if (nominations.length === 0) {
+        return 'Складіть набір номінацій або оберіть готовий шаблон.';
+      }
     }
+    if (nominations.length === 0) return COMPETITION_NOMINATIONS_REQUIRED_MESSAGE;
+    const leagueIds = new Set(
+      [
+        ...leagueCategories,
+        ...(axes?.[LEAGUE_CATEGORY_TYPE] ?? []),
+        ...extraCategories,
+      ]
+        .filter((c) => c.type === LEAGUE_CATEGORY_TYPE)
+        .map((c) => c.id),
+    );
+    const withoutLeague = nominationsWithoutLeague(nominations, leagueIds);
+    if (withoutLeague.length > 0) return missingLeagueMessage(withoutLeague);
     return null;
   }
 

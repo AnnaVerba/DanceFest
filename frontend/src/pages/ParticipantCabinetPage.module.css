@@ -1,6 +1,5 @@
 .wrap {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    Arial, sans-serif;
+  font-family: var(--font-ui);
   font-size: 14px;
 }
 
@@ -44,7 +43,7 @@
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--g-accent);
+  color: var(--g-muted);
 }
 
 .empty {
@@ -100,8 +99,56 @@
 }
 
 @media (max-width: 680px) {
-  .wrap {
-    padding: 0 16px;
+  .tableHead,
+  .groupName {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  /* Phone: each entry becomes a stacked card of «label — value» lines. */
+  .entryTable thead {
+    display: none;
+  }
+
+  .entryTable,
+  .entryTable tbody,
+  .entryTable tr,
+  .entryTable td {
+    display: block;
+    width: 100%;
+  }
+
+  .entryTable tr {
+    padding: 6px 0;
+    border-top: 1px solid var(--g-line);
+  }
+
+  .entryTable td {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 5px 16px;
+    border-top: 0;
+    white-space: normal;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  .entryTable .musicCell {
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .entryTable td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--g-muted);
+    text-align: left;
   }
 
   .openRow {

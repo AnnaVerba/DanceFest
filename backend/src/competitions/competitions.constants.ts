@@ -7,3 +7,11 @@ export const ORGANIZERS_SEARCH_SEPARATOR = ' ';
 export const ORGANIZERS_COLUMN = 'Competition.organizers';
 // The query is matched word by word, so «Анна Верба» also finds «Верба Анна».
 export const SEARCH_WORDS_SEPARATOR = /\s+/;
+// Values of the list's `status` filter, matching the catalog's chips.
+export const COMPETITION_STATUS_FILTER = {
+  REGISTRATION_OPEN: 'open',
+  PLANNED: 'soon',
+  FINISHED: 'finished',
+} as const;
+// Dates are stored without a time, so they compare as `YYYY-MM-DD`.
+export const ISO_DATE_LENGTH = 10;

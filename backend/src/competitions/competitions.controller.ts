@@ -33,7 +33,9 @@ import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 export class CompetitionsController {
   constructor(private readonly competitionsService: CompetitionsService) {}
 
-  @ApiOperation({ summary: 'List competitions (paged; filter by q / year)' })
+  @ApiOperation({
+    summary: 'List competitions (paged; filter by q / year / status)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Competitions returned successfully.',
@@ -45,8 +47,15 @@ export class CompetitionsController {
     @Query('pageSize') pageSize?: string,
     @Query('q') q?: string,
     @Query('year') year?: string,
+    @Query('status') status?: string,
   ) {
-    return this.competitionsService.findAll({ page, pageSize, q, year });
+    return this.competitionsService.findAll({
+      page,
+      pageSize,
+      q,
+      year,
+      status,
+    });
   }
 
   @ApiOperation({ summary: 'Distinct years for the list filter' })
@@ -69,9 +78,10 @@ export class CompetitionsController {
     @Query('pageSize') pageSize?: string,
     @Query('q') q?: string,
     @Query('year') year?: string,
+    @Query('status') status?: string,
   ) {
     return this.competitionsService.findAll(
-      { page, pageSize, q, year },
+      { page, pageSize, q, year, status },
       user.id,
     );
   }
@@ -162,6 +172,6 @@ export class CompetitionsController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string, @CurrentUser() admin: AuthenticatedUser) {
-    return this.competitionsService.remove(id, admin.id);
+    return this.competitionsService.remove(id, admin.id, admin.accessLevel);
   }
 }

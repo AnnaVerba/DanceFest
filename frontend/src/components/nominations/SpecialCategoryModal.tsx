@@ -4,6 +4,7 @@ import {
   AGE_CATEGORY_TYPE,
   CATEGORY_TYPE_LABELS,
   CategoryApiError,
+  LEAGUE_CATEGORY_TYPE,
   createCategory,
 } from '../../lib/categories';
 import type { Category, CategoryType } from '../../lib/categories';
@@ -13,6 +14,7 @@ import type { AgeRange } from '../../lib/ageRange';
 import { buildNominationLabel } from '../../lib/nominationNaming';
 import { formatDuration, parseDuration, pluralExits } from '../../lib/duration';
 import type { ExitMode } from '../../lib/categoryTemplates';
+import { SPECIAL_LEAGUE_REQUIRED_MESSAGE } from '../../lib/nominationLeague.constants';
 import styles from './SpecialCategoryModal.module.css';
 
 export interface SpecialNominationDraft {
@@ -218,6 +220,10 @@ export default function SpecialCategoryModal({
     }
     if (programs.length === 0) {
       setError('Оберіть хоча б одну програму.');
+      return;
+    }
+    if (valuesOf(LEAGUE_CATEGORY_TYPE).length === 0) {
+      setError(SPECIAL_LEAGUE_REQUIRED_MESSAGE);
       return;
     }
     if (price.trim() !== '' && !(Number(price) >= 0)) {

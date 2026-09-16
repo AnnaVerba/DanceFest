@@ -9,7 +9,7 @@ export const MIN_PASSWORD_LENGTH = 6;
 
 export const PASSWORD_TOO_SHORT_MESSAGE = `Пароль має містити щонайменше ${MIN_PASSWORD_LENGTH} символів`;
 
-export const INVALID_CREDENTIALS_MESSAGE = 'Невірний email, пароль або роль';
+export const INVALID_CREDENTIALS_MESSAGE = 'Невірний номер телефону або пароль';
 export const ROLE_MISMATCH_MESSAGE = 'Роль користувача не відповідає вказаній';
 export const INSUFFICIENT_ROLE_MESSAGE = 'Ця дія недоступна для вашої ролі';
 export const EMAIL_OR_PHONE_TAKEN_MESSAGE =

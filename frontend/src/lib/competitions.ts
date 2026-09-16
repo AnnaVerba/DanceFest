@@ -56,6 +56,7 @@ export interface CompetitionsQuery {
   pageSize?: number;
   q?: string;
   year?: number;
+  status?: string;
 }
 
 export interface PagedCompetitions {
@@ -71,6 +72,7 @@ function competitionsQuerySuffix(query: CompetitionsQuery): string {
   if (query.pageSize != null) params.set('pageSize', String(query.pageSize));
   if (query.q?.trim()) params.set('q', query.q.trim());
   if (query.year != null) params.set('year', String(query.year));
+  if (query.status) params.set('status', query.status);
   return params.toString() ? `?${params}` : '';
 }
 

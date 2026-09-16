@@ -17,6 +17,8 @@ import { UpdateCompetitionDto } from './dto/update-competition.dto';
 import {
   NO_COMPETITION_ACCESS_MESSAGE,
   COMPETITION_OWNER_ONLY_MESSAGE,
+  COMPETITION_STATUS_FILTER,
+  ISO_DATE_LENGTH,
   ORGANIZERS_COLUMN,
   ORGANIZERS_SEARCH_SEPARATOR,
   SEARCH_WORDS_SEPARATOR,
@@ -37,6 +39,7 @@ export interface CompetitionListQuery {
   pageSize?: string;
   q?: string;
   year?: string;
+  status?: string;
 }
 
 @Injectable()
@@ -97,6 +100,7 @@ export class CompetitionsService {
         [Op.between]: [`${query.year}-01-01`, `${query.year}-12-31`],
       };
     }
+    Object.assign(where, this.statusWhere(query.status));
     const { rows, count } = await this.competitionModel.findAndCountAll({
       where,
       include: OWNER_INCLUDE,
@@ -106,6 +110,25 @@ export class CompetitionsService {
       distinct: true,
     });
     return { rows, total: count, page, pageSize };
+  }
+
+  // A day counts as passed once today is strictly after it, so the
+  // registration deadline day itself is still open.
+  private statusWhere(status?: string): Record<string, unknown> {
+    const today = new Date().toISOString().slice(0, ISO_DATE_LENGTH);
+    switch (status) {
+      case COMPETITION_STATUS_FILTER.REGISTRATION_OPEN:
+        return {
+          registrationFrom: { [Op.lte]: today },
+          registrationTo: { [Op.gte]: today },
+        };
+      case COMPETITION_STATUS_FILTER.PLANNED:
+        return { registrationFrom: { [Op.gt]: today } };
+      case COMPETITION_STATUS_FILTER.FINISHED:
+        return { dateTo: { [Op.lt]: today } };
+      default:
+        return {};
+    }
   }
 
   // Competitions the user helps run as a named team admin (not the owner).
@@ -179,9 +202,13 @@ export class CompetitionsService {
     return competition;
   }
 
-  async remove(id: string, requesterId: string): Promise<void> {
+  async remove(
+    id: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+  ): Promise<void> {
     const competition = await this.findOne(id);
-    this.assertOwner(competition, requesterId);
+    this.assertOwner(competition, requesterId, requesterLevel);
     await competition.destroy();
   }
 
@@ -201,7 +228,13 @@ export class CompetitionsService {
     }
   }
 
-  private assertOwner(competition: Competition, requesterId: string): void {
+  private assertOwner(
+    competition: Competition,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+  ): void {
+    // An admin may delete any competition; an organizer only their own.
+    if (requesterLevel === AccessLevel.ADMIN) return;
     if (competition.ownerId !== requesterId) {
       throw new ForbiddenException(COMPETITION_OWNER_ONLY_MESSAGE);
     }

@@ -13,7 +13,6 @@ import type { CompetitionStatus } from '../lib/competitionStatus';
 import {
   HOME_STATUS_FILTERS,
   HOME_STATUS_FILTER_ID,
-  filterHomeContests,
   formatContestDateRange,
   groupContestsByMonth,
 } from '../lib/homeContests';
@@ -37,6 +36,7 @@ import {
   SEARCH_DEBOUNCE_MS,
   SEARCH_PLACEHOLDER,
 } from './HomePage.constants';
+import CompetitionBannerPlaceholder from '../components/home/CompetitionBannerPlaceholder';
 import styles from './HomePage.module.css';
 
 const STATUS_PILL_CLASS: Record<CompetitionStatus, string> = {
@@ -101,6 +101,7 @@ export default function HomePage() {
         pageSize: PAGE_SIZE,
         q: debouncedSearch || undefined,
         year: year ? Number(year) : undefined,
+        status: statusId === HOME_STATUS_FILTER_ID.ALL ? undefined : statusId,
       };
       try {
         const data = await (mineOnly
@@ -118,12 +119,12 @@ export default function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, [page, debouncedSearch, year, mineOnly]);
+  }, [page, debouncedSearch, year, statusId, mineOnly]);
 
   const monthGroups = useMemo(() => {
     if (!competitions) return [];
-    return groupContestsByMonth(filterHomeContests(competitions, statusId));
-  }, [competitions, statusId]);
+    return groupContestsByMonth(competitions);
+  }, [competitions]);
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const ready = !loading && !error && competitions !== null;
@@ -135,6 +136,10 @@ export default function HomePage() {
   };
   const changeYear = (v: string) => {
     setYear(v);
+    setPage(FIRST_PAGE);
+  };
+  const changeStatus = (id: HomeStatusFilterId) => {
+    setStatusId(id);
     setPage(FIRST_PAGE);
   };
   const toggleMineOnly = () => {
@@ -223,7 +228,7 @@ export default function HomePage() {
               className={
                 statusId === f.id ? `${styles.chip} ${styles.chipActive}` : styles.chip
               }
-              onClick={() => setStatusId(f.id)}
+              onClick={() => changeStatus(f.id)}
             >
               {f.label}
             </button>
@@ -266,7 +271,7 @@ export default function HomePage() {
                         {c.image ? (
                           <img src={c.image} alt="" />
                         ) : (
-                          <span className={styles.cardBannerEmpty} aria-hidden="true" />
+                          <CompetitionBannerPlaceholder competitionId={c.id} />
                         )}
                       </div>
                       <div className={styles.cardBody}>

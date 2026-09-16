@@ -5,10 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { AccessLevel } from '../auth/access-level.enum';
 import { CreationAttributes, Op } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
-import { Category } from '../categories/category.model';
+import { Category, LEAGUE_CATEGORY_TYPE } from '../categories/category.model';
 import { Nomination } from './nomination.model';
 import { planNominationExits, DEFAULT_EXIT_MODE } from './nomination-exits';
 import type { NominationExit, NominationProgram } from './nomination-exits';
@@ -16,6 +17,7 @@ import { CreateNominationDto } from './dto/create-nomination.dto';
 import { UpdateNominationDto } from './dto/update-nomination.dto';
 import { BulkCreateNominationsDto } from './dto/bulk-create-nominations.dto';
 import {
+  NOMINATION_LEAGUE_REQUIRED_MESSAGE,
   NOMINATION_NOT_FOUND_MESSAGE,
   NOMINATION_NOT_IN_COMPETITION_MESSAGE,
 } from './nominations.constants';
@@ -61,10 +63,16 @@ export class NominationsService {
   async create(
     competitionId: string,
     requesterId: string,
+    requesterLevel: AccessLevel,
     dto: CreateNominationDto,
   ) {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
     this.assertLimitsBelongToNomination(dto);
+    await this.assertEveryNominationHasLeague([dto]);
 
     const nomination = await this.nominationModel.create(
       this.toAttributes(competitionId, dto),
@@ -76,10 +84,16 @@ export class NominationsService {
   async bulkCreate(
     competitionId: string,
     requesterId: string,
+    requesterLevel: AccessLevel,
     dto: BulkCreateNominationsDto,
   ) {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
     dto.nominations.forEach((n) => this.assertLimitsBelongToNomination(n));
+    await this.assertEveryNominationHasLeague(dto.nominations);
 
     const created = await this.nominationModel.bulkCreate(
       dto.nominations.map((n) => this.toAttributes(competitionId, n)),
@@ -93,15 +107,26 @@ export class NominationsService {
     competitionId: string,
     nominationId: string,
     requesterId: string,
+    requesterLevel: AccessLevel,
     dto: UpdateNominationDto,
   ) {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
     const nomination = await this.loadNomination(competitionId, nominationId);
 
     this.assertLimitsBelongToNomination({
       categoryIds: dto.categoryIds ?? nomination.categoryIds,
       programLimits: dto.programLimits ?? nomination.programLimits,
     });
+
+    if (dto.categoryIds !== undefined) {
+      await this.assertEveryNominationHasLeague([
+        { name: dto.name ?? nomination.name, categoryIds: dto.categoryIds },
+      ]);
+    }
 
     if (dto.name !== undefined) nomination.name = dto.name.trim();
     if (dto.price !== undefined) nomination.price = dto.price ?? null;
@@ -126,8 +151,13 @@ export class NominationsService {
     competitionId: string,
     nominationId: string,
     requesterId: string,
+    requesterLevel: AccessLevel,
   ): Promise<void> {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
     const nomination = await this.loadNomination(competitionId, nominationId);
     await nomination.destroy();
   }
@@ -185,6 +215,31 @@ export class NominationsService {
     if (stray.length > 0) {
       throw new BadRequestException(
         `Ліміти задані для категорій, яких немає в номінації: ${stray.join(', ')}`,
+      );
+    }
+  }
+
+  // The apply form files every entry under a league, so a nomination
+  // without one could never be applied to.
+  private async assertEveryNominationHasLeague(
+    inputs: { name: string; categoryIds?: string[] }[],
+  ): Promise<void> {
+    const ids = [...new Set(inputs.flatMap((n) => n.categoryIds ?? []))];
+    const leagues =
+      ids.length === 0
+        ? []
+        : await this.categoryModel.findAll({
+            where: { id: { [Op.in]: ids }, type: LEAGUE_CATEGORY_TYPE },
+          });
+    const leagueIds = new Set(leagues.map((c) => c.id));
+    const withoutLeague = inputs.filter(
+      (n) => !(n.categoryIds ?? []).some((id) => leagueIds.has(id)),
+    );
+    if (withoutLeague.length > 0) {
+      throw new BadRequestException(
+        `${NOMINATION_LEAGUE_REQUIRED_MESSAGE}: ${withoutLeague
+          .map((n) => n.name)
+          .join(', ')}`,
       );
     }
   }
@@ -273,8 +328,11 @@ export class NominationsService {
   private async loadCompetitionAndAssertAccess(
     competitionId: string,
     requesterId: string,
+    requesterLevel: AccessLevel,
   ): Promise<Competition> {
     const competition = await this.assertCompetitionExists(competitionId);
+    // A global admin manages every competition.
+    if (requesterLevel === AccessLevel.ADMIN) return competition;
     if (competition.ownerId === requesterId) return competition;
 
     const membership = await this.competitionAdminModel.findOne({
