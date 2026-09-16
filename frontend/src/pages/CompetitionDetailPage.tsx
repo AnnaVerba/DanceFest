@@ -185,11 +185,14 @@ export default function CompetitionDetailPage() {
               )}
 
               {activeTab === 'Заявки' && !!admin && (
-                <EntriesPanel
-                  competitionId={id}
-                  canManage={canManageEntries}
-                  onError={(message) => showToast(message)}
-                />
+                <>
+                  <MusicExportPanel competitionId={id} canManage={canManageEntries} />
+                  <EntriesPanel
+                    competitionId={id}
+                    canManage={canManageEntries}
+                    onError={(message) => showToast(message)}
+                  />
+                </>
               )}
 
               {activeTab === 'Доплати' && canManageEntries && (
@@ -240,7 +243,6 @@ export default function CompetitionDetailPage() {
                     onError={(message) => showToast(message)}
                     onNotice={(message) => showToast(message)}
                   />
-                  <MusicExportPanel competitionId={id} canManage={canManageEntries} />
                 </>
               )}
 
