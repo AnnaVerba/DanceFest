@@ -11,7 +11,7 @@ import { MIN_PASSWORD_LENGTH } from '../lib/auth.constants';
 import PhoneField from '../components/PhoneField';
 import styles from './LoginPage.module.css';
 
-const OTP_LENGTH = 4;
+const OTP_LENGTH = 6;
 const RESEND_SECONDS = 60;
 
 export default function ForgotPasswordPage() {
@@ -164,7 +164,7 @@ export default function ForgotPasswordPage() {
 
             <div className={styles.field}>
               <label htmlFor="otp">Код із SMS</label>
-              <p className={styles.hint}>Код складається з 4 цифр</p>
+              <p className={styles.hint}>Код складається з {OTP_LENGTH} цифр</p>
               <input
                 type="text"
                 id="otp"

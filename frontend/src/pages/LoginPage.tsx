@@ -12,7 +12,7 @@ import { MIN_PASSWORD_LENGTH } from '../lib/auth.constants';
 import PhoneField from '../components/PhoneField';
 import styles from './LoginPage.module.css';
 
-const OTP_LENGTH = 4;
+const OTP_LENGTH = 6;
 const RESEND_SECONDS = 60;
 
 export default function LoginPage() {
@@ -183,7 +183,7 @@ export default function LoginPage() {
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 maxLength={OTP_LENGTH}
-                placeholder="1111"
+                placeholder={'•'.repeat(OTP_LENGTH)}
                 value={code}
                 onChange={(e) =>
                   setCode(

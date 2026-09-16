@@ -12,13 +12,13 @@ import { JwtStrategy } from './jwt.strategy';
 import { GlobalJwtAuthGuard } from './global-jwt-auth.guard';
 import { SessionStoreService } from './session-store.service';
 import { Session } from './session.model';
-import { OtpCode } from './otp-code.model';
+import { OtpSendLog } from './otp-send-log.model';
 import { OtpService } from './otp.service';
 import { DEFAULT_ACCESS_EXPIRES_IN_SECONDS } from './auth.constants';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([Session, OtpCode]),
+    SequelizeModule.forFeature([Session, OtpSendLog]),
     UsersModule,
     SchoolsModule,
     PassportModule,

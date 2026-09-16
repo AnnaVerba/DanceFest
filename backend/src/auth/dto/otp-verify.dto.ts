@@ -9,7 +9,7 @@ export class OtpVerifyDto {
   @IsNotEmpty()
   login: string;
 
-  @ApiProperty({ example: '1111' })
+  @ApiProperty({ example: '482913' })
   @Matches(new RegExp(`^\\d{${OTP_CODE_LENGTH}}$`))
   code: string;
 
