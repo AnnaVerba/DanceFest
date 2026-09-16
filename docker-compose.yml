@@ -65,6 +65,8 @@ services:
       OCP_BUCKET: ${OCP_BUCKET:-}
       OCP_PUBLIC_URL: ${OCP_PUBLIC_URL:-}
       OCP_ENDPOINT: ${OCP_ENDPOINT:-}
+      OCP_IMAGES_PREFIX: ${OCP_IMAGES_PREFIX:-images}
+      OCP_AUDIO_PREFIX: ${OCP_AUDIO_PREFIX:-audio}
       REDIS_HOST: redis
       REDIS_PORT: 6379
     ports:

@@ -25,11 +25,13 @@ import { DEFAULT_DURATION_ROUND } from '../competition-rules/duration-limit.mode
 import { OcpS3ClientFactory } from '../uploads/ocp-s3-client.factory';
 import { buildContentDisposition } from '../uploads/content-disposition';
 import { buildPublicObjectUrl } from '../uploads/build-public-object-url';
+import { resolveAudioKeyPrefix } from '../uploads/resolve-ocp-key-prefix';
 import {
   STORAGE_NOT_CONFIGURED_MESSAGE,
   OCP_BUCKET_ENV_KEY,
   OCP_PUBLIC_URL_ENV_KEY,
   OCP_ENDPOINT_ENV_KEY,
+  PUBLIC_READ_ACL,
 } from '../uploads/uploads.constants';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Track } from './track.model';
@@ -97,7 +99,8 @@ export class TracksService {
       entry,
       extension,
     );
-    const objectKey = `${ENTRY_TRACKS_KEY_PREFIX}_${competition.id}_${entryId}_${displayFileName}`;
+    const audioPrefix = resolveAudioKeyPrefix(this.config);
+    const objectKey = `${audioPrefix}/${ENTRY_TRACKS_KEY_PREFIX}_${competition.id}_${entryId}_${displayFileName}`;
 
     const existing = await this.trackModel.findOne({
       where: { performanceId: entryId },
@@ -110,6 +113,7 @@ export class TracksService {
         Body: file.buffer,
         ContentType: file.mimetype,
         ContentDisposition: buildContentDisposition(displayFileName),
+        ACL: PUBLIC_READ_ACL,
       }),
     );
     const publicUrl = this.buildPublicUrl(bucket, objectKey);

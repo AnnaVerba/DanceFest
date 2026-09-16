@@ -12,6 +12,7 @@ import { User } from '../users/user.model';
 import { Track } from '../tracks/track.model';
 import { TRACK_MIME_EXTENSIONS } from '../tracks/tracks.constants';
 import { OcpS3ClientFactory } from '../uploads/ocp-s3-client.factory';
+import { resolveAudioKeyPrefix } from '../uploads/resolve-ocp-key-prefix';
 import { OCP_BUCKET_ENV_KEY } from '../uploads/uploads.constants';
 import { ExportJob, MissingTrack } from './export-job.model';
 import { buildTrackFileName } from './build-track-filename';
@@ -218,7 +219,8 @@ export class MusicExportProcessor extends WorkerHost {
     onProgress: (percent: number) => void,
   ): Promise<string> {
     const bucket = this.requireBucket();
-    const objectKey = `${MUSIC_EXPORTS_KEY_PREFIX}/${exportJob.competitionId}/${exportJob.id}.zip`;
+    const audioPrefix = resolveAudioKeyPrefix(this.config);
+    const objectKey = `${audioPrefix}/${MUSIC_EXPORTS_KEY_PREFIX}/${exportJob.competitionId}/${exportJob.id}.zip`;
 
     const { ZipArchive } = await import('archiver');
     const archive = new ZipArchive({ zlib: { level: 9 } });
