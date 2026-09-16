@@ -17,3 +17,6 @@ export const NO_STORED_REFRESH_TOKEN_MESSAGE = 'Немає збереженог�
 export const SESSION_EXPIRED_MESSAGE = 'Сесія закінчилась, увійдіть знову.';
 export const OTP_VERIFY_FAILED_MESSAGE = 'Не вдалося підтвердити код.';
 export const OTP_RESEND_FAILED_MESSAGE = 'Не вдалося надіслати код ще раз.';
+export const FORGOT_PASSWORD_FAILED_MESSAGE =
+  'Не вдалося надіслати код. Перевірте номер телефону.';
+export const RESET_PASSWORD_FAILED_MESSAGE = 'Не вдалося змінити пароль.';

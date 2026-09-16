@@ -3,10 +3,9 @@ import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   AuthError,
-  login,
-  resendOtp,
+  forgotPassword,
+  resetPassword,
   saveSession,
-  verifyOtp,
 } from '../lib/auth';
 import { MIN_PASSWORD_LENGTH } from '../lib/auth.constants';
 import PhoneField from '../components/PhoneField';
@@ -15,18 +14,19 @@ import styles from './LoginPage.module.css';
 const OTP_LENGTH = 4;
 const RESEND_SECONDS = 60;
 
-export default function LoginPage() {
+export default function ForgotPasswordPage() {
   const navigate = useNavigate();
   const [loginId, setLoginId] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const [stage, setStage] = useState<'login' | 'otp'>('login');
+  const [stage, setStage] = useState<'request' | 'reset'>('request');
   const [maskedPhone, setMaskedPhone] = useState('');
   const [code, setCode] = useState('');
-  const [otpError, setOtpError] = useState<string | null>(null);
-  const [otpBusy, setOtpBusy] = useState(false);
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetBusy, setResetBusy] = useState(false);
   const [resendIn, setResendIn] = useState(0);
 
   useEffect(() => {
@@ -40,50 +40,57 @@ export default function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      const result = await login(loginId, password);
-      if ('otpRequired' in result) {
-        setMaskedPhone(result.phone);
-        setStage('otp');
-        setResendIn(RESEND_SECONDS);
-        setCode('');
-        setOtpError(null);
-      } else {
-        saveSession(result);
-        navigate('/profile', { replace: true });
-      }
+      const { phone } = await forgotPassword(loginId);
+      setMaskedPhone(phone);
+      setStage('reset');
+      setResendIn(RESEND_SECONDS);
+      setCode('');
+      setPassword('');
+      setConfirmPassword('');
+      setResetError(null);
     } catch (err) {
       setError(
         err instanceof AuthError
           ? err.message
-          : 'Не вдалося увійти. Перевірте дані та пароль.',
+          : 'Не вдалося надіслати код. Перевірте номер телефону.',
       );
     } finally {
       setSubmitting(false);
     }
   };
 
-  const submitOtp = async () => {
-    setOtpError(null);
-    setOtpBusy(true);
+  const submitReset = async () => {
+    setResetError(null);
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setResetError(
+        `Пароль має містити щонайменше ${MIN_PASSWORD_LENGTH} символів`,
+      );
+      return;
+    }
+    if (password !== confirmPassword) {
+      setResetError('Паролі не збігаються');
+      return;
+    }
+    setResetBusy(true);
     try {
-      const session = await verifyOtp(loginId, code, password);
+      const session = await resetPassword(loginId, code, password);
       saveSession(session);
       navigate('/profile', { replace: true });
     } catch (err) {
-      setOtpError(err instanceof AuthError ? err.message : 'Невірний код.');
+      setResetError(err instanceof AuthError ? err.message : 'Невірний код.');
     } finally {
-      setOtpBusy(false);
+      setResetBusy(false);
     }
   };
 
   const doResend = async () => {
-    setOtpError(null);
+    setResetError(null);
     try {
-      const { phone } = await resendOtp(loginId);
+      const { phone } = await forgotPassword(loginId);
       setMaskedPhone(phone);
       setResendIn(RESEND_SECONDS);
     } catch (err) {
-      setOtpError(
+      setResetError(
         err instanceof AuthError ? err.message : 'Спробуйте пізніше.',
       );
     }
@@ -118,10 +125,12 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {stage === 'login' && (
+        {stage === 'request' && (
           <>
-            <h1 className={styles.title}>Вхід</h1>
-            <p className={styles.subtitle}>Увійдіть у свій акаунт</p>
+            <h1 className={styles.title}>Відновлення паролю</h1>
+            <p className={styles.subtitle}>
+              Введіть номер телефону — ми надішлемо код підтвердження в SMS.
+            </p>
 
             {error && <p className={styles.error}>{error}</p>}
 
@@ -131,59 +140,37 @@ export default function LoginPage() {
                 <PhoneField id="loginId" value={loginId} onChange={setLoginId} />
               </div>
 
-              <div className={styles.field}>
-                <label htmlFor="password">Пароль</label>
-                <input
-                  type="password"
-                  id="password"
-                  name="password"
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  minLength={MIN_PASSWORD_LENGTH}
-                  required
-                />
-                <p className={styles.hint}>
-                  Перший вхід? Введіть номер і придумайте пароль — ми
-                  надішлемо код підтвердження в SMS.
-                </p>
-                <Link to="/forgot-password" className={styles.inlineAction}>
-                  Забули пароль?
-                </Link>
-              </div>
-
               <button
                 type="submit"
                 className={styles.submit}
                 disabled={submitting}
               >
-                {submitting ? 'Вхід...' : 'Увійти'}
+                {submitting ? 'Надсилання...' : 'Надіслати код'}
               </button>
             </form>
 
             <p className={styles.footer}>
-              Немає акаунта? <Link to="/register">Зареєструватися</Link>
+              Згадали пароль? <Link to="/login">Увійти</Link>
             </p>
           </>
         )}
 
-        {stage === 'otp' && (
+        {stage === 'reset' && (
           <>
-            <h1 className={styles.title}>Підтвердження</h1>
+            <h1 className={styles.title}>Новий пароль</h1>
             <p className={styles.subtitle}>Ми надіслали код на {maskedPhone}</p>
 
-            {otpError && <p className={styles.error}>{otpError}</p>}
+            {resetError && <p className={styles.error}>{resetError}</p>}
 
             <div className={styles.field}>
               <label htmlFor="otp">Код із SMS</label>
+              <p className={styles.hint}>Код складається з 4 цифр</p>
               <input
                 type="text"
                 id="otp"
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 maxLength={OTP_LENGTH}
-                placeholder="1111"
                 value={code}
                 onChange={(e) =>
                   setCode(
@@ -193,13 +180,46 @@ export default function LoginPage() {
               />
             </div>
 
+            <div className={styles.field}>
+              <label htmlFor="password">Новий пароль</label>
+              <input
+                type="password"
+                id="password"
+                name="password"
+                placeholder="••••••••"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                minLength={MIN_PASSWORD_LENGTH}
+              />
+            </div>
+
+            <div className={styles.field}>
+              <label htmlFor="confirmPassword">Повторіть пароль</label>
+              <input
+                type="password"
+                id="confirmPassword"
+                name="confirmPassword"
+                placeholder="••••••••"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                minLength={MIN_PASSWORD_LENGTH}
+              />
+            </div>
+
             <button
               type="button"
               className={styles.submit}
-              disabled={otpBusy || code.length !== OTP_LENGTH}
-              onClick={submitOtp}
+              disabled={
+                resetBusy ||
+                code.length !== OTP_LENGTH ||
+                !password ||
+                !confirmPassword
+              }
+              onClick={submitReset}
             >
-              {otpBusy ? '...' : 'Підтвердити'}
+              {resetBusy ? '...' : 'Змінити пароль'}
             </button>
 
             <button
@@ -217,9 +237,9 @@ export default function LoginPage() {
               type="button"
               className={styles.inlineAction}
               onClick={() => {
-                setStage('login');
+                setStage('request');
                 setCode('');
-                setOtpError(null);
+                setResetError(null);
               }}
             >
               ← Змінити номер

@@ -181,6 +181,12 @@ export class UsersService {
     );
   }
 
+  // Forgot-password reset: replace an existing password after SMS OTP
+  // verification. Unlike claimAccount, the row is already confirmed.
+  async setPassword(userId: string, passwordHash: string): Promise<void> {
+    await this.userModel.update({ passwordHash }, { where: { id: userId } });
+  }
+
   // Turn a "pick existing / describe new" choice into a concrete coach id,
   // creating a placeholder row for a named new coach. Does not persist the
   // link — the caller decides when and alongside what.

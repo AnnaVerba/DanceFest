@@ -12,6 +12,8 @@ import {
   SESSION_EXPIRED_MESSAGE,
   OTP_VERIFY_FAILED_MESSAGE,
   OTP_RESEND_FAILED_MESSAGE,
+  FORGOT_PASSWORD_FAILED_MESSAGE,
+  RESET_PASSWORD_FAILED_MESSAGE,
   DEVICE_ID_STORAGE_KEY,
   DEVICE_ID_HEADER,
 } from './auth.constants';
@@ -177,6 +179,45 @@ export async function resendOtp(
     );
   }
   return payload as { phone: string };
+}
+
+// Forgot password, step 1: request an SMS code for an existing account.
+export async function forgotPassword(
+  loginId: string,
+): Promise<{ phone: string }> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/auth/password/forgot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ login: loginId }),
+    });
+  } catch {
+    throw new AuthError(CANNOT_CONNECT_TO_SERVER_MESSAGE);
+  }
+  const payload = (await response.json().catch(() => null)) as
+    | (ErrorPayload & { phone: string })
+    | null;
+  if (!response.ok) {
+    throw new AuthError(
+      extractErrorMessage(payload, FORGOT_PASSWORD_FAILED_MESSAGE),
+    );
+  }
+  return payload as { phone: string };
+}
+
+// Forgot password, step 2: verify the SMS code and set a new password.
+export async function resetPassword(
+  loginId: string,
+  code: string,
+  password: string,
+): Promise<Session> {
+  const raw = await postAuth(
+    '/auth/password/reset',
+    { login: loginId, code, password },
+    RESET_PASSWORD_FAILED_MESSAGE,
+  );
+  return toSession(raw);
 }
 
 export async function register(payload: RegisterPayload): Promise<Session> {
