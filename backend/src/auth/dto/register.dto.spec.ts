@@ -9,7 +9,8 @@ const VALID: Record<string, unknown> = {
   firstName: 'Іван',
   lastName: 'Іванов',
   phone: '+380501234567',
-  password: 'strongPassword123',
+  email: 'user@example.com',
+  password: 'strongPassword123!',
   birthDate: '2010-05-20',
   role: AccessLevel.PARTICIPANT,
 };

@@ -29,6 +29,7 @@ import { SetLevelDto } from './dto/set-level.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { SetMentorCoachDto } from './dto/set-mentor-coach.dto';
 import { CompleteProfileDto } from './dto/complete-profile.dto';
+import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { User } from './user.model';
 import { ParticipantSummary } from './participant-summary.interface';
 import { CoachSummary } from './coach-summary.interface';
@@ -49,6 +50,30 @@ export class UsersController {
   @MinLevel(AccessLevel.PARTICIPANT)
   @Get('me')
   getMe(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.getFullProfile(user.id);
+  }
+
+  @ApiOperation({
+    summary:
+      'Edit your own name, email, birth date, mentor coach and (coach) school',
+  })
+  @ApiResponse({ status: 200, description: 'Updated profile returned.' })
+  @ApiResponse({
+    status: 400,
+    description: 'A school sent below coach level, or both coach choices sent.',
+  })
+  @ApiResponse({ status: 404, description: 'School or coach not found.' })
+  @ApiResponse({
+    status: 409,
+    description: 'The email belongs to another user.',
+  })
+  @MinLevel(AccessLevel.PARTICIPANT)
+  @Patch('me')
+  async updateMe(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateMyProfileDto,
+  ) {
+    await this.usersService.updateOwnProfile(user.id, dto);
     return this.usersService.getFullProfile(user.id);
   }
 

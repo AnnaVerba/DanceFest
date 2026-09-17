@@ -4,12 +4,17 @@ import {
   MIN_BIRTH_YEAR,
   NAME_MIN_LENGTH,
 } from './validation.constants';
+import { PASSWORD_STRENGTH_REGEX } from './auth.constants';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function isValidEmail(value: string): boolean {
   return EMAIL_RE.test(value.trim());
+}
+
+export function isStrongPassword(value: string): boolean {
+  return PASSWORD_STRENGTH_REGEX.test(value);
 }
 
 export function isValidPhone(value: string): boolean {

@@ -56,6 +56,7 @@ import {
         database: config.get<string>('DB_NAME'),
         autoLoadModels: true,
         synchronize: false,
+        logging: false,
       }),
     }),
     BullModule.forRootAsync({
