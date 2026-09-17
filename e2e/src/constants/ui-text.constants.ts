@@ -14,12 +14,6 @@ export const UI_TEXT = {
     SUBMIT_PENDING: 'Вхід...',
     INVALID_CREDENTIALS: 'Невірний email, пароль або роль',
   },
-  register: {
-    HEADING: 'Реєстрація',
-    SUBMIT_IDLE: 'Зареєструватися',
-    SUBMIT_PENDING: 'Реєстрація...',
-    PASSWORD_MISMATCH: 'Паролі не збігаються',
-  },
   publicCompetition: {
     APPLY_LINK: 'Подати заявку',
     BACK_LINK: 'До всіх конкурсів',
