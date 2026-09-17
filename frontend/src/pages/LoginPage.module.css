@@ -200,6 +200,16 @@
     box-shadow 0.15s;
 }
 
+.field input.fieldInvalid {
+  border-color: var(--g-danger);
+}
+
+.fieldError {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--g-danger);
+}
+
 .field input::placeholder {
   color: var(--g-subtle);
 }

@@ -13,6 +13,7 @@ export const MENTOR_COACH_NOT_FOUND_MESSAGE = 'Вказаного тренера
 export const MENTOR_COACH_ONE_OF_MESSAGE =
   'Вкажіть або наявного тренера, або дані нового — але не обидва';
 export const MENTOR_COACH_REQUIRED_MESSAGE = 'Вкажіть тренера';
+export const SCHOOL_ONLY_FOR_COACH_MESSAGE = 'Школу може вказати лише тренер';
 export const USER_CONTACT_TAKEN_MESSAGE =
   'Цей телефон або email уже використовує інший користувач';
 export const PARTICIPANT_PHONE_TAKEN_MESSAGE =

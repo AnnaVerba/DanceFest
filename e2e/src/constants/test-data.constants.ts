@@ -1,6 +1,3 @@
-/** Shared password for every account these tests register. Meets MIN_PASSWORD_LENGTH (6). */
-export const E2E_TEST_PASSWORD = 'TestPass123!';
-
 /**
  * The pre-existing seeded competition every run can rely on read-only
  * (backend/seeders). Owned by the seeded "Test" admin, not by any account
