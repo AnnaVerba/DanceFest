@@ -11,9 +11,10 @@ import {
   updateCategoryTemplate,
 } from '../lib/categoryTemplates';
 import NominationSetBuilder from '../components/nominations/NominationSetBuilder';
+import AllMedalLeaguesField from '../components/nominations/AllMedalLeaguesField';
 import { resolveDraftCategories, savedSignatureOf } from '../lib/nominationSet';
 import type { AxisSelection, DraftNomination } from '../lib/nominationSet';
-import { CategoryApiError } from '../lib/categories';
+import { CategoryApiError, getCategories, LEAGUE_CATEGORY_TYPE } from '../lib/categories';
 import type { Category } from '../lib/categories';
 import { queryKeys } from '../lib/queryKeys';
 import styles from './CategoryTemplateFormPage.module.css';
@@ -34,6 +35,15 @@ export default function CategoryTemplateFormPage() {
   // щоб не загубити ageFrom/ageTo нової вікової категорії при збереженні.
   const [extraCategories, setExtraCategories] = useState<Category[]>([]);
 
+  const [allMedalLeagues, setAllMedalLeagues] = useState<string[]>([]);
+  // Persisted league values — on edit the builder's axes stay null until the
+  // organizer touches them, so names for saved ids come from here. null
+  // while still loading.
+  const [leagueCategories, setLeagueCategories] = useState<Category[] | null>(
+    null,
+  );
+  const [leagueCategoriesFailed, setLeagueCategoriesFailed] = useState(false);
+
   const [loading, setLoading] = useState(isEdit);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [nameError, setNameError] = useState(false);
@@ -49,6 +59,7 @@ export default function CategoryTemplateFormPage() {
         setName(detail.name);
         setDescription(detail.description ?? '');
         setIsPublic(detail.isPublic);
+        setAllMedalLeagues(detail.allMedalLeagues ?? []);
         setNominations(
           detail.nominations.map((n) => ({
             signature: savedSignatureOf(n),
@@ -78,6 +89,17 @@ export default function CategoryTemplateFormPage() {
     };
   }, [id]);
 
+  useEffect(() => {
+    getCategories(LEAGUE_CATEGORY_TYPE)
+      .then(setLeagueCategories)
+      .catch(() => setLeagueCategoriesFailed(true));
+  }, []);
+
+  // Saving waits for the league list: leagueNames is incomplete until then,
+  // and filtering against it would silently drop saved «медаль кожному» ticks.
+  const leagueCategoriesLoading =
+    leagueCategories === null && !leagueCategoriesFailed;
+
   const seedCategoryIds = useMemo(
     () => [
       ...new Set(
@@ -87,7 +109,26 @@ export default function CategoryTemplateFormPage() {
     [nominations],
   );
 
+  // Leagues actually used by this template's nominations, by name — the same
+  // name an entry carries in `league`.
+  const leagueNames = useMemo(() => {
+    const used = new Set(nominations.flatMap((n) => n.categoryIds));
+    const known = [
+      ...(leagueCategories ?? []),
+      ...(axes?.[LEAGUE_CATEGORY_TYPE] ?? []),
+      ...extraCategories,
+    ];
+    return [
+      ...new Set(
+        known
+          .filter((c) => c.type === LEAGUE_CATEGORY_TYPE && used.has(c.id))
+          .map((c) => c.name.trim()),
+      ),
+    ].sort();
+  }, [nominations, leagueCategories, axes, extraCategories]);
+
   const handleSave = async () => {
+    if (leagueCategoriesLoading) return;
     if (!name.trim()) {
       setNameError(true);
       return;
@@ -131,6 +172,11 @@ export default function CategoryTemplateFormPage() {
       name: name.trim(),
       description: description.trim() || undefined,
       isPublic,
+      // Without the league list there is nothing reliable to validate
+      // against — keep the loaded values rather than wipe them.
+      allMedalLeagues: leagueCategoriesFailed
+        ? allMedalLeagues
+        : allMedalLeagues.filter((name) => leagueNames.includes(name)),
       nominations: nominations.map((n, index) => ({
         name: n.name.trim(),
         allowsImprovisation: n.allowsImprovisation,
@@ -259,6 +305,14 @@ export default function CategoryTemplateFormPage() {
                 }
               />
 
+              <section className={styles.panel}>
+                <AllMedalLeaguesField
+                  leagueNames={leagueNames}
+                  selected={allMedalLeagues}
+                  onChange={setAllMedalLeagues}
+                />
+              </section>
+
               <div className={styles.actions}>
                 <Link to="/category-templates" className={styles.btn}>
                   Скасувати
@@ -267,7 +321,7 @@ export default function CategoryTemplateFormPage() {
                   type="button"
                   className={styles.btnGold}
                   onClick={() => void handleSave()}
-                  disabled={submitting}
+                  disabled={submitting || leagueCategoriesLoading}
                 >
                   {submitting
                     ? 'Збереження...'

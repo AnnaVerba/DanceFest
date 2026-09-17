@@ -1,7 +1,17 @@
-import { CATEGORY_TYPES, createCategoriesBulk } from './categories';
+import {
+  CATEGORY_TYPES,
+  LEAGUE_CATEGORY_TYPE,
+  createCategoriesBulk,
+} from './categories';
 import type { Category, CategoryType } from './categories';
 import type { ExitMode } from './categoryTemplates';
 import type { AgeRange } from './ageRange';
+import {
+  LISTED_NOMINATIONS_ELLIPSIS,
+  LISTED_NOMINATIONS_SEPARATOR,
+  MAX_LISTED_NOMINATIONS,
+  NOMINATION_LEAGUE_REQUIRED_MESSAGE,
+} from './nominationLeague.constants';
 
 export type AxisSelection = Record<CategoryType, Category[]>;
 
@@ -132,6 +142,34 @@ export async function resolveDraftCategories(
       signature: n.isSpecial ? n.signature : signatureOf(categoryIds),
     };
   });
+}
+
+// A league is either a saved category (its id is in `leagueIds`) or a draft
+// one not yet created, whose type is encoded in the id itself.
+export function nominationsWithoutLeague(
+  nominations: DraftNomination[],
+  leagueIds: ReadonlySet<string>,
+): DraftNomination[] {
+  return nominations.filter(
+    (n) =>
+      !n.categoryIds.some(
+        (id) =>
+          leagueIds.has(id) ||
+          parseDraftCategory(id)?.type === LEAGUE_CATEGORY_TYPE,
+      ),
+  );
+}
+
+export function missingLeagueMessage(nominations: DraftNomination[]): string {
+  const listed = nominations
+    .slice(0, MAX_LISTED_NOMINATIONS)
+    .map((n) => n.name)
+    .join(LISTED_NOMINATIONS_SEPARATOR);
+  const more =
+    nominations.length > MAX_LISTED_NOMINATIONS
+      ? `${LISTED_NOMINATIONS_SEPARATOR}${LISTED_NOMINATIONS_ELLIPSIS}`
+      : '';
+  return `${NOMINATION_LEAGUE_REQUIRED_MESSAGE}: ${listed}${more}`;
 }
 
 const NOMINATION_NOUNS = ['номінація', 'номінації', 'номінацій'] as const;

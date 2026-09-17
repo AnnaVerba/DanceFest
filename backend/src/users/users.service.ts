@@ -1,11 +1,21 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { CreationAttributes, Op } from 'sequelize';
-import { AccessLevel, isHigherLevel } from '../auth/access-level.enum';
+import {
+  CreationAttributes,
+  Op,
+  Transaction,
+  UniqueConstraintError,
+} from 'sequelize';
+import {
+  AccessLevel,
+  isHigherLevel,
+  meetsLevel,
+} from '../auth/access-level.enum';
 import { SchoolsService } from '../schools/schools.service';
 import { School } from '../schools/school.model';
 import { User } from './user.model';
@@ -19,14 +29,27 @@ import {
   PARTICIPANT_SEARCH_MIN_CHARS,
   nameWhere,
 } from './participant-search';
-import { TYPEAHEAD_LIMIT, resolveTypeahead } from '../common/pagination';
+import {
+  PagedResult,
+  TYPEAHEAD_LIMIT,
+  resolvePage,
+  resolveTypeahead,
+} from '../common/pagination';
+import { userSearchWhere } from './user-search';
+import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
+import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import {
   LEVEL_ONLY_GOES_UP_MESSAGE,
   MENTOR_COACH_NOT_FOUND_MESSAGE,
   MENTOR_COACH_ONE_OF_MESSAGE,
   MENTOR_COACH_REQUIRED_MESSAGE,
+  DEFAULT_USERS_PAGE_SIZE,
+  MAX_USERS_PAGE_SIZE,
+  PARTICIPANT_PHONE_TAKEN_MESSAGE,
+  USER_CONTACT_TAKEN_MESSAGE,
   ONLY_COACH_SELF_UPGRADE_MESSAGE,
   SCHOOL_REQUIRED_FOR_COACH_MESSAGE,
+  SCHOOL_ONLY_FOR_COACH_MESSAGE,
   USER_NOT_FOUND_MESSAGE,
 } from './users.constants';
 
@@ -54,7 +77,7 @@ export interface RosterParticipantData {
   email: string | null;
   passwordHash: string | null;
   birthDate: string;
-  coachId: string;
+  coachId: string | null;
 }
 
 export type LinkRegistrationFields = Partial<
@@ -79,20 +102,24 @@ export class UsersService {
     private readonly schoolsService: SchoolsService,
   ) {}
 
-  findById(id: string): Promise<User | null> {
-    return this.userModel.findByPk(id);
+  findById(id: string, transaction?: Transaction): Promise<User | null> {
+    return this.userModel.findByPk(id, { transaction });
   }
 
-  async findByIdOrFail(id: string): Promise<User> {
-    const user = await this.findById(id);
+  async findByIdOrFail(id: string, transaction?: Transaction): Promise<User> {
+    const user = await this.findById(id, transaction);
     if (!user) {
       throw new NotFoundException(USER_NOT_FOUND_MESSAGE);
     }
     return user;
   }
 
-  findByPhone(phone: string): Promise<User | null> {
-    return this.userModel.findOne({ where: { phone } });
+  findByEmail(email: string): Promise<User | null> {
+    return this.userModel.findOne({ where: { email } });
+  }
+
+  findByPhone(phone: string, transaction?: Transaction): Promise<User | null> {
+    return this.userModel.findOne({ where: { phone }, transaction });
   }
 
   create(data: CreateUserData): Promise<User> {
@@ -104,8 +131,9 @@ export class UsersService {
     fields: Partial<
       Pick<User, 'accessLevel' | 'schoolId' | 'coachId' | 'birthDate'>
     >,
+    transaction?: Transaction,
   ): Promise<void> {
-    await this.userModel.update(fields, { where: { id: userId } });
+    await this.userModel.update(fields, { where: { id: userId }, transaction });
   }
 
   async getFullProfile(userId: string): Promise<{
@@ -143,23 +171,29 @@ export class UsersService {
   // A mentor coach a user named who is not in the system yet. Keyed by
   // phone: if a row with that phone already exists (stub or real), reuse
   // it rather than creating a duplicate.
-  async createPlaceholderCoach(data: PlaceholderCoachData): Promise<User> {
-    const existing = await this.findByPhone(data.phone.trim());
+  async createPlaceholderCoach(
+    data: PlaceholderCoachData,
+    transaction?: Transaction,
+  ): Promise<User> {
+    const existing = await this.findByPhone(data.phone.trim(), transaction);
     if (existing) {
       return existing;
     }
-    return this.userModel.create({
-      firstName: data.firstName,
-      lastName: data.lastName,
-      phone: data.phone.trim(),
-      email: null,
-      passwordHash: null,
-      birthDate: null,
-      accessLevel: AccessLevel.COACH,
-      schoolId: null,
-      coachId: null,
-      confirmed: false,
-    } as CreationAttributes<User>);
+    return this.userModel.create(
+      {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone.trim(),
+        email: null,
+        passwordHash: null,
+        birthDate: null,
+        accessLevel: AccessLevel.COACH,
+        schoolId: null,
+        coachId: null,
+        confirmed: false,
+      } as CreationAttributes<User>,
+      { transaction },
+    );
   }
 
   // The real person registers with a stub's phone: fold the form data
@@ -190,7 +224,10 @@ export class UsersService {
   // Turn a "pick existing / describe new" choice into a concrete coach id,
   // creating a placeholder row for a named new coach. Does not persist the
   // link — the caller decides when and alongside what.
-  async resolveMentorCoachId(selection: MentorCoachSelection): Promise<string> {
+  async resolveMentorCoachId(
+    selection: MentorCoachSelection,
+    transaction?: Transaction,
+  ): Promise<string> {
     const hasExisting = Boolean(selection.coachId);
     const hasNew = Boolean(selection.newCoach);
     if (hasExisting === hasNew) {
@@ -201,13 +238,16 @@ export class UsersService {
       );
     }
     if (selection.coachId) {
-      const coach = await this.findById(selection.coachId);
+      const coach = await this.findById(selection.coachId, transaction);
       if (!coach) {
         throw new NotFoundException(MENTOR_COACH_NOT_FOUND_MESSAGE);
       }
       return selection.coachId;
     }
-    const created = await this.createPlaceholderCoach(selection.newCoach!);
+    const created = await this.createPlaceholderCoach(
+      selection.newCoach!,
+      transaction,
+    );
     return created.id;
   }
 
@@ -334,6 +374,96 @@ export class UsersService {
     return this.findByIdOrFail(userId);
   }
 
+  // ADMIN: every user, a page at a time, optionally narrowed by a search
+  // over name, email and phone.
+  async listForAdmin(
+    rawPage?: string,
+    rawPageSize?: string,
+    query?: string,
+  ): Promise<PagedResult<User>> {
+    const { page, pageSize, limit, offset } = resolvePage(
+      rawPage,
+      rawPageSize,
+      DEFAULT_USERS_PAGE_SIZE,
+      MAX_USERS_PAGE_SIZE,
+    );
+    const { rows, count } = await this.userModel.findAndCountAll({
+      where: userSearchWhere(query),
+      include: [School],
+      order: [
+        ['lastName', 'ASC'],
+        ['firstName', 'ASC'],
+      ],
+      limit,
+      offset,
+      distinct: true,
+    });
+    return { rows, total: count, page, pageSize };
+  }
+
+  // ADMIN: edit any user's profile. A phone or email another account
+  // already has is refused.
+  async adminUpdate(
+    userId: string,
+    dto: AdminUpdateUserDto,
+    transaction?: Transaction,
+  ): Promise<User> {
+    const user = await this.findByIdOrFail(userId, transaction);
+    try {
+      await user.update(
+        {
+          ...dto,
+          ...(dto.firstName !== undefined && {
+            firstName: dto.firstName.trim(),
+          }),
+          ...(dto.lastName !== undefined && { lastName: dto.lastName.trim() }),
+          ...(dto.phone !== undefined && { phone: dto.phone.trim() }),
+        },
+        { transaction },
+      );
+    } catch (err) {
+      if (err instanceof UniqueConstraintError) {
+        throw new ConflictException(USER_CONTACT_TAKEN_MESSAGE);
+      }
+      throw err;
+    }
+    return user.reload({ include: [School], transaction });
+  }
+
+  // A user editing their own profile. Contact fields go through the admin
+  // edit (same trimming and taken-email handling); the school and mentor
+  // coach are checked first. Everything runs in one transaction, so a
+  // taken email or a failed write also rolls back a placeholder coach.
+  async updateOwnProfile(
+    userId: string,
+    dto: UpdateMyProfileDto,
+  ): Promise<void> {
+    const { schoolId, coachId, newCoach, ...contact } = dto;
+    const fields: Partial<Pick<User, 'schoolId' | 'coachId'>> = {};
+
+    if (schoolId !== undefined) {
+      const user = await this.findByIdOrFail(userId);
+      if (!meetsLevel(user.accessLevel, AccessLevel.COACH)) {
+        throw new BadRequestException(SCHOOL_ONLY_FOR_COACH_MESSAGE);
+      }
+      await this.schoolsService.findByIdOrFail(schoolId);
+      fields.schoolId = schoolId;
+    }
+
+    await this.userModel.sequelize!.transaction(async (transaction) => {
+      if (coachId !== undefined || newCoach !== undefined) {
+        fields.coachId = await this.resolveMentorCoachId(
+          { coachId, newCoach },
+          transaction,
+        );
+      }
+      await this.adminUpdate(userId, contact, transaction);
+      if (Object.keys(fields).length > 0) {
+        await this.updateFields(userId, fields, transaction);
+      }
+    });
+  }
+
   // The coach's whole roster — for internal use (my-entries, my-program
   // highlighting). Sanity-capped, never truly unbounded.
   listRosterByCoach(coachUserId: string): Promise<User[]> {
@@ -369,18 +499,25 @@ export class UsersService {
 
   // A coach adds a dancer to their roster: a credential-less PARTICIPANT
   // account until the dancer claims it by phone.
-  createRosterParticipant(data: RosterParticipantData): Promise<User> {
-    return this.userModel.create({
-      firstName: data.firstName,
-      lastName: data.lastName,
-      phone: data.phone,
-      email: data.email,
-      passwordHash: data.passwordHash,
-      birthDate: data.birthDate,
-      accessLevel: AccessLevel.PARTICIPANT,
-      schoolId: null,
-      coachId: data.coachId,
-      confirmed: false,
-    } as CreationAttributes<User>);
+  async createRosterParticipant(data: RosterParticipantData): Promise<User> {
+    try {
+      return await this.userModel.create({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone,
+        email: data.email,
+        passwordHash: data.passwordHash,
+        birthDate: data.birthDate,
+        accessLevel: AccessLevel.PARTICIPANT,
+        schoolId: null,
+        coachId: data.coachId,
+        confirmed: false,
+      } as CreationAttributes<User>);
+    } catch (err) {
+      if (err instanceof UniqueConstraintError) {
+        throw new ConflictException(PARTICIPANT_PHONE_TAKEN_MESSAGE);
+      }
+      throw err;
+    }
   }
 }

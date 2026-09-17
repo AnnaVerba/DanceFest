@@ -29,6 +29,17 @@ export class CreateCategoryTemplateDto {
   @IsBoolean()
   isPublic?: boolean;
 
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['Дебют', 'Перші кроки'],
+    description:
+      'Leagues where every performance of a category gets a place medal.',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  allMedalLeagues?: string[];
+
   @ApiProperty({ type: [TemplateNominationDto] })
   @IsArray()
   @ArrayNotEmpty()

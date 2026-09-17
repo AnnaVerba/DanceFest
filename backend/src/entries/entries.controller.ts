@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -24,6 +25,8 @@ import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { EntriesService } from './entries.service';
 import { CreateEntryDto } from './dto/create-entry.dto';
 import { BulkCreateEntriesDto } from './dto/bulk-create-entries.dto';
+import { UpdateEntryDto } from './dto/update-entry.dto';
+import { UpdateEntryExtraTimeDto } from './dto/update-entry-extra-time.dto';
 
 @ApiTags('entries')
 @Controller('competitions/:competitionId/entries')
@@ -97,6 +100,22 @@ export class EntriesController {
   @Get('count')
   count(@Param('competitionId') competitionId: string) {
     return this.entriesService.count(competitionId);
+  }
+
+  @ApiOperation({
+    summary: "Public — aggregate numbers about a competition's entries",
+    description:
+      'No login required. Counts only — no names, studios or cities are listed.',
+  })
+  @ApiResponse({ status: 200, description: 'Stats returned.' })
+  @ApiResponse({
+    status: 404,
+    description: 'No competition exists with the given id.',
+  })
+  @Public()
+  @Get('stats')
+  stats(@Param('competitionId') competitionId: string) {
+    return this.entriesService.stats(competitionId);
   }
 
   @ApiOperation({
@@ -185,6 +204,88 @@ export class EntriesController {
       entryId,
       admin.id,
       admin.accessLevel,
+    );
+  }
+
+  @ApiOperation({ summary: 'One entry with its dancers (staff only)' })
+  @ApiResponse({ status: 200, description: 'Entry returned.' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'The caller has no access to this competition.',
+  })
+  @ApiResponse({ status: 404, description: 'Competition or entry not found.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get(':entryId')
+  findOne(
+    @Param('competitionId') competitionId: string,
+    @Param('entryId') entryId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.entriesService.findOneForStaff(competitionId, entryId, user);
+  }
+
+  @ApiOperation({
+    summary: 'Edit an entry: dancers, nomination, routine name and details',
+  })
+  @ApiResponse({ status: 200, description: 'Entry updated.' })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation failed or the nomination lacks this program.',
+  })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'The caller has no access to this competition.',
+  })
+  @ApiResponse({ status: 404, description: 'Competition or entry not found.' })
+  @ApiResponse({
+    status: 409,
+    description: 'A dancer already performs in this nomination.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Patch(':entryId')
+  update(
+    @Param('competitionId') competitionId: string,
+    @Param('entryId') entryId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateEntryDto,
+  ) {
+    return this.entriesService.update(competitionId, entryId, dto, user);
+  }
+
+  @ApiOperation({
+    summary: 'Record purchased additional on-stage time for an entry',
+    description:
+      'Records the +30/+60 sec purchased for a performance that ran over ' +
+      'its limit, and the fee charged for it. Returns the updated entry ' +
+      "and the entry's total amount due.",
+  })
+  @ApiResponse({ status: 200, description: 'Extra time recorded.' })
+  @ApiResponse({ status: 400, description: 'Validation failed.' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'The caller has no access to this competition.',
+  })
+  @ApiResponse({ status: 404, description: 'Competition or entry not found.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Patch(':entryId/extra-time')
+  updateExtraTime(
+    @Param('competitionId') competitionId: string,
+    @Param('entryId') entryId: string,
+    @CurrentUser() admin: AuthenticatedAdmin,
+    @Body() dto: UpdateEntryExtraTimeDto,
+  ) {
+    return this.entriesService.updateExtraTime(
+      competitionId,
+      entryId,
+      admin.id,
+      admin.accessLevel,
+      dto,
     );
   }
 }

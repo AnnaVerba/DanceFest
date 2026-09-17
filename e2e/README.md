@@ -73,8 +73,6 @@ visible browser; `npm run report` opens the last HTML report.
 |---|---|---|
 | BUG-1 — anonymous competition access redirected to `/login` | `known-bugs/bug-1-anonymous-competition-access.spec.ts` | **Fixed** — asserted as a plain (non-`test.fail()`) regression test |
 | BUG-2 — `POST /category-templates` → 500 | `known-bugs/bug-2-category-template-creation.spec.ts` | Still broken — `test.fail()`. Root cause seen in backend logs: the `category_templates_authorId_fkey` foreign key still points at `admins`, violated whenever the author is an Organizer |
-| BUG-3 — `/dashboard` has no role check | `known-bugs/bug-3-dashboard-role-guard.spec.ts` | Still broken — `test.fail()` |
-| BUG-4 — dashboard competition list not scoped to the owner | `known-bugs/bug-4-dashboard-ownership-scope.spec.ts` | Still broken — `test.fail()` |
 
 ## Out of scope (intentionally, per Developer's call)
 

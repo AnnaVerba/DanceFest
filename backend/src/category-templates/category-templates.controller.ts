@@ -38,7 +38,7 @@ export class CategoryTemplatesController {
   @ApiOperation({
     summary: 'List category templates',
     description:
-      "Returns every public template plus the caller's own private ones, each with its " +
+      "Returns every public template plus the caller's own private ones (an admin gets all), each with its " +
       'nomination count, its criteria grouped by axis, and its special nominations.',
   })
   @ApiQuery({
@@ -55,7 +55,13 @@ export class CategoryTemplatesController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
-    return this.categoryTemplatesService.list(admin.id, search, page, pageSize);
+    return this.categoryTemplatesService.list(
+      admin.id,
+      admin.accessLevel,
+      search,
+      page,
+      pageSize,
+    );
   }
 
   @ApiOperation({
@@ -69,7 +75,11 @@ export class CategoryTemplatesController {
   })
   @Get(':id')
   findOne(@Param('id') id: string, @CurrentUser() admin: AuthenticatedAdmin) {
-    return this.categoryTemplatesService.findOne(id, admin.id);
+    return this.categoryTemplatesService.findOne(
+      id,
+      admin.id,
+      admin.accessLevel,
+    );
   }
 
   @ApiOperation({ summary: 'Create a category template' })
@@ -127,7 +137,12 @@ export class CategoryTemplatesController {
     @CurrentUser() admin: AuthenticatedAdmin,
     @Body() dto: ForkCategoryTemplateDto,
   ) {
-    return this.categoryTemplatesService.fork(id, admin.id, dto);
+    return this.categoryTemplatesService.fork(
+      id,
+      admin.id,
+      admin.accessLevel,
+      dto,
+    );
   }
 
   @ApiOperation({ summary: 'Delete a category template' })

@@ -15,6 +15,7 @@ import {
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
+import { RegisterConfirmDto } from './dto/register-confirm.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { OtpVerifyDto } from './dto/otp-verify.dto';
@@ -35,7 +36,34 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @ApiOperation({
-    summary: 'Register a new account (ADMIN, PARTICIPANT, COACH, or ORGANIZER)',
+    summary:
+      'Registration step 1: check the form and text a code to the phone (nothing is saved)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Code sent; returns the masked phone.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation failed for one or more fields.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'An account with this phone or email already exists.',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too soon, or the hourly send limit was reached.',
+  })
+  @HttpCode(HttpStatus.OK)
+  @Post('register/start')
+  startRegistration(@Body() dto: RegisterDto) {
+    return this.authService.startRegistration(dto);
+  }
+
+  @ApiOperation({
+    summary:
+      'Registration step 2: verify the SMS code and create the account (PARTICIPANT or COACH)',
   })
   @ApiResponse({
     status: 201,
@@ -46,12 +74,13 @@ export class AuthController {
     description: 'Validation failed for one or more fields.',
   })
   @ApiResponse({
-    status: 409,
-    description: 'An account with this phone already exists.',
+    status: 401,
+    description:
+      'The phone or email is taken, or the code is wrong, expired, or used up.',
   })
   @Post('register')
   register(
-    @Body() dto: RegisterDto,
+    @Body() dto: RegisterConfirmDto,
     @ClientContextParam() ctx: ClientContext,
   ) {
     return this.authService.register(dto, ctx);

@@ -5,3 +5,5 @@ export const SCHOOL_CREATE_FAILED_MESSAGE = 'Не вдалося створит�
 // and tells the user so. The server accepts fewer, but the picker stays
 // stricter to keep the dropdown meaningful.
 export const SCHOOL_TYPEAHEAD_MIN_CHARS = 3;
+
+export const SCHOOL_REQUIRED_MESSAGE = 'Оберіть або створіть школу';

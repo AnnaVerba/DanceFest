@@ -1,0 +1,29 @@
+/* Pinned behind every page: fixed to the viewport, below all content, never
+   narrower than a desktop frame (centred) so phones keep the curves' shape. */
+.root {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  z-index: -1;
+  width: 100%;
+  min-width: 1200px;
+  height: 100vh;
+  min-height: 720px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.cool,
+.warm {
+  fill: none;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.cool {
+  stroke: var(--g-backdrop-cool);
+}
+
+.warm {
+  stroke: var(--g-backdrop-warm);
+}

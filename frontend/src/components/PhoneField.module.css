@@ -15,7 +15,7 @@
 
 .phone:focus-within {
   border-color: var(--g-accent);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 0 0 3px rgba(53, 102, 76, 0.15);
   background: var(--g-surface);
 }
 

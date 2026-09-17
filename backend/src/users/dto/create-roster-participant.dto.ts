@@ -52,7 +52,7 @@ export class CreateRosterParticipantDto {
 
   @ApiProperty({
     description:
-      'Required when the caller is an ORGANIZER; ignored for a COACH (forced to the caller).',
+      'Optional for an ORGANIZER — omitted, the dancer is created with no coach; ignored for a COACH (forced to the caller).',
     required: false,
   })
   @IsOptional()

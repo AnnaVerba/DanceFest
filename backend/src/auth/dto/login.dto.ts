@@ -3,7 +3,10 @@ import { IsNotEmpty } from 'class-validator';
 import { IsE164Phone } from '../../common/validation/is-e164-phone.validator';
 
 export class LoginDto {
-  @ApiProperty({ example: '+380671234567' })
+  @ApiProperty({
+    example: '+380671234567',
+    description: 'Phone number.',
+  })
   @IsNotEmpty()
   @IsE164Phone()
   login: string;

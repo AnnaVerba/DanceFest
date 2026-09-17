@@ -15,8 +15,10 @@ import { CategoriesModule } from './categories/categories.module';
 import { CategoryTemplatesModule } from './category-templates/category-templates.module';
 import { PaymentDetailsModule } from './payment-details/payment-details.module';
 import { CompetitionRulesModule } from './competition-rules/competition-rules.module';
+import { OveragesModule } from './overages/overages.module';
 import { ScheduleModule as NestScheduleModule } from '@nestjs/schedule';
 import { ScheduleModule } from './schedule/schedule.module';
+import { AwardsModule } from './awards/awards.module';
 import { MailModule } from './mail/mail.module';
 import { SmsModule } from './sms/sms.module';
 import { UploadsModule } from './uploads/uploads.module';
@@ -46,6 +48,7 @@ import { AppBootstrapModule } from './app-bootstrap/app-bootstrap.module';
         database: config.get<string>('DB_NAME'),
         autoLoadModels: true,
         synchronize: false,
+        logging: false,
       }),
     }),
     BullModule.forRootAsync({
@@ -75,7 +78,9 @@ import { AppBootstrapModule } from './app-bootstrap/app-bootstrap.module';
     PaymentDetailsModule,
     UploadsModule,
     CompetitionRulesModule,
+    OveragesModule,
     ScheduleModule,
+    AwardsModule,
     SchoolsModule,
     UsersModule,
     CompetitionParticipantNumbersModule,

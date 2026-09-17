@@ -57,6 +57,11 @@ export class PaymentDetailsController {
     @CurrentUser() admin: AuthenticatedAdmin,
     @Body() dto: UpsertPaymentDetailsDto,
   ) {
-    return this.paymentDetailsService.upsert(competitionId, admin.id, dto);
+    return this.paymentDetailsService.upsert(
+      competitionId,
+      admin.id,
+      admin.accessLevel,
+      dto,
+    );
   }
 }

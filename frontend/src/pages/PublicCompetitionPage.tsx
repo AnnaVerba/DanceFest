@@ -1,9 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import CompetitionDetails from '../components/CompetitionDetails';
+import CompetitionFacts from '../components/CompetitionFacts';
 import ContestIcon from '../components/ContestIcon';
+import FestivalProgram from '../components/program/FestivalProgram';
+import { PROGRAM_TITLE } from '../components/program/FestivalProgram.constants';
 import { getApplyEligibility, getCompetition } from '../lib/competitions';
-import { getEntriesCount } from '../lib/entries';
+import { getEntriesCount, getEntryStats } from '../lib/entries';
 import { getVenues } from '../lib/venues';
 import { queryKeys } from '../lib/queryKeys';
 import styles from './PublicCompetitionPage.module.css';
@@ -31,6 +34,14 @@ export default function PublicCompetitionPage() {
     retry: false,
   });
   const entriesCount = entriesCountQuery.data ?? null;
+
+  const statsQuery = useQuery({
+    queryKey: queryKeys.entryStats(id ?? ''),
+    queryFn: () => getEntryStats(id!),
+    enabled: !!id,
+    retry: false,
+  });
+  const stats = statsQuery.data ?? null;
 
   const venuesQuery = useQuery({
     queryKey: queryKeys.venues(id ?? ''),
@@ -74,6 +85,7 @@ export default function PublicCompetitionPage() {
               {(() => {
                 const apply = getApplyEligibility(competition, {
                   isOrganizer: false,
+                  isAdmin: false,
                 });
                 return (
                   <>
@@ -85,12 +97,6 @@ export default function PublicCompetitionPage() {
                         <ContestIcon />
                       </span>
                       <h1>{competition.name}</h1>
-                      <Link
-                        to={`/competitions/${id}/schedule`}
-                        className={styles.programLink}
-                      >
-                        Програма фестивалю
-                      </Link>
                       <Link
                         to={`/competitions/${id}/entries`}
                         className={styles.programLink}
@@ -126,6 +132,10 @@ export default function PublicCompetitionPage() {
                 entriesCount={entriesCount}
               />
 
+              {stats && stats.performances > 0 && (
+                <CompetitionFacts stats={stats} />
+              )}
+
               {venues.length > 0 && (
                 <section className={styles.venues}>
                   <h2 className={styles.venuesHeading}>Майданчики</h2>
@@ -143,6 +153,11 @@ export default function PublicCompetitionPage() {
                   </ul>
                 </section>
               )}
+
+              <section className={styles.venues}>
+                <h2 className={styles.venuesHeading}>{PROGRAM_TITLE}</h2>
+                <FestivalProgram competitionId={id} />
+              </section>
             </article>
           )}
         </div>

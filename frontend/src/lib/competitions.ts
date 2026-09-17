@@ -5,6 +5,7 @@ import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
 import {
   COMPETITION_SAVE_FAILED_MESSAGE,
   COMPETITION_DELETE_FAILED_MESSAGE,
+  COMPETITIONS_LOAD_FAILED_MESSAGE,
 } from './competitions.constants';
 import type { CompetitionStatus } from './competitionStatus';
 import type { PaymentDetails } from './paymentDetails';
@@ -55,6 +56,7 @@ export interface CompetitionsQuery {
   pageSize?: number;
   q?: string;
   year?: number;
+  status?: string;
 }
 
 export interface PagedCompetitions {
@@ -64,18 +66,37 @@ export interface PagedCompetitions {
   pageSize: number;
 }
 
-export async function getCompetitions(
-  query: CompetitionsQuery = {},
-): Promise<PagedCompetitions> {
+function competitionsQuerySuffix(query: CompetitionsQuery): string {
   const params = new URLSearchParams();
   if (query.page != null) params.set('page', String(query.page));
   if (query.pageSize != null) params.set('pageSize', String(query.pageSize));
   if (query.q?.trim()) params.set('q', query.q.trim());
   if (query.year != null) params.set('year', String(query.year));
-  const suffix = params.toString() ? `?${params}` : '';
-  const response = await fetch(`${API_BASE_URL}/competitions${suffix}`);
+  if (query.status) params.set('status', query.status);
+  return params.toString() ? `?${params}` : '';
+}
+
+export async function getCompetitions(
+  query: CompetitionsQuery = {},
+): Promise<PagedCompetitions> {
+  const response = await fetch(
+    `${API_BASE_URL}/competitions${competitionsQuerySuffix(query)}`,
+  );
   if (!response.ok) {
-    throw new Error('Не вдалося завантажити конкурси');
+    throw new Error(COMPETITIONS_LOAD_FAILED_MESSAGE);
+  }
+  return response.json() as Promise<PagedCompetitions>;
+}
+
+// The signed-in organizer's own competitions: owner or team member.
+export async function getMyCompetitions(
+  query: CompetitionsQuery = {},
+): Promise<PagedCompetitions> {
+  const response = await authorizedFetch(
+    `/competitions/mine${competitionsQuerySuffix(query)}`,
+  );
+  if (!response.ok) {
+    throw new Error(COMPETITIONS_LOAD_FAILED_MESSAGE);
   }
   return response.json() as Promise<PagedCompetitions>;
 }
@@ -203,12 +224,16 @@ export interface ApplyEligibility {
 }
 
 // Can this actor still start / submit an application to this competition?
-// - competition day passed → no one (organizers included)
-// - registration day passed → only organizers / admins
+// - admin → always, deadlines included
+// - competition day passed → no one else (organizers included)
+// - registration day passed → only organizers
 export function getApplyEligibility(
   c: Pick<Competition, 'registrationTo' | 'dateTo'>,
-  opts: { isOrganizer: boolean },
+  opts: { isOrganizer: boolean; isAdmin: boolean },
 ): ApplyEligibility {
+  if (opts.isAdmin) {
+    return { allowed: true, reason: null };
+  }
   if (dayHasPassed(c.dateTo)) {
     return { allowed: false, reason: APPLY_BLOCKED_COMPETITION_OVER };
   }

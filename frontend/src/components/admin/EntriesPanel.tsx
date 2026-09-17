@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { InfiniteData } from '@tanstack/react-query';
 import ConfirmDialog from './ConfirmDialog';
+import EntryEditModal from './EntryEditModal';
 import { deleteEntry, getEntries } from '../../lib/entries';
 import type { Entry, PagedEntries } from '../../lib/entries';
 import { formatParticipantNumbers } from '../../lib/participantNumbers';
@@ -25,8 +26,8 @@ interface EntriesPanelProps {
   onError: (message: string) => void;
 }
 
-function formatScore(score: number | null): string {
-  return score === null ? '—' : score.toFixed(1);
+function formatScore(score: number | null | undefined): string {
+  return score == null ? '—' : score.toFixed(1);
 }
 
 function uniqueValues(entries: Entry[], pick: (e: Entry) => string | null): string[] {
@@ -47,8 +48,12 @@ export default function EntriesPanel({
   canManage,
   onError,
 }: EntriesPanelProps) {
+  // The score column is staff-only: a non-managing viewer gets the plain
+  // start list, and the server omits `score` from their entry payload.
+  const showScore = FEATURES.judges && canManage;
   const queryClient = useQueryClient();
   const [pendingDelete, setPendingDelete] = useState<Entry | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
   const [nomination, setNomination] = useState(ALL);
@@ -116,6 +121,21 @@ export default function EntriesPanel({
     } finally {
       setPendingDelete(null);
     }
+  };
+
+  const handleSaved = (saved: Entry) => {
+    queryClient.setQueryData<InfiniteData<PagedEntries>>(
+      queryKeys.entries(competitionId),
+      (old) =>
+        old && {
+          ...old,
+          pages: old.pages.map((p) => ({
+            ...p,
+            rows: p.rows.map((e) => (e.id === saved.id ? saved : e)),
+          })),
+        },
+    );
+    setEditingId(null);
   };
 
   const nominations = useMemo(
@@ -243,7 +263,7 @@ export default function EntriesPanel({
           onChange={(e) => setSort(e.target.value as SortKey)}
         >
           {(Object.keys(SORT_LABELS) as SortKey[])
-            .filter((key) => FEATURES.judges || key !== 'score')
+            .filter((key) => showScore || key !== 'score')
             .map((key) => (
               <option key={key} value={key}>
                 {SORT_LABELS[key]}
@@ -274,7 +294,7 @@ export default function EntriesPanel({
                   <th scope="col">К-сть уч.</th>
                   <th scope="col">Студія</th>
                   <th scope="col">Хореограф</th>
-                  {FEATURES.judges && <th scope="col">Бал</th>}
+                  {showScore && <th scope="col">Бал</th>}
                   {canManage && (
                     <th scope="col" className={styles.colActions}>
                       <span hidden>Дії</span>
@@ -287,7 +307,7 @@ export default function EntriesPanel({
                   <tr>
                     <td
                       colSpan={
-                        (FEATURES.judges
+                        (showScore
                           ? BASE_COLUMN_COUNT
                           : BASE_COLUMN_COUNT - 1) +
                         (canManage ? ACTIONS_COLUMN_COUNT : 0)
@@ -310,10 +330,10 @@ export default function EntriesPanel({
                     <td>{entry.participantsCount ?? ''}</td>
                     <td>{entry.studioName}</td>
                     <td>{entry.choreographer}</td>
-                    {FEATURES.judges && (
+                    {showScore && (
                       <td
                         className={
-                          entry.score === null
+                          entry.score == null
                             ? `${styles.score} ${styles.scoreEmpty}`
                             : styles.score
                         }
@@ -323,6 +343,25 @@ export default function EntriesPanel({
                     )}
                     {canManage && (
                       <td className={styles.colActions}>
+                        <button
+                          className={styles.editBtn}
+                          type="button"
+                          aria-label={`Редагувати заявку №${entry.number}`}
+                          onClick={() => setEditingId(entry.id)}
+                        >
+                          <svg
+                            width="15"
+                            height="15"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                          </svg>
+                        </button>
                         <button
                           className={styles.iconBtn}
                           type="button"
@@ -388,6 +427,16 @@ export default function EntriesPanel({
             </div>
           )}
         </>
+      )}
+
+      {editingId && (
+        <EntryEditModal
+          key={editingId}
+          competitionId={competitionId}
+          entryId={editingId}
+          onClose={() => setEditingId(null)}
+          onSaved={handleSaved}
+        />
       )}
 
       <ConfirmDialog

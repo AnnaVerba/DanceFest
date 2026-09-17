@@ -17,6 +17,8 @@ import {
 } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
+import { AccessLevel } from '../auth/access-level.enum';
+import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import {
   COMPETITION_NOT_FOUND_MESSAGE,
   NO_COMPETITION_ACCESS_MESSAGE,
@@ -166,9 +168,9 @@ export class ScheduleService {
   async deleteDay(
     competitionId: string,
     dayId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
   ): Promise<void> {
-    await this.assertAccess(competitionId, requesterId);
+    await this.assertAccess(competitionId, requester);
     const day = await this.dayModel.findOne({
       where: { id: dayId, competitionId },
     });
@@ -412,10 +414,10 @@ export class ScheduleService {
 
   async buildSection(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
     dto: BuildSectionDto,
   ): Promise<SectionView> {
-    await this.assertAccess(competitionId, requesterId);
+    await this.assertAccess(competitionId, requester);
     await this.assertDay(competitionId, dto.dayId);
 
     if (dto.entryIds.length === 0) {
@@ -503,11 +505,11 @@ export class ScheduleService {
 
   async updateSection(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
     sectionId: string,
     dto: UpdateSectionDto,
   ): Promise<SectionView> {
-    await this.assertAccess(competitionId, requesterId);
+    await this.assertAccess(competitionId, requester);
     const section = await this.assertSection(competitionId, sectionId);
     if (dto.name !== undefined) section.name = dto.name.trim();
     if (dto.startTime !== undefined) section.startTime = dto.startTime;
@@ -517,10 +519,10 @@ export class ScheduleService {
 
   async deleteSection(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
     sectionId: string,
   ): Promise<void> {
-    await this.assertAccess(competitionId, requesterId);
+    await this.assertAccess(competitionId, requester);
     const section = await this.assertSection(competitionId, sectionId);
     await section.destroy();
   }
@@ -528,10 +530,10 @@ export class ScheduleService {
   // Order the «Початок відділення» rows of one day.
   async reorderSections(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
     dto: ReorderSectionsDto,
   ): Promise<{ sections: SectionView[] }> {
-    await this.assertAccess(competitionId, requesterId);
+    await this.assertAccess(competitionId, requester);
     await this.assertDay(competitionId, dto.dayId);
 
     const daySections = await this.sectionModel.findAll({
@@ -565,11 +567,11 @@ export class ScheduleService {
 
   async reorderSection(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
     sectionId: string,
     dto: ReorderSectionDto,
   ): Promise<SectionView> {
-    await this.assertAccess(competitionId, requesterId);
+    await this.assertAccess(competitionId, requester);
     const section = await this.assertSection(competitionId, sectionId);
     const items = await this.itemModel.findAll({
       where: { sectionId },
@@ -601,10 +603,10 @@ export class ScheduleService {
 
   async moveExit(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
     dto: MoveExitDto,
   ): Promise<{ sections: SectionView[] }> {
-    await this.assertAccess(competitionId, requesterId);
+    await this.assertAccess(competitionId, requester);
     const sectionIds = await this.competitionSectionIds(competitionId);
 
     const item = await this.itemModel.findOne({
@@ -645,11 +647,11 @@ export class ScheduleService {
 
   async mergeGroups(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
     sectionId: string,
     dto: MergeGroupsDto,
   ): Promise<SectionView> {
-    await this.assertAccess(competitionId, requesterId);
+    await this.assertAccess(competitionId, requester);
     const section = await this.assertSection(competitionId, sectionId);
     if (new Set(dto.groupKeys).size < 2) {
       throw new BadRequestException(MERGE_NEEDS_TWO_GROUPS_MESSAGE);
@@ -663,11 +665,11 @@ export class ScheduleService {
 
   async unmergeGroup(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
     sectionId: string,
     groupKey: string,
   ): Promise<SectionView> {
-    await this.assertAccess(competitionId, requesterId);
+    await this.assertAccess(competitionId, requester);
     const section = await this.assertSection(competitionId, sectionId);
     await this.itemModel.update(
       { mergedGroupLabel: null },
@@ -680,11 +682,11 @@ export class ScheduleService {
 
   async addRow(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
     sectionId: string,
     dto: AddRowDto,
   ): Promise<SectionView> {
-    await this.assertAccess(competitionId, requesterId);
+    await this.assertAccess(competitionId, requester);
     const section = await this.assertSection(competitionId, sectionId);
     const items = await this.itemModel.findAll({
       where: { sectionId },
@@ -730,12 +732,12 @@ export class ScheduleService {
 
   async updateRow(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
     sectionId: string,
     itemId: string,
     dto: UpdateRowDto,
   ): Promise<SectionView> {
-    await this.assertAccess(competitionId, requesterId);
+    await this.assertAccess(competitionId, requester);
     const section = await this.assertSection(competitionId, sectionId);
     const item = await this.itemModel.findOne({
       where: { id: itemId, sectionId },
@@ -756,11 +758,11 @@ export class ScheduleService {
 
   async deleteRow(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
     sectionId: string,
     itemId: string,
   ): Promise<SectionView> {
-    await this.assertAccess(competitionId, requesterId);
+    await this.assertAccess(competitionId, requester);
     const section = await this.assertSection(competitionId, sectionId);
     const item = await this.itemModel.findOne({
       where: { id: itemId, sectionId },
@@ -779,10 +781,10 @@ export class ScheduleService {
 
   async recalculate(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
     dto: RecalculateScheduleDto,
   ): Promise<{ sections: SectionView[] }> {
-    await this.assertAccess(competitionId, requesterId);
+    await this.assertAccess(competitionId, requester);
     const rules = await this.rulesService.getRules(competitionId);
 
     const sections = dto.sectionId
@@ -848,12 +850,12 @@ export class ScheduleService {
 
   async listUnassigned(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
     filter: UnassignedFilter,
     rawPage: string | undefined,
     rawPageSize: string | undefined,
   ): Promise<PagedResult<UnassignedExitView>> {
-    await this.assertAccess(competitionId, requesterId);
+    await this.assertAccess(competitionId, requester);
     const { page, pageSize, limit, offset } = resolvePage(
       rawPage,
       rawPageSize,
@@ -892,9 +894,9 @@ export class ScheduleService {
   // fills the pool's filter dropdowns without shipping every row.
   async unassignedFacets(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
   ): Promise<{ leagues: string[]; ageCategories: string[] }> {
-    await this.assertAccess(competitionId, requesterId);
+    await this.assertAccess(competitionId, requester);
     const where = await this.unassignedWhere(competitionId, {});
     const rows = await this.entryModel.findAll({
       where,
@@ -917,10 +919,10 @@ export class ScheduleService {
   // when the list itself is paginated.
   async unassignedIds(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
     filter: UnassignedFilter,
   ): Promise<string[]> {
-    await this.assertAccess(competitionId, requesterId);
+    await this.assertAccess(competitionId, requester);
     const where = await this.unassignedWhere(competitionId, filter);
     const rows = await this.entryModel.findAll({
       where,
@@ -959,10 +961,10 @@ export class ScheduleService {
 
   async extendedProgram(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
   ): Promise<ExtendedProgramSection[]> {
     try {
-      await this.assertAccess(competitionId, requesterId);
+      await this.assertAccess(competitionId, requester);
     } catch {
       throw new ForbiddenException(EXTENDED_PROGRAM_FORBIDDEN_MESSAGE);
     }
@@ -1089,7 +1091,7 @@ export class ScheduleService {
     await this.persistOrder(ordered, transaction);
   }
 
-  private async assignedEntryIds(competitionId: string): Promise<string[]> {
+  async assignedEntryIds(competitionId: string): Promise<string[]> {
     const sectionIds = await this.competitionSectionIds(competitionId);
     if (sectionIds.length === 0) return [];
     const items = await this.itemModel.findAll({
@@ -1152,12 +1154,14 @@ export class ScheduleService {
 
   private async assertAccess(
     competitionId: string,
-    requesterId: string,
+    requester: AuthenticatedUser,
   ): Promise<Competition> {
     const competition = await this.assertCompetition(competitionId);
-    if (competition.ownerId === requesterId) return competition;
+    // A global admin manages every competition's schedule.
+    if (requester.accessLevel === AccessLevel.ADMIN) return competition;
+    if (competition.ownerId === requester.id) return competition;
     const membership = await this.competitionAdminModel.findOne({
-      where: { competitionId, adminId: requesterId },
+      where: { competitionId, adminId: requester.id },
     });
     if (!membership) {
       throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);

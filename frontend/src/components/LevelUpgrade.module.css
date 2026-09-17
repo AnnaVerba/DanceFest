@@ -11,7 +11,7 @@
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--g-accent);
+  color: var(--g-muted);
 }
 
 .current {
@@ -58,6 +58,11 @@
   display: grid;
   gap: 8px;
   max-width: 380px;
+}
+
+/* "Стати тренером" followed by the organizer request block. */
+.actions + .coachForm {
+  margin-top: 10px;
 }
 
 .fieldLabel {

@@ -71,7 +71,12 @@ export class NominationsController {
     @CurrentUser() admin: AuthenticatedAdmin,
     @Body() dto: CreateNominationDto,
   ) {
-    return this.nominationsService.create(competitionId, admin.id, dto);
+    return this.nominationsService.create(
+      competitionId,
+      admin.id,
+      admin.accessLevel,
+      dto,
+    );
   }
 
   @ApiOperation({
@@ -101,7 +106,12 @@ export class NominationsController {
     @CurrentUser() admin: AuthenticatedAdmin,
     @Body() dto: BulkCreateNominationsDto,
   ) {
-    return this.nominationsService.bulkCreate(competitionId, admin.id, dto);
+    return this.nominationsService.bulkCreate(
+      competitionId,
+      admin.id,
+      admin.accessLevel,
+      dto,
+    );
   }
 
   @ApiOperation({
@@ -137,6 +147,7 @@ export class NominationsController {
       competitionId,
       nominationId,
       admin.id,
+      admin.accessLevel,
       dto,
     );
   }
@@ -165,6 +176,7 @@ export class NominationsController {
       competitionId,
       nominationId,
       admin.id,
+      admin.accessLevel,
     );
   }
 }

@@ -28,6 +28,15 @@ export class CategoryTemplate extends Model<CategoryTemplate> {
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   declare isPublic: boolean;
 
+  // Ліги (за назвою, як на заявці), у яких медаль за місце отримує кожен
+  // номер категорії — Дебют, Перші кроки. Решта ліг нагороджує лише 1–3 місця.
+  @Column({
+    type: DataType.ARRAY(DataType.STRING),
+    allowNull: false,
+    defaultValue: [],
+  })
+  declare allMedalLeagues: string[];
+
   @ForeignKey(() => User)
   @Column({ type: DataType.UUID, allowNull: false })
   declare authorId: string;

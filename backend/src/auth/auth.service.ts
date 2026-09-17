@@ -11,6 +11,7 @@ import { UsersService } from '../users/users.service';
 import { User } from '../users/user.model';
 import { AccessLevel, isHigherLevel } from './access-level.enum';
 import { RegisterDto } from './dto/register.dto';
+import { RegisterConfirmDto } from './dto/register-confirm.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { OtpVerifyDto } from './dto/otp-verify.dto';
@@ -23,6 +24,7 @@ import { OtpRequired } from './otp-required.interface';
 import { isRealPhone, maskPhone } from './mask-phone';
 import {
   DEFAULT_REFRESH_EXPIRES_IN_SECONDS,
+  EMAIL_TAKEN_MESSAGE,
   PHONE_TAKEN_MESSAGE,
   FINGERPRINT_MISMATCH_MESSAGE,
   INVALID_CREDENTIALS_MESSAGE,
@@ -43,13 +45,27 @@ export class AuthService {
     private readonly otpService: OtpService,
   ) {}
 
-  async register(dto: RegisterDto, ctx: ClientContext): Promise<AuthResult> {
+  // Registration step 1: make sure the form can become an account, then
+  // text a code to the phone. Nothing is stored until step 2.
+  async startRegistration(dto: RegisterDto): Promise<{ phone: string }> {
+    const phone = dto.phone.trim();
+    await this.assertRegistrable(phone, dto.email);
+    await this.otpService.start(phone);
+    return { phone: maskPhone(phone) };
+  }
+
+  // Registration step 2: the account is created only after the SMS code
+  // proves the phone belongs to the person registering.
+  async register(
+    dto: RegisterConfirmDto,
+    ctx: ClientContext,
+  ): Promise<AuthResult> {
     // A coach names their school later, on /complete-profile.
     const phone = dto.phone.trim();
-    const byPhone = await this.usersService.findByPhone(phone);
-    if (byPhone && byPhone.confirmed) {
-      throw new UnauthorizedException(PHONE_TAKEN_MESSAGE);
-    }
+    // Re-checked: another account may have taken the phone or email
+    // between the two steps.
+    const byPhone = await this.assertRegistrable(phone, dto.email);
+    await this.otpService.verify(phone, dto.code);
 
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
 
@@ -63,6 +79,7 @@ export class AuthService {
       const linked = await this.usersService.linkRegistration(byPhone.id, {
         firstName: dto.firstName,
         lastName: dto.lastName,
+        email: dto.email,
         passwordHash,
         birthDate: dto.birthDate,
         accessLevel,
@@ -79,7 +96,7 @@ export class AuthService {
       firstName: dto.firstName,
       lastName: dto.lastName,
       phone,
-      email: null,
+      email: dto.email,
       passwordHash,
       birthDate: dto.birthDate,
       accessLevel: dto.role,
@@ -88,6 +105,27 @@ export class AuthService {
       confirmed: true,
     });
     return this.issueSession(user, ctx);
+  }
+
+  // Throws when the phone or email already belongs to a real account.
+  // Returns the unconfirmed stub registered under this phone, if any, so
+  // registration can claim it.
+  private async assertRegistrable(
+    phone: string,
+    email: string,
+  ): Promise<User | null> {
+    const [byPhone, byEmail] = await Promise.all([
+      this.usersService.findByPhone(phone),
+      this.usersService.findByEmail(email),
+    ]);
+    if (byPhone && byPhone.confirmed) {
+      throw new UnauthorizedException(PHONE_TAKEN_MESSAGE);
+    }
+    // A stub being claimed may already carry this email — that is not a clash.
+    if (byEmail && byEmail.id !== byPhone?.id) {
+      throw new UnauthorizedException(EMAIL_TAKEN_MESSAGE);
+    }
+    return byPhone;
   }
 
   async login(

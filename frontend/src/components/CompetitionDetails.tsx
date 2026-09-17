@@ -17,8 +17,8 @@ function formatDate(iso: string): string {
 
 function formatDateRange(dateFrom: string, dateTo: string): string {
   return dateFrom === dateTo
-    ? `${formatDate(dateFrom)} р.`
-    : `${formatDate(dateFrom)} – ${formatDate(dateTo)} р.`;
+    ? formatDate(dateFrom)
+    : `${formatDate(dateFrom)} – ${formatDate(dateTo)}`;
 }
 
 export default function CompetitionDetails({

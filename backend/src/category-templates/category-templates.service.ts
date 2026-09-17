@@ -8,6 +8,7 @@ import {
 import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes, Op } from 'sequelize';
 import { User } from '../users/user.model';
+import { AccessLevel } from '../auth/access-level.enum';
 import { CategoriesService } from '../categories/categories.service';
 import { AGE_CATEGORY_TYPE } from '../categories/category.model';
 import type { Category } from '../categories/category.model';
@@ -38,6 +39,7 @@ import {
   UNKNOWN_CATEGORIES_MESSAGE_PREFIX,
 } from './category-templates.constants';
 import { resolvePage } from '../common/pagination';
+import { normalizeLeagueNames } from './normalize-league-names';
 
 const AUTHOR_INCLUDE = [
   { model: User, as: 'author', attributes: ['id', 'firstName', 'lastName'] },
@@ -60,13 +62,16 @@ export class CategoryTemplatesService {
 
   async list(
     requesterId: string,
+    requesterLevel: AccessLevel,
     search?: string,
     rawPage?: string,
     rawPageSize?: string,
   ) {
-    const visible = {
-      [Op.or]: [{ isPublic: true }, { authorId: requesterId }],
-    };
+    // An admin sees every template, private ones included.
+    const visible =
+      requesterLevel === AccessLevel.ADMIN
+        ? {}
+        : { [Op.or]: [{ isPublic: true }, { authorId: requesterId }] };
     const trimmed = search?.trim();
     const { page, pageSize, limit, offset } = resolvePage(
       rawPage,
@@ -127,8 +132,19 @@ export class CategoryTemplatesService {
     };
   }
 
-  async findOne(templateId: string, requesterId: string) {
-    const template = await this.loadReadable(templateId, requesterId);
+  async findOne(
+    templateId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+  ) {
+    return this.toDetailDto(
+      await this.loadReadable(templateId, requesterId, requesterLevel),
+    );
+  }
+
+  // The full template view; the caller has already checked read access.
+  private async toDetailDto(template: CategoryTemplate) {
+    const templateId = template.id;
     const nominations = await this.nominationModel.findAll({
       where: { templateId },
       order: [
@@ -156,12 +172,13 @@ export class CategoryTemplatesService {
       name: dto.name.trim(),
       description: dto.description?.trim() || null,
       isPublic: dto.isPublic ?? false,
+      allMedalLeagues: normalizeLeagueNames(dto.allMedalLeagues),
       authorId: requesterId,
       forkedFromId: null,
     } as CreationAttributes<CategoryTemplate>);
 
     await this.replaceNominations(template.id, dto.nominations);
-    return this.findOne(template.id, requesterId);
+    return this.toDetailDto(await this.loadWithAuthor(template.id));
   }
 
   async update(
@@ -182,6 +199,9 @@ export class CategoryTemplatesService {
       template.description = dto.description?.trim() || null;
     }
     if (dto.isPublic !== undefined) template.isPublic = dto.isPublic;
+    if (dto.allMedalLeagues !== undefined) {
+      template.allMedalLeagues = normalizeLeagueNames(dto.allMedalLeagues);
+    }
     await template.save();
 
     if (dto.nominations) {
@@ -193,15 +213,20 @@ export class CategoryTemplatesService {
       await this.replaceNominations(templateId, dto.nominations);
     }
 
-    return this.findOne(templateId, requesterId);
+    return this.toDetailDto(await this.loadWithAuthor(templateId));
   }
 
   async fork(
     templateId: string,
     requesterId: string,
+    requesterLevel: AccessLevel,
     dto: ForkCategoryTemplateDto,
   ) {
-    const source = await this.loadReadable(templateId, requesterId);
+    const source = await this.loadReadable(
+      templateId,
+      requesterId,
+      requesterLevel,
+    );
 
     const name = dto.name.trim();
     if (name.toLowerCase() === source.name.trim().toLowerCase()) {
@@ -212,6 +237,7 @@ export class CategoryTemplatesService {
       name,
       description: source.description,
       isPublic: false,
+      allMedalLeagues: source.allMedalLeagues,
       authorId: requesterId,
       forkedFromId: source.id,
     } as CreationAttributes<CategoryTemplate>);
@@ -248,7 +274,7 @@ export class CategoryTemplatesService {
       );
     }
 
-    return this.findOne(copy.id, requesterId);
+    return this.toDetailDto(await this.loadWithAuthor(copy.id));
   }
 
   async remove(templateId: string, requesterId: string): Promise<void> {
@@ -274,14 +300,28 @@ export class CategoryTemplatesService {
     await template.destroy();
   }
 
-  private async loadReadable(templateId: string, requesterId: string) {
+  private async loadWithAuthor(templateId: string) {
     const template = await this.templateModel.findByPk(templateId, {
       include: AUTHOR_INCLUDE,
     });
     if (!template) {
       throw new NotFoundException(TEMPLATE_NOT_FOUND_MESSAGE);
     }
-    if (!template.isPublic && template.authorId !== requesterId) {
+    return template;
+  }
+
+  // A public template, the caller's own, or — for an admin — any.
+  private async loadReadable(
+    templateId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+  ) {
+    const template = await this.loadWithAuthor(templateId);
+    if (
+      requesterLevel !== AccessLevel.ADMIN &&
+      !template.isPublic &&
+      template.authorId !== requesterId
+    ) {
       throw new NotFoundException(TEMPLATE_NOT_FOUND_MESSAGE);
     }
     return template;
@@ -393,6 +433,7 @@ export class CategoryTemplatesService {
       name: template.name,
       description: template.description,
       isPublic: template.isPublic,
+      allMedalLeagues: template.allMedalLeagues ?? [],
       forkedFromId: template.forkedFromId,
       author: template.author
         ? {
