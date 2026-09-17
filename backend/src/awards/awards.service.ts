@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { CreationAttributes, Op } from 'sequelize';
+import { CreationAttributes, Op, Transaction } from 'sequelize';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { CategoriesService } from '../categories/categories.service';
 import { LEAGUE_CATEGORY_TYPE } from '../categories/category.model';
@@ -82,11 +82,15 @@ export class AwardsService {
     dto: UpdateAwardOverrideDto,
   ): Promise<AwardsReport> {
     await this.assertStaff(competitionId, user);
-    const settings = await this.settingsOf(competitionId);
-    const overrides = { ...settings.overrides };
-    if (dto.value === null) delete overrides[dto.key];
-    else overrides[dto.key] = dto.value;
-    await settings.update({ overrides });
+    // Read-modify-write on one JSONB column: the row lock makes concurrent
+    // overrides queue up, so neither request drops the other's key.
+    await this.settingsModel.sequelize!.transaction(async (transaction) => {
+      const settings = await this.lockedSettingsOf(competitionId, transaction);
+      const overrides = { ...settings.overrides };
+      if (dto.value === null) delete overrides[dto.key];
+      else overrides[dto.key] = dto.value;
+      await settings.update({ overrides }, { transaction });
+    });
     return this.buildReport(competitionId);
   }
 
@@ -101,12 +105,26 @@ export class AwardsService {
     );
   }
 
-  private async settingsOf(competitionId: string): Promise<AwardSettings> {
+  private async settingsOf(
+    competitionId: string,
+    transaction?: Transaction,
+  ): Promise<AwardSettings> {
     const [settings] = await this.settingsModel.findOrCreate({
       where: { competitionId },
       defaults: { competitionId } as CreationAttributes<AwardSettings>,
+      transaction,
     });
     return settings;
+  }
+
+  // The settings row, created if missing, then re-read under FOR UPDATE so
+  // it stays locked until `transaction` ends.
+  private async lockedSettingsOf(
+    competitionId: string,
+    transaction: Transaction,
+  ): Promise<AwardSettings> {
+    const settings = await this.settingsOf(competitionId, transaction);
+    return settings.reload({ lock: transaction.LOCK.UPDATE, transaction });
   }
 
   // Only exits placed in the program count — what really goes on stage.

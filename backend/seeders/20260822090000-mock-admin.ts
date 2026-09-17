@@ -2,6 +2,7 @@ import type { QueryInterface } from 'sequelize';
 import * as bcrypt from 'bcrypt';
 import { SALT_ROUNDS } from '../src/auth/auth.constants';
 import { AccessLevel } from '../src/auth/access-level.enum';
+import { assertMockSeedAllowed } from './utils/assert-mock-seed-allowed';
 
 // Акаунти тепер живуть в одній таблиці users; адмін — це рівень доступу.
 // Вхід лише за телефоном, тож мок-адмін має справжній номер у форматі E.164.
@@ -17,6 +18,7 @@ const MOCK_ADMIN = {
 
 module.exports = {
   up: async (queryInterface: QueryInterface) => {
+    assertMockSeedAllowed();
     const now = new Date();
 
     await queryInterface.sequelize.query(

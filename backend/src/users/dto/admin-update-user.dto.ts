@@ -11,6 +11,7 @@ import { AccessLevel, ACCESS_LEVELS } from '../../auth/access-level.enum';
 import { IsE164Phone } from '../../common/validation/is-e164-phone.validator';
 import { IsValidBirthDate } from '../../common/validation/is-valid-birth-date.validator';
 import { NormalizeEmail } from '../../common/validation/normalize-email.transform';
+import { NormalizePhone } from '../../common/validation/normalize-phone.transform';
 
 // An admin editing any user's profile. Only the fields sent change.
 export class AdminUpdateUserDto {
@@ -28,6 +29,7 @@ export class AdminUpdateUserDto {
 
   @ApiPropertyOptional({ example: '+380501234567' })
   @IsOptional()
+  @NormalizePhone()
   @IsE164Phone()
   phone?: string;
 

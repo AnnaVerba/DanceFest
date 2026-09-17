@@ -376,6 +376,7 @@ export class UsersService {
         ...dto,
         ...(dto.firstName !== undefined && { firstName: dto.firstName.trim() }),
         ...(dto.lastName !== undefined && { lastName: dto.lastName.trim() }),
+        ...(dto.phone !== undefined && { phone: dto.phone.trim() }),
       });
     } catch (err) {
       if (err instanceof UniqueConstraintError) {
