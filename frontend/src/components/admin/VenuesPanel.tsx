@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import ConfirmDialog from './ConfirmDialog';
 import { createVenue, deleteVenue, getVenues } from '../../lib/venues';
 import type { Venue } from '../../lib/venues';
 import { FEATURES } from '../../lib/features';
+import { queryKeys } from '../../lib/queryKeys';
 import styles from './VenuesPanel.module.css';
 
 interface VenuesPanelProps {
@@ -17,51 +19,50 @@ export default function VenuesPanel({
   canManage,
   onError,
 }: VenuesPanelProps) {
-  const [venues, setVenues] = useState<Venue[] | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Venue | null>(null);
 
+  const venuesQuery = useQuery({
+    queryKey: queryKeys.venues(competitionId),
+    queryFn: () => getVenues(competitionId),
+  });
+  const venues = venuesQuery.data ?? null;
+  const loading = venuesQuery.isLoading;
+
   useEffect(() => {
-    let cancelled = false;
-    getVenues(competitionId)
-      .then((data) => {
-        if (!cancelled) setVenues(data);
-      })
-      .catch(() => {
-        if (!cancelled) onError('Не вдалося завантажити майданчики.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [competitionId]);
+    if (venuesQuery.isError) onError('Не вдалося завантажити майданчики.');
+  }, [venuesQuery.isError, onError]);
+
+  const invalidateVenues = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.venues(competitionId) });
+
+  const createVenueMutation = useMutation({
+    mutationFn: () => createVenue(competitionId, name, description),
+    onSuccess: invalidateVenues,
+  });
+
+  const deleteVenueMutation = useMutation({
+    mutationFn: (venueId: string) => deleteVenue(competitionId, venueId),
+    onSuccess: invalidateVenues,
+  });
 
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || submitting) return;
-    setSubmitting(true);
+    if (!name.trim() || createVenueMutation.isPending) return;
     try {
-      const created = await createVenue(competitionId, name, description);
-      setVenues((prev) => [...(prev ?? []), created]);
+      await createVenueMutation.mutateAsync();
       setName('');
       setDescription('');
     } catch {
       onError('Не вдалося додати майданчик. Спробуйте ще раз.');
-    } finally {
-      setSubmitting(false);
     }
   };
 
   const handleDelete = async (venue: Venue) => {
     try {
-      await deleteVenue(competitionId, venue.id);
-      setVenues((prev) => prev?.filter((v) => v.id !== venue.id) ?? prev);
+      await deleteVenueMutation.mutateAsync(venue.id);
     } catch {
       onError('Не вдалося видалити майданчик. Спробуйте ще раз.');
     } finally {
@@ -97,8 +98,12 @@ export default function VenuesPanel({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
-          <button type="submit" className={styles.btnPrimary} disabled={submitting}>
-            {submitting ? 'Додавання…' : 'Додати майданчик'}
+          <button
+            type="submit"
+            className={styles.btnPrimary}
+            disabled={createVenueMutation.isPending}
+          >
+            {createVenueMutation.isPending ? 'Додавання…' : 'Додати майданчик'}
           </button>
         </form>
       )}

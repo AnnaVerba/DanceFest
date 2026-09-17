@@ -5,13 +5,11 @@ import { AuthError, register, saveSession } from '../lib/auth';
 import { MIN_PASSWORD_LENGTH } from '../lib/auth.constants';
 import {
   isValidBirthDate,
-  isValidEmail,
   isValidName,
   isValidPhone,
 } from '../lib/validation';
 import {
   BIRTH_DATE_INVALID_MESSAGE,
-  EMAIL_INVALID_MESSAGE,
   MIN_BIRTH_DATE,
   NAME_INVALID_MESSAGE,
   PHONE_INVALID_MESSAGE,
@@ -26,7 +24,6 @@ export default function RegisterPage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -45,10 +42,6 @@ export default function RegisterPage() {
     }
     if (!isValidPhone(phone)) {
       setError(PHONE_INVALID_MESSAGE);
-      return;
-    }
-    if (!isValidEmail(email)) {
-      setError(EMAIL_INVALID_MESSAGE);
       return;
     }
     if (!isValidBirthDate(birthDate)) {
@@ -70,7 +63,6 @@ export default function RegisterPage() {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         phone,
-        email: email.trim(),
         password,
         birthDate,
         role,
@@ -184,20 +176,6 @@ export default function RegisterPage() {
           <div className={styles.field}>
             <label htmlFor="phone">Телефон</label>
             <PhoneField id="phone" value={phone} onChange={setPhone} />
-          </div>
-
-          <div className={styles.field}>
-            <label htmlFor="email">Email</label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              placeholder="olena@example.com"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
           </div>
 
           <div className={styles.field}>

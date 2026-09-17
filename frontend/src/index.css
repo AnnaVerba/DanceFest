@@ -35,6 +35,9 @@
   /* Fixed app chrome — the top bar and the cabinet's left nav rail. */
   --topbar-h: 64px;
   --cabinet-rail-w: 240px;
+  /* Shared height for the top bar's right-side controls (user pill, logout
+     button, theme toggle) so they line up regardless of their content. */
+  --control-height: 48px;
   --g-danger: #dc2626;
   --g-danger-hover: #b91c1c;
   --g-danger-bg: #fef2f2;

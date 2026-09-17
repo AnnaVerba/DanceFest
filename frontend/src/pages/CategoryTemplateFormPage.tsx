@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ToastStack } from '../components/admin/Toast';
 import { useToasts } from '../components/admin/useToasts';
@@ -14,11 +15,13 @@ import { resolveDraftCategories, savedSignatureOf } from '../lib/nominationSet';
 import type { AxisSelection, DraftNomination } from '../lib/nominationSet';
 import { CategoryApiError } from '../lib/categories';
 import type { Category } from '../lib/categories';
+import { queryKeys } from '../lib/queryKeys';
 import styles from './CategoryTemplateFormPage.module.css';
 
 export default function CategoryTemplateFormPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { toasts, showToast } = useToasts();
   const isEdit = Boolean(id);
 
@@ -142,6 +145,11 @@ export default function CategoryTemplateFormPage() {
     const template = id
       ? await updateCategoryTemplate(id, payload)
       : await createCategoryTemplate(payload);
+    // The templates list and this template's own cached detail (staleTime:
+    // Infinity — see .claude/prompt-caching-strategy.md) won't pick up the
+    // edit on their own.
+    await queryClient.invalidateQueries({ queryKey: ['category-templates'] });
+    queryClient.setQueryData(queryKeys.categoryTemplate(template.id), template);
     showToast(
       isEdit ? `Шаблон «${template.name}» збережено` : `Шаблон «${template.name}» створено`,
     );

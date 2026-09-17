@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate } from 'react-router-dom';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import { ToastStack } from '../components/admin/Toast';
@@ -11,10 +12,9 @@ import {
   getCategoryTemplate,
   getCategoryTemplates,
 } from '../lib/categoryTemplates';
-import type {
-  CategoryTemplate,
-  TemplateNomination,
-} from '../lib/categoryTemplates';
+import type { CategoryTemplate, TemplateNomination } from '../lib/categoryTemplates';
+import { queryKeys } from '../lib/queryKeys';
+import { REFERENCE_STALE_TIME_MS } from '../lib/queryClient.constants';
 import styles from './CategoryTemplatesPage.module.css';
 
 type Scope = 'all' | 'mine' | 'public';
@@ -29,11 +29,9 @@ function plural(n: number): string {
 
 export default function CategoryTemplatesPage() {
   const admin = getStoredAdmin();
+  const queryClient = useQueryClient();
 
-  const [templates, setTemplates] = useState<CategoryTemplate[] | null>(null);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [scope, setScope] = useState<Scope>('all');
@@ -46,28 +44,28 @@ export default function CategoryTemplatesPage() {
 
   const TEMPLATES_PAGE_SIZE = 20;
 
-  const loadTemplates = () => {
-    getCategoryTemplates({
-      page,
-      pageSize: TEMPLATES_PAGE_SIZE,
-      search: debouncedSearch || undefined,
-    })
-      .then((data) => {
-        setTemplates(data.rows);
-        setTotal(data.total);
-      })
-      .catch(() => setLoadError('Не вдалося завантажити шаблони.'));
-  };
-
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(id);
   }, [search]);
 
-  useEffect(() => {
-    loadTemplates();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, debouncedSearch]);
+  const templatesQuery = useQuery({
+    queryKey: queryKeys.categoryTemplates({
+      page,
+      pageSize: TEMPLATES_PAGE_SIZE,
+      search: debouncedSearch || undefined,
+    }),
+    queryFn: () =>
+      getCategoryTemplates({
+        page,
+        pageSize: TEMPLATES_PAGE_SIZE,
+        search: debouncedSearch || undefined,
+      }),
+    staleTime: REFERENCE_STALE_TIME_MS,
+  });
+  const templates = templatesQuery.data?.rows ?? null;
+  const total = templatesQuery.data?.total ?? 0;
+  const loadError = templatesQuery.isError ? 'Не вдалося завантажити шаблони.' : null;
 
   const templatesPageCount = Math.max(
     1,
@@ -92,7 +90,13 @@ export default function CategoryTemplatesPage() {
     if (nominationsById[template.id]) return;
 
     try {
-      const detail = await getCategoryTemplate(template.id);
+      // Template contents are a reference too (staleTime: Infinity) — this
+      // reuses the shared cache instead of always hitting the network.
+      const detail = await queryClient.fetchQuery({
+        queryKey: queryKeys.categoryTemplate(template.id),
+        queryFn: () => getCategoryTemplate(template.id),
+        staleTime: REFERENCE_STALE_TIME_MS,
+      });
       setNominationsById((prev) => ({ ...prev, [template.id]: detail.nominations }));
     } catch (err) {
       showToast(
@@ -109,7 +113,9 @@ export default function CategoryTemplatesPage() {
         template.id,
         `${template.name} (моя версія)`,
       );
-      setTemplates((prev) => (prev ? [copy, ...prev] : [copy]));
+      // Prefix, not just this query: other cached pages/search terms of
+      // this Infinity-cached list need the same nudge.
+      await queryClient.invalidateQueries({ queryKey: ['category-templates'] });
       showToast(`Створено вашу копію «${copy.name}»`);
     } catch (err) {
       showToast(
@@ -124,7 +130,10 @@ export default function CategoryTemplatesPage() {
     if (!pendingDelete) return;
     try {
       await deleteCategoryTemplate(pendingDelete.id);
-      setTemplates((prev) => prev?.filter((t) => t.id !== pendingDelete.id) ?? prev);
+      queryClient.removeQueries({ queryKey: queryKeys.categoryTemplate(pendingDelete.id) });
+      // Prefix, not just this query: other cached pages/search terms of
+      // this Infinity-cached list need the same nudge.
+      await queryClient.invalidateQueries({ queryKey: ['category-templates'] });
       showToast(`Шаблон «${pendingDelete.name}» видалено`);
     } catch (err) {
       showToast(

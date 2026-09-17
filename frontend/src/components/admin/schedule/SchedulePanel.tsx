@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ConfirmDialog from '../ConfirmDialog';
 import UnassignedPool from './UnassignedPool';
 import BuildSectionModal from './BuildSectionModal';
@@ -29,21 +30,21 @@ import {
 } from '../../../lib/schedule';
 import type {
   AssignedClash,
-  CompetitionDay,
   Section,
-  SectionSummary,
-  UnassignedExit,
+  SectionItem,
   UnassignedFacets,
 } from '../../../lib/schedule';
+import type { RowPaged } from '../../../lib/pagination';
 import { getPublicProgram } from '../../../lib/program';
 import type { PublicProgramRow } from '../../../lib/program';
 import { getVenues } from '../../../lib/venues';
-import type { Venue } from '../../../lib/venues';
 import { formatClock } from '../../../lib/duration';
 import { ApiError } from '../../../lib/http';
 import { getCompetitionStatus } from '../../../lib/competitions';
 import type { Competition } from '../../../lib/competitions';
 import { COMPETITION_STATUS } from '../../../lib/competitionStatus';
+import { queryKeys } from '../../../lib/queryKeys';
+import { TIMING_STALE_TIME_MS } from '../../../lib/queryClient.constants';
 import styles from './program.module.css';
 
 interface SchedulePanelProps {
@@ -62,6 +63,10 @@ const NEW_ROW_TYPES = ['break', 'gala'] as const;
 const SECTIONS_PAGE_ROWS = 60;
 const POOL_PAGE_SIZE = 100;
 const EMPTY_FACETS: UnassignedFacets = { leagues: [], ageCategories: [] };
+// Stable references so a query's ?? [] fallback doesn't look like a new
+// array to memoized hooks on every render while data is still loading.
+const EMPTY_SECTIONS: Section[] = [];
+const EMPTY_POSTER: PublicProgramRow[] = [];
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('uk-UA', {
@@ -85,29 +90,12 @@ export default function SchedulePanel({
     status === COMPETITION_STATUS.PLANNED ||
     status === COMPETITION_STATUS.REGISTRATION_OPEN;
   const canBuild = canManage && !registrationOpen;
-  const [days, setDays] = useState<CompetitionDay[]>([]);
-  const [venues, setVenues] = useState<Venue[]>([]);
-  const [sections, setSections] = useState<Section[]>([]);
+  const queryClient = useQueryClient();
   const [sectionsPage, setSectionsPage] = useState(0);
-  const [sectionsMeta, setSectionsMeta] = useState({
-    pageCount: 0,
-    rangeStart: 0,
-    rangeEnd: 0,
-    totalSections: 0,
-  });
-  const [daySummary, setDaySummary] = useState<SectionSummary[]>([]);
-  // Day-wide counters from the server — the section list on screen is only
-  // one page of a possibly-500-exit day, so they can't be summed here.
-  const [stats, setStats] = useState({ perf: 0, noMusic: 0, end: '' });
-  const [unassigned, setUnassigned] = useState<UnassignedExit[]>([]);
-  const [poolTotal, setPoolTotal] = useState(0);
   const [poolPage, setPoolPage] = useState(0);
   const [poolLeague, setPoolLeague] = useState('');
   const [poolAge, setPoolAge] = useState('');
-  const [poolFacets, setPoolFacets] = useState<UnassignedFacets>(EMPTY_FACETS);
-  const [poster, setPoster] = useState<PublicProgramRow[]>([]);
   const [dayId, setDayId] = useState('');
-  const [daysReady, setDaysReady] = useState(false);
   const [venueId, setVenueId] = useState('');
   const [view, setView] = useState<'tech' | 'public'>('tech');
   const [editing, setEditing] = useState(false);
@@ -121,91 +109,141 @@ export default function SchedulePanel({
   const [pendingDeleteSection, setPendingDeleteSection] =
     useState<Section | null>(null);
   const [recalcOpen, setRecalcOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [noMusicOnly, setNoMusicOnly] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [newRowType, setNewRowType] = useState<'break' | 'gala'>('break');
 
-  // Every refresh() bumps this; a slower earlier call sees a newer token and
-  // bails instead of overwriting the current day/venue with stale rows.
-  const loadToken = useRef(0);
-  const refresh = useCallback(async () => {
-    // A viewer (no team access) only ever sees the read-only poster, which
-    // its own effect below keeps loaded.
-    if (!canManage) return;
-    const token = ++loadToken.current;
-    const [paged, summary, dayStats] = await Promise.all([
-      getSections(competitionId, {
-        dayId: dayId || undefined,
-        venueId: venueId || undefined,
-        page: sectionsPage,
-        pageSize: SECTIONS_PAGE_ROWS,
-      }),
-      getSectionsSummary(competitionId, { dayId: dayId || undefined }),
-      getSectionsStats(competitionId, {
-        dayId: dayId || undefined,
-        venueId: venueId || undefined,
-      }),
-    ]);
-    if (token !== loadToken.current) return;
-    setSections(paged.rows);
-    setSectionsMeta({
-      pageCount: paged.pageCount,
-      rangeStart: paged.rangeStart,
-      rangeEnd: paged.rangeEnd,
-      totalSections: paged.totalSections,
-    });
-    // The server clamps an out-of-range page (e.g. after deleting the last
-    // section) — follow it so the pager stays truthful.
-    if (paged.page !== sectionsPage) setSectionsPage(paged.page);
-    setDaySummary(summary);
-    setStats({
-      perf: dayStats.performances,
-      noMusic: dayStats.noMusic,
-      end: dayStats.endTime ?? '',
-    });
-  }, [competitionId, dayId, venueId, canManage, sectionsPage]);
+  const daysQuery = useQuery({
+    queryKey: queryKeys.days(competitionId),
+    queryFn: () => getDays(competitionId),
+  });
+  const venuesQuery = useQuery({
+    queryKey: queryKeys.venues(competitionId),
+    queryFn: () => getVenues(competitionId),
+  });
+  const days = daysQuery.data ?? [];
+  const venues = venuesQuery.data ?? [];
+  // Both settle (success or failure) before the rest of the panel — a
+  // viewer needs the day pills too, not just a manager.
+  const daysReady = daysQuery.isFetched && venuesQuery.isFetched;
 
-  const poolToken = useRef(0);
-  const refreshPool = useCallback(async () => {
-    const token = ++poolToken.current;
-    const filter = {
-      league: poolLeague || undefined,
-      ageCategory: poolAge || undefined,
-    };
-    const [page, facets] = await Promise.all([
-      getUnassigned(competitionId, {
-        ...filter,
-        page: poolPage,
-        pageSize: POOL_PAGE_SIZE,
-      }),
-      getUnassignedFacets(competitionId),
-    ]);
-    if (token !== poolToken.current) return;
-    setUnassigned(page.rows);
-    setPoolTotal(page.total);
-    setPoolFacets(facets);
-  }, [competitionId, poolLeague, poolAge, poolPage]);
-
-  const refreshStats = useCallback(async () => {
-    if (!canManage) return;
-    const dayStats = await getSectionsStats(competitionId, {
-      dayId: dayId || undefined,
-      venueId: venueId || undefined,
-    }).catch(() => null);
-    if (dayStats) {
-      setStats({
-        perf: dayStats.performances,
-        noMusic: dayStats.noMusic,
-        end: dayStats.endTime ?? '',
-      });
+  useEffect(() => {
+    if (daysQuery.isError || venuesQuery.isError) {
+      onError('Не вдалося завантажити дні та майданчики.');
     }
-  }, [competitionId, dayId, venueId, canManage]);
+  }, [daysQuery.isError, venuesQuery.isError, onError]);
+
+  // Open on the first day once days arrive; «Усі дні» afterwards is an
+  // explicit choice. A render-phase state adjustment, not an effect — see
+  // NewCompetitionPage for the same pattern.
+  const [daySeeded, setDaySeeded] = useState(false);
+  if (daysQuery.isFetched && !daySeeded) {
+    setDaySeeded(true);
+    if (!dayId) setDayId(days[0]?.id ?? '');
+  }
+
+  const sectionsFilter = {
+    dayId: dayId || undefined,
+    venueId: venueId || undefined,
+    page: sectionsPage,
+    pageSize: SECTIONS_PAGE_ROWS,
+  };
+  const sectionsKey = queryKeys.sections(competitionId, sectionsFilter);
+  const sectionsQuery = useQuery({
+    queryKey: sectionsKey,
+    queryFn: () => getSections(competitionId, sectionsFilter),
+    enabled: daysReady && canManage,
+  });
+  const summaryFilter = { dayId: dayId || undefined };
+  const summaryQuery = useQuery({
+    queryKey: queryKeys.sectionsSummary(competitionId, summaryFilter),
+    queryFn: () => getSectionsSummary(competitionId, summaryFilter),
+    enabled: daysReady && canManage,
+  });
+  const statsFilter = { dayId: dayId || undefined, venueId: venueId || undefined };
+  const statsQuery = useQuery({
+    queryKey: queryKeys.sectionsStats(competitionId, statsFilter),
+    queryFn: () => getSectionsStats(competitionId, statsFilter),
+    enabled: daysReady && canManage,
+  });
+
+  const sections = sectionsQuery.data?.rows ?? EMPTY_SECTIONS;
+  const sectionsMeta = {
+    pageCount: sectionsQuery.data?.pageCount ?? 0,
+    rangeStart: sectionsQuery.data?.rangeStart ?? 0,
+    rangeEnd: sectionsQuery.data?.rangeEnd ?? 0,
+    totalSections: sectionsQuery.data?.totalSections ?? 0,
+  };
+  const daySummary = summaryQuery.data ?? [];
+  // Day-wide counters from the server — the section list on screen is only
+  // one page of a possibly-500-exit day, so they can't be summed here.
+  const stats = {
+    perf: statsQuery.data?.performances ?? 0,
+    noMusic: statsQuery.data?.noMusic ?? 0,
+    end: statsQuery.data?.endTime ?? '',
+  };
+  const loading = !daysReady || sectionsQuery.isLoading;
+
+  useEffect(() => {
+    if (sectionsQuery.isError || summaryQuery.isError || statsQuery.isError) {
+      onError('Не вдалося завантажити розклад.');
+    }
+  }, [sectionsQuery.isError, summaryQuery.isError, statsQuery.isError, onError]);
+
+  // The server clamps an out-of-range page (e.g. after deleting the last
+  // section) — follow it so the pager, and the next fetch, stay truthful.
+  if (sectionsQuery.data && sectionsQuery.data.page !== sectionsPage) {
+    setSectionsPage(sectionsQuery.data.page);
+  }
+
+  // The read-only poster: a viewer always needs it, a manager only in the
+  // «Публічна» view.
+  const posterFilter = { dayId: dayId || undefined, pageSize: SECTIONS_PAGE_ROWS };
+  const posterQuery = useQuery({
+    queryKey: queryKeys.publicProgram(competitionId, posterFilter),
+    queryFn: () => getPublicProgram(competitionId, posterFilter),
+    enabled: daysReady && (!canManage || view === 'public'),
+    staleTime: TIMING_STALE_TIME_MS,
+  });
+  // Failure is silent — the editor still renders without the poster.
+  const poster = posterQuery.data?.rows ?? EMPTY_POSTER;
+
+  // The unassigned pool is only shown while building.
+  const poolFilter = {
+    league: poolLeague || undefined,
+    ageCategory: poolAge || undefined,
+    page: poolPage,
+    pageSize: POOL_PAGE_SIZE,
+  };
+  const poolQuery = useQuery({
+    queryKey: queryKeys.unassigned(competitionId, poolFilter),
+    queryFn: () => getUnassigned(competitionId, poolFilter),
+    enabled: daysReady && canManage && building,
+  });
+  const facetsQuery = useQuery({
+    queryKey: queryKeys.unassignedFacets(competitionId),
+    queryFn: () => getUnassignedFacets(competitionId),
+    enabled: daysReady && canManage && building,
+  });
+  const unassigned = poolQuery.data?.rows ?? [];
+  const poolTotal = poolQuery.data?.total ?? 0;
+  const poolFacets = facetsQuery.data ?? EMPTY_FACETS;
+
+  useEffect(() => {
+    if (building && (poolQuery.isError || facetsQuery.isError)) {
+      onError('Не вдалося завантажити нерозподілені виходи.');
+    }
+  }, [building, poolQuery.isError, facetsQuery.isError, onError]);
+
+  const invalidateSections = () =>
+    queryClient.invalidateQueries({ queryKey: ['sections', competitionId] });
+  const invalidatePool = () =>
+    queryClient.invalidateQueries({ queryKey: ['unassigned', competitionId] });
 
   // "Select all" must reach past the current page — the ids come from the
-  // server under the same filter.
-  const handleSelectAllUnassigned = useCallback(async () => {
+  // server under the same filter. A one-off action, not cached data.
+  const handleSelectAllUnassigned = async () => {
     try {
       const ids = await getUnassignedIds(competitionId, {
         league: poolLeague || undefined,
@@ -215,93 +253,16 @@ export default function SchedulePanel({
     } catch {
       onError('Не вдалося обрати всі виходи.');
     }
-  }, [competitionId, poolLeague, poolAge, onError]);
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([getDays(competitionId), getVenues(competitionId)])
-      .then(([d, v]) => {
-        if (cancelled) return;
-        setDays(d);
-        setVenues(v);
-        // Open on the first day; «Усі дні» is an explicit choice.
-        setDayId((current) => current || d[0]?.id || '');
-        setDaysReady(true);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        onError('Не вдалося завантажити дні та майданчики.');
-        setDaysReady(true);
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [competitionId]);
-
-  useEffect(() => {
-    if (!daysReady) return;
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      try {
-        await refresh();
-      } catch {
-        if (!cancelled) onError('Не вдалося завантажити розклад.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    void load();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [daysReady, dayId, venueId, sectionsPage]);
-
-  // The read-only poster: a viewer always needs it, a manager only in the
-  // «Публічна» view — so it never rides along with the editor's refresh().
-  useEffect(() => {
-    if (!daysReady || (canManage && view !== 'public')) return;
-    let cancelled = false;
-    getPublicProgram(competitionId, {
-      dayId: dayId || undefined,
-      pageSize: SECTIONS_PAGE_ROWS,
-    })
-      .then((paged) => {
-        if (!cancelled) setPoster(paged.rows);
-      })
-      .catch(() => {
-        /* the editor still renders without the poster */
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [daysReady, canManage, view, dayId]);
-
-  // The unassigned pool is only shown while building — load it lazily and
-  // reload it as the organiser pages or filters.
-  useEffect(() => {
-    if (!daysReady || !canManage || !building) return;
-    let cancelled = false;
-    refreshPool().catch(() => {
-      if (!cancelled) onError('Не вдалося завантажити нерозподілені виходи.');
-    });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [daysReady, canManage, building, poolPage, poolLeague, poolAge]);
+  };
 
   const replaceSections = (updated: Section[]) => {
-    setSections((prev) => {
+    queryClient.setQueryData<RowPaged<Section>>(sectionsKey, (old) => {
+      if (!old) return old;
       const byId = new Map(updated.map((s) => [s.id, s]));
-      return prev.map((s) => byId.get(s.id) ?? s);
+      return { ...old, rows: old.rows.map((s) => byId.get(s.id) ?? s) };
     });
     // An in-place edit can shift the day's end time or no-music count.
-    void refreshStats();
+    void queryClient.invalidateQueries({ queryKey: ['sections', competitionId, 'stats'] });
   };
 
   // Changing the day/venue scope starts the pager over.
@@ -340,14 +301,15 @@ export default function SchedulePanel({
       setSelectedIds([]);
       setBuildOpen(false);
       setBuilding(false);
-      await refresh();
+      await invalidateSections();
+      await invalidatePool();
     } catch (error) {
       if (error instanceof ApiError && error.status === HTTP_CONFLICT) {
         const payload = error.payload as { assigned?: AssignedClash[] } | null;
         setClashes(payload?.assigned ?? []);
         setBuildOpen(false);
         setPoolPage(0);
-        await refreshPool();
+        await invalidatePool();
       } else {
         onError('Не вдалося сформувати відділення.');
       }
@@ -356,29 +318,38 @@ export default function SchedulePanel({
     }
   };
 
+  // Drag-and-drop reorder — the one place with an optimistic update (see
+  // .claude/prompt-caching-strategy.md). Only the visual item order changes
+  // right away; times, pauses and overlimit flags are server-computed and
+  // wait for the recalculated section below.
   const handleReorder = async (sectionId: string, itemIds: string[]) => {
-    setSections((prev) =>
-      prev.map((s) =>
-        s.id === sectionId
-          ? {
-              ...s,
-              items: [...s.items].sort(
-                (a, b) => itemIds.indexOf(a.id) - itemIds.indexOf(b.id),
-              ),
-            }
-          : s,
-      ),
+    const previous = queryClient.getQueryData<RowPaged<Section>>(sectionsKey);
+    queryClient.setQueryData<RowPaged<Section>>(sectionsKey, (old) =>
+      old && {
+        ...old,
+        rows: old.rows.map((s) =>
+          s.id === sectionId
+            ? {
+                ...s,
+                items: [...s.items].sort(
+                  (a, b) => itemIds.indexOf(a.id) - itemIds.indexOf(b.id),
+                ),
+              }
+            : s,
+        ),
+      },
     );
     try {
       const updated = await reorderSection(competitionId, sectionId, itemIds);
       replaceSections([updated]);
     } catch (error) {
+      if (previous) queryClient.setQueryData(sectionsKey, previous);
       if (error instanceof ApiError && error.status === HTTP_BAD_REQUEST) {
         onError('Розклад змінив хтось інший — оновлюю.');
       } else {
         onError('Не вдалося змінити порядок.');
       }
-      await refresh();
+      await invalidateSections();
     }
   };
 
@@ -399,10 +370,10 @@ export default function SchedulePanel({
       if (from < 0 || to < 0 || to >= ids.length) return;
       [ids[from], ids[to]] = [ids[to], ids[from]];
       await reorderSections(competitionId, section.dayId, ids);
-      await refresh();
+      await invalidateSections();
     } catch {
       onError('Не вдалося перемістити відділення.');
-      await refresh();
+      await invalidateSections();
     }
   };
 
@@ -431,11 +402,33 @@ export default function SchedulePanel({
       replaceSections([updated]);
     } catch {
       onError('Не вдалося змінити час початку.');
-      await refresh();
+      await invalidateSections();
     }
   };
 
+  // The other drag-and-drop gesture — moving a card to a different section.
+  // Same optimistic treatment: the card jumps to the end of the target
+  // section right away, the recalculated order lands in replaceSections.
   const handleMoveExit = async (entryId: string, targetSectionId: string) => {
+    const previous = queryClient.getQueryData<RowPaged<Section>>(sectionsKey);
+    queryClient.setQueryData<RowPaged<Section>>(sectionsKey, (old) => {
+      if (!old) return old;
+      let moved: SectionItem | undefined;
+      const withoutMoved = old.rows.map((s) => {
+        const item = s.items.find((i) => i.exit?.entryId === entryId);
+        if (!item) return s;
+        moved = item;
+        return { ...s, items: s.items.filter((i) => i.id !== item.id) };
+      });
+      if (!moved) return old;
+      const movedItem = moved;
+      return {
+        ...old,
+        rows: withoutMoved.map((s) =>
+          s.id === targetSectionId ? { ...s, items: [...s.items, movedItem] } : s,
+        ),
+      };
+    });
     try {
       const { sections: updated } = await moveExit(
         competitionId,
@@ -444,8 +437,9 @@ export default function SchedulePanel({
       );
       replaceSections(updated);
     } catch {
+      if (previous) queryClient.setQueryData(sectionsKey, previous);
       onError('Не вдалося перенести вихід.');
-      await refresh();
+      await invalidateSections();
     }
   };
 
@@ -481,7 +475,7 @@ export default function SchedulePanel({
     if (!pendingDeleteSection) return;
     try {
       await deleteSection(competitionId, pendingDeleteSection.id);
-      await refresh();
+      await invalidateSections();
     } catch {
       onError('Не вдалося видалити відділення.');
     } finally {
@@ -744,7 +738,7 @@ export default function SchedulePanel({
             onClick={() => {
               setClashes(null);
               setPoolPage(0);
-              void refreshPool();
+              void invalidatePool();
             }}
           >
             Оновити пул

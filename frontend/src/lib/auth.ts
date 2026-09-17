@@ -17,6 +17,7 @@ import {
 } from './auth.constants';
 import { HTTP_STATUS_UNAUTHORIZED } from './api.constants';
 import { clearProfileCompletionSkip } from './profileCompletion';
+import { queryClient } from './queryClient';
 
 export interface UserProfile {
   id: string;
@@ -41,7 +42,6 @@ export interface RegisterPayload {
   firstName: string;
   lastName: string;
   phone: string;
-  email: string;
   password: string;
   birthDate: string;
   role: AccessLevel;
@@ -125,8 +125,8 @@ async function postAuth(
   return payload as RawAuthResponse;
 }
 
-// `login` accepts a phone number or an email. A password-less account
-// (first login) gets `{ otpRequired, phone }` instead of a session.
+// `login` accepts a phone number. A password-less account (first login)
+// gets `{ otpRequired, phone }` instead of a session.
 export async function login(
   loginId: string,
   password: string,
@@ -271,6 +271,17 @@ export async function setMentorCoach(
 }
 
 export function saveSession(session: Session) {
+  // A silent token refresh calls this too, for the same identity — only a
+  // genuinely new identity or role (login as someone else without an
+  // explicit logout first; upgradeLevel) invalidates what's cached so far.
+  const previous = getSession();
+  if (
+    previous &&
+    (previous.profile.id !== session.profile.id ||
+      previous.profile.accessLevel !== session.profile.accessLevel)
+  ) {
+    queryClient.clear();
+  }
   localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
 }
 
@@ -324,6 +335,9 @@ function getRefreshToken(): string | null {
 export function clearSession() {
   localStorage.removeItem(SESSION_STORAGE_KEY);
   clearProfileCompletionSkip();
+  // A full clear, not point invalidation: otherwise the next user on this
+  // browser could still see cached data they have no right to.
+  queryClient.clear();
 }
 
 export async function refreshSession(): Promise<Session> {

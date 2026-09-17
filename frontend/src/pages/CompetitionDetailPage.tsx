@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import CompetitionDetails from '../components/CompetitionDetails';
 import ContestIcon from '../components/ContestIcon';
@@ -7,6 +8,7 @@ import EntriesPanel from '../components/admin/EntriesPanel';
 import JudgesPanel from '../components/admin/JudgesPanel';
 import MusicExportPanel from '../components/admin/MusicExportPanel';
 import NominationsPanel from '../components/admin/NominationsPanel';
+import OveragesPanel from '../components/admin/OveragesPanel';
 import VenuesPanel from '../components/admin/VenuesPanel';
 import SchedulePanel from '../components/admin/schedule/SchedulePanel';
 import ScheduleSettings from '../components/admin/schedule/ScheduleSettings';
@@ -18,9 +20,10 @@ import {
   getApplyEligibility,
   getCompetition,
 } from '../lib/competitions';
-import type { Competition } from '../lib/competitions';
+import { getTeam } from '../lib/team';
 import { FEATURES } from '../lib/features';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
+import { queryKeys } from '../lib/queryKeys';
 import styles from './CompetitionDetailPage.module.css';
 
 const ALL_TABS = [
@@ -29,6 +32,7 @@ const ALL_TABS = [
   'Судді',
   'Майданчики',
   'Заявки',
+  'Доплати',
   'Таймінги',
   'Програма',
 ] as const;
@@ -40,38 +44,43 @@ const TABS: readonly Tab[] = ALL_TABS.filter(
 export default function CompetitionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const admin = getStoredAdmin();
 
-  const [competition, setCompetition] = useState<Competition | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('Деталі');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const { toasts, showToast } = useToasts();
 
-  useEffect(() => {
-    if (!id) return;
+  const competitionQuery = useQuery({
+    queryKey: queryKeys.competition(id ?? ''),
+    queryFn: () => getCompetition(id!),
+    enabled: !!id,
+  });
+  const competition = competitionQuery.data ?? null;
+  const loading = competitionQuery.isLoading;
+  const loadError = competitionQuery.isError
+    ? 'Не вдалося завантажити конкурс.'
+    : null;
 
-    let cancelled = false;
-    getCompetition(id)
-      .then((data) => {
-        if (!cancelled) setCompetition(data);
-      })
-      .catch(() => {
-        if (!cancelled) setLoadError('Не вдалося завантажити конкурс.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+  // A competition's team (owner + invited co-organizers) can also manage
+  // it — /team 200s only for those two groups, 403s for everyone else, so
+  // a successful fetch is itself the membership check. Gated to ORGANIZER+
+  // so a participant/coach viewing a competition page doesn't fire it.
+  const teamQuery = useQuery({
+    queryKey: ['competition-team', id],
+    queryFn: () => getTeam(id!),
+    enabled:
+      !!id && !!admin && meetsLevel(admin.accessLevel, ACCESS_LEVEL.ORGANIZER),
+    retry: false,
+  });
+  const isTeamMember = teamQuery.isSuccess;
 
   const handleDelete = async () => {
     if (!competition) return;
     try {
       await deleteCompetition(competition.id);
+      queryClient.removeQueries({ queryKey: queryKeys.competition(competition.id) });
+      await queryClient.invalidateQueries({ queryKey: ['competitions'] });
       showToast(`Конкурс «${competition.name}» видалено`);
       navigate('/dashboard');
     } catch {
@@ -89,13 +98,19 @@ export default function CompetitionDetailPage() {
 
   const isOwner = !!admin && !!competition && competition.ownerId === admin.id;
   // An admin manages every competition's applications; an organizer only
-  // the ones they own.
+  // the ones they own or are an invited co-organizer (team member) for.
   const isAdmin = !!admin && meetsLevel(admin.accessLevel, ACCESS_LEVEL.ADMIN);
-  const canManageEntries = isOwner || isAdmin;
+  const canManageEntries = isOwner || isAdmin || isTeamMember;
 
   // The entries list is staff-only (a participant only ever sees their own
   // entries, in their cabinet) — so is its whole search/filter toolbar.
-  const visibleTabs = TABS.filter((tab) => tab !== 'Заявки' || !!admin);
+  // Overages are organizer/admin-only money data — tighter than "Заявки",
+  // which any staff account can open.
+  const visibleTabs = TABS.filter((tab) => {
+    if (tab === 'Заявки') return !!admin;
+    if (tab === 'Доплати') return canManageEntries;
+    return true;
+  });
 
   // The single apply entry point on this page lives in the header next to
   // the name; an owner/admin may still open it after registration closes.
@@ -184,7 +199,18 @@ export default function CompetitionDetailPage() {
               )}
 
               {activeTab === 'Заявки' && !!admin && (
-                <EntriesPanel
+                <>
+                  <MusicExportPanel competitionId={id} canManage={canManageEntries} />
+                  <EntriesPanel
+                    competitionId={id}
+                    canManage={canManageEntries}
+                    onError={(message) => showToast(message)}
+                  />
+                </>
+              )}
+
+              {activeTab === 'Доплати' && canManageEntries && (
+                <OveragesPanel
                   competitionId={id}
                   canManage={canManageEntries}
                   onError={(message) => showToast(message)}
@@ -231,7 +257,6 @@ export default function CompetitionDetailPage() {
                     onError={(message) => showToast(message)}
                     onNotice={(message) => showToast(message)}
                   />
-                  <MusicExportPanel competitionId={id} canManage={canManageEntries} />
                 </>
               )}
 
@@ -239,15 +264,17 @@ export default function CompetitionDetailPage() {
                 <CompetitionDetails competition={competition} entriesCount={null} />
               )}
 
-              {isOwner && (
+              {canManageEntries && (
                 <div className={styles.actions}>
-                  <button
-                    type="button"
-                    className={styles.btnDanger}
-                    onClick={() => setConfirmingDelete(true)}
-                  >
-                    Видалити
-                  </button>
+                  {isOwner && (
+                    <button
+                      type="button"
+                      className={styles.btnDanger}
+                      onClick={() => setConfirmingDelete(true)}
+                    >
+                      Видалити
+                    </button>
+                  )}
                   <Link to={`/competitions/${id}/edit`} className={styles.btnPrimary}>
                     Редагувати
                   </Link>

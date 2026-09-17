@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import SpecialCategoryModal from './SpecialCategoryModal';
 import type { SpecialNominationDraft } from './SpecialCategoryModal';
 import AxisPriceInputs from './AxisPriceInputs';
@@ -8,6 +9,8 @@ import {
   CATEGORY_TYPE_LABELS,
   getCategories,
 } from '../../lib/categories';
+import { queryKeys } from '../../lib/queryKeys';
+import { REFERENCE_STALE_TIME_MS } from '../../lib/queryClient.constants';
 import AgeRangeFields from './AgeRangeFields';
 import { PRICED_AXES, resolvePrice } from '../../lib/nominationPricing';
 import type { AxisPriceMap } from '../../lib/nominationPricing';
@@ -19,12 +22,17 @@ import {
   MAX_NOMINATIONS,
   draftCategory,
   emptyAxisSelection,
+  isDraftCategory,
   pluralNominations,
   sameCategoryValue,
   signatureOf,
 } from '../../lib/nominationSet';
 import type { AxisSelection, DraftNomination } from '../../lib/nominationSet';
 import styles from './NominationSetBuilder.module.css';
+
+// Stable reference so useMemo below doesn't see a "new" array on every
+// render while the query has no data yet.
+const EMPTY_CATEGORIES: Category[] = [];
 
 interface NominationSetBuilderProps {
   nominations: DraftNomination[];
@@ -47,18 +55,28 @@ export default function NominationSetBuilder({
   seedCategoryIds,
   onCategoryCreated,
 }: NominationSetBuilderProps) {
+  const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<Category[]>([]);
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [ageRange, setAgeRange] = useState(EMPTY_AGE_RANGE);
   const [axisPrices, setAxisPrices] = useState<AxisPriceMap>({});
   const [specialOpen, setSpecialOpen] = useState(false);
 
+  // Categories are a near-static reference used across many forms — cached
+  // indefinitely, refreshed only when an admin edit invalidates it.
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.categories(),
+    queryFn: () => getCategories(),
+    staleTime: REFERENCE_STALE_TIME_MS,
+  });
+  const suggestions = categoriesQuery.data ?? EMPTY_CATEGORIES;
+
   useEffect(() => {
-    getCategories()
-      .then(setSuggestions)
-      .catch(() => setSuggestions([]));
-  }, []);
+    if (!categoriesQuery.isError) return;
+    const message = 'Не вдалося завантажити довідник категорій.';
+    if (onNotice) onNotice(message);
+    else setError(message);
+  }, [categoriesQuery.isError, onNotice]);
 
   const seededSelection = useMemo(() => {
     const restored = emptyAxisSelection();
@@ -425,9 +443,14 @@ export default function NominationSetBuilder({
         }
         onClose={() => setSpecialOpen(false)}
         onCategoryCreated={(category) => {
-          setSuggestions((prev) =>
-            prev.some((s) => s.id === category.id) ? prev : [...prev, category],
-          );
+          // Only a real, persisted category belongs in the shared reference
+          // cache — drafts get their `draft:` id resolved into a real one
+          // later, by resolveDraftCategories.
+          if (!isDraftCategory(category.id)) {
+            queryClient.setQueryData<Category[]>(queryKeys.categories(), (prev) =>
+              prev?.some((s) => s.id === category.id) ? prev : [...(prev ?? []), category],
+            );
+          }
           onCategoryCreated?.(category);
         }}
         onSubmit={addSpecial}

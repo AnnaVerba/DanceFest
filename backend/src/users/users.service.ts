@@ -91,18 +91,8 @@ export class UsersService {
     return user;
   }
 
-  findByEmail(email: string): Promise<User | null> {
-    return this.userModel.findOne({ where: { email } });
-  }
-
   findByPhone(phone: string): Promise<User | null> {
     return this.userModel.findOne({ where: { phone } });
-  }
-
-  findByEmailOrPhone(login: string): Promise<User | null> {
-    return this.userModel.findOne({
-      where: { [Op.or]: [{ email: login }, { phone: login }] },
-    });
   }
 
   create(data: CreateUserData): Promise<User> {
