@@ -8,11 +8,14 @@ import type { PageRequest, UnassignedFilter } from './schedule';
 // inputs would overwrite each other in the cache.
 export const queryKeys = {
   competitions: (query: CompetitionsQuery = {}) => ['competitions', query] as const,
+  myCompetitions: (query: CompetitionsQuery = {}) =>
+    ['competitions', 'mine', query] as const,
   competitionYears: () => ['competitions', 'years'] as const,
   competition: (id: string) => ['competition', id] as const,
 
   venues: (competitionId: string) => ['venues', competitionId] as const,
   entriesCount: (competitionId: string) => ['entries-count', competitionId] as const,
+  entryStats: (competitionId: string) => ['entry-stats', competitionId] as const,
   publicEntries: (
     competitionId: string,
     query: { page?: number; pageSize?: number } = {},

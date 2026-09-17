@@ -7,13 +7,19 @@
   justify-content: space-between;
   gap: 16px;
   min-height: var(--topbar-h);
-  padding: 18px 40px;
-  /* ThemeToggle renders separately (App.tsx) as position: fixed, top/right:
-     16px, var(--control-height) wide — reserve that corner so this bar's own
-     right-aligned content (profile pill, logout) never sits under it. */
-  padding-right: 80px;
-  background: var(--g-surface);
-  border-bottom: 1px solid var(--g-line);
+  /* The right side leaves room for the fixed theme toggle (ThemeToggle). */
+  padding: 18px 80px 18px 40px;
+  /* Transparent: the backdrop's curves read straight through the bar, so no
+     blur here either — it would smear the very thing we want visible. */
+  background: transparent;
+  border-bottom: 0;
+}
+
+/* Logged-out catalog home: the bar floats over the hero instead of sticking. */
+.topbarOverlay {
+  position: absolute;
+  left: 0;
+  right: 0;
 }
 
 .brand {
@@ -87,7 +93,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--g-accent);
+  color: var(--g-muted);
 }
 
 .loginBtn {
@@ -111,11 +117,23 @@
   border-color: var(--g-line-strong);
 }
 
+/* «Увійти» for a logged-out visitor — the catalog's deep-teal button. */
+.loginPrimary {
+  border: 1.5px solid var(--g-teal);
+  background: var(--g-teal);
+  box-shadow: inset 0 0 0 2px var(--g-on-teal-ring);
+  color: var(--g-on-teal);
+}
+
+.loginPrimary:hover {
+  border-color: var(--g-teal-hover);
+  background: var(--g-teal-hover);
+}
+
 @media (max-width: 680px) {
   .topbar {
-    padding: 14px 16px;
     /* Still clears the fixed toggle here — its inset shrinks at 640px, not
        680px, so this stays generous rather than tracking two breakpoints. */
-    padding-right: 80px;
+    padding: 14px 80px 14px 16px;
   }
 }

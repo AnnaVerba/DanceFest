@@ -18,6 +18,7 @@ import { CompetitionRulesModule } from './competition-rules/competition-rules.mo
 import { OveragesModule } from './overages/overages.module';
 import { ScheduleModule as NestScheduleModule } from '@nestjs/schedule';
 import { ScheduleModule } from './schedule/schedule.module';
+import { AwardsModule } from './awards/awards.module';
 import { MailModule } from './mail/mail.module';
 import { SmsModule } from './sms/sms.module';
 import { UploadsModule } from './uploads/uploads.module';
@@ -78,6 +79,7 @@ import { AppBootstrapModule } from './app-bootstrap/app-bootstrap.module';
     CompetitionRulesModule,
     OveragesModule,
     ScheduleModule,
+    AwardsModule,
     SchoolsModule,
     UsersModule,
     CompetitionParticipantNumbersModule,

@@ -5,6 +5,8 @@ import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
 import { publicRequest } from './http';
 import { withPageParams } from './pagination';
 import type { Paged } from './pagination';
+import type { EntryStats } from './entryStats.types';
+import type { EntryDetails, EntryUpdateInput } from './entryEdit.types';
 
 export interface Entry {
   id: string;
@@ -30,7 +32,8 @@ export interface Entry {
   paymentMethod?: 'cash' | 'card' | null;
   musicName?: string | null;
   musicUrl?: string | null;
-  score: number | null;
+  // Absent from the start-list payload a non-staff viewer receives.
+  score?: number | null;
   scoresCount?: number;
   purchasedExtraSeconds?: number;
   extraFee?: number;
@@ -224,6 +227,12 @@ export async function getEntriesCount(competitionId: string): Promise<number> {
   return payload.count;
 }
 
+export function getEntryStats(competitionId: string): Promise<EntryStats> {
+  return publicRequest<EntryStats>(
+    `/competitions/${competitionId}/entries/stats`,
+  );
+}
+
 export function createEntry(
   competitionId: string,
   input: EntryInput,
@@ -250,6 +259,26 @@ export function deleteEntry(competitionId: string, entryId: string): Promise<voi
   return request(`/competitions/${competitionId}/entries/${entryId}`, {
     method: 'DELETE',
   });
+}
+
+export function getEntry(
+  competitionId: string,
+  entryId: string,
+): Promise<EntryDetails> {
+  return request<EntryDetails>(
+    `/competitions/${competitionId}/entries/${entryId}`,
+  );
+}
+
+export function updateEntry(
+  competitionId: string,
+  entryId: string,
+  input: EntryUpdateInput,
+): Promise<EntryDetails> {
+  return request<EntryDetails>(
+    `/competitions/${competitionId}/entries/${entryId}`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
 }
 
 // Records purchased additional on-stage time and its fee for an overrun

@@ -1,0 +1,30 @@
+.root {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-color: var(--g-banner-base);
+  background-image: url('../../assets/competition-banner.webp');
+  background-repeat: no-repeat;
+  /* Wider than the slot on purpose: the overflow is the room each crop pans
+     through, so two cards side by side never show the same part of it. */
+  background-size: 190% auto;
+}
+
+/* The four crops sit on the parts of the drape that actually carry shape —
+   the warm ribbon, the teal fan, the fold where they cross. The pale top
+   right is skipped: cropped to a card it reads as an empty box. */
+.cropOne {
+  background-position: 8% 38%;
+}
+
+.cropTwo {
+  background-position: 100% 72%;
+}
+
+.cropThree {
+  background-position: 52% 100%;
+}
+
+.cropFour {
+  background-position: 78% 30%;
+}

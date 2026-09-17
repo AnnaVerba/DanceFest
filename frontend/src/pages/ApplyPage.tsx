@@ -21,8 +21,13 @@ import {
   PARTICIPANT_SEARCH_MIN_CHARS,
 } from '../lib/participants.constants';
 import { getSchool } from '../lib/schools';
-import { getMyMentorCoach, getSession, refreshSession } from '../lib/auth';
-import type { SetMentorCoachBody } from '../lib/auth';
+import {
+  getMyMentorCoach,
+  getSelectableCoaches,
+  getSession,
+  refreshSession,
+} from '../lib/auth';
+import type { CoachSummary, SetMentorCoachBody } from '../lib/auth';
 import { completeProfile } from '../lib/users';
 import MentorCoachPicker from '../components/MentorCoachPicker';
 import SchoolPicker from '../components/SchoolPicker';
@@ -50,6 +55,11 @@ const MY_ENTRIES_PATH = '/my-entries';
 
 function fullName(p: { lastName: string; firstName: string }): string {
   return `${p.lastName} ${p.firstName}`.trim();
+}
+
+function coachOptionLabel(coach: CoachSummary): string {
+  const name = fullName(coach);
+  return coach.schoolName ? `${name} — ${coach.schoolName}` : name;
 }
 
 // Mirrors the server's resolveLineup: Соло / Дуо / Тріо / Група by count.
@@ -167,6 +177,12 @@ export default function ApplyPage() {
   const [newParticipantError, setNewParticipantError] = useState<string | null>(
     null,
   );
+  // The coach a new dancer is filed under. Only an organizer or admin picks
+  // one — the server files a coach's own dancers under the coach.
+  const [newParticipantCoach, setNewParticipantCoach] =
+    useState<CoachSummary | null>(null);
+  const [coachQuery, setCoachQuery] = useState('');
+  const [coachOptions, setCoachOptions] = useState<CoachSummary[]>([]);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -174,6 +190,11 @@ export default function ApplyPage() {
 
   const isCoach = session
     ? meetsLevel(session.profile.accessLevel, ACCESS_LEVEL.COACH)
+    : false;
+  // A coach never picks: the server files their dancers under them. An
+  // organizer or admin may name a coach, or leave the dancer without one.
+  const canPickCoach = session
+    ? meetsLevel(session.profile.accessLevel, ACCESS_LEVEL.ORGANIZER)
     : false;
   const coachSchoolId = session?.profile.schoolId ?? null;
   // Anyone with a birth date can enter themselves in a number.
@@ -235,6 +256,26 @@ export default function ApplyPage() {
       clearTimeout(handle);
     };
   }, [participantQuery, isCoach]);
+
+  // Coach typeahead for the new-participant form. getSelectableCoaches
+  // answers with an empty list until the query is long enough.
+  useEffect(() => {
+    if (!canPickCoach || !showNewParticipant || newParticipantCoach) return;
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      getSelectableCoaches(coachQuery)
+        .then((coaches) => {
+          if (!cancelled) setCoachOptions(coaches);
+        })
+        .catch(() => {
+          if (!cancelled) setCoachOptions([]);
+        });
+    }, PARTICIPANT_SEARCH_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [coachQuery, canPickCoach, showNewParticipant, newParticipantCoach]);
 
   useEffect(() => {
     if (!coachSchoolId) return;
@@ -452,6 +493,7 @@ export default function ApplyPage() {
         lastName,
         phone,
         birthDate,
+        ...(newParticipantCoach ? { coachId: newParticipantCoach.id } : {}),
       });
       addParticipant({
         id: created.id,
@@ -465,6 +507,9 @@ export default function ApplyPage() {
         phone: '',
         birthDate: '',
       });
+      setNewParticipantCoach(null);
+      setCoachQuery('');
+      setCoachOptions([]);
       setShowNewParticipant(false);
     } catch (err) {
       setNewParticipantError(
@@ -614,9 +659,10 @@ export default function ApplyPage() {
   }
 
   // Registration closed → only organizers/admins may still add entries here.
-  // Competition over → no one.
+  // Competition over → no one but admins.
   const applyEligibility = getApplyEligibility(competition, {
     isOrganizer: !!session && meetsLevel(session.profile.accessLevel, ACCESS_LEVEL.ORGANIZER),
+    isAdmin: !!session && meetsLevel(session.profile.accessLevel, ACCESS_LEVEL.ADMIN),
   });
   if (!applyEligibility.allowed) {
     return (
@@ -823,6 +869,49 @@ export default function ApplyPage() {
                     }
                   />
                 </div>
+                {canPickCoach &&
+                  (newParticipantCoach ? (
+                    <div className={styles.chips}>
+                      <button
+                        type="button"
+                        className={`${styles.chip} ${styles.chipOn}`}
+                        onClick={() => {
+                          setNewParticipantCoach(null);
+                          setCoachQuery('');
+                        }}
+                      >
+                        {coachOptionLabel(newParticipantCoach)} ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        className={styles.subInput}
+                        placeholder="Тренер — необовʼязково"
+                        value={coachQuery}
+                        onChange={(e) => setCoachQuery(e.target.value)}
+                      />
+                      {coachOptions.length > 0 && (
+                        <div className={styles.nomList}>
+                          {coachOptions.map((coach) => (
+                            <button
+                              key={coach.id}
+                              type="button"
+                              className={styles.nomRow}
+                              onClick={() => {
+                                setNewParticipantCoach(coach);
+                                setCoachOptions([]);
+                              }}
+                            >
+                              <span className={styles.nomLabel}>
+                                {coachOptionLabel(coach)}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ))}
                 {newParticipantError && (
                   <p className={styles.error}>{newParticipantError}</p>
                 )}

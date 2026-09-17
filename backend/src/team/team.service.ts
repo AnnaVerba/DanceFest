@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { ConfigService } from '@nestjs/config';
+import { AccessLevel } from '../auth/access-level.enum';
 import { CreationAttributes, Op } from 'sequelize';
 import { User } from '../users/user.model';
 import { Competition } from '../competitions/competition.model';
@@ -68,9 +69,17 @@ export class TeamService {
     private readonly config: ConfigService,
   ) {}
 
-  async getTeam(competitionId: string, requesterId: string) {
+  async getTeam(
+    competitionId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+  ) {
     const competition = await this.loadCompetitionOrFail(competitionId);
-    const viewerRole = await this.resolveViewerRole(competition, requesterId);
+    const viewerRole = await this.resolveViewerRole(
+      competition,
+      requesterId,
+      requesterLevel,
+    );
 
     const owner = await this.adminModel.findByPk(competition.ownerId);
     const memberships = await this.competitionAdminModel.findAll({
@@ -111,10 +120,11 @@ export class TeamService {
   async inviteAdmin(
     competitionId: string,
     requesterId: string,
+    requesterLevel: AccessLevel,
     dto: CreateInvitationDto,
   ) {
     const competition = await this.loadCompetitionOrFail(competitionId);
-    this.assertOwner(competition, requesterId);
+    this.assertOwner(competition, requesterId, requesterLevel);
 
     const email = dto.email.trim().toLowerCase();
 
@@ -176,9 +186,10 @@ export class TeamService {
     competitionId: string,
     invitationId: string,
     requesterId: string,
+    requesterLevel: AccessLevel,
   ) {
     const competition = await this.loadCompetitionOrFail(competitionId);
-    this.assertOwner(competition, requesterId);
+    this.assertOwner(competition, requesterId, requesterLevel);
 
     const invitation = await this.invitationModel.findOne({
       where: { id: invitationId, competitionId },
@@ -203,9 +214,10 @@ export class TeamService {
     competitionId: string,
     invitationId: string,
     requesterId: string,
+    requesterLevel: AccessLevel,
   ): Promise<void> {
     const competition = await this.loadCompetitionOrFail(competitionId);
-    this.assertOwner(competition, requesterId);
+    this.assertOwner(competition, requesterId, requesterLevel);
 
     const invitation = await this.invitationModel.findOne({
       where: { id: invitationId, competitionId },
@@ -222,9 +234,10 @@ export class TeamService {
     competitionId: string,
     adminId: string,
     requesterId: string,
+    requesterLevel: AccessLevel,
   ): Promise<void> {
     const competition = await this.loadCompetitionOrFail(competitionId);
-    this.assertOwner(competition, requesterId);
+    this.assertOwner(competition, requesterId, requesterLevel);
 
     if (adminId === competition.ownerId) {
       throw new BadRequestException(OWNER_NOT_REMOVABLE_MESSAGE);
@@ -253,7 +266,10 @@ export class TeamService {
   private async resolveViewerRole(
     competition: Competition,
     adminId: string,
+    adminLevel: AccessLevel,
   ): Promise<ViewerRole> {
+    // A global admin gets the owner's full control over every team.
+    if (adminLevel === AccessLevel.ADMIN) return VIEWER_ROLE_OWNER;
     if (competition.ownerId === adminId) return VIEWER_ROLE_OWNER;
     const membership = await this.competitionAdminModel.findOne({
       where: { competitionId: competition.id, adminId },
@@ -264,7 +280,12 @@ export class TeamService {
     return VIEWER_ROLE_ADMIN;
   }
 
-  private assertOwner(competition: Competition, adminId: string): void {
+  private assertOwner(
+    competition: Competition,
+    adminId: string,
+    adminLevel: AccessLevel,
+  ): void {
+    if (adminLevel === AccessLevel.ADMIN) return;
     if (competition.ownerId !== adminId) {
       throw new ForbiddenException(COMPETITION_OWNER_ONLY_MESSAGE);
     }

@@ -14,13 +14,25 @@ import type { CreatedJudge } from '../lib/judges';
 import { createVenue } from '../lib/venues';
 import { createNominationsBulk } from '../lib/nominations';
 import NominationSetBuilder from '../components/nominations/NominationSetBuilder';
-import { CategoryApiError } from '../lib/categories';
+import {
+  CategoryApiError,
+  LEAGUE_CATEGORY_TYPE,
+  getCategories,
+} from '../lib/categories';
 import type { Category } from '../lib/categories';
 import {
+  missingLeagueMessage,
+  nominationsWithoutLeague,
   pluralNominations,
   resolveDraftCategories,
   savedSignatureOf,
 } from '../lib/nominationSet';
+import {
+  COMPETITION_NOMINATIONS_REQUIRED_MESSAGE,
+  LEAGUES_LOAD_FAILED_MESSAGE,
+  LEAGUES_LOADING_MESSAGE,
+  RETRY_LABEL,
+} from '../lib/nominationLeague.constants';
 import type { AxisSelection, DraftNomination } from '../lib/nominationSet';
 import {
   CategoryTemplateApiError,
@@ -170,6 +182,15 @@ export default function NewCompetitionPage() {
   // Defaults to the first template once the list loads, but an explicit
   // pick always wins — derived during render, so no effect has to chase it.
   const effectiveTemplateId = selectedTemplateId || categoryTemplates?.[0]?.id || '';
+
+  const leagueCategoriesQuery = useQuery({
+    queryKey: queryKeys.categories(LEAGUE_CATEGORY_TYPE),
+    queryFn: () => getCategories(LEAGUE_CATEGORY_TYPE),
+    staleTime: REFERENCE_STALE_TIME_MS,
+  });
+  // Only meaningful once the query succeeded — validateNominationSet checks
+  // pending / error first, so a missing catalog never reads as "no leagues".
+  const leagueCategories = leagueCategoriesQuery.data ?? [];
 
   const selectedTemplateQuery = useQuery({
     queryKey: queryKeys.categoryTemplate(effectiveTemplateId),
@@ -370,11 +391,26 @@ export default function NewCompetitionPage() {
   }
 
   function validateNominationSet(): string | null {
-    if (nominationSource !== 'custom') return null;
-    if (!templateName.trim()) return 'Вкажіть назву шаблону для власного набору.';
-    if (nominations.length === 0) {
-      return 'Складіть набір номінацій або оберіть готовий шаблон.';
+    if (nominationSource === 'custom') {
+      if (!templateName.trim()) return 'Вкажіть назву шаблону для власного набору.';
+      if (nominations.length === 0) {
+        return 'Складіть набір номінацій або оберіть готовий шаблон.';
+      }
     }
+    if (nominations.length === 0) return COMPETITION_NOMINATIONS_REQUIRED_MESSAGE;
+    if (leagueCategoriesQuery.isError) return LEAGUES_LOAD_FAILED_MESSAGE;
+    if (leagueCategoriesQuery.isPending) return LEAGUES_LOADING_MESSAGE;
+    const leagueIds = new Set(
+      [
+        ...leagueCategories,
+        ...(axes?.[LEAGUE_CATEGORY_TYPE] ?? []),
+        ...extraCategories,
+      ]
+        .filter((c) => c.type === LEAGUE_CATEGORY_TYPE)
+        .map((c) => c.id),
+    );
+    const withoutLeague = nominationsWithoutLeague(nominations, leagueIds);
+    if (withoutLeague.length > 0) return missingLeagueMessage(withoutLeague);
     return null;
   }
 
@@ -608,7 +644,7 @@ export default function NewCompetitionPage() {
     <>
       <main className={styles.main}>
         <div className={styles.wrap}>
-          <Link to="/dashboard" className={styles.back}>
+          <Link to="/" className={styles.back}>
             <svg
               width="16"
               height="16"
@@ -1067,6 +1103,19 @@ export default function NewCompetitionPage() {
                 на сам шаблон це не вплине.
               </p>
 
+              {leagueCategoriesQuery.isError && (
+                <p className={styles.error}>
+                  {LEAGUES_LOAD_FAILED_MESSAGE}{' '}
+                  <button
+                    type="button"
+                    className={`${styles.btn} ${styles.btnSm} ${styles.btnGhost}`}
+                    onClick={() => leagueCategoriesQuery.refetch()}
+                  >
+                    {RETRY_LABEL}
+                  </button>
+                </p>
+              )}
+
               <div
                 className={styles.sourceSwitch}
                 role="group"
@@ -1369,7 +1418,7 @@ export default function NewCompetitionPage() {
 
           <div className={styles.actions}>
             {step === 1 ? (
-              <Link to="/dashboard" className={styles.btn}>
+              <Link to="/" className={styles.btn}>
                 Скасувати
               </Link>
             ) : (

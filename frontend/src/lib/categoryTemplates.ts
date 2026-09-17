@@ -35,6 +35,7 @@ export interface CategoryTemplate {
   name: string;
   description: string | null;
   isPublic: boolean;
+  allMedalLeagues: string[];
   forkedFromId: string | null;
   author: CategoryTemplateAuthor | null;
   createdAt: string;
@@ -49,6 +50,7 @@ export interface CategoryTemplateInput {
   name: string;
   description?: string;
   isPublic?: boolean;
+  allMedalLeagues?: string[];
   nominations: TemplateNominationInput[];
 }
 

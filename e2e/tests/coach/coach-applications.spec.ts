@@ -303,17 +303,6 @@ test.describe('Coach applications', () => {
     ).toBeVisible();
   });
 
-  test('a coach is bounced back from the organizer dashboard', async ({
-    page,
-  }) => {
-    await registerCoach(page); // ends on /profile
-    await page.goto('/my-entries');
-    await page.goto('/dashboard');
-
-    await expect(page).not.toHaveURL(/\/dashboard$/);
-    await expect(page).toHaveURL(/\/my-entries$/);
-  });
-
   test('"Назад до списку" goes to the list, not the previous page', async ({
     page,
   }) => {

@@ -1,10 +1,13 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { clearSession, getSession } from '../lib/auth';
 import { ACCESS_LEVEL_LABELS } from '../lib/roles';
+import { HOME_PATH } from './PublicTopBar.constants';
 import styles from './PublicTopBar.module.css';
 
 export default function PublicTopBar() {
   const session = getSession();
+  const { pathname } = useLocation();
+  const overlay = !session && pathname === HOME_PATH;
 
   const handleLogout = () => {
     clearSession();
@@ -14,7 +17,11 @@ export default function PublicTopBar() {
   };
 
   return (
-    <header className={styles.topbar}>
+    <header
+      className={
+        overlay ? `${styles.topbar} ${styles.topbarOverlay}` : styles.topbar
+      }
+    >
       <Link to="/" className={styles.brand}>
         <svg
           className={styles.brandIcon}
@@ -69,7 +76,10 @@ export default function PublicTopBar() {
           </button>
         </div>
       ) : (
-        <Link to="/login" className={styles.loginBtn}>
+        <Link
+          to="/login"
+          className={`${styles.loginBtn} ${styles.loginPrimary}`}
+        >
           Увійти
         </Link>
       )}

@@ -51,6 +51,8 @@ interface SchedulePanelProps {
   competitionId: string;
   competition: Competition;
   canManage: boolean;
+  /** Admin may build the running order while registration is still open. */
+  canBuildAnytime: boolean;
   onError: (message: string) => void;
   onNotice: (message: string) => void;
 }
@@ -80,16 +82,18 @@ export default function SchedulePanel({
   competitionId,
   competition,
   canManage,
+  canBuildAnytime,
   onError,
   onNotice,
 }: SchedulePanelProps) {
   // Building the running order only makes sense once entries are final —
   // timing settings (the Таймінги tab) stay open the whole time regardless.
+  // An admin is not bound by that window.
   const status = getCompetitionStatus(competition);
   const registrationOpen =
     status === COMPETITION_STATUS.PLANNED ||
     status === COMPETITION_STATUS.REGISTRATION_OPEN;
-  const canBuild = canManage && !registrationOpen;
+  const canBuild = canManage && (canBuildAnytime || !registrationOpen);
   const queryClient = useQueryClient();
   const [sectionsPage, setSectionsPage] = useState(0);
   const [poolPage, setPoolPage] = useState(0);

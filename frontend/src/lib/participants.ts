@@ -20,6 +20,9 @@ export interface NewParticipant {
   lastName: string;
   phone: string;
   birthDate: string;
+  // Only an organizer or admin names a coach: a coach's own dancers are
+  // filed under them by the server. Left out, the dancer has no coach yet.
+  coachId?: string;
 }
 
 export class ParticipantApiError extends Error {
@@ -81,6 +84,7 @@ export function createParticipant(input: NewParticipant): Promise<Participant> {
       lastName: input.lastName.trim(),
       phone: input.phone.trim(),
       birthDate: input.birthDate,
+      ...(input.coachId ? { coachId: input.coachId } : {}),
     }),
   });
 }

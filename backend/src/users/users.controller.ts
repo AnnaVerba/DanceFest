@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -27,6 +26,7 @@ import { UsersService } from './users.service';
 import { CreateRosterParticipantDto } from './dto/create-roster-participant.dto';
 import { UpgradeLevelDto } from './dto/upgrade-level.dto';
 import { SetLevelDto } from './dto/set-level.dto';
+import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { SetMentorCoachDto } from './dto/set-mentor-coach.dto';
 import { CompleteProfileDto } from './dto/complete-profile.dto';
 import { User } from './user.model';
@@ -34,7 +34,8 @@ import { ParticipantSummary } from './participant-summary.interface';
 import { CoachSummary } from './coach-summary.interface';
 import { OrganizerSummary } from './organizer-summary.interface';
 import { MentorCoach } from './mentor-coach.interface';
-import { COACH_ID_REQUIRED_FOR_ORGANIZER_MESSAGE } from './users.constants';
+import { AdminUserSummary } from './admin-user-summary.interface';
+import type { PagedResult } from '../common/pagination';
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -211,17 +212,67 @@ export class UsersController {
     return { id: updated.id, accessLevel: updated.accessLevel };
   }
 
+  // A COACH files every dancer under themselves. An organizer or admin names
+  // the coach, or leaves it open — a dancer with no coach yet is a real case
+  // when the organizer enters someone on the spot.
+  @ApiOperation({
+    summary: 'Every user, paged, with a name/email/phone search (admin only)',
+  })
+  @ApiResponse({ status: 200, description: 'Users returned.' })
+  @MinLevel(AccessLevel.ADMIN)
+  @Get()
+  async listUsers(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('q') q?: string,
+  ): Promise<PagedResult<AdminUserSummary>> {
+    const result = await this.usersService.listForAdmin(page, pageSize, q);
+    return {
+      ...result,
+      rows: result.rows.map((user) => this.toAdminSummary(user)),
+    };
+  }
+
+  @ApiOperation({ summary: "Edit any user's profile (admin only)" })
+  @ApiResponse({ status: 200, description: 'User updated.' })
+  @ApiResponse({ status: 404, description: 'User not found.' })
+  @ApiResponse({
+    status: 409,
+    description: 'The phone or email belongs to another user.',
+  })
+  @MinLevel(AccessLevel.ADMIN)
+  @Patch(':id')
+  async updateUser(
+    @Param('id') id: string,
+    @Body() dto: AdminUpdateUserDto,
+  ): Promise<AdminUserSummary> {
+    const user = await this.usersService.adminUpdate(id, dto);
+    return this.toAdminSummary(user);
+  }
+
+  private toAdminSummary(user: User): AdminUserSummary {
+    return {
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone,
+      email: user.email,
+      birthDate: user.birthDate,
+      accessLevel: user.accessLevel,
+      confirmed: user.confirmed,
+      schoolName: user.school?.name ?? null,
+      createdAt: user.createdAt,
+    };
+  }
+
   private resolveCoachId(
     user: AuthenticatedUser,
     dto: CreateRosterParticipantDto,
-  ): string {
+  ): string | null {
     if (user.accessLevel === AccessLevel.COACH) {
       return user.id;
     }
-    if (!dto.coachId) {
-      throw new BadRequestException(COACH_ID_REQUIRED_FOR_ORGANIZER_MESSAGE);
-    }
-    return dto.coachId;
+    return dto.coachId ?? null;
   }
 
   private toSummary(participant: User): ParticipantSummary {

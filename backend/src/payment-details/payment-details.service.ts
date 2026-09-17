@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { AccessLevel } from '../auth/access-level.enum';
 import { CreationAttributes } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
@@ -36,9 +37,14 @@ export class PaymentDetailsService {
   async upsert(
     competitionId: string,
     requesterId: string,
+    requesterLevel: AccessLevel,
     dto: UpsertPaymentDetailsDto,
   ): Promise<PaymentDetails> {
-    await this.loadCompetitionAndAssertAccess(competitionId, requesterId);
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
 
     const existing = await this.paymentDetailsModel.findOne({
       where: { competitionId },
@@ -65,11 +71,14 @@ export class PaymentDetailsService {
   private async loadCompetitionAndAssertAccess(
     competitionId: string,
     requesterId: string,
+    requesterLevel: AccessLevel,
   ): Promise<Competition> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
       throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
+    // A global admin manages every competition.
+    if (requesterLevel === AccessLevel.ADMIN) return competition;
     if (competition.ownerId === requesterId) return competition;
 
     const membership = await this.competitionAdminModel.findOne({
