@@ -46,7 +46,7 @@ export class TeamController {
     @Param('competitionId') competitionId: string,
     @CurrentUser() admin: AuthenticatedAdmin,
   ) {
-    return this.teamService.getTeam(competitionId, admin.id);
+    return this.teamService.getTeam(competitionId, admin.id, admin.accessLevel);
   }
 
   @ApiOperation({ summary: 'Invite an admin to join the competition team' })
@@ -83,7 +83,12 @@ export class TeamController {
     @CurrentUser() admin: AuthenticatedAdmin,
     @Body() dto: CreateInvitationDto,
   ) {
-    return this.teamService.inviteAdmin(competitionId, admin.id, dto);
+    return this.teamService.inviteAdmin(
+      competitionId,
+      admin.id,
+      admin.accessLevel,
+      dto,
+    );
   }
 
   @ApiOperation({
@@ -116,6 +121,7 @@ export class TeamController {
       competitionId,
       invitationId,
       admin.id,
+      admin.accessLevel,
     );
   }
 
@@ -141,6 +147,7 @@ export class TeamController {
       competitionId,
       invitationId,
       admin.id,
+      admin.accessLevel,
     );
   }
 
@@ -166,6 +173,11 @@ export class TeamController {
     @Param('adminId') adminId: string,
     @CurrentUser() admin: AuthenticatedAdmin,
   ) {
-    return this.teamService.removeAdmin(competitionId, adminId, admin.id);
+    return this.teamService.removeAdmin(
+      competitionId,
+      adminId,
+      admin.id,
+      admin.accessLevel,
+    );
   }
 }

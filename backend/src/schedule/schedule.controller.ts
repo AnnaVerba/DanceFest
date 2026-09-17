@@ -57,7 +57,7 @@ export class ScheduleController {
     @Param('dayId') dayId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.scheduleService.deleteDay(competitionId, dayId, user.id);
+    return this.scheduleService.deleteDay(competitionId, dayId, user);
   }
 
   @ApiOperation({
@@ -125,7 +125,7 @@ export class ScheduleController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: BuildSectionDto,
   ) {
-    return this.scheduleService.buildSection(competitionId, user.id, dto);
+    return this.scheduleService.buildSection(competitionId, user, dto);
   }
 
   @ApiOperation({ summary: 'Reorder the positions inside a section' })
@@ -144,7 +144,7 @@ export class ScheduleController {
   ) {
     return this.scheduleService.reorderSection(
       competitionId,
-      user.id,
+      user,
       sectionId,
       dto,
     );
@@ -162,7 +162,7 @@ export class ScheduleController {
   ) {
     return this.scheduleService.updateSection(
       competitionId,
-      user.id,
+      user,
       sectionId,
       dto,
     );
@@ -181,7 +181,7 @@ export class ScheduleController {
   ) {
     return this.scheduleService.deleteSection(
       competitionId,
-      user.id,
+      user,
       sectionId,
     );
   }
@@ -196,7 +196,7 @@ export class ScheduleController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: MoveExitDto,
   ) {
-    return this.scheduleService.moveExit(competitionId, user.id, dto);
+    return this.scheduleService.moveExit(competitionId, user, dto);
   }
 
   @ApiOperation({ summary: 'Merge nomination groups for display only' })
@@ -211,7 +211,7 @@ export class ScheduleController {
   ) {
     return this.scheduleService.mergeGroups(
       competitionId,
-      user.id,
+      user,
       sectionId,
       dto,
     );
@@ -229,7 +229,7 @@ export class ScheduleController {
   ) {
     return this.scheduleService.unmergeGroup(
       competitionId,
-      user.id,
+      user,
       sectionId,
       groupKey,
     );
@@ -248,7 +248,7 @@ export class ScheduleController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: ReorderSectionsDto,
   ) {
-    return this.scheduleService.reorderSections(competitionId, user.id, dto);
+    return this.scheduleService.reorderSections(competitionId, user, dto);
   }
 
   @ApiOperation({ summary: 'Insert a manual row (break, gala) into a section' })
@@ -261,7 +261,7 @@ export class ScheduleController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: AddRowDto,
   ) {
-    return this.scheduleService.addRow(competitionId, user.id, sectionId, dto);
+    return this.scheduleService.addRow(competitionId, user, sectionId, dto);
   }
 
   @ApiOperation({ summary: 'Edit a manual row (break, gala) label or length' })
@@ -278,7 +278,7 @@ export class ScheduleController {
   ) {
     return this.scheduleService.updateRow(
       competitionId,
-      user.id,
+      user,
       sectionId,
       itemId,
       dto,
@@ -298,7 +298,7 @@ export class ScheduleController {
   ) {
     return this.scheduleService.deleteRow(
       competitionId,
-      user.id,
+      user,
       sectionId,
       itemId,
     );
@@ -315,7 +315,7 @@ export class ScheduleController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: RecalculateScheduleDto,
   ) {
-    return this.scheduleService.recalculate(competitionId, user.id, dto);
+    return this.scheduleService.recalculate(competitionId, user, dto);
   }
 
   @ApiOperation({
@@ -328,7 +328,7 @@ export class ScheduleController {
     @Param('competitionId') competitionId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.scheduleService.unassignedFacets(competitionId, user.id);
+    return this.scheduleService.unassignedFacets(competitionId, user);
   }
 
   @ApiOperation({ summary: 'All unassigned exit ids under the filter' })
@@ -342,7 +342,7 @@ export class ScheduleController {
     @Query('ageCategory') ageCategory?: string,
     @Query('nominationId') nominationId?: string,
   ) {
-    return this.scheduleService.unassignedIds(competitionId, user.id, {
+    return this.scheduleService.unassignedIds(competitionId, user, {
       league,
       ageCategory,
       nominationId,
@@ -364,7 +364,7 @@ export class ScheduleController {
   ) {
     return this.scheduleService.listUnassigned(
       competitionId,
-      user.id,
+      user,
       { league, ageCategory, nominationId },
       page,
       pageSize,
@@ -409,6 +409,6 @@ export class ScheduleController {
     @Param('competitionId') competitionId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.scheduleService.extendedProgram(competitionId, user.id);
+    return this.scheduleService.extendedProgram(competitionId, user);
   }
 }

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -22,6 +23,8 @@ import { resolveLineup } from './lineup';
 import { Score } from './score.model';
 import { User } from '../users/user.model';
 import { CreateEntryDto } from './dto/create-entry.dto';
+import { UpdateEntryDto } from './dto/update-entry.dto';
+import type { EntryParticipant } from './entry-participant.interface';
 import { UpdateEntryExtraTimeDto } from './dto/update-entry-extra-time.dto';
 import { resolvePage } from '../common/pagination';
 import {
@@ -36,11 +39,19 @@ import {
   MAX_MY_ENTRIES,
   COMPETITION_OVER_APPLY_MESSAGE,
   REGISTRATION_CLOSED_APPLY_MESSAGE,
+  PARTICIPANT_ALREADY_IN_NOMINATION_MESSAGE,
+  NOMINATION_PARTICIPANT_KEY_SEPARATOR,
+  ENTRY_STATS_ATTRIBUTES,
+  MAX_ENTRY_STATS_ROWS,
+  NOMINATION_PROGRAM_MISMATCH_MESSAGE,
+  MIN_PARTICIPANTS_PER_ENTRY,
 } from './entries.constants';
 import {
   COMPETITION_NOT_FOUND_MESSAGE,
   NO_COMPETITION_ACCESS_MESSAGE,
 } from '../competitions/competitions.constants';
+import { buildEntryStats } from './build-entry-stats';
+import type { EntryStats } from './entry-stats.interface';
 
 interface SubmitterContext {
   participantId: string | null;
@@ -57,6 +68,7 @@ interface PreparedEntry {
   submittedByUserId: string;
   routineName: string;
   nominationId: string;
+  nominationName: string;
   exits: NominationExit[];
   ageCategory: string | null;
   league: string | null;
@@ -86,8 +98,14 @@ export class EntriesService {
     rawPage?: string,
     rawPageSize?: string,
   ) {
-    await this.loadCompetitionAndAssertAccess(
-      competitionId,
+    const competition = await this.competitionModel.findByPk(competitionId);
+    if (!competition) {
+      throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
+    }
+    // Any signed-in user may read the start list; only staff also get the
+    // payment method and the judging scores.
+    const staff = await this.isCompetitionStaff(
+      competition,
       requesterId,
       requesterLevel,
     );
@@ -112,7 +130,7 @@ export class EntriesService {
       personIds,
     );
     return {
-      rows: rows.map((e) => this.toDto(e, numbers)),
+      rows: rows.map((e) => this.toDto(e, numbers, staff)),
       total: count,
       page,
       pageSize,
@@ -168,6 +186,19 @@ export class EntriesService {
     return { count };
   }
 
+  async stats(competitionId: string): Promise<EntryStats> {
+    const competition = await this.competitionModel.findByPk(competitionId);
+    if (!competition) {
+      throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
+    }
+    const entries = await this.entryModel.findAll({
+      where: { competitionId },
+      attributes: ENTRY_STATS_ATTRIBUTES,
+      limit: MAX_ENTRY_STATS_ROWS,
+    });
+    return buildEntryStats(entries);
+  }
+
   async create(
     competitionId: string,
     dto: CreateEntryDto,
@@ -186,6 +217,8 @@ export class EntriesService {
     competition: Competition,
     user: AuthenticatedUser,
   ): void {
+    // A global admin may add entries at any time, deadlines included.
+    if (user.accessLevel === AccessLevel.ADMIN) return;
     const today = new Date().toISOString().slice(0, 10);
     if (today > String(competition.dateTo).slice(0, 10)) {
       throw new ForbiddenException(COMPETITION_OVER_APPLY_MESSAGE);
@@ -214,6 +247,7 @@ export class EntriesService {
     const prepared = await Promise.all(
       dtos.map((dto) => this.prepareEntry(competitionId, dto, user)),
     );
+    this.assertNoRepeatWithinSubmission(prepared);
 
     const created = await this.insertWithRetry(competitionId, prepared);
 
@@ -221,6 +255,71 @@ export class EntriesService {
       competitionId,
     ]);
     return created.map((entry) => this.toDto(entry, numbers));
+  }
+
+  // One dancer performs in a nomination once. The several exits of a
+  // per-program nomination come from one submitted entry, so they never trip
+  // this — only a second entry naming the same dancer does.
+  private assertNoRepeatWithinSubmission(prepared: PreparedEntry[]): void {
+    const seen = new Set<string>();
+    for (const entry of prepared) {
+      for (const participantId of entry.submitter.participantIds) {
+        const key = `${entry.nominationId}${NOMINATION_PARTICIPANT_KEY_SEPARATOR}${participantId}`;
+        if (seen.has(key)) {
+          throw this.alreadyInNomination(entry.nominationName);
+        }
+        seen.add(key);
+      }
+    }
+  }
+
+  // Runs inside the insert transaction, after the competition row lock, so
+  // two concurrent submissions cannot both slip the same dancer in.
+  private async assertNotAlreadyInNominations(
+    competitionId: string,
+    prepared: PreparedEntry[],
+    transaction: Transaction,
+  ): Promise<void> {
+    for (const entry of prepared) {
+      const clash = await this.hasNominationClash(
+        competitionId,
+        entry.nominationId,
+        entry.submitter.participantIds,
+        transaction,
+      );
+      if (clash) {
+        throw this.alreadyInNomination(entry.nominationName);
+      }
+    }
+  }
+
+  // Whether any of these dancers already performs in the nomination —
+  // `excludeEntryId` skips the entry being edited.
+  private async hasNominationClash(
+    competitionId: string,
+    nominationId: string,
+    participantIds: string[],
+    transaction: Transaction,
+    excludeEntryId?: string,
+  ): Promise<boolean> {
+    if (participantIds.length === 0) return false;
+    const existing = await this.entryModel.findOne({
+      where: {
+        competitionId,
+        nominationId,
+        participantIds: { [Op.overlap]: participantIds },
+        ...(excludeEntryId ? { id: { [Op.ne]: excludeEntryId } } : {}),
+      },
+      attributes: ['id'],
+      transaction,
+    });
+    return existing !== null;
+  }
+
+  private alreadyInNomination(nominationName: string): ConflictException {
+    return new ConflictException(
+      `${PARTICIPANT_ALREADY_IN_NOMINATION_MESSAGE} «${nominationName}»`,
+    );
   }
 
   private async insertWithRetry(
@@ -249,6 +348,12 @@ export class EntriesService {
               transaction,
               lock: transaction.LOCK.UPDATE,
             });
+
+            await this.assertNotAlreadyInNominations(
+              competitionId,
+              prepared,
+              transaction,
+            );
 
             const last = await this.entryModel.findOne({
               where: { competitionId },
@@ -327,6 +432,7 @@ export class EntriesService {
       submittedByUserId: user.id,
       routineName,
       nominationId: nomination.id,
+      nominationName: nomination.name,
       exits,
       ageCategory,
       league,
@@ -463,13 +569,175 @@ export class EntriesService {
       requesterLevel,
     );
 
+    const entry = await this.loadEntry(competitionId, entryId);
+    await entry.destroy();
+  }
+
+  // One entry with the dancers named on it — what the staff edit form
+  // starts from.
+  async findOneForStaff(
+    competitionId: string,
+    entryId: string,
+    user: AuthenticatedUser,
+  ) {
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      user.id,
+      user.accessLevel,
+    );
+    const entry = await this.loadEntry(competitionId, entryId);
+    return this.toStaffDetailsDto(entry);
+  }
+
+  // Staff edit of one entry row: its dancers, nomination, routine name and
+  // the rest of the form fields. A dancer still performs in a nomination
+  // only once, and every newly added dancer gets their participant number.
+  async update(
+    competitionId: string,
+    entryId: string,
+    dto: UpdateEntryDto,
+    user: AuthenticatedUser,
+  ) {
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      user.id,
+      user.accessLevel,
+    );
+    const entry = await this.loadEntry(competitionId, entryId);
+    const changes: Partial<CreationAttributes<Entry>> = {};
+    const currentIds = entry.participantIds ?? [];
+    let addedIds: string[] = [];
+
+    if (dto.participantIds) {
+      const submitter = await this.resolveSubmitter(dto, user);
+      changes.participantId = submitter.participantId;
+      changes.participantIds = submitter.participantIds;
+      addedIds = submitter.participantIds.filter(
+        (id) => !currentIds.includes(id),
+      );
+    }
+    const participantsCount =
+      dto.participantsCount ?? changes.participantIds?.length;
+    if (participantsCount !== undefined) {
+      changes.participantsCount = participantsCount;
+      changes.lineup = resolveLineup(
+        participantsCount || MIN_PARTICIPANTS_PER_ENTRY,
+      );
+    }
+
+    let nominationName = entry.nomination;
+    const nominationChanged =
+      dto.nominationId !== undefined && dto.nominationId !== entry.nominationId;
+    if (nominationChanged) {
+      const { nomination, exits, ageCategory, league } =
+        await this.nominationsService.resolveForEntry(competitionId, {
+          nominationId: dto.nominationId,
+        });
+      const exit = this.exitMatchingProgram(exits, entry.program);
+      nominationName = nomination.name;
+      changes.nominationId = nomination.id;
+      changes.nomination = exit.label;
+      changes.program = exit.programName;
+      changes.ageCategory = ageCategory;
+      changes.league = league;
+    }
+
+    if (dto.routineName !== undefined) {
+      changes.routineName = dto.routineName.trim();
+    }
+    if (dto.studioName !== undefined) {
+      changes.studioName = dto.studioName.trim() || null;
+    }
+    if (dto.choreographer !== undefined) {
+      changes.choreographer = dto.choreographer.trim() || null;
+    }
+    if (dto.city !== undefined) changes.city = dto.city.trim() || null;
+    if (dto.improv !== undefined) changes.improv = dto.improv;
+    if (dto.paymentMethod !== undefined) {
+      changes.paymentMethod = dto.paymentMethod;
+    }
+
+    // A new nomination is checked for every dancer on the entry; the same
+    // nomination only for the dancers just added.
+    const idsToCheck = nominationChanged
+      ? (changes.participantIds ?? currentIds)
+      : addedIds;
+    const finalNominationId = changes.nominationId ?? entry.nominationId;
+
+    await this.entryModel.sequelize!.transaction(
+      async (transaction: Transaction) => {
+        // Same competition row lock as a new submission, so an edit and a
+        // concurrent application cannot both slip one dancer in.
+        await this.competitionModel.findByPk(competitionId, {
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        });
+        const clash =
+          finalNominationId !== null &&
+          (await this.hasNominationClash(
+            competitionId,
+            finalNominationId,
+            idsToCheck,
+            transaction,
+            entry.id,
+          ));
+        if (clash) {
+          throw this.alreadyInNomination(nominationName);
+        }
+        await entry.update(changes, { transaction });
+        await this.participantNumbersService.assignAll(
+          competitionId,
+          addedIds,
+          transaction,
+        );
+      },
+    );
+
+    return this.toStaffDetailsDto(entry);
+  }
+
+  // A per-program nomination has one exit per program: the edited row keeps
+  // its program, so the new nomination must offer it too.
+  private exitMatchingProgram(
+    exits: NominationExit[],
+    currentProgram: string | null,
+  ): NominationExit {
+    if (exits.length === 1) return exits[0];
+    const match = exits.find((exit) => exit.programName === currentProgram);
+    if (!match) {
+      throw new BadRequestException(NOMINATION_PROGRAM_MISMATCH_MESSAGE);
+    }
+    return match;
+  }
+
+  private async loadEntry(competitionId: string, entryId: string) {
     const entry = await this.entryModel.findOne({
       where: { id: entryId, competitionId },
+      include: [Score],
     });
     if (!entry) {
       throw new NotFoundException(ENTRY_NOT_FOUND_MESSAGE);
     }
-    await entry.destroy();
+    return entry;
+  }
+
+  private async toStaffDetailsDto(entry: Entry) {
+    const participantIds = entry.participantIds ?? [];
+    const numbers = await this.participantNumbersService.loadLookup(
+      [entry.competitionId],
+      participantIds,
+    );
+    const people = await Promise.all(
+      participantIds.map((id) => this.usersService.findById(id)),
+    );
+    const participants: EntryParticipant[] = people
+      .filter((person): person is User => person !== null)
+      .map((person) => ({
+        id: person.id,
+        firstName: person.firstName,
+        lastName: person.lastName,
+      }));
+    return { ...this.toDto(entry, numbers), participants };
   }
 
   // Records purchased additional on-stage time and its fee for an overrun
@@ -598,7 +866,7 @@ export class EntriesService {
     return [];
   }
 
-  private async loadCompetitionAndAssertAccess(
+  async loadCompetitionAndAssertAccess(
     competitionId: string,
     requesterId: string,
     requesterLevel: AccessLevel,
@@ -607,20 +875,33 @@ export class EntriesService {
     if (!competition) {
       throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
-    // An admin can see/manage any competition's entries; an organizer only
-    // their own.
-    if (requesterLevel === AccessLevel.ADMIN) return competition;
-    if (competition.ownerId === requesterId) return competition;
-
-    const membership = await this.competitionAdminModel.findOne({
-      where: { competitionId, adminId: requesterId },
-    });
-    if (!membership) {
+    if (
+      !(await this.isCompetitionStaff(competition, requesterId, requesterLevel))
+    ) {
       throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);
     }
     return competition;
   }
 
+  // Staff of a competition: an admin (any competition), its owner, or a
+  // named competition-admin. They manage entries and see the payment
+  // method and scores; everyone else gets a read-only start list.
+  private async isCompetitionStaff(
+    competition: Competition,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+  ): Promise<boolean> {
+    if (requesterLevel === AccessLevel.ADMIN) return true;
+    if (competition.ownerId === requesterId) return true;
+    const membership = await this.competitionAdminModel.findOne({
+      where: { competitionId: competition.id, adminId: requesterId },
+    });
+    return membership !== null;
+  }
+
+  // The logged-out public listing: no payment method, choreographer,
+  // studio, city or music file — just who is on stage and whether a track
+  // was uploaded.
   private toPublicDto(entry: Entry, numbers: ParticipantNumberLookup) {
     const participantIds = entry.participantIds ?? [];
     return {
@@ -639,17 +920,15 @@ export class EntriesService {
     };
   }
 
-  private toDto(entry: Entry, numbers: ParticipantNumberLookup) {
-    const scores = entry.scores ?? [];
+  // `includeStaffFields` off returns the start-list view any signed-in
+  // user may read: no payment method, no music link, no judging scores.
+  private toDto(
+    entry: Entry,
+    numbers: ParticipantNumberLookup,
+    includeStaffFields = true,
+  ) {
     const participantIds = entry.participantIds ?? [];
-    const averageScore =
-      scores.length > 0
-        ? scores.reduce((sum, s) => sum + Number(s.value), 0) / scores.length
-        : entry.score == null
-          ? null
-          : Number(entry.score);
-
-    return {
+    const base = {
       id: entry.id,
       nominationId: entry.nominationId,
       participantId: entry.participantId,
@@ -671,14 +950,29 @@ export class EntriesService {
       choreographer: entry.choreographer,
       city: entry.city,
       improv: entry.improv,
-      paymentMethod: entry.paymentMethod,
       musicName: entry.musicName,
+      createdAt: entry.createdAt,
+    };
+    if (!includeStaffFields) {
+      return base;
+    }
+
+    const scores = entry.scores ?? [];
+    const averageScore =
+      scores.length > 0
+        ? scores.reduce((sum, s) => sum + Number(s.value), 0) / scores.length
+        : entry.score == null
+          ? null
+          : Number(entry.score);
+
+    return {
+      ...base,
+      paymentMethod: entry.paymentMethod,
       musicUrl: entry.musicUrl,
       score: averageScore,
       scoresCount: scores.length,
       purchasedExtraSeconds: entry.purchasedExtraSeconds,
       extraFee: Number(entry.extraFee),
-      createdAt: entry.createdAt,
     };
   }
 }

@@ -28,5 +28,6 @@ import { SectionItem } from './section-item.model';
   ],
   controllers: [ScheduleController],
   providers: [ScheduleService],
+  exports: [ScheduleService],
 })
 export class ScheduleModule {}

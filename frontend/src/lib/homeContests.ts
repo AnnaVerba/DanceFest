@@ -1,7 +1,4 @@
-import { getCompetitionStatus } from './competitions';
 import type { Competition } from './competitions';
-import { COMPETITION_STATUS } from './competitionStatus';
-import type { CompetitionStatus } from './competitionStatus';
 
 const DATE_LOCALE = 'uk-UA';
 
@@ -9,29 +6,23 @@ export const HOME_STATUS_FILTER_ID = {
   ALL: 'all',
   REGISTRATION_OPEN: 'open',
   UPCOMING: 'soon',
+  FINISHED: 'finished',
 } as const;
 
 export type HomeStatusFilterId =
   (typeof HOME_STATUS_FILTER_ID)[keyof typeof HOME_STATUS_FILTER_ID];
 
+// The id is sent to the server as the list's `status` filter (ALL sends none).
 export interface HomeStatusFilter {
   id: HomeStatusFilterId;
   label: string;
-  statuses: readonly CompetitionStatus[];
 }
 
 export const HOME_STATUS_FILTERS: readonly HomeStatusFilter[] = [
-  { id: HOME_STATUS_FILTER_ID.ALL, label: 'Усі', statuses: [] },
-  {
-    id: HOME_STATUS_FILTER_ID.REGISTRATION_OPEN,
-    label: 'Відкрита реєстрація',
-    statuses: [COMPETITION_STATUS.REGISTRATION_OPEN],
-  },
-  {
-    id: HOME_STATUS_FILTER_ID.UPCOMING,
-    label: 'Незабаром',
-    statuses: [COMPETITION_STATUS.PLANNED],
-  },
+  { id: HOME_STATUS_FILTER_ID.ALL, label: 'Усі конкурси' },
+  { id: HOME_STATUS_FILTER_ID.REGISTRATION_OPEN, label: 'Реєстрація відкрита' },
+  { id: HOME_STATUS_FILTER_ID.UPCOMING, label: 'Заплановані' },
+  { id: HOME_STATUS_FILTER_ID.FINISHED, label: 'Завершені' },
 ];
 
 
@@ -60,23 +51,32 @@ export function formatContestDate(iso: string): string {
   });
 }
 
-export function formatContestDateRange(dateFrom: string, dateTo: string): string {
-  return dateFrom === dateTo
-    ? formatContestDate(dateFrom)
-    : `${formatContestDate(dateFrom)} – ${formatContestDate(dateTo)}`;
+const DAY_MONTH_OPTIONS: Intl.DateTimeFormatOptions = {
+  day: 'numeric',
+  month: 'long',
+};
+const DAY_RANGE_DASH = '–';
+const DATE_RANGE_DASH = ' – ';
+
+function dayMonthOf(date: Date): string {
+  return date.toLocaleDateString(DATE_LOCALE, DAY_MONTH_OPTIONS);
 }
 
-// Name / year filtering and paging now happen on the server; only the
-// status filter is applied to the loaded page here.
-export function filterHomeContests(
-  competitions: Competition[],
-  statusId: HomeStatusFilterId,
-): Competition[] {
-  const active = HOME_STATUS_FILTERS.find((f) => f.id === statusId);
-  if (!active || active.statuses.length === 0) return competitions;
-  return competitions.filter((c) =>
-    active.statuses.includes(getCompetitionStatus(c)),
-  );
+// Compact card date — «5 вересня 2026», «10–12 вересня 2026»,
+// «30 вересня – 2 жовтня 2026»; the year repeats only across years.
+export function formatContestDateRange(dateFrom: string, dateTo: string): string {
+  const from = new Date(dateFrom);
+  const to = new Date(dateTo);
+  if (dateFrom === dateTo) {
+    return `${dayMonthOf(from)} ${from.getFullYear()}`;
+  }
+  if (from.getFullYear() !== to.getFullYear()) {
+    return `${dayMonthOf(from)} ${from.getFullYear()}${DATE_RANGE_DASH}${dayMonthOf(to)} ${to.getFullYear()}`;
+  }
+  if (from.getMonth() === to.getMonth()) {
+    return `${from.getDate()}${DAY_RANGE_DASH}${dayMonthOf(to)} ${to.getFullYear()}`;
+  }
+  return `${dayMonthOf(from)}${DATE_RANGE_DASH}${dayMonthOf(to)} ${to.getFullYear()}`;
 }
 
 export function groupContestsByMonth(competitions: Competition[]): MonthGroup[] {

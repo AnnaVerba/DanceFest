@@ -16,6 +16,9 @@ export const CATEGORY_TYPES: CategoryType[] = [
 // вікову категорію учасника за датою народження.
 export const AGE_CATEGORY_TYPE: CategoryType = 'age';
 
+// Вісь, значення якої — ліги (Дебют, Перші кроки, Професійна ліга).
+export const LEAGUE_CATEGORY_TYPE: CategoryType = 'level';
+
 export const CATEGORY_TYPE_LABELS: Record<CategoryType, string> = {
   lineup: 'Склад',
   age: 'Вік',

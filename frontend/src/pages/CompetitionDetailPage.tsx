@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import CompetitionDetails from '../components/CompetitionDetails';
 import ContestIcon from '../components/ContestIcon';
+import AwardsSummary from '../components/awards/AwardsSummary';
+import FestivalProgram from '../components/program/FestivalProgram';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import EntriesPanel from '../components/admin/EntriesPanel';
 import JudgesPanel from '../components/admin/JudgesPanel';
@@ -35,6 +37,7 @@ const ALL_TABS = [
   'Доплати',
   'Таймінги',
   'Програма',
+  'Нагороди',
 ] as const;
 type Tab = (typeof ALL_TABS)[number];
 const TABS: readonly Tab[] = ALL_TABS.filter(
@@ -84,7 +87,7 @@ export default function CompetitionDetailPage() {
       queryClient.removeQueries({ queryKey: queryKeys.competition(competition.id) });
       await queryClient.invalidateQueries({ queryKey: ['competitions'] });
       showToast(`Конкурс «${competition.name}» видалено`);
-      navigate('/dashboard');
+      navigate('/');
     } catch {
       showToast('Не вдалося видалити конкурс. Спробуйте ще раз.');
       setConfirmingDelete(false);
@@ -99,30 +102,34 @@ export default function CompetitionDetailPage() {
   }
 
   const isOwner = !!admin && !!competition && competition.ownerId === admin.id;
-  // An admin manages every competition's applications; an organizer only
-  // the ones they own or are an invited co-organizer (team member) for.
+  // An admin manages every competition exactly like its owner (details,
+  // nominations, judges, applications); an organizer only the ones they own.
   const isAdmin = !!admin && meetsLevel(admin.accessLevel, ACCESS_LEVEL.ADMIN);
-  const canManageEntries = isOwner || isAdmin || isTeamMember;
+  const canManage = isOwner || isAdmin;
+  // Applications, overages and editing the competition are also open to an
+  // invited co-organizer (team member).
+  const canManageEntries = canManage || isTeamMember;
 
   // The entries list is staff-only (a participant only ever sees their own
   // entries, in their cabinet) — so is its whole search/filter toolbar.
+  // Awards are staff-only too; the server still checks the team.
   // Overages are organizer/admin-only money data — tighter than "Заявки",
   // which any staff account can open.
   const visibleTabs = TABS.filter((tab) => {
-    if (tab === 'Заявки') return !!admin;
+    if (tab === 'Заявки' || tab === 'Нагороди') return !!admin;
     if (tab === 'Доплати') return canManageEntries;
     return true;
   });
 
   // The single apply entry point on this page lives in the header next to
-  // the name; an owner/admin may still open it after registration closes.
+  // the name; an owner/admin may still open it after registration closes,
+  // and an admin even after the competition is over.
   const apply = competition
-    ? getApplyEligibility(competition, { isOrganizer: canManageEntries })
+    ? getApplyEligibility(competition, { isOrganizer: canManage, isAdmin })
     : null;
 
-  // "Назад до списку" always goes to a list, never the previous page:
-  // staff to the dashboard, everyone else to the public list.
-  const listPath = admin ? '/dashboard' : '/';
+  // "Назад до списку" always goes to the catalog, never the previous page.
+  const listPath = '/';
 
   return (
     <>
@@ -195,7 +202,7 @@ export default function CompetitionDetailPage() {
               {activeTab === 'Номінації' && (
                 <NominationsPanel
                   competitionId={id}
-                  canManage={isOwner}
+                  canManage={canManage}
                   onError={(message) => showToast(message)}
                 />
               )}
@@ -222,7 +229,7 @@ export default function CompetitionDetailPage() {
               {FEATURES.judges && activeTab === 'Судді' && (
                 <JudgesPanel
                   competitionId={id}
-                  canManage={isOwner}
+                  canManage={canManage}
                   onError={(message) => showToast(message)}
                 />
               )}
@@ -238,35 +245,41 @@ export default function CompetitionDetailPage() {
               {FEATURES.schedule && activeTab === 'Таймінги' && (
                 <ScheduleSettings
                   competitionId={id}
-                  canManage={isOwner}
+                  canManage={canManage}
                   onError={(message) => showToast(message)}
                   onSaved={(message) => showToast(message)}
                 />
               )}
 
-              {FEATURES.schedule && activeTab === 'Програма' && (
-                <>
-                  <Link
-                    to={`/competitions/${id}/schedule`}
-                    className={styles.back}
-                  >
-                    Відкрити повну програму фестивалю →
-                  </Link>
+              {/* One programme view: the editor for whoever manages it,
+                  the read-only programme (with "your performances") for
+                  everyone else. The music export lives under "Заявки". */}
+              {FEATURES.schedule &&
+                activeTab === 'Програма' &&
+                (canManage ? (
                   <SchedulePanel
                     competitionId={id}
                     competition={competition}
-                    canManage={isOwner}
+                    canManage
+                    canBuildAnytime={isAdmin}
                     onError={(message) => showToast(message)}
                     onNotice={(message) => showToast(message)}
                   />
-                </>
+                ) : (
+                  <FestivalProgram competitionId={id} />
+                ))}
+
+              {activeTab === 'Нагороди' && !!admin && (
+                <AwardsSummary competitionId={id} />
               )}
 
               {activeTab === 'Деталі' && (
                 <CompetitionDetails competition={competition} entriesCount={null} />
               )}
 
-              {canManageEntries && (
+              {/* Editing and deleting the competition itself belong to its
+                  details, not to every tab. */}
+              {activeTab === 'Деталі' && canManageEntries && (
                 <div className={styles.actions}>
                   {isOwner && (
                     <button

@@ -3,7 +3,6 @@ export const ROUTES = {
   HOME: '/',
   LOGIN: '/login',
   REGISTER: '/register',
-  DASHBOARD: '/dashboard',
   PROFILE: '/profile',
   COMPLETE_PROFILE: '/complete-profile',
   NEW_COMPETITION: '/competitions/new',

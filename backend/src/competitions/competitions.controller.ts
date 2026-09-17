@@ -33,7 +33,9 @@ import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 export class CompetitionsController {
   constructor(private readonly competitionsService: CompetitionsService) {}
 
-  @ApiOperation({ summary: 'List competitions (paged; filter by q / year)' })
+  @ApiOperation({
+    summary: 'List competitions (paged; filter by q / year / status)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Competitions returned successfully.',
@@ -45,8 +47,15 @@ export class CompetitionsController {
     @Query('pageSize') pageSize?: string,
     @Query('q') q?: string,
     @Query('year') year?: string,
+    @Query('status') status?: string,
   ) {
-    return this.competitionsService.findAll({ page, pageSize, q, year });
+    return this.competitionsService.findAll({
+      page,
+      pageSize,
+      q,
+      year,
+      status,
+    });
   }
 
   @ApiOperation({ summary: 'Distinct years for the list filter' })
@@ -54,6 +63,27 @@ export class CompetitionsController {
   @Get('years')
   listYears() {
     return this.competitionsService.listYears();
+  }
+
+  @ApiOperation({
+    summary:
+      'Competitions the caller owns or is on the team of (paged; filter by q / year)',
+  })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiBearerAuth()
+  @Get('mine')
+  findMine(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('q') q?: string,
+    @Query('year') year?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.competitionsService.findAll(
+      { page, pageSize, q, year, status },
+      user.id,
+    );
   }
 
   @ApiOperation({ summary: 'Get a single competition by id' })
@@ -142,6 +172,6 @@ export class CompetitionsController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string, @CurrentUser() admin: AuthenticatedUser) {
-    return this.competitionsService.remove(id, admin.id);
+    return this.competitionsService.remove(id, admin.id, admin.accessLevel);
   }
 }

@@ -73,7 +73,7 @@ export class CompetitionRulesController {
   ) {
     return this.competitionRulesService.updateRules(
       competitionId,
-      admin.id,
+      admin,
       dto,
     );
   }
@@ -100,7 +100,7 @@ export class CompetitionRulesController {
   ) {
     return this.competitionRulesService.createTariff(
       competitionId,
-      admin.id,
+      admin,
       dto,
     );
   }
@@ -126,7 +126,7 @@ export class CompetitionRulesController {
     return this.competitionRulesService.removeTariff(
       competitionId,
       tariffId,
-      admin.id,
+      admin,
     );
   }
 
@@ -183,7 +183,7 @@ export class CompetitionRulesController {
   ) {
     return this.competitionRulesService.createDurationLimit(
       competitionId,
-      admin.id,
+      admin,
       dto,
     );
   }
@@ -209,7 +209,7 @@ export class CompetitionRulesController {
     return this.competitionRulesService.removeDurationLimit(
       competitionId,
       limitId,
-      admin.id,
+      admin,
     );
   }
 }

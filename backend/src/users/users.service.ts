@@ -1,10 +1,11 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { CreationAttributes, Op } from 'sequelize';
+import { CreationAttributes, Op, UniqueConstraintError } from 'sequelize';
 import { AccessLevel, isHigherLevel } from '../auth/access-level.enum';
 import { SchoolsService } from '../schools/schools.service';
 import { School } from '../schools/school.model';
@@ -19,12 +20,23 @@ import {
   PARTICIPANT_SEARCH_MIN_CHARS,
   nameWhere,
 } from './participant-search';
-import { TYPEAHEAD_LIMIT, resolveTypeahead } from '../common/pagination';
+import {
+  PagedResult,
+  TYPEAHEAD_LIMIT,
+  resolvePage,
+  resolveTypeahead,
+} from '../common/pagination';
+import { userSearchWhere } from './user-search';
+import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import {
   LEVEL_ONLY_GOES_UP_MESSAGE,
   MENTOR_COACH_NOT_FOUND_MESSAGE,
   MENTOR_COACH_ONE_OF_MESSAGE,
   MENTOR_COACH_REQUIRED_MESSAGE,
+  DEFAULT_USERS_PAGE_SIZE,
+  MAX_USERS_PAGE_SIZE,
+  PARTICIPANT_PHONE_TAKEN_MESSAGE,
+  USER_CONTACT_TAKEN_MESSAGE,
   ONLY_COACH_SELF_UPGRADE_MESSAGE,
   SCHOOL_REQUIRED_FOR_COACH_MESSAGE,
   USER_NOT_FOUND_MESSAGE,
@@ -54,7 +66,7 @@ export interface RosterParticipantData {
   email: string | null;
   passwordHash: string | null;
   birthDate: string;
-  coachId: string;
+  coachId: string | null;
 }
 
 export type LinkRegistrationFields = Partial<
@@ -328,6 +340,53 @@ export class UsersService {
     return this.findByIdOrFail(userId);
   }
 
+  // ADMIN: every user, a page at a time, optionally narrowed by a search
+  // over name, email and phone.
+  async listForAdmin(
+    rawPage?: string,
+    rawPageSize?: string,
+    query?: string,
+  ): Promise<PagedResult<User>> {
+    const { page, pageSize, limit, offset } = resolvePage(
+      rawPage,
+      rawPageSize,
+      DEFAULT_USERS_PAGE_SIZE,
+      MAX_USERS_PAGE_SIZE,
+    );
+    const { rows, count } = await this.userModel.findAndCountAll({
+      where: userSearchWhere(query),
+      include: [School],
+      order: [
+        ['lastName', 'ASC'],
+        ['firstName', 'ASC'],
+      ],
+      limit,
+      offset,
+      distinct: true,
+    });
+    return { rows, total: count, page, pageSize };
+  }
+
+  // ADMIN: edit any user's profile. A phone or email another account
+  // already has is refused.
+  async adminUpdate(userId: string, dto: AdminUpdateUserDto): Promise<User> {
+    const user = await this.findByIdOrFail(userId);
+    try {
+      await user.update({
+        ...dto,
+        ...(dto.firstName !== undefined && { firstName: dto.firstName.trim() }),
+        ...(dto.lastName !== undefined && { lastName: dto.lastName.trim() }),
+        ...(dto.phone !== undefined && { phone: dto.phone.trim() }),
+      });
+    } catch (err) {
+      if (err instanceof UniqueConstraintError) {
+        throw new ConflictException(USER_CONTACT_TAKEN_MESSAGE);
+      }
+      throw err;
+    }
+    return user.reload({ include: [School] });
+  }
+
   // The coach's whole roster — for internal use (my-entries, my-program
   // highlighting). Sanity-capped, never truly unbounded.
   listRosterByCoach(coachUserId: string): Promise<User[]> {
@@ -363,18 +422,25 @@ export class UsersService {
 
   // A coach adds a dancer to their roster: a credential-less PARTICIPANT
   // account until the dancer claims it by phone.
-  createRosterParticipant(data: RosterParticipantData): Promise<User> {
-    return this.userModel.create({
-      firstName: data.firstName,
-      lastName: data.lastName,
-      phone: data.phone,
-      email: data.email,
-      passwordHash: data.passwordHash,
-      birthDate: data.birthDate,
-      accessLevel: AccessLevel.PARTICIPANT,
-      schoolId: null,
-      coachId: data.coachId,
-      confirmed: false,
-    } as CreationAttributes<User>);
+  async createRosterParticipant(data: RosterParticipantData): Promise<User> {
+    try {
+      return await this.userModel.create({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone,
+        email: data.email,
+        passwordHash: data.passwordHash,
+        birthDate: data.birthDate,
+        accessLevel: AccessLevel.PARTICIPANT,
+        schoolId: null,
+        coachId: data.coachId,
+        confirmed: false,
+      } as CreationAttributes<User>);
+    } catch (err) {
+      if (err instanceof UniqueConstraintError) {
+        throw new ConflictException(PARTICIPANT_PHONE_TAKEN_MESSAGE);
+      }
+      throw err;
+    }
   }
 }

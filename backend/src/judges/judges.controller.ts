@@ -44,7 +44,7 @@ export class JudgesController {
     @Param('competitionId') competitionId: string,
     @CurrentUser() admin: AuthenticatedAdmin,
   ) {
-    return this.judgesService.list(competitionId, admin.id);
+    return this.judgesService.list(competitionId, admin.id, admin.accessLevel);
   }
 
   @ApiOperation({ summary: 'Add a judge to a competition' })
@@ -72,7 +72,12 @@ export class JudgesController {
     @CurrentUser() admin: AuthenticatedAdmin,
     @Body() dto: CreateJudgeDto,
   ) {
-    return this.judgesService.create(competitionId, admin.id, dto);
+    return this.judgesService.create(
+      competitionId,
+      admin.id,
+      admin.accessLevel,
+      dto,
+    );
   }
 
   @ApiOperation({ summary: 'Remove a judge from a competition' })
@@ -90,6 +95,11 @@ export class JudgesController {
     @Param('judgeId') judgeId: string,
     @CurrentUser() admin: AuthenticatedAdmin,
   ) {
-    return this.judgesService.remove(competitionId, judgeId, admin.id);
+    return this.judgesService.remove(
+      competitionId,
+      judgeId,
+      admin.id,
+      admin.accessLevel,
+    );
   }
 }
