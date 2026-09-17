@@ -27,7 +27,12 @@ import {
   resolveDraftCategories,
   savedSignatureOf,
 } from '../lib/nominationSet';
-import { COMPETITION_NOMINATIONS_REQUIRED_MESSAGE } from '../lib/nominationLeague.constants';
+import {
+  COMPETITION_NOMINATIONS_REQUIRED_MESSAGE,
+  LEAGUES_LOAD_FAILED_MESSAGE,
+  LEAGUES_LOADING_MESSAGE,
+  RETRY_LABEL,
+} from '../lib/nominationLeague.constants';
 import type { AxisSelection, DraftNomination } from '../lib/nominationSet';
 import {
   CategoryTemplateApiError,
@@ -183,6 +188,8 @@ export default function NewCompetitionPage() {
     queryFn: () => getCategories(LEAGUE_CATEGORY_TYPE),
     staleTime: REFERENCE_STALE_TIME_MS,
   });
+  // Only meaningful once the query succeeded — validateNominationSet checks
+  // pending / error first, so a missing catalog never reads as "no leagues".
   const leagueCategories = leagueCategoriesQuery.data ?? [];
 
   const selectedTemplateQuery = useQuery({
@@ -391,6 +398,8 @@ export default function NewCompetitionPage() {
       }
     }
     if (nominations.length === 0) return COMPETITION_NOMINATIONS_REQUIRED_MESSAGE;
+    if (leagueCategoriesQuery.isError) return LEAGUES_LOAD_FAILED_MESSAGE;
+    if (leagueCategoriesQuery.isPending) return LEAGUES_LOADING_MESSAGE;
     const leagueIds = new Set(
       [
         ...leagueCategories,
@@ -1093,6 +1102,19 @@ export default function NewCompetitionPage() {
                 Номінації копіюються в цей конкурс. Далі їх можна правити тут —
                 на сам шаблон це не вплине.
               </p>
+
+              {leagueCategoriesQuery.isError && (
+                <p className={styles.error}>
+                  {LEAGUES_LOAD_FAILED_MESSAGE}{' '}
+                  <button
+                    type="button"
+                    className={`${styles.btn} ${styles.btnSm} ${styles.btnGhost}`}
+                    onClick={() => leagueCategoriesQuery.refetch()}
+                  >
+                    {RETRY_LABEL}
+                  </button>
+                </p>
+              )}
 
               <div
                 className={styles.sourceSwitch}

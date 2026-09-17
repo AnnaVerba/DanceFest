@@ -37,8 +37,12 @@ export default function CategoryTemplateFormPage() {
 
   const [allMedalLeagues, setAllMedalLeagues] = useState<string[]>([]);
   // Persisted league values — on edit the builder's axes stay null until the
-  // organizer touches them, so names for saved ids come from here.
-  const [leagueCategories, setLeagueCategories] = useState<Category[]>([]);
+  // organizer touches them, so names for saved ids come from here. null
+  // while still loading.
+  const [leagueCategories, setLeagueCategories] = useState<Category[] | null>(
+    null,
+  );
+  const [leagueCategoriesFailed, setLeagueCategoriesFailed] = useState(false);
 
   const [loading, setLoading] = useState(isEdit);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -88,8 +92,13 @@ export default function CategoryTemplateFormPage() {
   useEffect(() => {
     getCategories(LEAGUE_CATEGORY_TYPE)
       .then(setLeagueCategories)
-      .catch(() => setLeagueCategories([]));
+      .catch(() => setLeagueCategoriesFailed(true));
   }, []);
+
+  // Saving waits for the league list: leagueNames is incomplete until then,
+  // and filtering against it would silently drop saved «медаль кожному» ticks.
+  const leagueCategoriesLoading =
+    leagueCategories === null && !leagueCategoriesFailed;
 
   const seedCategoryIds = useMemo(
     () => [
@@ -105,7 +114,7 @@ export default function CategoryTemplateFormPage() {
   const leagueNames = useMemo(() => {
     const used = new Set(nominations.flatMap((n) => n.categoryIds));
     const known = [
-      ...leagueCategories,
+      ...(leagueCategories ?? []),
       ...(axes?.[LEAGUE_CATEGORY_TYPE] ?? []),
       ...extraCategories,
     ];
@@ -119,6 +128,7 @@ export default function CategoryTemplateFormPage() {
   }, [nominations, leagueCategories, axes, extraCategories]);
 
   const handleSave = async () => {
+    if (leagueCategoriesLoading) return;
     if (!name.trim()) {
       setNameError(true);
       return;
@@ -162,7 +172,11 @@ export default function CategoryTemplateFormPage() {
       name: name.trim(),
       description: description.trim() || undefined,
       isPublic,
-      allMedalLeagues: allMedalLeagues.filter((name) => leagueNames.includes(name)),
+      // Without the league list there is nothing reliable to validate
+      // against — keep the loaded values rather than wipe them.
+      allMedalLeagues: leagueCategoriesFailed
+        ? allMedalLeagues
+        : allMedalLeagues.filter((name) => leagueNames.includes(name)),
       nominations: nominations.map((n, index) => ({
         name: n.name.trim(),
         allowsImprovisation: n.allowsImprovisation,
@@ -307,7 +321,7 @@ export default function CategoryTemplateFormPage() {
                   type="button"
                   className={styles.btnGold}
                   onClick={() => void handleSave()}
-                  disabled={submitting}
+                  disabled={submitting || leagueCategoriesLoading}
                 >
                   {submitting
                     ? 'Збереження...'
