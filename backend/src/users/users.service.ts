@@ -5,7 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { CreationAttributes, Op, UniqueConstraintError } from 'sequelize';
+import {
+  CreationAttributes,
+  Op,
+  Transaction,
+  UniqueConstraintError,
+} from 'sequelize';
 import {
   AccessLevel,
   isHigherLevel,
@@ -97,12 +102,12 @@ export class UsersService {
     private readonly schoolsService: SchoolsService,
   ) {}
 
-  findById(id: string): Promise<User | null> {
-    return this.userModel.findByPk(id);
+  findById(id: string, transaction?: Transaction): Promise<User | null> {
+    return this.userModel.findByPk(id, { transaction });
   }
 
-  async findByIdOrFail(id: string): Promise<User> {
-    const user = await this.findById(id);
+  async findByIdOrFail(id: string, transaction?: Transaction): Promise<User> {
+    const user = await this.findById(id, transaction);
     if (!user) {
       throw new NotFoundException(USER_NOT_FOUND_MESSAGE);
     }
@@ -113,8 +118,8 @@ export class UsersService {
     return this.userModel.findOne({ where: { email } });
   }
 
-  findByPhone(phone: string): Promise<User | null> {
-    return this.userModel.findOne({ where: { phone } });
+  findByPhone(phone: string, transaction?: Transaction): Promise<User | null> {
+    return this.userModel.findOne({ where: { phone }, transaction });
   }
 
   create(data: CreateUserData): Promise<User> {
@@ -126,8 +131,9 @@ export class UsersService {
     fields: Partial<
       Pick<User, 'accessLevel' | 'schoolId' | 'coachId' | 'birthDate'>
     >,
+    transaction?: Transaction,
   ): Promise<void> {
-    await this.userModel.update(fields, { where: { id: userId } });
+    await this.userModel.update(fields, { where: { id: userId }, transaction });
   }
 
   async getFullProfile(userId: string): Promise<{
@@ -165,23 +171,29 @@ export class UsersService {
   // A mentor coach a user named who is not in the system yet. Keyed by
   // phone: if a row with that phone already exists (stub or real), reuse
   // it rather than creating a duplicate.
-  async createPlaceholderCoach(data: PlaceholderCoachData): Promise<User> {
-    const existing = await this.findByPhone(data.phone.trim());
+  async createPlaceholderCoach(
+    data: PlaceholderCoachData,
+    transaction?: Transaction,
+  ): Promise<User> {
+    const existing = await this.findByPhone(data.phone.trim(), transaction);
     if (existing) {
       return existing;
     }
-    return this.userModel.create({
-      firstName: data.firstName,
-      lastName: data.lastName,
-      phone: data.phone.trim(),
-      email: null,
-      passwordHash: null,
-      birthDate: null,
-      accessLevel: AccessLevel.COACH,
-      schoolId: null,
-      coachId: null,
-      confirmed: false,
-    } as CreationAttributes<User>);
+    return this.userModel.create(
+      {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone.trim(),
+        email: null,
+        passwordHash: null,
+        birthDate: null,
+        accessLevel: AccessLevel.COACH,
+        schoolId: null,
+        coachId: null,
+        confirmed: false,
+      } as CreationAttributes<User>,
+      { transaction },
+    );
   }
 
   // The real person registers with a stub's phone: fold the form data
@@ -206,7 +218,10 @@ export class UsersService {
   // Turn a "pick existing / describe new" choice into a concrete coach id,
   // creating a placeholder row for a named new coach. Does not persist the
   // link — the caller decides when and alongside what.
-  async resolveMentorCoachId(selection: MentorCoachSelection): Promise<string> {
+  async resolveMentorCoachId(
+    selection: MentorCoachSelection,
+    transaction?: Transaction,
+  ): Promise<string> {
     const hasExisting = Boolean(selection.coachId);
     const hasNew = Boolean(selection.newCoach);
     if (hasExisting === hasNew) {
@@ -217,13 +232,16 @@ export class UsersService {
       );
     }
     if (selection.coachId) {
-      const coach = await this.findById(selection.coachId);
+      const coach = await this.findById(selection.coachId, transaction);
       if (!coach) {
         throw new NotFoundException(MENTOR_COACH_NOT_FOUND_MESSAGE);
       }
       return selection.coachId;
     }
-    const created = await this.createPlaceholderCoach(selection.newCoach!);
+    const created = await this.createPlaceholderCoach(
+      selection.newCoach!,
+      transaction,
+    );
     return created.id;
   }
 
@@ -379,27 +397,37 @@ export class UsersService {
 
   // ADMIN: edit any user's profile. A phone or email another account
   // already has is refused.
-  async adminUpdate(userId: string, dto: AdminUpdateUserDto): Promise<User> {
-    const user = await this.findByIdOrFail(userId);
+  async adminUpdate(
+    userId: string,
+    dto: AdminUpdateUserDto,
+    transaction?: Transaction,
+  ): Promise<User> {
+    const user = await this.findByIdOrFail(userId, transaction);
     try {
-      await user.update({
-        ...dto,
-        ...(dto.firstName !== undefined && { firstName: dto.firstName.trim() }),
-        ...(dto.lastName !== undefined && { lastName: dto.lastName.trim() }),
-        ...(dto.phone !== undefined && { phone: dto.phone.trim() }),
-      });
+      await user.update(
+        {
+          ...dto,
+          ...(dto.firstName !== undefined && {
+            firstName: dto.firstName.trim(),
+          }),
+          ...(dto.lastName !== undefined && { lastName: dto.lastName.trim() }),
+          ...(dto.phone !== undefined && { phone: dto.phone.trim() }),
+        },
+        { transaction },
+      );
     } catch (err) {
       if (err instanceof UniqueConstraintError) {
         throw new ConflictException(USER_CONTACT_TAKEN_MESSAGE);
       }
       throw err;
     }
-    return user.reload({ include: [School] });
+    return user.reload({ include: [School], transaction });
   }
 
   // A user editing their own profile. Contact fields go through the admin
   // edit (same trimming and taken-email handling); the school and mentor
-  // coach are checked first, so a bad choice saves nothing.
+  // coach are checked first. Everything runs in one transaction, so a
+  // taken email or a failed write also rolls back a placeholder coach.
   async updateOwnProfile(
     userId: string,
     dto: UpdateMyProfileDto,
@@ -415,14 +443,19 @@ export class UsersService {
       await this.schoolsService.findByIdOrFail(schoolId);
       fields.schoolId = schoolId;
     }
-    if (coachId !== undefined || newCoach !== undefined) {
-      fields.coachId = await this.resolveMentorCoachId({ coachId, newCoach });
-    }
 
-    await this.adminUpdate(userId, contact);
-    if (Object.keys(fields).length > 0) {
-      await this.updateFields(userId, fields);
-    }
+    await this.userModel.sequelize!.transaction(async (transaction) => {
+      if (coachId !== undefined || newCoach !== undefined) {
+        fields.coachId = await this.resolveMentorCoachId(
+          { coachId, newCoach },
+          transaction,
+        );
+      }
+      await this.adminUpdate(userId, contact, transaction);
+      if (Object.keys(fields).length > 0) {
+        await this.updateFields(userId, fields, transaction);
+      }
+    });
   }
 
   // The coach's whole roster — for internal use (my-entries, my-program
