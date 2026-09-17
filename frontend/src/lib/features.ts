@@ -15,5 +15,5 @@ export const FEATURES = {
    * `/competitions/:id/schedule` public program page, and the
    * "Програма фестивалю" link.
    */
-  schedule: false,
+  schedule: true,
 } as const;

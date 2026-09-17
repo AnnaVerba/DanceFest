@@ -2,6 +2,9 @@ import { API_BASE_URL } from './api';
 import { authorizedFetch } from './auth';
 import { GENERIC_REQUEST_ERROR_MESSAGE } from './api.constants';
 import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
+import { publicRequest } from './http';
+import { withPageParams } from './pagination';
+import type { Paged } from './pagination';
 
 export interface Entry {
   id: string;
@@ -26,9 +29,26 @@ export interface Entry {
   improv?: boolean;
   paymentMethod?: 'cash' | 'card' | null;
   musicName?: string | null;
+  musicUrl?: string | null;
   score: number | null;
   scoresCount?: number;
+  purchasedExtraSeconds?: number;
+  extraFee?: number;
   createdAt: string;
+}
+
+// The only purchasable extra-time brackets for an overrun performance.
+export const EXTRA_TIME_SECONDS_OPTIONS = [30, 60] as const;
+export type ExtraTimeSeconds = (typeof EXTRA_TIME_SECONDS_OPTIONS)[number];
+
+export interface ExtraTimeInput {
+  purchasedSec: ExtraTimeSeconds;
+  fee: number;
+}
+
+export interface ExtraTimeResult {
+  entry: Entry;
+  totalDue: number;
 }
 
 export interface EntryInput {
@@ -122,15 +142,72 @@ export function getMyEntries(): Promise<MyEntry[]> {
   return request<MyEntry[]>('/me/entries');
 }
 
-// Set / replace the track file name for one of the user's own entries.
-export function updateEntryMusic(
+export interface TrackUploadResult {
+  musicUrl: string;
+  // Renamed per the competition's naming convention
+  // (№_Ім'я_Прізвище_Ліга_Стиль), not the file's original name.
+  fileName: string;
+  durationSec: number;
+  limitSec: number;
+  overageSec: number;
+}
+
+// Uploads (or replaces) the actual audio file for one of the user's own
+// entries and stores it in OCP object storage.
+export async function uploadEntryTrack(
   entryId: string,
-  musicName: string,
-): Promise<Entry> {
-  return request<Entry>(`/me/entries/${entryId}/music`, {
-    method: 'PATCH',
-    body: JSON.stringify({ musicName }),
-  });
+  file: File,
+): Promise<TrackUploadResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  let response: Response;
+  try {
+    response = await authorizedFetch(`/entries/${entryId}/music`, {
+      method: 'POST',
+      body: formData,
+    });
+  } catch {
+    throw new EntryApiError(CANNOT_CONNECT_TO_SERVER_MESSAGE, 0);
+  }
+
+  const payload = (await response.json().catch(() => null)) as
+    | (TrackUploadResult & ErrorPayload)
+    | null;
+
+  if (!response.ok) {
+    throw new EntryApiError(
+      extractMessage(payload, GENERIC_REQUEST_ERROR_MESSAGE),
+      response.status,
+    );
+  }
+
+  return payload as TrackUploadResult;
+}
+
+// The view-only row a logged-out visitor gets from the public listing — no
+// payment method, choreographer, studio, city, or music file.
+export interface PublicEntry {
+  id: string;
+  number: number;
+  participantNumbers: (number | null)[];
+  nomination: string;
+  ageCategory: string | null;
+  league: string | null;
+  lineup: string | null;
+  improv: boolean;
+  hasMusic: boolean;
+}
+
+export function getPublicEntries(
+  competitionId: string,
+  query: { page?: number; pageSize?: number } = {},
+): Promise<Paged<PublicEntry>> {
+  const params = withPageParams(new URLSearchParams(), query.page, query.pageSize);
+  const suffix = params.toString() ? `?${params}` : '';
+  return publicRequest<Paged<PublicEntry>>(
+    `/competitions/${competitionId}/entries/public${suffix}`,
+  );
 }
 
 export async function getEntriesCount(competitionId: string): Promise<number> {
@@ -173,4 +250,17 @@ export function deleteEntry(competitionId: string, entryId: string): Promise<voi
   return request(`/competitions/${competitionId}/entries/${entryId}`, {
     method: 'DELETE',
   });
+}
+
+// Records purchased additional on-stage time and its fee for an overrun
+// entry. Returns the updated entry and its total amount due.
+export function updateEntryExtraTime(
+  competitionId: string,
+  entryId: string,
+  input: ExtraTimeInput,
+): Promise<ExtraTimeResult> {
+  return request<ExtraTimeResult>(
+    `/competitions/${competitionId}/entries/${entryId}/extra-time`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
 }

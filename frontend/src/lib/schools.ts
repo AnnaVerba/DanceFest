@@ -2,6 +2,7 @@ import { authorizedFetch } from './auth';
 import {
   SCHOOLS_LOAD_FAILED_MESSAGE,
   SCHOOL_CREATE_FAILED_MESSAGE,
+  SCHOOL_TYPEAHEAD_MIN_CHARS,
 } from './schools.constants';
 
 export interface School {
@@ -18,10 +19,10 @@ function extractMessage(payload: ErrorPayload | null, fallback: string): string 
   return Array.isArray(payload.message) ? payload.message.join(', ') : payload.message;
 }
 
-// Typeahead: returns [] until the caller sends 2+ letters.
+// Typeahead: returns [] until the caller sends enough letters.
 export async function searchSchools(q: string): Promise<School[]> {
   const query = q.trim();
-  if (query.length < 2) return [];
+  if (query.length < SCHOOL_TYPEAHEAD_MIN_CHARS) return [];
   const response = await authorizedFetch(
     `/schools?q=${encodeURIComponent(query)}`,
   );

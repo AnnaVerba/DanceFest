@@ -6,7 +6,10 @@ import MentorCoachPicker from '../components/MentorCoachPicker';
 import { getSession } from '../lib/auth';
 import type { SetMentorCoachBody } from '../lib/auth';
 import { completeProfile } from '../lib/users';
-import { needsProfileCompletion } from '../lib/profileCompletion';
+import {
+  needsProfileCompletion,
+  skipProfileCompletionForSession,
+} from '../lib/profileCompletion';
 import { ACCESS_LEVEL } from '../lib/roles';
 import styles from './CompleteProfilePage.module.css';
 
@@ -30,6 +33,11 @@ export default function CompleteProfilePage() {
   const isCoach = session.profile.accessLevel === ACCESS_LEVEL.COACH;
   const canSubmit = mentor !== null && (!isCoach || schoolId.trim() !== '');
 
+  const handleSkip = () => {
+    skipProfileCompletionForSession();
+    navigate('/');
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmit || !mentor) return;
@@ -50,8 +58,8 @@ export default function CompleteProfilePage() {
         <h1 className={styles.title}>Завершіть профіль</h1>
         <p className={styles.subtitle}>
           {isCoach
-            ? 'Вкажіть школу, у якій ви працюєте, і свого тренера — без цього продовжити не можна.'
-            : 'Оберіть або додайте свого тренера — без цього продовжити не можна.'}
+            ? 'Вкажіть школу, у якій ви працюєте, і свого тренера. Можна пропустити й заповнити пізніше у профілі.'
+            : 'Оберіть або додайте свого тренера. Можна пропустити й заповнити пізніше у профілі.'}
         </p>
 
         {isCoach && (
@@ -73,6 +81,10 @@ export default function CompleteProfilePage() {
           disabled={submitting || !canSubmit}
         >
           {submitting ? 'Збереження…' : 'Зберегти та продовжити'}
+        </button>
+
+        <button type="button" className={styles.skip} onClick={handleSkip}>
+          Пропустити поки що
         </button>
       </form>
     </main>

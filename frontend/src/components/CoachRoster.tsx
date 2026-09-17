@@ -1,6 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createParticipant, getParticipants } from '../lib/participants';
 import type { NewParticipant, Participant } from '../lib/participants';
+import PhoneField from './PhoneField';
+import { isValidBirthDate, isValidName, isValidPhone } from '../lib/validation';
+import {
+  BIRTH_DATE_INVALID_MESSAGE,
+  MIN_BIRTH_DATE,
+  PHONE_INVALID_MESSAGE,
+} from '../lib/validation.constants';
+import { queryKeys } from '../lib/queryKeys';
+import { PARTICIPANTS_STALE_TIME_MS } from '../lib/queryClient.constants';
 import styles from './CoachRoster.module.css';
 
 const EMPTY_DRAFT: NewParticipant = {
@@ -17,39 +27,47 @@ function formatBirthDate(iso: string): string {
 }
 
 export default function CoachRoster() {
-  const [participants, setParticipants] = useState<Participant[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<NewParticipant>(EMPTY_DRAFT);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  useEffect(() => {
-    getParticipants()
-      .then(setParticipants)
-      .catch((err) =>
-        setLoadError(
-          err instanceof Error ? err.message : 'Не вдалося завантажити список.',
-        ),
-      );
-  }, []);
-
-  const canSubmit =
-    draft.firstName.trim() &&
-    draft.lastName.trim() &&
-    draft.phone.trim() &&
-    draft.birthDate;
+  const participantsQuery = useQuery({
+    queryKey: queryKeys.participants(),
+    queryFn: () => getParticipants(),
+    staleTime: PARTICIPANTS_STALE_TIME_MS,
+  });
+  const participants = participantsQuery.data ?? null;
+  const loadError = participantsQuery.isError
+    ? 'Не вдалося завантажити список.'
+    : null;
 
   const submit = async () => {
-    if (!canSubmit) {
-      setFormError('Заповніть імʼя, прізвище, телефон і дату народження.');
+    if (!isValidName(draft.firstName) || !isValidName(draft.lastName)) {
+      setFormError('Заповніть імʼя та прізвище.');
+      return;
+    }
+    if (!isValidPhone(draft.phone)) {
+      setFormError(PHONE_INVALID_MESSAGE);
+      return;
+    }
+    if (!isValidBirthDate(draft.birthDate)) {
+      setFormError(BIRTH_DATE_INVALID_MESSAGE);
       return;
     }
     setBusy(true);
     setFormError(null);
     try {
-      const created = await createParticipant(draft);
-      setParticipants((prev) => [...(prev ?? []), created]);
+      const created = await createParticipant({
+        ...draft,
+        firstName: draft.firstName.trim(),
+        lastName: draft.lastName.trim(),
+      });
+      queryClient.setQueryData<Participant[]>(queryKeys.participants(), (prev) => [
+        ...(prev ?? []),
+        created,
+      ]);
       setDraft(EMPTY_DRAFT);
       setAdding(false);
     } catch (err) {
@@ -117,15 +135,16 @@ export default function CoachRoster() {
             value={draft.lastName}
             onChange={(e) => setDraft({ ...draft, lastName: e.target.value })}
           />
-          <input
-            className={styles.input}
-            placeholder="Телефон"
+          <PhoneField
+            ariaLabel="Телефон"
             value={draft.phone}
-            onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
+            onChange={(value) => setDraft({ ...draft, phone: value })}
           />
           <input
             className={styles.input}
             type="date"
+            min={MIN_BIRTH_DATE}
+            max={new Date().toISOString().slice(0, 10)}
             value={draft.birthDate}
             onChange={(e) => setDraft({ ...draft, birthDate: e.target.value })}
           />

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { InfiniteData } from '@tanstack/react-query';
 import ConfirmDialog from './ConfirmDialog';
 import { deleteEntry, getEntries } from '../../lib/entries';
-import type { Entry } from '../../lib/entries';
+import type { Entry, PagedEntries } from '../../lib/entries';
 import { formatParticipantNumbers } from '../../lib/participantNumbers';
 import {
   ACTIONS_COLUMN_COUNT,
@@ -12,14 +14,15 @@ import {
   SORT_LABELS,
 } from './EntriesPanel.constants';
 import type { SortKey } from './EntriesPanel.constants';
+import { FEATURES } from '../../lib/features';
+import { queryKeys } from '../../lib/queryKeys';
+import { APPLICATIONS_STALE_TIME_MS } from '../../lib/queryClient.constants';
 import styles from './EntriesPanel.module.css';
 
 interface EntriesPanelProps {
   competitionId: string;
   canManage: boolean;
   onError: (message: string) => void;
-  // Non-null when the apply form must not be opened (reason to show).
-  applyBlockedReason?: string | null;
 }
 
 function formatScore(score: number | null): string {
@@ -43,13 +46,8 @@ export default function EntriesPanel({
   competitionId,
   canManage,
   onError,
-  applyBlockedReason = null,
 }: EntriesPanelProps) {
-  const [entries, setEntries] = useState<Entry[] | null>(null);
-  const [entriesTotal, setEntriesTotal] = useState(0);
-  const [serverPage, setServerPage] = useState(0);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [pendingDelete, setPendingDelete] = useState<Entry | null>(null);
 
   const [search, setSearch] = useState('');
@@ -60,46 +58,59 @@ export default function EntriesPanel({
   const [sort, setSort] = useState<SortKey>('number');
   const [page, setPage] = useState(1);
 
+  const entriesQuery = useInfiniteQuery({
+    queryKey: queryKeys.entries(competitionId),
+    queryFn: ({ pageParam }) =>
+      getEntries(competitionId, { page: pageParam, pageSize: ENTRIES_SERVER_PAGE }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((sum, p) => sum + p.rows.length, 0);
+      return loaded < lastPage.total ? lastPage.page + 1 : undefined;
+    },
+    staleTime: APPLICATIONS_STALE_TIME_MS,
+  });
+  const entries = entriesQuery.data?.pages.flatMap((p) => p.rows) ?? null;
+  const entriesTotal = entriesQuery.data?.pages.at(-1)?.total ?? 0;
+  const loading = entriesQuery.isLoading;
+  const loadingMore = entriesQuery.isFetchingNextPage;
+
   useEffect(() => {
-    let cancelled = false;
-    getEntries(competitionId, { page: 0, pageSize: ENTRIES_SERVER_PAGE })
-      .then((data) => {
-        if (cancelled) return;
-        setEntries(data.rows);
-        setEntriesTotal(data.total);
-        setServerPage(0);
-      })
-      .catch(() => {
-        if (!cancelled) onError('Не вдалося завантажити заявки.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [competitionId]);
+    if (entriesQuery.isError) onError('Не вдалося завантажити заявки.');
+  }, [entriesQuery.isError, onError]);
 
   const loadMoreEntries = () => {
-    setLoadingMore(true);
-    getEntries(competitionId, {
-      page: serverPage + 1,
-      pageSize: ENTRIES_SERVER_PAGE,
-    })
-      .then((data) => {
-        setEntries((prev) => [...(prev ?? []), ...data.rows]);
-        setServerPage(data.page);
-        setEntriesTotal(data.total);
-      })
-      .catch(() => onError('Не вдалося завантажити ще заявки.'))
-      .finally(() => setLoadingMore(false));
+    entriesQuery.fetchNextPage().catch(() => onError('Не вдалося завантажити ще заявки.'));
   };
+
+  const deleteEntryMutation = useMutation({
+    mutationFn: (entryId: string) => deleteEntry(competitionId, entryId),
+    onSuccess: (_data, entryId) => {
+      // Instant feedback: drop the row from whichever loaded page has it.
+      queryClient.setQueryData<InfiniteData<PagedEntries>>(
+        queryKeys.entries(competitionId),
+        (old) =>
+          old && {
+            ...old,
+            pages: old.pages.map((p) => ({
+              ...p,
+              rows: p.rows.filter((e) => e.id !== entryId),
+              total: p.total - 1,
+            })),
+          },
+      );
+      // Pages are fetched by server-side offset (getNextPageParam), so
+      // removing one row here leaves every later, not-yet-fetched page
+      // off by one. Refetch the already-loaded pages in the background so
+      // their offsets are correct again before "Показати ще" loads more.
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.entries(competitionId),
+      });
+    },
+  });
 
   const handleDelete = async (entry: Entry) => {
     try {
-      await deleteEntry(competitionId, entry.id);
-      setEntries((prev) => prev?.filter((e) => e.id !== entry.id) ?? prev);
+      await deleteEntryMutation.mutateAsync(entry.id);
     } catch {
       onError('Не вдалося видалити заявку. Спробуйте ще раз.');
     } finally {
@@ -164,28 +175,6 @@ export default function EntriesPanel({
 
   return (
     <section className={styles.panel}>
-      <div className={styles.intro}>
-        {applyBlockedReason ? (
-          <span
-            className={styles.btn}
-            aria-disabled="true"
-            title={applyBlockedReason}
-            style={{ opacity: 0.5, cursor: 'not-allowed' }}
-          >
-            Форма подачі заявки — {applyBlockedReason}
-          </span>
-        ) : (
-          <a
-            className={styles.btn}
-            href={`/competitions/${competitionId}/apply`}
-            target="_blank"
-            rel="noopener"
-          >
-            Форма подачі заявки ↗
-          </a>
-        )}
-      </div>
-
       <div className={styles.filters}>
         <input
           className={`${styles.field} ${styles.search}`}
@@ -253,11 +242,13 @@ export default function EntriesPanel({
           value={sort}
           onChange={(e) => setSort(e.target.value as SortKey)}
         >
-          {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
-            <option key={key} value={key}>
-              {SORT_LABELS[key]}
-            </option>
-          ))}
+          {(Object.keys(SORT_LABELS) as SortKey[])
+            .filter((key) => FEATURES.judges || key !== 'score')
+            .map((key) => (
+              <option key={key} value={key}>
+                {SORT_LABELS[key]}
+              </option>
+            ))}
         </select>
       </div>
 
@@ -283,7 +274,7 @@ export default function EntriesPanel({
                   <th scope="col">К-сть уч.</th>
                   <th scope="col">Студія</th>
                   <th scope="col">Хореограф</th>
-                  <th scope="col">Бал</th>
+                  {FEATURES.judges && <th scope="col">Бал</th>}
                   {canManage && (
                     <th scope="col" className={styles.colActions}>
                       <span hidden>Дії</span>
@@ -296,9 +287,10 @@ export default function EntriesPanel({
                   <tr>
                     <td
                       colSpan={
-                        canManage
-                          ? BASE_COLUMN_COUNT + ACTIONS_COLUMN_COUNT
-                          : BASE_COLUMN_COUNT
+                        (FEATURES.judges
+                          ? BASE_COLUMN_COUNT
+                          : BASE_COLUMN_COUNT - 1) +
+                        (canManage ? ACTIONS_COLUMN_COUNT : 0)
                       }
                       className={styles.noMatches}
                     >
@@ -318,15 +310,17 @@ export default function EntriesPanel({
                     <td>{entry.participantsCount ?? ''}</td>
                     <td>{entry.studioName}</td>
                     <td>{entry.choreographer}</td>
-                    <td
-                      className={
-                        entry.score === null
-                          ? `${styles.score} ${styles.scoreEmpty}`
-                          : styles.score
-                      }
-                    >
-                      {formatScore(entry.score)}
-                    </td>
+                    {FEATURES.judges && (
+                      <td
+                        className={
+                          entry.score === null
+                            ? `${styles.score} ${styles.scoreEmpty}`
+                            : styles.score
+                        }
+                      >
+                        {formatScore(entry.score)}
+                      </td>
+                    )}
                     {canManage && (
                       <td className={styles.colActions}>
                         <button

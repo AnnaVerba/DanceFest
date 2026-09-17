@@ -123,6 +123,19 @@ export class CompetitionsService {
     return competition.update(dto);
   }
 
+  // Same "organizer/owner or admin" edit permission as update() — exposed
+  // for other modules (e.g. music-export) that need to gate an action on a
+  // competition without going through the full update() flow.
+  async loadAndAssertCanEdit(
+    id: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+  ): Promise<Competition> {
+    const competition = await this.findOne(id);
+    await this.assertCanEdit(competition, requesterId, requesterLevel);
+    return competition;
+  }
+
   async remove(id: string, requesterId: string): Promise<void> {
     const competition = await this.findOne(id);
     this.assertOwner(competition, requesterId);

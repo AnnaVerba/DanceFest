@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
 import CabinetLayout from '../components/CabinetLayout';
 import { getSession, getToken } from '../lib/auth';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
-import { getMyEntries, updateEntryMusic } from '../lib/entries';
+import { getMyEntries, uploadEntryTrack } from '../lib/entries';
 import type { MyEntry } from '../lib/entries';
 import { formatParticipantNumbers } from '../lib/participantNumbers';
+import { queryKeys } from '../lib/queryKeys';
 import styles from './ParticipantCabinetPage.module.css';
 
 interface CompetitionGroup {
@@ -35,26 +37,19 @@ function groupByCompetition(entries: MyEntry[]): CompetitionGroup[] {
 
 export default function ParticipantCabinetPage() {
   const session = getSession();
-  const [myEntries, setMyEntries] = useState<MyEntry[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    getMyEntries()
-      .then((entries) => {
-        if (!cancelled) setMyEntries(entries);
-      })
-      .catch(() => {
-        if (!cancelled) setError('Не вдалося завантажити заявки.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const entriesQuery = useQuery({
+    queryKey: queryKeys.myEntries(),
+    queryFn: getMyEntries,
+    enabled: !!getToken() && !!session,
+  });
+  const myEntries = entriesQuery.data ?? null;
+  const loading = entriesQuery.isLoading;
+  const error = entriesQuery.isError
+    ? 'Не вдалося завантажити заявки.'
+    : uploadError;
 
   const groups = useMemo(
     () => groupByCompetition(myEntries ?? []),
@@ -68,16 +63,28 @@ export default function ParticipantCabinetPage() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    setError(null);
+    setUploadError(null);
     try {
-      const updated = await updateEntryMusic(entryId, file.name);
-      setMyEntries((prev) =>
-        (prev ?? []).map((e) =>
-          e.id === entryId ? { ...e, musicName: updated.musicName } : e,
+      const uploaded = await uploadEntryTrack(entryId, file);
+      const entry = myEntries?.find((e) => e.id === entryId);
+      queryClient.setQueryData<MyEntry[]>(queryKeys.myEntries(), (prev) =>
+        prev?.map((e) =>
+          e.id === entryId
+            ? { ...e, musicName: uploaded.fileName, musicUrl: uploaded.musicUrl }
+            : e,
         ),
       );
-    } catch {
-      setError('Не вдалося зберегти музику.');
+      // The track's duration can change the performance's timing — the
+      // schedule for this competition is no longer trustworthy as cached.
+      if (entry) {
+        await queryClient.invalidateQueries({
+          queryKey: ['timing', entry.competitionId],
+        });
+      }
+    } catch (err) {
+      setUploadError(
+        err instanceof Error ? err.message : 'Не вдалося зберегти музику.',
+      );
     }
   };
 
@@ -129,21 +136,37 @@ export default function ParticipantCabinetPage() {
                         <td>{entry.lineup ?? '—'}</td>
                         <td>{entry.ageCategory ?? '—'}</td>
                         <td>
-                          <label className={styles.musicCell}>
-                            <span>
-                              {entry.musicName ??
-                                (entry.improv ? 'Імпровізація' : '—')}
-                            </span>
-                            <input
-                              type="file"
-                              accept="audio/*"
-                              hidden
-                              onChange={(e) => onMusicPick(entry.id, e)}
-                            />
-                            <span className={styles.musicEdit}>
-                              {entry.musicName ? 'змінити' : 'додати'}
-                            </span>
-                          </label>
+                          <div className={styles.musicCell}>
+                            {entry.improv ? (
+                              <span>Імпровізація</span>
+                            ) : (
+                              <>
+                                {entry.musicUrl ? (
+                                  <a
+                                    href={entry.musicUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className={styles.musicListen}
+                                  >
+                                    {entry.musicName}
+                                  </a>
+                                ) : (
+                                  <span>{entry.musicName ?? '—'}</span>
+                                )}
+                                <label className={styles.musicUploadLabel}>
+                                  <input
+                                    type="file"
+                                    accept="audio/*"
+                                    hidden
+                                    onChange={(e) => onMusicPick(entry.id, e)}
+                                  />
+                                  <span className={styles.musicEdit}>
+                                    {entry.musicName ? 'змінити' : 'додати'}
+                                  </span>
+                                </label>
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

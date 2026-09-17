@@ -2,7 +2,7 @@ export const COMPETITION_STATUS = {
   PLANNED: 'Заплановано',
   REGISTRATION_OPEN: 'Реєстрація відкрита',
   REGISTRATION_CLOSED: 'Реєстрація закрита',
-  ONGOING: 'Триває',
+  ONGOING: 'Конкурс триває',
   FINISHED: 'Завершено',
 } as const;
 

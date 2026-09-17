@@ -91,18 +91,8 @@ export class UsersService {
     return user;
   }
 
-  findByEmail(email: string): Promise<User | null> {
-    return this.userModel.findOne({ where: { email } });
-  }
-
   findByPhone(phone: string): Promise<User | null> {
     return this.userModel.findOne({ where: { phone } });
-  }
-
-  findByEmailOrPhone(login: string): Promise<User | null> {
-    return this.userModel.findOne({
-      where: { [Op.or]: [{ email: login }, { phone: login }] },
-    });
   }
 
   create(data: CreateUserData): Promise<User> {
@@ -264,15 +254,17 @@ export class UsersService {
     };
   }
 
-  // Coaches a user may pick as their own mentor: real (confirmed) rows at
-  // COACH level or above. Typeahead — needs a couple of letters.
+  // Coaches a user may pick as their own mentor: rows at COACH level or
+  // above, matched on first or last name. Unconfirmed rows are included so
+  // a coach added earlier via "add manually" (createPlaceholderCoach, which
+  // stores confirmed: false) can be found and reused instead of duplicated.
+  // Typeahead — needs a couple of letters.
   listSelectableCoaches(query?: string): Promise<User[]> {
     const q = resolveTypeahead(query);
     if (q === null) return Promise.resolve([]);
     const like = { [Op.iLike]: `%${q}%` };
     return this.userModel.findAll({
       where: {
-        confirmed: true,
         accessLevel: {
           [Op.in]: [
             AccessLevel.COACH,
@@ -289,16 +281,14 @@ export class UsersService {
   }
 
   // Organizers a competition can be attributed to — confirmed ORGANIZER
-  // rows (not ADMIN). Typeahead.
+  // rows (not ADMIN). First 10 of the list, or the first 10 matching a
+  // typed name, so the picker has something to show before typing.
   listSelectableOrganizers(query?: string): Promise<User[]> {
-    const q = resolveTypeahead(query);
-    if (q === null) return Promise.resolve([]);
-    const like = { [Op.iLike]: `%${q}%` };
     return this.userModel.findAll({
       where: {
         confirmed: true,
         accessLevel: AccessLevel.ORGANIZER,
-        [Op.or]: [{ firstName: like }, { lastName: like }],
+        ...nameWhere(query),
       },
       order: [['lastName', 'ASC']],
       limit: TYPEAHEAD_LIMIT,

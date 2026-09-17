@@ -17,10 +17,12 @@ import { ParticipantNumberLookup } from '../competition-participant-numbers/part
 import { AccessLevel, meetsLevel } from '../auth/access-level.enum';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Entry } from './entry.model';
+import { isNumberAllocationRace } from './number-allocation-race';
 import { resolveLineup } from './lineup';
 import { Score } from './score.model';
 import { User } from '../users/user.model';
 import { CreateEntryDto } from './dto/create-entry.dto';
+import { UpdateEntryExtraTimeDto } from './dto/update-entry-extra-time.dto';
 import { resolvePage } from '../common/pagination';
 import {
   NOMINATION_REQUIRED_MESSAGE,
@@ -52,6 +54,7 @@ interface SubmitterContext {
 interface PreparedEntry {
   dto: CreateEntryDto;
   submitter: SubmitterContext;
+  submittedByUserId: string;
   routineName: string;
   nominationId: string;
   exits: NominationExit[];
@@ -110,6 +113,46 @@ export class EntriesService {
     );
     return {
       rows: rows.map((e) => this.toDto(e, numbers)),
+      total: count,
+      page,
+      pageSize,
+    };
+  }
+
+  // Public, read-only counterpart to `list`: no login required, no
+  // organizer/admin access check, and a limited field set — no payment
+  // method, choreographer, studio, city, or the music file itself (its name
+  // follows the №_Ім'я_Прізвище_Ліга_Стиль convention and would leak a
+  // performer's name).
+  async listPublic(
+    competitionId: string,
+    rawPage?: string,
+    rawPageSize?: string,
+  ) {
+    const competition = await this.competitionModel.findByPk(competitionId);
+    if (!competition) {
+      throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
+    }
+    const { page, pageSize, limit, offset } = resolvePage(
+      rawPage,
+      rawPageSize,
+      DEFAULT_ENTRIES_PAGE_SIZE,
+      MAX_ENTRIES_PAGE_SIZE,
+    );
+    const { rows, count } = await this.entryModel.findAndCountAll({
+      where: { competitionId },
+      order: [['number', 'ASC']],
+      limit,
+      offset,
+      distinct: true,
+    });
+    const personIds = rows.flatMap((e) => e.participantIds ?? []);
+    const numbers = await this.participantNumbersService.loadLookup(
+      [competitionId],
+      personIds,
+    );
+    return {
+      rows: rows.map((e) => this.toPublicDto(e, numbers)),
       total: count,
       page,
       pageSize,
@@ -244,7 +287,13 @@ export class EntriesService {
           },
         );
       } catch (err) {
-        if (attempt === 0) continue;
+        // Only a running number lost to a concurrent submission is worth
+        // another attempt — the row lock above should make this rare, but a
+        // lost race stays possible. Every other unique violation (a person
+        // already numbered here) and anything non-unique (validation, FK,
+        // null) fails for good and must surface instead of costing another
+        // wasted transaction.
+        if (isNumberAllocationRace(err)) continue;
         throw err;
       }
     }
@@ -275,6 +324,7 @@ export class EntriesService {
     return {
       dto,
       submitter,
+      submittedByUserId: user.id,
       routineName,
       nominationId: nomination.id,
       exits,
@@ -311,6 +361,7 @@ export class EntriesService {
       improv: dto.improv ?? false,
       paymentMethod: dto.paymentMethod ?? null,
       musicName: dto.musicName?.trim() || null,
+      submittedByUserId: entry.submittedByUserId,
     } as CreationAttributes<Entry>;
   }
 
@@ -329,27 +380,37 @@ export class EntriesService {
     return (entry.participantIds ?? []).some((id) => set.has(id));
   }
 
-  // Set / replace the track file name for one of the user's own entries —
-  // e.g. a dancer who applied without music adding it later.
-  async updateMusic(
-    entryId: string,
+  // Who may upload/replace/remove this entry's track (TracksService): the
+  // entry's submitter, the entry's performer (entryBelongsTo, checked for
+  // this user only — not their whole coach roster), or the competition's
+  // organizer/admin. Deliberately wider than "заявка належить тому, хто її
+  // подав" (§8.5) so a dancer whose coach submitted the entry can still add
+  // or change its music if the coach hasn't.
+  //
+  // Returns whether access came via the competition's organizer/admin —
+  // TracksService uses this to exempt them from the registrationTo music
+  // change window, which still applies to a submitter/performer.
+  async assertCanManageTrack(
+    entry: Entry,
     user: AuthenticatedUser,
-    musicName: string,
-  ) {
-    const entry = await this.entryModel.findByPk(entryId, { include: [Score] });
-    if (!entry) {
-      throw new NotFoundException(ENTRY_NOT_FOUND_MESSAGE);
+  ): Promise<boolean> {
+    try {
+      await this.loadCompetitionAndAssertAccess(
+        entry.competitionId,
+        user.id,
+        user.accessLevel,
+      );
+      return true;
+    } catch (err) {
+      if (!(err instanceof ForbiddenException)) throw err;
     }
-    const ids = await this.ownParticipantIds(user);
-    if (!this.entryBelongsTo(entry, ids)) {
+    if (
+      entry.submittedByUserId !== user.id &&
+      !this.entryBelongsTo(entry, [user.id])
+    ) {
       throw new ForbiddenException(NOT_OWN_PARTICIPANT_MESSAGE);
     }
-    entry.musicName = musicName.trim();
-    await entry.save();
-    const numbers = await this.participantNumbersService.loadLookup([
-      entry.competitionId,
-    ]);
-    return this.toDto(entry, numbers);
+    return false;
   }
 
   // Entries the current user is involved in — their own performances and,
@@ -409,6 +470,44 @@ export class EntriesService {
       throw new NotFoundException(ENTRY_NOT_FOUND_MESSAGE);
     }
     await entry.destroy();
+  }
+
+  // Records purchased additional on-stage time and its fee for an overrun
+  // performance. An overage the organizer hasn't recorded extra time for
+  // stays a warning elsewhere (see OveragesService) and never blocks the
+  // performance — this is the only place that turns it into something owed.
+  async updateExtraTime(
+    competitionId: string,
+    entryId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+    dto: UpdateEntryExtraTimeDto,
+  ) {
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
+
+    const entry = await this.entryModel.findOne({
+      where: { id: entryId, competitionId },
+    });
+    if (!entry) {
+      throw new NotFoundException(ENTRY_NOT_FOUND_MESSAGE);
+    }
+
+    entry.purchasedExtraSeconds = dto.purchasedSec;
+    entry.extraFee = dto.fee;
+    await entry.save();
+
+    const numbers = await this.participantNumbersService.loadLookup(
+      [competitionId],
+      entry.participantIds,
+    );
+    return {
+      entry: this.toDto(entry, numbers),
+      totalDue: Number(entry.extraFee),
+    };
   }
 
   // The apply form always sends `participantIds` (one for a solo, many for
@@ -522,13 +621,31 @@ export class EntriesService {
     return competition;
   }
 
+  private toPublicDto(entry: Entry, numbers: ParticipantNumberLookup) {
+    const participantIds = entry.participantIds ?? [];
+    return {
+      id: entry.id,
+      number: entry.number,
+      participantNumbers: numbers.numbersFor(
+        entry.competitionId,
+        participantIds,
+      ),
+      nomination: entry.nomination,
+      ageCategory: entry.ageCategory,
+      league: entry.league,
+      lineup: entry.lineup,
+      improv: entry.improv,
+      hasMusic: entry.musicName != null,
+    };
+  }
+
   private toDto(entry: Entry, numbers: ParticipantNumberLookup) {
     const scores = entry.scores ?? [];
     const participantIds = entry.participantIds ?? [];
     const averageScore =
       scores.length > 0
         ? scores.reduce((sum, s) => sum + Number(s.value), 0) / scores.length
-        : entry.score === null
+        : entry.score == null
           ? null
           : Number(entry.score);
 
@@ -556,8 +673,11 @@ export class EntriesService {
       improv: entry.improv,
       paymentMethod: entry.paymentMethod,
       musicName: entry.musicName,
+      musicUrl: entry.musicUrl,
       score: averageScore,
       scoresCount: scores.length,
+      purchasedExtraSeconds: entry.purchasedExtraSeconds,
+      extraFee: Number(entry.extraFee),
       createdAt: entry.createdAt,
     };
   }

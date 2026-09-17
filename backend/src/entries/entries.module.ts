@@ -29,5 +29,6 @@ import { EntriesService } from './entries.service';
   ],
   controllers: [EntriesController, MyEntriesController],
   providers: [EntriesService],
+  exports: [EntriesService],
 })
 export class EntriesModule {}

@@ -118,6 +118,13 @@
   display: inline-flex;
   align-items: baseline;
   gap: 8px;
+}
+
+.musicListen {
+  color: inherit;
+}
+
+.musicUploadLabel {
   cursor: pointer;
 }
 
@@ -127,6 +134,6 @@
   color: var(--g-accent);
 }
 
-.musicCell:hover .musicEdit {
+.musicUploadLabel:hover .musicEdit {
   text-decoration: underline;
 }

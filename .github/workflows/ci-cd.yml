@@ -102,6 +102,29 @@ jobs:
       DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || 'dansefest' }}
     steps:
       - uses: actions/checkout@v4
+      # Only secrets the stack cannot run without. Everything else (mail,
+      # SMS, OCP storage, first admin) is optional: the backend starts and
+      # the related feature stays off until the secret is added.
+      - name: Check required secrets
+        env:
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          REDIS_USERNAME: ${{ secrets.REDIS_USERNAME }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+        run: |
+          missing=0
+          for name in DB_PASSWORD JWT_SECRET JWT_REFRESH_SECRET REDIS_USERNAME REDIS_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Required secret $name is not set"
+              missing=1
+            fi
+          done
+          if [ "$REDIS_USERNAME" = "default" ]; then
+            echo "::error::REDIS_USERNAME must not be 'default' (that user is disabled)"
+            missing=1
+          fi
+          exit $missing
       - name: Set up SSH
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -146,16 +169,21 @@ jobs:
           JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
           JWT_REFRESH_EXPIRES_IN_SECONDS: ${{ secrets.JWT_REFRESH_EXPIRES_IN_SECONDS || 2592000 }}
           FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PHONE: ${{ secrets.ADMIN_PHONE }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           MAIL_FROM_NAME: ${{ secrets.MAIL_FROM_NAME || 'CompAdmin' }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
-          AWS_S3_PUBLIC_URL: ${{ secrets.AWS_S3_PUBLIC_URL }}
+          OCP_REGION: ${{ secrets.OCP_REGION || 'ua-central-1' }}
+          OCP_ACCESS_KEY_ID: ${{ secrets.OCP_ACCESS_KEY_ID }}
+          OCP_SECRET_ACCESS_KEY: ${{ secrets.OCP_SECRET_ACCESS_KEY }}
+          OCP_BUCKET: ${{ secrets.OCP_BUCKET || 'project-bucket-dance-fest' }}
+          OCP_ENDPOINT: ${{ secrets.OCP_ENDPOINT || 'https://s3.ua-central-1.ocplanet.cloud' }}
+          OCP_PUBLIC_URL: ${{ secrets.OCP_PUBLIC_URL }}
+          OCP_IMAGES_PREFIX: ${{ secrets.OCP_IMAGES_PREFIX || 'images' }}
+          OCP_AUDIO_PREFIX: ${{ secrets.OCP_AUDIO_PREFIX || 'audio' }}
+          REDIS_USERNAME: ${{ secrets.REDIS_USERNAME }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           SMS_PROVIDER: ${{ secrets.SMS_PROVIDER || 'dev' }}
           TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
           TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
@@ -167,9 +195,11 @@ jobs:
           # touch the runner's disk and the .env is readable only by its owner.
           for name in HTTP_PORT DB_USERNAME DB_PASSWORD DB_NAME \
             JWT_SECRET JWT_EXPIRES_IN_SECONDS JWT_REFRESH_SECRET JWT_REFRESH_EXPIRES_IN_SECONDS \
-            FRONTEND_URL ADMIN_EMAIL ADMIN_PASSWORD \
+            FRONTEND_URL ADMIN_PHONE ADMIN_PASSWORD \
             GMAIL_USER GMAIL_APP_PASSWORD MAIL_FROM_NAME \
-            AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_S3_BUCKET AWS_S3_PUBLIC_URL \
+            OCP_REGION OCP_ACCESS_KEY_ID OCP_SECRET_ACCESS_KEY OCP_BUCKET OCP_ENDPOINT OCP_PUBLIC_URL \
+            OCP_IMAGES_PREFIX OCP_AUDIO_PREFIX \
+            REDIS_USERNAME REDIS_PASSWORD \
             SMS_PROVIDER TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_FROM TURBOSMS_TOKEN TURBOSMS_SENDER; do
             printf '%s=%s\n' "$name" "${!name}"
           done | ssh deploy "umask 077 && cat > ${DEPLOY_PATH}/.env"

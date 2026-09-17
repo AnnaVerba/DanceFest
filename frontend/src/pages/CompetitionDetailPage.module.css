@@ -57,7 +57,40 @@
 .contestHead {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 14px;
+}
+
+.applyButton {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  padding: 0 22px;
+  border-radius: 8px;
+  background: var(--g-accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.applyButton:hover {
+  background: var(--g-accent-hover);
+}
+
+.applyDisabled {
+  background: var(--border, #d0d5dd);
+  color: var(--text-muted, #667085);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.applyNote {
+  margin: 4px 0 0;
+  color: #b42318;
+  font-size: 13.5px;
 }
 
 .contestHeadIcon {

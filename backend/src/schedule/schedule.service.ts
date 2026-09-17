@@ -437,6 +437,7 @@ export class ScheduleService {
 
     // Resolve every duration up front: durationOf hits the rules service and
     // can throw, so it must not run mid-insert and leave a half-built section.
+    const limitCache = new Map<string, number>();
     const performanceRows: CreationAttributes<SectionItem>[] = [];
     for (const group of grouped) {
       for (const entry of group.entries) {
@@ -444,7 +445,7 @@ export class ScheduleService {
           entryId: entry.id,
           type: PERFORMANCE_ITEM,
           nominationGroupKey: group.key,
-          durationSeconds: await this.durationOf(entry, rules),
+          durationSeconds: await this.durationOf(entry, rules, limitCache),
           sortOrder: performanceRows.length,
         } as CreationAttributes<SectionItem>);
       }
@@ -794,6 +795,7 @@ export class ScheduleService {
 
     // One transaction for every section: an unresolvable entry halfway
     // through must not leave the schedule split between old and new rules.
+    const limitCache = new Map<string, number>();
     await this.sectionModel.sequelize!.transaction(async (transaction) => {
       for (const section of sections) {
         await this.itemModel.destroy({
@@ -812,7 +814,11 @@ export class ScheduleService {
         });
         for (const item of items) {
           if (!item.entry) continue;
-          item.durationSeconds = await this.durationOf(item.entry, rules);
+          item.durationSeconds = await this.durationOf(
+            item.entry,
+            rules,
+            limitCache,
+          );
           await item.save({ transaction });
         }
         section.pauseSeconds = rules.pauseSeconds;
@@ -1013,9 +1019,13 @@ export class ScheduleService {
   // Priority for a non-improv exit's on-stage limit:
   //   league limit (the simple knob) → per-nomination / per-axis
   //   duration_limits → 180s default.
+  // `limitCache` (nominationId -> seconds) is passed by callers that resolve
+  // many entries in one pass — a section or a whole recalculate — where the
+  // same nomination recurs and its limit cannot change mid-pass.
   private async durationOf(
     entry: Entry,
     rules: CompetitionRule,
+    limitCache?: Map<string, number>,
   ): Promise<number> {
     // leagueLimits keys are stored trimmed (see sanitizeLeagueLimits).
     const leagueKey = entry.league?.trim();
@@ -1024,10 +1034,16 @@ export class ScheduleService {
     if (typeof leagueLimit === 'number' && leagueLimit > 0) {
       limitSeconds = leagueLimit;
     } else if (entry.nominationId) {
-      limitSeconds = await this.rulesService.resolveLimit(
-        entry.nominationId,
-        DEFAULT_DURATION_ROUND,
-      );
+      const cached = limitCache?.get(entry.nominationId);
+      if (cached !== undefined) {
+        limitSeconds = cached;
+      } else {
+        limitSeconds = await this.rulesService.resolveLimit(
+          entry.nominationId,
+          DEFAULT_DURATION_ROUND,
+        );
+        limitCache?.set(entry.nominationId, limitSeconds);
+      }
     } else {
       limitSeconds = DEFAULT_LIMIT_SECONDS;
     }

@@ -5,7 +5,11 @@ import { getApplyEligibility, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { getNominations } from '../lib/nominations';
 import type { Nomination, NominationAgeCategory } from '../lib/nominations';
-import { EntryApiError, createEntriesBulk } from '../lib/entries';
+import {
+  EntryApiError,
+  createEntriesBulk,
+  uploadEntryTrack,
+} from '../lib/entries';
 import {
   ParticipantApiError,
   createParticipant,
@@ -17,7 +21,11 @@ import {
   PARTICIPANT_SEARCH_MIN_CHARS,
 } from '../lib/participants.constants';
 import { getSchool } from '../lib/schools';
-import { getSession } from '../lib/auth';
+import { getMyMentorCoach, getSession, refreshSession } from '../lib/auth';
+import type { SetMentorCoachBody } from '../lib/auth';
+import { completeProfile } from '../lib/users';
+import MentorCoachPicker from '../components/MentorCoachPicker';
+import SchoolPicker from '../components/SchoolPicker';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import styles from './ApplyPage.module.css';
 
@@ -133,12 +141,21 @@ export default function ApplyPage() {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [studioName, setStudioName] = useState<string | null>(null);
+  // Coach + studio for an applicant whose profile has no mentor coach yet:
+  // filled through the pickers below, saved to the profile on submit.
+  const [coachName, setCoachName] = useState<string | null>(null);
+  const [mentor, setMentor] = useState<SetMentorCoachBody | null>(null);
+  const [mentorSchoolId, setMentorSchoolId] = useState(
+    session?.profile.schoolId ?? '',
+  );
   const [league, setLeague] = useState('');
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [city, setCity] = useState('');
   const [payMethod, setPayMethod] = useState<PayMethod>('card');
-  const [musicByKey, setMusicByKey] = useState<Record<string, string>>({});
+  const [musicFileByKey, setMusicFileByKey] = useState<Record<string, File>>(
+    {},
+  );
 
   const [showNewParticipant, setShowNewParticipant] = useState(false);
   const [newParticipant, setNewParticipant] = useState({
@@ -231,6 +248,23 @@ export default function ApplyPage() {
       cancelled = true;
     };
   }, [coachSchoolId]);
+
+  // A participant's studio and coach come from their mentor coach — pull
+  // them in for display when the profile already has one.
+  useEffect(() => {
+    if (!session?.profile.coachId) return;
+    let cancelled = false;
+    getMyMentorCoach()
+      .then((coach) => {
+        if (cancelled || !coach) return;
+        setCoachName(`${coach.lastName} ${coach.firstName}`.trim());
+        setStudioName((prev) => prev ?? coach.schoolName);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
 
   // Rows offered under the search box: the coach themselves (always
   // available, no search needed) plus whatever the current query matched,
@@ -339,6 +373,13 @@ export default function ApplyPage() {
   const selectedRows = allRows.filter((r) => selectedKeys.includes(r.key));
   const total = selectedRows.reduce((sum, r) => sum + (r.price ?? 0), 0);
 
+  // Which required field to highlight red — mirrors the checks in
+  // handleSubmit, so the invalid one stays marked until it's actually fixed.
+  const participantsInvalid =
+    submitError != null && effectiveParticipantIds.length === 0;
+  const leagueInvalid = submitError != null && !league;
+  const nominationsInvalid = submitError != null && selectedRows.length === 0;
+
   const ageLabel = (() => {
     if (activeParticipants.length === 0) return '—';
     if (activeParticipants.length > 1) {
@@ -350,8 +391,9 @@ export default function ApplyPage() {
     return category ? `${age} р. · ${category}` : `${age} р.`;
   })();
 
-  const coachLabel =
-    session && isCoach ? fullName(session.profile) : '—';
+  const coachLabel = isCoach && session
+    ? fullName(session.profile)
+    : coachName ?? '—';
 
   const studioLabel = studioName ?? '—';
 
@@ -384,8 +426,9 @@ export default function ApplyPage() {
   };
 
   const setMusicForRow = (key: string, e: ChangeEvent<HTMLInputElement>) => {
-    const name = e.target.files?.[0]?.name ?? '';
-    setMusicByKey((prev) => ({ ...prev, [key]: name }));
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setMusicFileByKey((prev) => ({ ...prev, [key]: file }));
   };
 
   const handleCreateParticipant = async () => {
@@ -441,8 +484,10 @@ export default function ApplyPage() {
     setSelectedKeys([]);
     setCity('');
     setPayMethod('card');
-    setMusicByKey({});
+    setMusicFileByKey({});
+    setMentor(null);
     setCreatedCount(0);
+    setSubmitError(null);
   };
 
   const handleSubmit = async () => {
@@ -462,9 +507,31 @@ export default function ApplyPage() {
       setSubmitError('Оберіть хоча б одну номінацію.');
       return;
     }
+    if (mentor && isCoach && !mentorSchoolId.trim()) {
+      setSubmitError('Оберіть школу, щоб зберегти тренера.');
+      return;
+    }
 
     setSubmitting(true);
     try {
+      // A picked/typed coach is saved to the profile first; the backend
+      // then resolves the entry's studio and choreographer from it.
+      if (mentor) {
+        try {
+          await completeProfile(
+            isCoach ? { ...mentor, schoolId: mentorSchoolId.trim() } : mentor,
+          );
+          await refreshSession();
+          setMentor(null);
+        } catch (err) {
+          setSubmitError(
+            err instanceof Error
+              ? err.message
+              : 'Не вдалося зберегти тренера у профілі.',
+          );
+          return;
+        }
+      }
       const created = await createEntriesBulk(
         id,
         rows.map((r) => ({
@@ -473,10 +540,24 @@ export default function ApplyPage() {
           improv: r.improv,
           city: city.trim() || undefined,
           paymentMethod: payMethod,
-          musicName: musicByKey[r.key] || undefined,
         })),
       );
       setCreatedCount(created.length);
+
+      // Entries exist now, so their ids are stable — upload each picked
+      // file for real instead of just remembering its name.
+      const uploads = await Promise.allSettled(
+        rows.map((r, i) => {
+          const file = musicFileByKey[r.key];
+          return file ? uploadEntryTrack(created[i].id, file) : null;
+        }),
+      );
+      const failedCount = uploads.filter((u) => u.status === 'rejected').length;
+      if (failedCount > 0) {
+        setSubmitError(
+          `Заявку подано, але не вдалося завантажити музику для ${failedCount} з ${rows.length}. Довантажте її пізніше в кабінеті.`,
+        );
+      }
     } catch (err) {
       setSubmitError(
         err instanceof EntryApiError
@@ -544,9 +625,14 @@ export default function ApplyPage() {
           <p className={styles.eyebrow}>Заявка на конкурс</p>
           <h1>{competition.name}</h1>
           <p className={styles.error}>{applyEligibility.reason}</p>
-          <Link to={`/competitions/${id}`} className={styles.home}>
-            ← До конкурсу
-          </Link>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+            <Link to={MY_ENTRIES_PATH} className={styles.home}>
+              Переглянути подані заявки →
+            </Link>
+            <Link to={`/competitions/${id}`} className={styles.home}>
+              ← До конкурсу
+            </Link>
+          </div>
         </div>
       </main>
     );
@@ -563,6 +649,7 @@ export default function ApplyPage() {
             <p className={styles.hint}>
               Організатор отримав вашу заявку та розгляне її найближчим часом.
             </p>
+            {submitError && <p className={styles.error}>{submitError}</p>}
             <div className={styles.successActions}>
               <button
                 type="button"
@@ -626,7 +713,9 @@ export default function ApplyPage() {
                 )}
 
                 <input
-                  className={styles.textInput}
+                  className={`${styles.textInput} ${
+                    participantsInvalid ? styles.invalid : ''
+                  }`}
                   type="text"
                   placeholder="Почніть вводити прізвище учасника…"
                   value={participantQuery}
@@ -766,7 +855,9 @@ export default function ApplyPage() {
                     Ліга <span className={styles.req}>*</span>
                   </label>
                   <select
-                    className={styles.select}
+                    className={`${styles.select} ${
+                      leagueInvalid ? styles.invalid : ''
+                    }`}
                     value={league}
                     onChange={(e) => {
                       setLeague(e.target.value);
@@ -809,7 +900,13 @@ export default function ApplyPage() {
             <label className={styles.label}>
               Стилі <span className={styles.req}>*</span>
             </label>
-            <div className={styles.chips}>
+            <div
+              className={`${styles.chips} ${
+                nominationsInvalid && selectedStyles.length === 0
+                  ? styles.chipsInvalid
+                  : ''
+              }`}
+            >
               {styleOptions.map((style) => {
                 const on = selectedStyles.includes(style);
                 return (
@@ -844,7 +941,11 @@ export default function ApplyPage() {
                   Немає номінацій для цього поєднання ліги та стилів.
                 </p>
               ) : (
-                <div className={styles.nomList}>
+                <div
+                  className={`${styles.nomList} ${
+                    nominationsInvalid ? styles.invalid : ''
+                  }`}
+                >
                   {styleRows.map((row) => {
                     const on = selectedKeys.includes(row.key);
                     return (
@@ -874,7 +975,11 @@ export default function ApplyPage() {
           {specialRows.length > 0 && (
             <div>
               <label className={styles.label}>Спеціальні номінації</label>
-              <div className={styles.nomList}>
+              <div
+                className={`${styles.nomList} ${
+                  nominationsInvalid ? styles.invalid : ''
+                }`}
+              >
                 {specialRows.map((row) => {
                   const on = selectedKeys.includes(row.key);
                   return (
@@ -911,18 +1016,35 @@ export default function ApplyPage() {
             </p>
           )}
 
-          {activeParticipants.length > 0 && (
-            <div className={styles.two}>
-              <div>
-                <label className={styles.label}>Студія</label>
-                <div className={styles.readonlyBox}>{studioLabel}</div>
+          {activeParticipants.length > 0 &&
+            (session.profile.coachId ? (
+              <div className={styles.two}>
+                <div>
+                  <label className={styles.label}>Студія</label>
+                  <div className={styles.readonlyBox}>{studioLabel}</div>
+                </div>
+                <div>
+                  <label className={styles.label}>Тренер</label>
+                  <div className={styles.readonlyBox}>{coachLabel}</div>
+                </div>
               </div>
+            ) : (
               <div>
+                {isCoach && (
+                  <SchoolPicker
+                    value={mentorSchoolId}
+                    onChange={setMentorSchoolId}
+                  />
+                )}
                 <label className={styles.label}>Тренер</label>
-                <div className={styles.readonlyBox}>{coachLabel}</div>
+                <MentorCoachPicker onChange={setMentor} />
+                <p className={styles.hint}>
+                  Необовʼязково. Якщо вкажете тренера, він і його студія
+                  збережуться у вашому профілі та підтягнуться в майбутні
+                  заявки.
+                </p>
               </div>
-            </div>
-          )}
+            ))}
 
           <div>
             <label className={styles.label}>Місто</label>
@@ -967,22 +1089,31 @@ export default function ApplyPage() {
             <div>
               <label className={styles.label}>Музика для виступів</label>
               <div className={styles.musicList}>
-                {selectedRows.map((row) => (
-                  <div key={row.key} className={styles.musicRow}>
-                    <span className={styles.musicLabel}>{row.label}</span>
-                    <input
-                      className={styles.fileInput}
-                      type="file"
-                      accept="audio/*"
-                      onChange={(e) => setMusicForRow(row.key, e)}
-                    />
-                    {musicByKey[row.key] && (
+                {selectedRows.map((row) =>
+                  row.improv ? (
+                    <div key={row.key} className={styles.musicRow}>
+                      <span className={styles.musicLabel}>{row.label}</span>
                       <span className={styles.hint}>
-                        Обрано: {musicByKey[row.key]}
+                        Для імпровізації трек не завантажується.
                       </span>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  ) : (
+                    <div key={row.key} className={styles.musicRow}>
+                      <span className={styles.musicLabel}>{row.label}</span>
+                      <input
+                        className={styles.fileInput}
+                        type="file"
+                        accept="audio/*"
+                        onChange={(e) => setMusicForRow(row.key, e)}
+                      />
+                      {musicFileByKey[row.key] && (
+                        <span className={styles.hint}>
+                          Обрано: {musicFileByKey[row.key].name}
+                        </span>
+                      )}
+                    </div>
+                  ),
+                )}
               </div>
             </div>
           )}

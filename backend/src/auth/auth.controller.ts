@@ -47,8 +47,7 @@ export class AuthController {
   })
   @ApiResponse({
     status: 409,
-    description:
-      'An account with this email (or, for the new roles, phone) already exists.',
+    description: 'An account with this phone already exists.',
   })
   @Post('register')
   register(

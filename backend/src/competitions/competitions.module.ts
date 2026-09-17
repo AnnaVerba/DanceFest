@@ -18,5 +18,6 @@ import { CompetitionRule } from '../competition-rules/competition-rule.model';
   ],
   controllers: [CompetitionsController],
   providers: [CompetitionsService],
+  exports: [CompetitionsService],
 })
 export class CompetitionsModule {}

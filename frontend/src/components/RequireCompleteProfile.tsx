@@ -2,6 +2,7 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { getSession } from '../lib/auth';
 import {
   COMPLETE_PROFILE_PATH,
+  isProfileCompletionSkipped,
   needsProfileCompletion,
 } from '../lib/profileCompletion';
 
@@ -10,7 +11,11 @@ import {
 // completion screen before any in-app page renders.
 export default function RequireCompleteProfile() {
   const session = getSession();
-  if (session && needsProfileCompletion(session.profile)) {
+  if (
+    session &&
+    needsProfileCompletion(session.profile) &&
+    !isProfileCompletionSkipped()
+  ) {
     return <Navigate to={COMPLETE_PROFILE_PATH} replace />;
   }
   return <Outlet />;

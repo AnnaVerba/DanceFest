@@ -35,6 +35,11 @@
   font-size: 13px;
   margin: 0;
 }
+.hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted, #667085);
+}
 
 .comboList {
   list-style: none;

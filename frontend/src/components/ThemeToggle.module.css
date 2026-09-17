@@ -6,9 +6,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 999px;
+  width: var(--control-height);
+  height: var(--control-height);
+  border-radius: 50%;
   border: 1px solid var(--g-line);
   background: var(--g-surface);
   color: var(--g-ink-soft);
@@ -35,7 +35,5 @@
   .toggle {
     top: 10px;
     right: 10px;
-    width: 36px;
-    height: 36px;
   }
 }

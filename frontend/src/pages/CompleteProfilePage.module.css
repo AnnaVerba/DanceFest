@@ -53,3 +53,14 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+.skip {
+  justify-self: center;
+  padding: 4px 8px;
+  border: 0;
+  background: none;
+  color: var(--g-muted, #667085);
+  font: inherit;
+  font-size: 13.5px;
+  text-decoration: underline;
+  cursor: pointer;
+}

@@ -2,6 +2,7 @@ import { authorizedFetch, getSession, refreshSession } from './auth';
 import type { SetMentorCoachBody } from './auth';
 import type { AccessLevel } from './roles';
 import type { OrganizerSummary } from './organizerSummary';
+import type { OrganizerOption } from './organizerOption';
 import { GENERIC_REQUEST_ERROR_MESSAGE } from './api.constants';
 import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
 
@@ -88,11 +89,11 @@ export function organizerDisplayName(organizer: OrganizerSummary): string {
   return `${organizer.lastName} ${organizer.firstName}`.trim();
 }
 
-// Typeahead: [] until the caller sends 2+ letters.
+// The picker: the first page of organizers, or the ones matching a typed
+// name — the backend decides which, based on query length.
 export async function getSelectableOrganizers(
   q: string,
 ): Promise<OrganizerSummary[]> {
-  if (q.trim().length < 2) return [];
   let response: Response;
   try {
     response = await authorizedFetch(
@@ -107,16 +108,21 @@ export async function getSelectableOrganizers(
   return response.json() as Promise<OrganizerSummary[]>;
 }
 
-// Organizer names matching a typed query, with the current user's own name
-// moved first when it matches.
-export async function getOrganizerSuggestions(q: string): Promise<string[]> {
+// Organizer options for the picker, with the current user always first as
+// "Я" — they can pick themselves even before typing anything.
+export async function getOrganizerOptions(q: string): Promise<OrganizerOption[]> {
   const organizers = await getSelectableOrganizers(q);
-  const names = organizers.map(organizerDisplayName);
-  const selfId = getSession()?.profile.id;
-  const selfIndex = organizers.findIndex((o) => o.id === selfId);
-  if (selfIndex > 0) {
-    const [self] = names.splice(selfIndex, 1);
-    names.unshift(self);
+  const self = getSession()?.profile;
+  const options: OrganizerOption[] = organizers
+    .filter((o) => o.id !== self?.id)
+    .map((o) => ({ id: o.id, name: organizerDisplayName(o), isSelf: false }));
+
+  if (self) {
+    options.unshift({
+      id: self.id,
+      name: `${self.lastName} ${self.firstName}`.trim(),
+      isSelf: true,
+    });
   }
-  return names;
+  return options;
 }
