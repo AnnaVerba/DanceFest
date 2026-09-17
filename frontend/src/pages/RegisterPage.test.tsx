@@ -37,9 +37,10 @@ function setValue(label: RegExp, value: string) {
 function fillEverythingValid(phoneInput: HTMLInputElement) {
   setValue(/Ім/, 'Іван');
   setValue(/Прізвище/, 'Іванов');
+  setValue(/Email/, 'ivan@example.com');
   setValue(/Дата народження/, '2010-05-20');
-  setValue(/^Пароль$/, 'secret123');
-  setValue(/Повторіть пароль/, 'secret123');
+  setValue(/^Пароль$/, 'secret123!');
+  setValue(/Повторіть пароль/, 'secret123!');
   fireEvent.change(phoneInput, { target: { value: '+380501234567' } });
 }
 
@@ -92,6 +93,7 @@ describe('RegisterPage validation', () => {
         firstName: 'Іван',
         lastName: 'Іванов',
         phone: '+380501234567',
+        email: 'ivan@example.com',
         birthDate: '2010-05-20',
       }),
     );

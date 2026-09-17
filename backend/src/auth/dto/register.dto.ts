@@ -1,16 +1,23 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsDateString,
+  IsEmail,
   IsIn,
   IsNotEmpty,
   IsOptional,
   IsUUID,
+  Matches,
   MinLength,
 } from 'class-validator';
-import { MIN_PASSWORD_LENGTH } from '../auth.constants';
+import {
+  MIN_PASSWORD_LENGTH,
+  PASSWORD_STRENGTH_REGEX,
+  PASSWORD_TOO_WEAK_MESSAGE,
+} from '../auth.constants';
 import { AccessLevel } from '../access-level.enum';
 import { IsE164Phone } from '../../common/validation/is-e164-phone.validator';
 import { IsValidBirthDate } from '../../common/validation/is-valid-birth-date.validator';
+import { NormalizeEmail } from '../../common/validation/normalize-email.transform';
 
 const REGISTRABLE_ROLES = [AccessLevel.PARTICIPANT, AccessLevel.COACH];
 
@@ -30,8 +37,14 @@ export class RegisterDto {
   @IsE164Phone()
   phone: string;
 
-  @ApiProperty({ example: 'strongPassword123', minLength: MIN_PASSWORD_LENGTH })
+  @ApiProperty({ example: 'user@example.com' })
+  @NormalizeEmail()
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({ example: 'strongPassword123!', minLength: MIN_PASSWORD_LENGTH })
   @MinLength(MIN_PASSWORD_LENGTH)
+  @Matches(PASSWORD_STRENGTH_REGEX, { message: PASSWORD_TOO_WEAK_MESSAGE })
   password: string;
 
   @ApiProperty({ example: '2010-05-20' })

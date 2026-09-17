@@ -6,7 +6,11 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes, Op, UniqueConstraintError } from 'sequelize';
-import { AccessLevel, isHigherLevel } from '../auth/access-level.enum';
+import {
+  AccessLevel,
+  isHigherLevel,
+  meetsLevel,
+} from '../auth/access-level.enum';
 import { SchoolsService } from '../schools/schools.service';
 import { School } from '../schools/school.model';
 import { User } from './user.model';
@@ -28,6 +32,7 @@ import {
 } from '../common/pagination';
 import { userSearchWhere } from './user-search';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
+import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import {
   LEVEL_ONLY_GOES_UP_MESSAGE,
   MENTOR_COACH_NOT_FOUND_MESSAGE,
@@ -39,6 +44,7 @@ import {
   USER_CONTACT_TAKEN_MESSAGE,
   ONLY_COACH_SELF_UPGRADE_MESSAGE,
   SCHOOL_REQUIRED_FOR_COACH_MESSAGE,
+  SCHOOL_ONLY_FOR_COACH_MESSAGE,
   USER_NOT_FOUND_MESSAGE,
 } from './users.constants';
 
@@ -101,6 +107,10 @@ export class UsersService {
       throw new NotFoundException(USER_NOT_FOUND_MESSAGE);
     }
     return user;
+  }
+
+  findByEmail(email: string): Promise<User | null> {
+    return this.userModel.findOne({ where: { email } });
   }
 
   findByPhone(phone: string): Promise<User | null> {
@@ -385,6 +395,34 @@ export class UsersService {
       throw err;
     }
     return user.reload({ include: [School] });
+  }
+
+  // A user editing their own profile. Contact fields go through the admin
+  // edit (same trimming and taken-email handling); the school and mentor
+  // coach are checked first, so a bad choice saves nothing.
+  async updateOwnProfile(
+    userId: string,
+    dto: UpdateMyProfileDto,
+  ): Promise<void> {
+    const { schoolId, coachId, newCoach, ...contact } = dto;
+    const fields: Partial<Pick<User, 'schoolId' | 'coachId'>> = {};
+
+    if (schoolId !== undefined) {
+      const user = await this.findByIdOrFail(userId);
+      if (!meetsLevel(user.accessLevel, AccessLevel.COACH)) {
+        throw new BadRequestException(SCHOOL_ONLY_FOR_COACH_MESSAGE);
+      }
+      await this.schoolsService.findByIdOrFail(schoolId);
+      fields.schoolId = schoolId;
+    }
+    if (coachId !== undefined || newCoach !== undefined) {
+      fields.coachId = await this.resolveMentorCoachId({ coachId, newCoach });
+    }
+
+    await this.adminUpdate(userId, contact);
+    if (Object.keys(fields).length > 0) {
+      await this.updateFields(userId, fields);
+    }
   }
 
   // The coach's whole roster — for internal use (my-entries, my-program
