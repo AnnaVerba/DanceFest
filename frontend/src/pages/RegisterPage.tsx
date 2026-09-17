@@ -176,11 +176,15 @@ export default function RegisterPage() {
               <div className={styles.field}>
                 <label htmlFor="firstName">Ім'я</label>
                 {fieldErrors.firstName && (
-                  <p className={styles.fieldError}>{fieldErrors.firstName}</p>
+                  <p id="firstName-error" className={styles.fieldError}>
+                    {fieldErrors.firstName}
+                  </p>
                 )}
                 <input
                   type="text"
                   id="firstName"
+                  aria-invalid={Boolean(fieldErrors.firstName)}
+                  aria-describedby={fieldErrors.firstName ? 'firstName-error' : undefined}
                   className={fieldErrors.firstName ? styles.fieldInvalid : undefined}
                   name="firstName"
                   placeholder="Олена"
@@ -196,11 +200,15 @@ export default function RegisterPage() {
               <div className={styles.field}>
                 <label htmlFor="lastName">Прізвище</label>
                 {fieldErrors.lastName && (
-                  <p className={styles.fieldError}>{fieldErrors.lastName}</p>
+                  <p id="lastName-error" className={styles.fieldError}>
+                    {fieldErrors.lastName}
+                  </p>
                 )}
                 <input
                   type="text"
                   id="lastName"
+                  aria-invalid={Boolean(fieldErrors.lastName)}
+                  aria-describedby={fieldErrors.lastName ? 'lastName-error' : undefined}
                   className={fieldErrors.lastName ? styles.fieldInvalid : undefined}
                   name="lastName"
                   placeholder="Коваленко"
@@ -218,10 +226,13 @@ export default function RegisterPage() {
             <div className={styles.field}>
               <label htmlFor="phone">Телефон</label>
               {fieldErrors.phone && (
-                <p className={styles.fieldError}>{fieldErrors.phone}</p>
+                <p id="phone-error" className={styles.fieldError}>
+                  {fieldErrors.phone}
+                </p>
               )}
               <PhoneField
                 id="phone"
+                ariaDescribedBy={fieldErrors.phone ? 'phone-error' : undefined}
                 value={phone}
                 onChange={(value) => {
                   setPhone(value);
@@ -234,11 +245,15 @@ export default function RegisterPage() {
             <div className={styles.field}>
               <label htmlFor="email">Email</label>
               {fieldErrors.email && (
-                <p className={styles.fieldError}>{fieldErrors.email}</p>
+                <p id="email-error" className={styles.fieldError}>
+                  {fieldErrors.email}
+                </p>
               )}
               <input
                 type="email"
                 id="email"
+                aria-invalid={Boolean(fieldErrors.email)}
+                aria-describedby={fieldErrors.email ? 'email-error' : undefined}
                 className={fieldErrors.email ? styles.fieldInvalid : undefined}
                 name="email"
                 placeholder="olena@example.com"
@@ -255,11 +270,15 @@ export default function RegisterPage() {
             <div className={styles.field}>
               <label htmlFor="birthDate">Дата народження</label>
               {fieldErrors.birthDate && (
-                <p className={styles.fieldError}>{fieldErrors.birthDate}</p>
+                <p id="birthDate-error" className={styles.fieldError}>
+                  {fieldErrors.birthDate}
+                </p>
               )}
               <input
                 type="date"
                 id="birthDate"
+                aria-invalid={Boolean(fieldErrors.birthDate)}
+                aria-describedby={fieldErrors.birthDate ? 'birthDate-error' : undefined}
                 className={fieldErrors.birthDate ? styles.fieldInvalid : undefined}
                 name="birthDate"
                 min={MIN_BIRTH_DATE}
@@ -279,10 +298,14 @@ export default function RegisterPage() {
             <div className={styles.field}>
               <label htmlFor="password">Пароль</label>
               {fieldErrors.password && (
-                <p className={styles.fieldError}>{fieldErrors.password}</p>
+                <p id="password-error" className={styles.fieldError}>
+                  {fieldErrors.password}
+                </p>
               )}
               <PasswordField
                 id="password"
+                invalid={Boolean(fieldErrors.password)}
+                ariaDescribedBy={fieldErrors.password ? 'password-error' : undefined}
                 className={fieldErrors.password ? styles.fieldInvalid : undefined}
                 placeholder="••••••••"
                 autoComplete="new-password"
@@ -297,10 +320,14 @@ export default function RegisterPage() {
             <div className={styles.field}>
               <label htmlFor="confirmPassword">Повторіть пароль</label>
               {fieldErrors.confirmPassword && (
-                <p className={styles.fieldError}>{fieldErrors.confirmPassword}</p>
+                <p id="confirmPassword-error" className={styles.fieldError}>
+                  {fieldErrors.confirmPassword}
+                </p>
               )}
               <PasswordField
                 id="confirmPassword"
+                invalid={Boolean(fieldErrors.confirmPassword)}
+                ariaDescribedBy={fieldErrors.confirmPassword ? 'confirmPassword-error' : undefined}
                 className={fieldErrors.confirmPassword ? styles.fieldInvalid : undefined}
                 placeholder="••••••••"
                 autoComplete="new-password"

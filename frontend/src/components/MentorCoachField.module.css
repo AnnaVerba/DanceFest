@@ -45,3 +45,21 @@
   color: var(--g-warning, #b45309);
   font-size: 13px;
 }
+.loadError {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--g-danger);
+}
+.retry {
+  padding: 6px 12px;
+  border: 1px solid var(--g-accent);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--g-accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}

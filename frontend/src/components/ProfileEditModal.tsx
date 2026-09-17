@@ -122,10 +122,14 @@ export default function ProfileEditModal({
               Імʼя
             </label>
             {errors.firstName && (
-              <p className={styles.fieldError}>{errors.firstName}</p>
+              <p id="profile-first-name-error" className={styles.fieldError}>
+                {errors.firstName}
+              </p>
             )}
             <input
               id="profile-first-name"
+              aria-invalid={Boolean(errors.firstName)}
+              aria-describedby={errors.firstName ? 'profile-first-name-error' : undefined}
               className={inputClass('firstName')}
               autoComplete="given-name"
               value={form.firstName}
@@ -137,10 +141,14 @@ export default function ProfileEditModal({
               Прізвище
             </label>
             {errors.lastName && (
-              <p className={styles.fieldError}>{errors.lastName}</p>
+              <p id="profile-last-name-error" className={styles.fieldError}>
+                {errors.lastName}
+              </p>
             )}
             <input
               id="profile-last-name"
+              aria-invalid={Boolean(errors.lastName)}
+              aria-describedby={errors.lastName ? 'profile-last-name-error' : undefined}
               className={inputClass('lastName')}
               autoComplete="family-name"
               value={form.lastName}
@@ -153,9 +161,15 @@ export default function ProfileEditModal({
           <label className={formStyles.label} htmlFor="profile-email">
             Email
           </label>
-          {errors.email && <p className={styles.fieldError}>{errors.email}</p>}
+          {errors.email && (
+            <p id="profile-email-error" className={styles.fieldError}>
+              {errors.email}
+            </p>
+          )}
           <input
             id="profile-email"
+            aria-invalid={Boolean(errors.email)}
+            aria-describedby={errors.email ? 'profile-email-error' : undefined}
             type="email"
             className={inputClass('email')}
             autoComplete="email"
@@ -169,10 +183,14 @@ export default function ProfileEditModal({
             Дата народження
           </label>
           {errors.birthDate && (
-            <p className={styles.fieldError}>{errors.birthDate}</p>
+            <p id="profile-birth-date-error" className={styles.fieldError}>
+              {errors.birthDate}
+            </p>
           )}
           <input
             id="profile-birth-date"
+            aria-invalid={Boolean(errors.birthDate)}
+            aria-describedby={errors.birthDate ? 'profile-birth-date-error' : undefined}
             type="date"
             className={inputClass('birthDate')}
             min={MIN_BIRTH_DATE}
@@ -185,7 +203,9 @@ export default function ProfileEditModal({
         {canEditSchool && (
           <div className={formStyles.field}>
             {errors.schoolId && (
-              <p className={styles.fieldError}>{errors.schoolId}</p>
+              <p role="alert" className={styles.fieldError}>
+                {errors.schoolId}
+              </p>
             )}
             <SchoolPicker
               value={form.schoolId}
@@ -198,7 +218,9 @@ export default function ProfileEditModal({
           <div className={formStyles.field}>
             <span className={formStyles.label}>{COACH_SECTION_LABEL}</span>
             {errors.coach && (
-              <p className={styles.fieldError}>{errors.coach}</p>
+              <p role="alert" className={styles.fieldError}>
+                {errors.coach}
+              </p>
             )}
             {changingCoach && <MentorCoachPicker onChange={pickMentor} />}
             <button
@@ -211,7 +233,9 @@ export default function ProfileEditModal({
           </div>
         )}
 
-        {saveError && <p className={formStyles.error}>{saveError}</p>}
+        <div aria-live="polite">
+          {saveError && <p className={formStyles.error}>{saveError}</p>}
+        </div>
         <button
           type="submit"
           className={formStyles.submit}

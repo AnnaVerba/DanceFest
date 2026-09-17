@@ -12,6 +12,9 @@ interface PasswordFieldProps {
   autoComplete: string;
   className?: string;
   placeholder?: string;
+  invalid?: boolean;
+  // Id of the element describing the field, e.g. its error message.
+  ariaDescribedBy?: string;
 }
 
 // A password input with an eye button that reveals what was typed.
@@ -22,6 +25,8 @@ export default function PasswordField({
   autoComplete,
   className,
   placeholder,
+  invalid,
+  ariaDescribedBy,
 }: PasswordFieldProps) {
   const [visible, setVisible] = useState(false);
   const toggleLabel = visible ? HIDE_PASSWORD_LABEL : SHOW_PASSWORD_LABEL;
@@ -34,6 +39,8 @@ export default function PasswordField({
         name={id}
         className={`${styles.input} ${className ?? ''}`}
         placeholder={placeholder}
+        aria-invalid={invalid}
+        aria-describedby={ariaDescribedBy}
         autoComplete={autoComplete}
         value={value}
         onChange={(e) => onChange(e.target.value)}
