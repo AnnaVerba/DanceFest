@@ -47,3 +47,8 @@ export const ENTRY_STATS_ATTRIBUTES: string[] = [
 // program the new nomination also has.
 export const NOMINATION_PROGRAM_MISMATCH_MESSAGE =
   'У вибраній номінації немає програми цього виступу';
+
+// The only purchasable extra-time brackets for an overrun performance (see
+// PATCH .../entries/:entryId/extra-time).
+export const EXTRA_TIME_SECONDS_OPTIONS = [30, 60] as const;
+export type ExtraTimeSeconds = (typeof EXTRA_TIME_SECONDS_OPTIONS)[number];

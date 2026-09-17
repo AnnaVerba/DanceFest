@@ -106,6 +106,17 @@ export class Entry extends Model<Entry> {
   @Column({ type: DataType.DECIMAL(4, 1), allowNull: true })
   declare score: number | null;
 
+  // Additional on-stage time bought for this performance because it ran
+  // over its league/duration limit (+30/+60 sec — see
+  // EXTRA_TIME_SECONDS_OPTIONS) and the fee charged for it. Recorded by the
+  // organizer via EntriesService.updateExtraTime; an overage without this
+  // stays a warning and never blocks the performance.
+  @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0 })
+  declare purchasedExtraSeconds: number;
+
+  @Column({ type: DataType.DECIMAL(10, 2), allowNull: false, defaultValue: 0 })
+  declare extraFee: number;
+
   @BelongsTo(() => Competition)
   declare competition: Competition;
 

@@ -6,12 +6,14 @@ import type { FileUploadConfig } from './file-upload-config.interface';
 import { OcpS3ClientFactory } from './ocp-s3-client.factory';
 import { buildContentDisposition } from './content-disposition';
 import { buildPublicObjectUrl } from './build-public-object-url';
+import { resolveImagesKeyPrefix } from './resolve-ocp-key-prefix';
 import {
   STORAGE_NOT_CONFIGURED_MESSAGE,
   IMAGE_UPLOAD_CONFIG,
   OCP_ENDPOINT_ENV_KEY,
   OCP_BUCKET_ENV_KEY,
   OCP_PUBLIC_URL_ENV_KEY,
+  PUBLIC_READ_ACL,
 } from './uploads.constants';
 
 @Injectable()
@@ -39,7 +41,8 @@ export class UploadsService {
     }
 
     const extension = uploadConfig.mimeExtensions[file.mimetype];
-    const key = `${uploadConfig.keyPrefix}/${randomUUID()}.${extension}`;
+    const imagesPrefix = resolveImagesKeyPrefix(this.config);
+    const key = `${imagesPrefix}/${uploadConfig.keyPrefix}/${randomUUID()}.${extension}`;
 
     await this.s3.getClient().send(
       new PutObjectCommand({
@@ -48,6 +51,7 @@ export class UploadsService {
         Body: file.buffer,
         ContentType: file.mimetype,
         ContentDisposition: buildContentDisposition(file.originalname),
+        ACL: PUBLIC_READ_ACL,
       }),
     );
 

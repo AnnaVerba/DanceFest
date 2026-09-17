@@ -15,6 +15,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { CategoryTemplatesModule } from './category-templates/category-templates.module';
 import { PaymentDetailsModule } from './payment-details/payment-details.module';
 import { CompetitionRulesModule } from './competition-rules/competition-rules.module';
+import { OveragesModule } from './overages/overages.module';
 import { ScheduleModule as NestScheduleModule } from '@nestjs/schedule';
 import { ScheduleModule } from './schedule/schedule.module';
 import { AwardsModule } from './awards/awards.module';
@@ -76,6 +77,7 @@ import { AppBootstrapModule } from './app-bootstrap/app-bootstrap.module';
     PaymentDetailsModule,
     UploadsModule,
     CompetitionRulesModule,
+    OveragesModule,
     ScheduleModule,
     AwardsModule,
     SchoolsModule,

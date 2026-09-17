@@ -24,6 +24,11 @@ export const COMPETITION_BANNERS_KEY_PREFIX = 'competition-banners';
 
 export const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
+// OCP doesn't apply a bucket's public-read setting to objects retroactively
+// or by default — each object needs this ACL at upload time to be fetchable
+// by an unauthenticated <img>/<audio> src.
+export const PUBLIC_READ_ACL = 'public-read';
+
 export const IMAGE_UPLOAD_CONFIG: FileUploadConfig = {
   allowedMimeTypes: ALLOWED_MIME_TYPES,
   mimeExtensions: MIME_EXTENSIONS,
@@ -40,3 +45,11 @@ export const OCP_SECRET_ACCESS_KEY_ENV_KEY = 'OCP_SECRET_ACCESS_KEY';
 export const OCP_BUCKET_ENV_KEY = 'OCP_BUCKET';
 export const OCP_PUBLIC_URL_ENV_KEY = 'OCP_PUBLIC_URL';
 export const OCP_ENDPOINT_ENV_KEY = 'OCP_ENDPOINT';
+
+// Top-level "folders" (key prefixes) inside the bucket — one for images,
+// one for everything audio (entry tracks + generated export archives).
+// Configurable so the bucket's actual folder names never need a code change.
+export const OCP_IMAGES_PREFIX_ENV_KEY = 'OCP_IMAGES_PREFIX';
+export const OCP_AUDIO_PREFIX_ENV_KEY = 'OCP_AUDIO_PREFIX';
+export const DEFAULT_OCP_IMAGES_PREFIX = 'images';
+export const DEFAULT_OCP_AUDIO_PREFIX = 'audio';

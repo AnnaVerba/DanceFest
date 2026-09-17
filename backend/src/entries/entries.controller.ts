@@ -26,6 +26,7 @@ import { EntriesService } from './entries.service';
 import { CreateEntryDto } from './dto/create-entry.dto';
 import { BulkCreateEntriesDto } from './dto/bulk-create-entries.dto';
 import { UpdateEntryDto } from './dto/update-entry.dto';
+import { UpdateEntryExtraTimeDto } from './dto/update-entry-extra-time.dto';
 
 @ApiTags('entries')
 @Controller('competitions/:competitionId/entries')
@@ -205,6 +206,7 @@ export class EntriesController {
       admin.accessLevel,
     );
   }
+
   @ApiOperation({ summary: 'One entry with its dancers (staff only)' })
   @ApiResponse({ status: 200, description: 'Entry returned.' })
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
@@ -252,5 +254,38 @@ export class EntriesController {
     @Body() dto: UpdateEntryDto,
   ) {
     return this.entriesService.update(competitionId, entryId, dto, user);
+  }
+
+  @ApiOperation({
+    summary: 'Record purchased additional on-stage time for an entry',
+    description:
+      'Records the +30/+60 sec purchased for a performance that ran over ' +
+      'its limit, and the fee charged for it. Returns the updated entry ' +
+      "and the entry's total amount due.",
+  })
+  @ApiResponse({ status: 200, description: 'Extra time recorded.' })
+  @ApiResponse({ status: 400, description: 'Validation failed.' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'The caller has no access to this competition.',
+  })
+  @ApiResponse({ status: 404, description: 'Competition or entry not found.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Patch(':entryId/extra-time')
+  updateExtraTime(
+    @Param('competitionId') competitionId: string,
+    @Param('entryId') entryId: string,
+    @CurrentUser() admin: AuthenticatedAdmin,
+    @Body() dto: UpdateEntryExtraTimeDto,
+  ) {
+    return this.entriesService.updateExtraTime(
+      competitionId,
+      entryId,
+      admin.id,
+      admin.accessLevel,
+      dto,
+    );
   }
 }

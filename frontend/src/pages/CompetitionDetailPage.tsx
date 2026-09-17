@@ -10,6 +10,7 @@ import EntriesPanel from '../components/admin/EntriesPanel';
 import JudgesPanel from '../components/admin/JudgesPanel';
 import MusicExportPanel from '../components/admin/MusicExportPanel';
 import NominationsPanel from '../components/admin/NominationsPanel';
+import OveragesPanel from '../components/admin/OveragesPanel';
 import VenuesPanel from '../components/admin/VenuesPanel';
 import SchedulePanel from '../components/admin/schedule/SchedulePanel';
 import ScheduleSettings from '../components/admin/schedule/ScheduleSettings';
@@ -21,6 +22,7 @@ import {
   getApplyEligibility,
   getCompetition,
 } from '../lib/competitions';
+import { getTeam } from '../lib/team';
 import { FEATURES } from '../lib/features';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import { queryKeys } from '../lib/queryKeys';
@@ -32,6 +34,7 @@ const ALL_TABS = [
   'Судді',
   'Майданчики',
   'Заявки',
+  'Доплати',
   'Таймінги',
   'Програма',
   'Нагороди',
@@ -62,6 +65,19 @@ export default function CompetitionDetailPage() {
     ? 'Не вдалося завантажити конкурс.'
     : null;
 
+  // A competition's team (owner + invited co-organizers) can also manage
+  // it — /team 200s only for those two groups, 403s for everyone else, so
+  // a successful fetch is itself the membership check. Gated to ORGANIZER+
+  // so a participant/coach viewing a competition page doesn't fire it.
+  const teamQuery = useQuery({
+    queryKey: ['competition-team', id],
+    queryFn: () => getTeam(id!),
+    enabled:
+      !!id && !!admin && meetsLevel(admin.accessLevel, ACCESS_LEVEL.ORGANIZER),
+    retry: false,
+  });
+  const isTeamMember = teamQuery.isSuccess;
+
   const handleDelete = async () => {
     if (!competition) return;
     try {
@@ -88,13 +104,20 @@ export default function CompetitionDetailPage() {
   // nominations, judges, applications); an organizer only the ones they own.
   const isAdmin = !!admin && meetsLevel(admin.accessLevel, ACCESS_LEVEL.ADMIN);
   const canManage = isOwner || isAdmin;
+  // Applications, overages and editing the competition are also open to an
+  // invited co-organizer (team member).
+  const canManageEntries = canManage || isTeamMember;
 
   // The entries list is staff-only (a participant only ever sees their own
   // entries, in their cabinet) — so is its whole search/filter toolbar.
   // Awards are staff-only too; the server still checks the team.
-  const visibleTabs = TABS.filter(
-    (tab) => (tab !== 'Заявки' && tab !== 'Нагороди') || !!admin,
-  );
+  // Overages are organizer/admin-only money data — tighter than "Заявки",
+  // which any staff account can open.
+  const visibleTabs = TABS.filter((tab) => {
+    if (tab === 'Заявки' || tab === 'Нагороди') return !!admin;
+    if (tab === 'Доплати') return canManageEntries;
+    return true;
+  });
 
   // The single apply entry point on this page lives in the header next to
   // the name; an owner/admin may still open it after registration closes,
@@ -183,9 +206,20 @@ export default function CompetitionDetailPage() {
               )}
 
               {activeTab === 'Заявки' && !!admin && (
-                <EntriesPanel
+                <>
+                  <MusicExportPanel competitionId={id} canManage={canManageEntries} />
+                  <EntriesPanel
+                    competitionId={id}
+                    canManage={canManageEntries}
+                    onError={(message) => showToast(message)}
+                  />
+                </>
+              )}
+
+              {activeTab === 'Доплати' && canManageEntries && (
+                <OveragesPanel
                   competitionId={id}
-                  canManage={canManage}
+                  canManage={canManageEntries}
                   onError={(message) => showToast(message)}
                 />
               )}
@@ -217,20 +251,17 @@ export default function CompetitionDetailPage() {
 
               {/* One programme view: the editor for whoever manages it,
                   the read-only programme (with "your performances") for
-                  everyone else. */}
+                  everyone else. The music export lives under "Заявки". */}
               {activeTab === 'Програма' &&
                 (canManage ? (
-                  <>
-                    <SchedulePanel
-                      competitionId={id}
-                      competition={competition}
-                      canManage
-                      canBuildAnytime={isAdmin}
-                      onError={(message) => showToast(message)}
-                      onNotice={(message) => showToast(message)}
-                    />
-                    <MusicExportPanel competitionId={id} canManage={canManage} />
-                  </>
+                  <SchedulePanel
+                    competitionId={id}
+                    competition={competition}
+                    canManage
+                    canBuildAnytime={isAdmin}
+                    onError={(message) => showToast(message)}
+                    onNotice={(message) => showToast(message)}
+                  />
                 ) : (
                   <FestivalProgram competitionId={id} />
                 ))}
@@ -245,15 +276,17 @@ export default function CompetitionDetailPage() {
 
               {/* Editing and deleting the competition itself belong to its
                   details, not to every tab. */}
-              {activeTab === 'Деталі' && canManage && (
+              {activeTab === 'Деталі' && canManageEntries && (
                 <div className={styles.actions}>
-                  <button
-                    type="button"
-                    className={styles.btnDanger}
-                    onClick={() => setConfirmingDelete(true)}
-                  >
-                    Видалити
-                  </button>
+                  {isOwner && (
+                    <button
+                      type="button"
+                      className={styles.btnDanger}
+                      onClick={() => setConfirmingDelete(true)}
+                    >
+                      Видалити
+                    </button>
+                  )}
                   <Link to={`/competitions/${id}/edit`} className={styles.btnPrimary}>
                     Редагувати
                   </Link>
