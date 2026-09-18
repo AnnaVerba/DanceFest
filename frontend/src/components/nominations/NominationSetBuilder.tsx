@@ -65,6 +65,7 @@ export default function NominationSetBuilder({
 }: NominationSetBuilderProps) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [ageRange, setAgeRange] = useState(EMPTY_AGE_RANGE);
   const [axisPrices, setAxisPrices] = useState<AxisPriceMap>({});
@@ -183,6 +184,7 @@ export default function NominationSetBuilder({
     }));
 
   const generate = () => {
+    setNotice(null);
     const active = CATEGORY_TYPES.map((t) => selection[t]).filter(
       (values) => values.length > 0,
     );
@@ -192,7 +194,7 @@ export default function NominationSetBuilder({
     }
     if (plannedCount > MAX_NOMINATIONS) {
       setError(
-        `${plannedCount} комбінацій — забагато. Максимум ${MAX_NOMINATIONS}, приберіть частину значень.`,
+        `${plannedCount} комбінацій за один раз — забагато. Максимум ${MAX_NOMINATIONS} за клік; приберіть частину значень або згенеруйте кількома заходами — раніше згенеровані номінації не зникнуть.`,
       );
       return;
     }
@@ -203,22 +205,31 @@ export default function NominationSetBuilder({
       [[]],
     );
 
-    const edited = new Map(nominations.map((n) => [n.signature, n]));
-    const specials = nominations.filter((n) => n.isSpecial);
-    const generated = combos.map((combo) => {
+    // Мердж, а не заміна: попередньо згенеровані номінації (зокрема з
+    // осей, які вже прибрані з поточного вибору) лишаються в наборі —
+    // інакше перегенерація партіями (обхід ліміту на комбінації за раз)
+    // губить уже зібране (BUG-05).
+    const bySignature = new Map(nominations.map((n) => [n.signature, n]));
+    let added = 0;
+    let duplicates = 0;
+
+    for (const combo of combos) {
       const categoryIds = combo.map((c) => c.id);
       const signature = signatureOf(categoryIds);
       const price = resolvePrice(combo, axisPrices);
-      const previous = edited.get(signature);
+      const existing = bySignature.get(signature);
 
-      if (previous) {
+      if (existing) {
+        duplicates += 1;
         // Ціна з осей перебиває збережену: інакше правка «Дуо — 700» не
         // доїхала б до вже згенерованих рядків. Порожня ціна нічого не чіпає,
         // тож ручне значення переживає перегенерацію.
-        return price ? { ...previous, price } : previous;
+        if (price) bySignature.set(signature, { ...existing, price });
+        continue;
       }
 
-      return {
+      added += 1;
+      bySignature.set(signature, {
         signature,
         name: combo.map((c) => c.name).join(' · '),
         price,
@@ -226,11 +237,16 @@ export default function NominationSetBuilder({
         categoryIds,
         isSpecial: false,
         exitMode: 'single' as ExitMode,
-      };
-    });
+      });
+    }
 
-    onChange([...generated, ...specials]);
+    const merged = [...bySignature.values()];
+    onChange(merged);
     setNominationsPage(0);
+
+    const message = `Додано ${added}, пропущено дублікатів ${duplicates}, усього ${merged.length} ${pluralNominations(merged.length)}. Не забудьте зберегти зміни — інакше згенероване буде втрачено.`;
+    if (onNotice) onNotice(message);
+    else setNotice(message);
   };
 
   const addSpecial = (drafts: SpecialNominationDraft[]) => {
@@ -384,6 +400,7 @@ export default function NominationSetBuilder({
         </div>
 
         {error && <p className={styles.error}>{error}</p>}
+        {notice && <p className={styles.hint}>{notice}</p>}
       </section>
 
       <section className={styles.panel}>
