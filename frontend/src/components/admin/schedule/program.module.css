@@ -401,6 +401,12 @@
   border-radius: 999px;
 }
 
+.badgeVenue {
+  margin-left: 8px;
+  background: var(--g-accent-bg-soft);
+  color: var(--g-accent-hover);
+}
+
 .badgeMerged {
   background: var(--g-warning-bg);
   color: var(--g-warning);

@@ -1,5 +1,7 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import KebabMenu from '../KebabMenu';
+import type { Venue } from '../../../lib/venues';
+import { VENUE_LIST_SEPARATOR } from './programTable.constants';
 import type {
   CompetitionDay,
   Section,
@@ -17,6 +19,7 @@ interface ProgramTableProps {
   // whole day, not just the sections on the current page.
   sectionSummaries: SectionSummary[];
   days: CompetitionDay[];
+  venues: Venue[];
   view: 'tech' | 'public';
   editing: boolean;
   search: string;
@@ -52,6 +55,7 @@ export default function ProgramTable({
   sections,
   sectionSummaries,
   days,
+  venues,
   view,
   editing,
   search,
@@ -77,6 +81,12 @@ export default function ProgramTable({
     return day ? (day.label ?? day.date) : '';
   };
   const showDayRows = new Set(sections.map((s) => s.dayId)).size > 1;
+  const venueNames = useMemo(
+    () => new Map(venues.map((venue) => [venue.id, venue.name])),
+    [venues],
+  );
+  const venueNameOf = (venueId: string | null) =>
+    venueId === null ? undefined : venueNames.get(venueId);
 
   const draft = (key: string, fallback: string) => drafts[key] ?? fallback;
   const setDraft = (key: string, value: string) =>
@@ -260,8 +270,7 @@ export default function ProgramTable({
               }
             }
 
-            const sectionStart =
-              section.items[0]?.time ?? `${section.startTime}:00`;
+            const sectionStart = section.startsAt;
             const other = sectionSummaries
               .filter((s) => s.id !== section.id)
               .map((s) => ({ id: s.id, name: s.name }));
@@ -381,6 +390,14 @@ export default function ProgramTable({
                   if (visible.length === 0) return null;
                   const isCollapsed = collapsed.has(group.key);
                   const merged = group.items[0]?.mergedGroupLabel != null;
+                  // A merged group can span nominations on different venues.
+                  const groupVenues = [
+                    ...new Set(
+                      group.items
+                        .map((it) => venueNameOf(it.exit?.venueId ?? null))
+                        .filter((name): name is string => name !== undefined),
+                    ),
+                  ];
                   const blockSeconds = group.items.reduce(
                     (sum, it) => sum + (it.durationSeconds ?? 0),
                     0,
@@ -406,6 +423,13 @@ export default function ProgramTable({
                             <span className={styles.count}>
                               {group.items.length}
                             </span>
+                            {groupVenues.length > 0 && (
+                              <span
+                                className={`${styles.badge} ${styles.badgeVenue}`}
+                              >
+                                {groupVenues.join(VENUE_LIST_SEPARATOR)}
+                              </span>
+                            )}
                             {merged && (
                               <span
                                 className={`${styles.badge} ${styles.badgeMerged}`}

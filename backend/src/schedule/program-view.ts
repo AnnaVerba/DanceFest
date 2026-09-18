@@ -106,7 +106,7 @@ export function buildPublicProgram(
     rows.push({
       kind: 'section',
       label: section.name,
-      time: section.items[0]?.time ?? `${section.startTime}:00`,
+      time: section.startsAt,
       dayId: section.dayId,
       dayDate: section.dayDate,
       venueId: section.venueId,
@@ -210,7 +210,7 @@ export function buildMineProgram(
     return {
       id: section.id,
       name: section.name,
-      time: section.items[0]?.time ?? `${section.startTime}:00`,
+      time: section.startsAt,
       dayId: section.dayId,
       venueId: section.venueId,
       exits,
@@ -230,7 +230,7 @@ export function buildExtendedProgram(
   return sections.map((section) => ({
     id: section.id,
     name: section.name,
-    time: section.items[0]?.time ?? `${section.startTime}:00`,
+    time: section.startsAt,
     dayId: section.dayId,
     venueId: section.venueId,
     items: section.items.map((item) => ({

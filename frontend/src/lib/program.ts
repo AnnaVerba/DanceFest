@@ -73,20 +73,33 @@ export interface ExtendedProgramSection {
 export interface PublicProgramQuery {
   dayId?: string;
   page?: number;
+  venueId?:string
   pageSize?: number;
 }
 
 // Row-bounded pagination: a page carries whole sections up to ~60 rows.
 export function getPublicProgram(
-  competitionId: string,
-  query: PublicProgramQuery = {},
+    competitionId: string,
+    query: PublicProgramQuery = {},
 ): Promise<RowPaged<PublicProgramRow>> {
   const params = new URLSearchParams();
-  if (query.dayId) params.set('dayId', query.dayId);
+
+  if (query.dayId) {
+    params.set('dayId', query.dayId);
+  }
+
+  if (query.venueId) {
+    params.set('venueId', query.venueId);
+  }
+
   withPageParams(params, query.page, query.pageSize);
-  const suffix = params.toString() ? `?${params}` : '';
+
+  const suffix = params.toString()
+      ? `?${params.toString()}`
+      : '';
+
   return publicRequest<RowPaged<PublicProgramRow>>(
-    `/competitions/${competitionId}/program${suffix}`,
+      `/competitions/${competitionId}/program${suffix}`,
   );
 }
 

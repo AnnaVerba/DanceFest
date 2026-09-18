@@ -107,6 +107,7 @@
 }
 
 .btnPrimary {
+  flex: none;
   height: 32px;
   padding: 0 12px;
   border-radius: 7px;

@@ -386,11 +386,13 @@ export class ScheduleController {
   publicProgram(
     @Param('competitionId') competitionId: string,
     @Query('dayId') dayId?: string,
+    @Query('venueId') venueId?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
     return this.scheduleService.publicProgram(competitionId, {
       dayId,
+      venueId,
       page,
       pageSize,
     });
