@@ -12,7 +12,8 @@ import OrganizersField from '../components/OrganizersField';
 import { createJudge } from '../lib/judges';
 import type { CreatedJudge } from '../lib/judges';
 import { createVenue } from '../lib/venues';
-import { createNominationsBulk } from '../lib/nominations';
+import { createNominationsBulk, NominationsBulkPartialFailureError } from '../lib/nominations';
+import type { NominationInput } from '../lib/nominations';
 import NominationSetBuilder from '../components/nominations/NominationSetBuilder';
 import {
   CategoryApiError,
@@ -251,6 +252,9 @@ export default function NewCompetitionPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [createdCompetitionId, setCreatedCompetitionId] = useState<string | null>(null);
   const [createdJudges, setCreatedJudges] = useState<CreatedJudge[]>([]);
+  const [unsavedNominations, setUnsavedNominations] = useState<NominationInput[]>([]);
+  const [nominationsSaveError, setNominationsSaveError] = useState<string | null>(null);
+  const [retryingNominations, setRetryingNominations] = useState(false);
 
   const [fieldErrors, setFieldErrors] = useState<StepFieldErrors>({});
   const [judgeEmailError, setJudgeEmailError] = useState<string | null>(null);
@@ -534,32 +538,45 @@ export default function NewCompetitionPage() {
         )
         .map((r) => r.value);
 
-      await Promise.allSettled([
-        ...venues
+      // Started, not awaited, so venue creation runs alongside the
+      // nomination batches below instead of blocking on them first.
+      const venuesPromise = Promise.allSettled(
+        venues
           .filter((v) => v.name.trim())
           .map((v) => createVenue(competition.id, v.name.trim(), v.note.trim())),
-        ...(saved.length > 0
-          ? [
-              createNominationsBulk(
-                competition.id,
-                saved.map((n) => ({
-                  templateId:
-                    nominationSource === 'template'
-                      ? effectiveTemplateId || undefined
-                      : undefined,
-                  name: n.name,
-                  price: n.price.trim() === '' ? undefined : Number(n.price),
-                  allowsImprovisation: n.allowsImprovisation,
-                  categoryIds: n.categoryIds,
-                  isSpecial: n.isSpecial,
-                  exitMode: n.exitMode,
-                })),
-              ),
-            ]
-          : []),
-      ]);
+      );
 
-      if (successfulJudges.length > 0) {
+      let stillUnsaved: NominationInput[] = [];
+      if (saved.length > 0) {
+        const nominationInputs = saved.map((n) => ({
+          templateId:
+            nominationSource === 'template' ? effectiveTemplateId || undefined : undefined,
+          name: n.name,
+          price: n.price.trim() === '' ? undefined : Number(n.price),
+          allowsImprovisation: n.allowsImprovisation,
+          categoryIds: n.categoryIds,
+          isSpecial: n.isSpecial,
+          exitMode: n.exitMode,
+        }));
+        try {
+          await createNominationsBulk(competition.id, nominationInputs);
+        } catch (nominationsErr) {
+          stillUnsaved =
+            nominationsErr instanceof NominationsBulkPartialFailureError
+              ? nominationsErr.unsaved
+              : nominationInputs;
+          setUnsavedNominations(stillUnsaved);
+          setNominationsSaveError(
+            nominationsErr instanceof NominationsBulkPartialFailureError
+              ? nominationsErr.message
+              : 'Не вдалося зберегти номінації.',
+          );
+        }
+      }
+
+      await venuesPromise;
+
+      if (successfulJudges.length > 0 || stillUnsaved.length > 0) {
         setCreatedJudges(successfulJudges);
         setCreatedCompetitionId(competition.id);
       } else {
@@ -588,6 +605,27 @@ export default function NewCompetitionPage() {
     if (step > 1) goStep(step - 1);
   };
 
+  const handleRetryNominations = async () => {
+    if (!createdCompetitionId || unsavedNominations.length === 0 || retryingNominations) {
+      return;
+    }
+    setRetryingNominations(true);
+    try {
+      await createNominationsBulk(createdCompetitionId, unsavedNominations);
+      setUnsavedNominations([]);
+      setNominationsSaveError(null);
+    } catch (err) {
+      if (err instanceof NominationsBulkPartialFailureError) {
+        setUnsavedNominations(err.unsaved);
+        setNominationsSaveError(err.message);
+      } else {
+        setNominationsSaveError('Не вдалося зберегти номінації.');
+      }
+    } finally {
+      setRetryingNominations(false);
+    }
+  };
+
   if (!getToken()) {
     return <Navigate to="/login" replace />;
   }
@@ -598,32 +636,63 @@ export default function NewCompetitionPage() {
         <main className={styles.main}>
           <div className={styles.wrap}>
             <h1>Конкурс створено</h1>
-            <div className={styles.panel}>
-              <p className={styles.sectionTitle}>Паролі суддів</p>
-              <p className={styles.sectionNote}>
-                Тимчасовий пароль показується тут лише один раз. Кому лист не надійшов —
-                перекажіть пароль самі.
-              </p>
-              <div className={styles.list}>
-                {createdJudges.map((j) => (
-                  <div className={styles.item} key={j.id}>
-                    <div>
-                      <h3>{j.name}</h3>
-                      <p className={styles.sub}>{j.email}</p>
+            {createdJudges.length > 0 && (
+              <div className={styles.panel}>
+                <p className={styles.sectionTitle}>Паролі суддів</p>
+                <p className={styles.sectionNote}>
+                  Тимчасовий пароль показується тут лише один раз. Кому лист не надійшов —
+                  перекажіть пароль самі.
+                </p>
+                <div className={styles.list}>
+                  {createdJudges.map((j) => (
+                    <div className={styles.item} key={j.id}>
+                      <div>
+                        <h3>{j.name}</h3>
+                        <p className={styles.sub}>{j.email}</p>
+                      </div>
+                      <div className={styles.spacer} />
+                      <span
+                        className={`${styles.badge} ${j.emailSent ? styles.badgeOk : styles.badgeWarn}`}
+                      >
+                        {j.emailSent ? 'Лист надіслано' : 'Лист не надіслано'}
+                      </span>
+                      <span className={`${styles.badge} ${styles.badgeMuted}`}>
+                        {j.tempPassword}
+                      </span>
                     </div>
-                    <div className={styles.spacer} />
-                    <span
-                      className={`${styles.badge} ${j.emailSent ? styles.badgeOk : styles.badgeWarn}`}
-                    >
-                      {j.emailSent ? 'Лист надіслано' : 'Лист не надіслано'}
-                    </span>
-                    <span className={`${styles.badge} ${styles.badgeMuted}`}>
-                      {j.tempPassword}
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+            {unsavedNominations.length > 0 && (
+              <div className={styles.panel}>
+                <p className={styles.sectionTitle}>Не збережені номінації</p>
+                <p className={styles.sectionNote}>
+                  {nominationsSaveError ?? 'Частину номінацій не вдалося зберегти.'} Не
+                  збережено: {unsavedNominations.length}.
+                </p>
+                <div className={styles.list}>
+                  {unsavedNominations.map((n, index) => (
+                    <div className={styles.item} key={`${n.name}-${index}`}>
+                      <div>
+                        <h3>{n.name}</h3>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className={styles.actions}>
+                  <div className={styles.spacer} />
+                  <button
+                    type="button"
+                    className={`${styles.btn} ${styles.btnPrimary}`}
+                    onClick={handleRetryNominations}
+                    disabled={retryingNominations}
+                  >
+                    {retryingNominations ? 'Зберігаємо...' : 'Спробувати ще раз'}
+                  </button>
+                </div>
+              </div>
+            )}
             <div className={styles.actions}>
               <div className={styles.spacer} />
               <button

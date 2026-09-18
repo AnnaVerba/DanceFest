@@ -28,6 +28,10 @@ import {
   signatureOf,
 } from '../../lib/nominationSet';
 import type { AxisSelection, DraftNomination } from '../../lib/nominationSet';
+import {
+  CATEGORY_VALUE_NAME_REQUIRED_MESSAGE,
+  NOMINATIONS_TABLE_PAGE_SIZE,
+} from './NominationSetBuilder.constants';
 import styles from './NominationSetBuilder.module.css';
 
 // Stable reference so useMemo below doesn't see a "new" array on every
@@ -61,6 +65,7 @@ export default function NominationSetBuilder({
   const [ageRange, setAgeRange] = useState(EMPTY_AGE_RANGE);
   const [axisPrices, setAxisPrices] = useState<AxisPriceMap>({});
   const [specialOpen, setSpecialOpen] = useState(false);
+  const [nominationsPage, setNominationsPage] = useState(0);
 
   // Categories are a near-static reference used across many forms — cached
   // indefinitely, refreshed only when an admin edit invalidates it.
@@ -106,7 +111,10 @@ export default function NominationSetBuilder({
 
   const addValue = (type: CategoryType) => {
     const raw = (inputs[type] ?? '').trim();
-    if (!raw) return;
+    if (!raw) {
+      setError(CATEGORY_VALUE_NAME_REQUIRED_MESSAGE);
+      return;
+    }
 
     const clearInput = () => {
       setInputs((prev) => ({ ...prev, [type]: '' }));
@@ -194,6 +202,7 @@ export default function NominationSetBuilder({
     });
 
     onChange([...generated, ...specials]);
+    setNominationsPage(0);
   };
 
   const addSpecial = (drafts: SpecialNominationDraft[]) => {
@@ -231,6 +240,18 @@ export default function NominationSetBuilder({
 
   const removeNomination = (signature: string) =>
     onChange(nominations.filter((n) => n.signature !== signature));
+
+  const nominationsPageCount = Math.max(
+    1,
+    Math.ceil(nominations.length / NOMINATIONS_TABLE_PAGE_SIZE),
+  );
+  // Derived, not synced via effect: shrinking the list (regenerate, remove
+  // a row) can never leave the visible page pointing past the new end.
+  const currentNominationsPage = Math.min(nominationsPage, nominationsPageCount - 1);
+  const visibleNominations = nominations.slice(
+    currentNominationsPage * NOMINATIONS_TABLE_PAGE_SIZE,
+    (currentNominationsPage + 1) * NOMINATIONS_TABLE_PAGE_SIZE,
+  );
 
   return (
     <div className={styles.builder}>
@@ -358,7 +379,7 @@ export default function NominationSetBuilder({
                 </tr>
               </thead>
               <tbody>
-                {nominations.map((nomination) => (
+                {visibleNominations.map((nomination) => (
                   <tr key={nomination.signature}>
                     <td>
                       <div className={styles.nameCell}>
@@ -427,6 +448,32 @@ export default function NominationSetBuilder({
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {nominationsPageCount > 1 && (
+          <div className={styles.pager}>
+            <button
+              type="button"
+              className={styles.btn}
+              disabled={currentNominationsPage <= 0}
+              onClick={() => setNominationsPage((p) => Math.max(0, p - 1))}
+            >
+              ‹ Попередні
+            </button>
+            <span>
+              Сторінка {currentNominationsPage + 1} з {nominationsPageCount}
+            </span>
+            <button
+              type="button"
+              className={styles.btn}
+              disabled={currentNominationsPage >= nominationsPageCount - 1}
+              onClick={() =>
+                setNominationsPage((p) => Math.min(nominationsPageCount - 1, p + 1))
+              }
+            >
+              Наступні ›
+            </button>
           </div>
         )}
       </section>

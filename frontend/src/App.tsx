@@ -41,6 +41,9 @@ const CategoryTemplatesPage = lazy(
 const CategoryTemplateFormPage = lazy(
   () => import('./pages/CategoryTemplateFormPage'),
 );
+const CategoryTemplateDetailPage = lazy(
+  () => import('./pages/CategoryTemplateDetailPage'),
+);
 
 function App() {
   return (
@@ -100,6 +103,10 @@ function App() {
           <Route
             path="/category-templates/:id/edit"
             element={<CategoryTemplateFormPage />}
+          />
+          <Route
+            path="/category-templates/:id"
+            element={<CategoryTemplateDetailPage />}
           />
           </Route>
         </Route>
