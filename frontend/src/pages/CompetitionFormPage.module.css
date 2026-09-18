@@ -40,6 +40,12 @@
   letter-spacing: -0.02em;
 }
 
+.venuesHint {
+  margin: 8px 0 0;
+  color: var(--g-muted);
+  font-size: 14.5px;
+}
+
 .status {
   margin-top: 24px;
   color: var(--g-muted);

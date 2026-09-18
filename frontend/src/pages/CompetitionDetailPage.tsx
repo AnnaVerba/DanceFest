@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import CompetitionDetails from '../components/CompetitionDetails';
 import ContestIcon from '../components/ContestIcon';
 import AwardsSummary from '../components/awards/AwardsSummary';
@@ -26,6 +26,7 @@ import { getTeam } from '../lib/team';
 import { FEATURES } from '../lib/features';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import { queryKeys } from '../lib/queryKeys';
+import { TAB_QUERY_PARAM, VENUES_TAB_SLUG } from '../lib/competitionTabs.constants';
 import styles from './CompetitionDetailPage.module.css';
 
 const ALL_TABS = [
@@ -49,8 +50,11 @@ export default function CompetitionDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const admin = getStoredAdmin();
+  const [searchParams] = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState<Tab>('Деталі');
+  const [activeTab, setActiveTab] = useState<Tab>(() =>
+    searchParams.get(TAB_QUERY_PARAM) === VENUES_TAB_SLUG ? 'Майданчики' : 'Деталі',
+  );
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const { toasts, showToast } = useToasts();
 

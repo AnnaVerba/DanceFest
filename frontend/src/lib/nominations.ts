@@ -4,6 +4,15 @@ import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
 import { MAX_NOMINATIONS_PER_BULK_REQUEST } from './nominations.constants';
 
 import type { ExitMode } from './categoryTemplates';
+import type {
+  NominationPageQuery,
+  NominationUpdateInput,
+  VenueSummaryGroupBy,
+  VenueSummaryRow,
+} from './nominations.types';
+import { withPageParams } from './pagination';
+import type { Paged } from './pagination';
+import { LIST_QUERY_SEPARATOR } from './nominations.constants';
 
 export type { ExitMode };
 
@@ -28,6 +37,7 @@ export interface NominationAgeCategory {
 export interface Nomination {
   id: string;
   templateId: string | null;
+  venueId: string | null;
   name: string;
   price: number | null;
   allowsImprovisation: boolean;
@@ -133,6 +143,30 @@ export function getNominations(
   );
 }
 
+export function getNominationsPage(
+  competitionId: string,
+  query: NominationPageQuery,
+): Promise<Paged<Nomination>> {
+  const params = withPageParams(new URLSearchParams(), query.page, query.pageSize);
+  if (query.categoryIds.length > 0) {
+    params.set('categoryIds', query.categoryIds.join(LIST_QUERY_SEPARATOR));
+  }
+  if (query.q.trim()) params.set('q', query.q.trim());
+  if (query.venue) params.set('venue', query.venue);
+  return request<Paged<Nomination>>(
+    `/competitions/${competitionId}/nominations/paged?${params.toString()}`,
+  );
+}
+
+export function getVenueSummary(
+  competitionId: string,
+  groupBy: VenueSummaryGroupBy,
+): Promise<VenueSummaryRow[]> {
+  return request<VenueSummaryRow[]>(
+    `/competitions/${competitionId}/nominations/venue-summary?groupBy=${groupBy}`,
+  );
+}
+
 export function createNomination(
   competitionId: string,
   input: NominationInput,
@@ -146,7 +180,7 @@ export function createNomination(
 export function updateNomination(
   competitionId: string,
   nominationId: string,
-  input: Partial<NominationInput>,
+  input: NominationUpdateInput,
 ): Promise<Nomination> {
   return request<Nomination>(
     `/competitions/${competitionId}/nominations/${nominationId}`,
@@ -201,6 +235,8 @@ export async function createNominationsBulk(
 export interface NominationBulkFilter {
   categoryIds?: string[];
   q?: string;
+  // null matches nominations without a venue.
+  venueId?: string | null;
 }
 
 // Either a hand-picked set of ids, or a filter the backend resolves itself —
@@ -220,6 +256,20 @@ export function setImprovisationBulk(
     {
       method: 'PATCH',
       body: JSON.stringify({ ...selector, allowsImprovisation }),
+    },
+  );
+}
+
+export function assignVenueBulk(
+  competitionId: string,
+  selector: NominationBulkSelector,
+  venueId: string | null,
+): Promise<Nomination[]> {
+  return request<Nomination[]>(
+    `/competitions/${competitionId}/nominations/bulk-venue`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ ...selector, venueId }),
     },
   );
 }

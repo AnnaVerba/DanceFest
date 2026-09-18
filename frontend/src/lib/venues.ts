@@ -7,6 +7,7 @@ export interface Venue {
   id: string;
   name: string;
   description: string | null;
+  nominationCount: number;
   createdAt: string;
 }
 

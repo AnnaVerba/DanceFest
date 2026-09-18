@@ -10,7 +10,14 @@ import { CreationAttributes, Op } from 'sequelize';
 import type { WhereOptions } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
-import { Category, LEAGUE_CATEGORY_TYPE } from '../categories/category.model';
+import { isUUID } from 'class-validator';
+import {
+  AGE_CATEGORY_TYPE,
+  Category,
+  LEAGUE_CATEGORY_TYPE,
+} from '../categories/category.model';
+import type { CategoryType } from '../categories/category.model';
+import { Venue } from '../venues/venue.model';
 import { Nomination } from './nomination.model';
 import { planNominationExits, DEFAULT_EXIT_MODE } from './nomination-exits';
 import type { NominationExit, NominationProgram } from './nomination-exits';
@@ -18,6 +25,16 @@ import { CreateNominationDto } from './dto/create-nomination.dto';
 import { UpdateNominationDto } from './dto/update-nomination.dto';
 import { BulkCreateNominationsDto } from './dto/bulk-create-nominations.dto';
 import { BulkSetImprovisationDto } from './dto/bulk-set-improvisation.dto';
+import { BulkAssignVenueDto } from './dto/bulk-assign-venue.dto';
+import { NominationBulkSelectorDto } from './dto/nomination-bulk-selector.dto';
+import { NominationBulkFilterDto } from './dto/nomination-bulk-filter.dto';
+import type { NominationPageQuery, VenueSummaryRow } from './nominations.types';
+import {
+  DEFAULT_NOMINATIONS_PAGE_SIZE,
+  LIST_QUERY_SEPARATOR,
+  MAX_NOMINATIONS_PAGE_SIZE,
+  UNASSIGNED_VENUE_QUERY_VALUE,
+} from './nominations.constants';
 import {
   NOMINATION_LEAGUE_REQUIRED_MESSAGE,
   NOMINATION_NOT_FOUND_MESSAGE,
@@ -25,16 +42,22 @@ import {
   NOMINATION_BULK_SELECTOR_REQUIRED_MESSAGE,
   NO_NOMINATIONS_MATCHED_MESSAGE,
   SOME_NOMINATIONS_NOT_IN_COMPETITION_MESSAGE,
+  VENUE_NOT_IN_COMPETITION_MESSAGE,
 } from './nominations.constants';
 import {
   COMPETITION_NOT_FOUND_MESSAGE,
   NO_COMPETITION_ACCESS_MESSAGE,
 } from '../competitions/competitions.constants';
-import { TYPEAHEAD_LIMIT } from '../common/pagination';
+import { TYPEAHEAD_LIMIT, resolvePage } from '../common/pagination';
 import { bulkCreateChunked } from '../common/bulk-insert';
 
 // A very generous ceiling for a single competition's nomination list.
 const MAX_NOMINATIONS = 2000;
+
+const VENUE_SUMMARY_GROUP_TYPES: CategoryType[] = [
+  LEAGUE_CATEGORY_TYPE,
+  AGE_CATEGORY_TYPE,
+];
 
 @Injectable()
 export class NominationsService {
@@ -47,6 +70,8 @@ export class NominationsService {
     private readonly nominationModel: typeof Nomination,
     @InjectModel(Category)
     private readonly categoryModel: typeof Category,
+    @InjectModel(Venue)
+    private readonly venueModel: typeof Venue,
   ) {}
 
   // `q` turns this into a name typeahead (a festival can have 500+
@@ -134,6 +159,10 @@ export class NominationsService {
         { name: dto.name ?? nomination.name, categoryIds: dto.categoryIds },
       ]);
     }
+    if (dto.venueId !== undefined) {
+      await this.assertVenueInCompetition(competitionId, dto.venueId);
+      nomination.venueId = dto.venueId;
+    }
 
     if (dto.name !== undefined) nomination.name = dto.name.trim();
     if (dto.price !== undefined) nomination.price = dto.price ?? null;
@@ -171,7 +200,53 @@ export class NominationsService {
       requesterId,
       requesterLevel,
     );
+    const { where, nominations } = await this.resolveBulkSelection(
+      competitionId,
+      dto,
+    );
 
+    await this.nominationModel.update(
+      { allowsImprovisation: dto.allowsImprovisation },
+      { where },
+    );
+
+    const categories = await this.loadCategories(nominations);
+    return nominations.map((nomination) => {
+      nomination.allowsImprovisation = dto.allowsImprovisation;
+      return this.toDto(nomination, categories);
+    });
+  }
+
+  async bulkAssignVenue(
+    competitionId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+    dto: BulkAssignVenueDto,
+  ) {
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
+    await this.assertVenueInCompetition(competitionId, dto.venueId);
+    const { where, nominations } = await this.resolveBulkSelection(
+      competitionId,
+      dto,
+    );
+
+    await this.nominationModel.update({ venueId: dto.venueId }, { where });
+
+    const categories = await this.loadCategories(nominations);
+    return nominations.map((nomination) => {
+      nomination.venueId = dto.venueId;
+      return this.toDto(nomination, categories);
+    });
+  }
+
+  private async resolveBulkSelection(
+    competitionId: string,
+    dto: NominationBulkSelectorDto,
+  ) {
     const hasIds = dto.nominationIds !== undefined;
     const hasFilter = dto.filter !== undefined;
     if (hasIds === hasFilter) {
@@ -189,22 +264,12 @@ export class NominationsService {
     if (nominations.length === 0) {
       throw new BadRequestException(NO_NOMINATIONS_MATCHED_MESSAGE);
     }
-
-    await this.nominationModel.update(
-      { allowsImprovisation: dto.allowsImprovisation },
-      { where },
-    );
-
-    const categories = await this.loadCategories(nominations);
-    return nominations.map((nomination) => {
-      nomination.allowsImprovisation = dto.allowsImprovisation;
-      return this.toDto(nomination, categories);
-    });
+    return { where, nominations };
   }
 
   private bulkSelectorWhere(
     competitionId: string,
-    dto: BulkSetImprovisationDto,
+    dto: NominationBulkSelectorDto,
   ): WhereOptions<Nomination> {
     if (dto.nominationIds !== undefined) {
       return {
@@ -212,16 +277,129 @@ export class NominationsService {
         competitionId,
       };
     }
+    return this.filterWhere(competitionId, dto.filter);
+  }
 
+  // Shared by the paged list and the bulk actions, so "select all filtered"
+  // on screen is exactly the set a bulk filter touches on the server.
+  private filterWhere(
+    competitionId: string,
+    filter?: NominationBulkFilterDto,
+  ): WhereOptions<Nomination> {
     const where: Record<string, unknown> = { competitionId };
-    if (dto.filter?.categoryIds?.length) {
-      where.categoryIds = { [Op.contains]: dto.filter.categoryIds };
+    if (filter?.categoryIds?.length) {
+      where.categoryIds = { [Op.contains]: filter.categoryIds };
     }
-    const q = dto.filter?.q?.trim();
+    const q = filter?.q?.trim();
     if (q) {
       where.name = { [Op.iLike]: `%${q}%` };
     }
+    if (filter?.venueId !== undefined) {
+      where.venueId = filter.venueId;
+    }
     return where;
+  }
+
+  // Same audience as listPublic: the Номінації tab shows the list to viewers
+  // who cannot manage the competition too.
+  async listPage(competitionId: string, query: NominationPageQuery) {
+    await this.assertCompetitionExists(competitionId);
+    const { page, pageSize, limit, offset } = resolvePage(
+      query.page,
+      query.pageSize,
+      DEFAULT_NOMINATIONS_PAGE_SIZE,
+      MAX_NOMINATIONS_PAGE_SIZE,
+    );
+    const { rows, count } = await this.nominationModel.findAndCountAll({
+      where: this.filterWhere(competitionId, this.parsePageFilter(query)),
+      order: [
+        ['isSpecial', 'DESC'],
+        ['createdAt', 'ASC'],
+        ['id', 'ASC'],
+      ],
+      limit,
+      offset,
+    });
+    const categories = await this.loadCategories(rows);
+    return {
+      rows: rows.map((n) => this.toDto(n, categories)),
+      total: count,
+      page,
+      pageSize,
+    };
+  }
+
+  // Malformed ids are dropped rather than reaching Postgres as a uuid cast
+  // error.
+  private parsePageFilter(query: NominationPageQuery): NominationBulkFilterDto {
+    const categoryIds = (query.categoryIds ?? '')
+      .split(LIST_QUERY_SEPARATOR)
+      .filter((id) => isUUID(id));
+    let venueId: string | null | undefined;
+    if (query.venue === UNASSIGNED_VENUE_QUERY_VALUE) venueId = null;
+    else if (query.venue && isUUID(query.venue)) venueId = query.venue;
+    return { categoryIds, q: query.q, venueId };
+  }
+
+  // Per league (or age category) present in the competition: how many
+  // nominations it has and how many still lack a venue.
+  async venueSummary(
+    competitionId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+    rawGroupBy?: string,
+  ): Promise<VenueSummaryRow[]> {
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
+    const type =
+      VENUE_SUMMARY_GROUP_TYPES.find((t) => t === rawGroupBy) ??
+      LEAGUE_CATEGORY_TYPE;
+
+    const [categories, nominations] = await Promise.all([
+      this.categoryModel.findAll({
+        where: { type },
+        order: [
+          ['sortOrder', 'ASC'],
+          ['name', 'ASC'],
+        ],
+      }),
+      this.nominationModel.findAll({
+        where: { competitionId },
+        attributes: ['categoryIds', 'venueId'],
+      }),
+    ]);
+
+    const rows = new Map<string, VenueSummaryRow>(
+      categories.map((c) => [
+        c.id,
+        { categoryId: c.id, name: c.name, total: 0, unassigned: 0 },
+      ]),
+    );
+    for (const nomination of nominations) {
+      for (const id of nomination.categoryIds) {
+        const row = rows.get(id);
+        if (!row) continue;
+        row.total += 1;
+        if (nomination.venueId === null) row.unassigned += 1;
+      }
+    }
+    return [...rows.values()].filter((row) => row.total > 0);
+  }
+
+  private async assertVenueInCompetition(
+    competitionId: string,
+    venueId: string | null,
+  ): Promise<void> {
+    if (venueId === null) return;
+    const venue = await this.venueModel.findOne({
+      where: { id: venueId, competitionId },
+    });
+    if (!venue) {
+      throw new BadRequestException(VENUE_NOT_IN_COMPETITION_MESSAGE);
+    }
   }
 
   async remove(
@@ -425,6 +603,7 @@ export class NominationsService {
     return {
       id: nomination.id,
       templateId: nomination.templateId,
+      venueId: nomination.venueId,
       name: nomination.name,
       price: nomination.price === null ? null : Number(nomination.price),
       allowsImprovisation: nomination.allowsImprovisation,

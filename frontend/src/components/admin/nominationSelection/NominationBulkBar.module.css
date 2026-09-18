@@ -1,0 +1,42 @@
+.bulkBar {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--g-line);
+  border-radius: 10px;
+  background: var(--g-field);
+}
+
+.selectAll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--g-ink);
+  cursor: pointer;
+}
+
+.count {
+  color: var(--g-muted);
+  font-size: 13.5px;
+}
+
+.btnLink {
+  border: 0;
+  background: none;
+  padding: 4px 8px;
+  color: var(--g-accent);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.btnLink:hover {
+  background: var(--g-accent-bg-soft);
+}
