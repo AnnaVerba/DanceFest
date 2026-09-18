@@ -10,6 +10,10 @@ export interface PublicProgramRow {
   dayId: string;
   dayDate: string | null;
   venueId: string | null;
+  // Only on `section` rows: when the section ends.
+  endTime?: string;
+  // Only on `group` rows: the category's position within its section.
+  categoryNumber?: number;
   // Only on `exit` rows.
   participantNumbers?: (number | null)[];
   routineName?: string | null;

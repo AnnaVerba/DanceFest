@@ -137,8 +137,11 @@ export class ScheduleService {
 
   // --- Days -----------------------------------------------------------------
 
-  async listDays(competitionId: string): Promise<CompetitionDay[]> {
-    const competition = await this.assertCompetition(competitionId);
+  async listDays(
+    competitionId: string,
+    requester: AuthenticatedUser,
+  ): Promise<CompetitionDay[]> {
+    const competition = await this.assertAccess(competitionId, requester);
     const dates = eachDateInclusive(
       competition.dateFrom,
       competition.dateTo,
@@ -313,6 +316,19 @@ export class ScheduleService {
     return this.toSectionViews(filtered);
   }
 
+  // The editor's section list — competition staff only. The public program
+  // reads the same pages through listSectionsPage directly.
+  async listSectionsPageForStaff(
+    competitionId: string,
+    requester: AuthenticatedUser,
+    filter: { dayId?: string; venueId?: string },
+    rawPage: string | undefined,
+    rawPageSize: string | undefined,
+  ): Promise<RowPaged<SectionView>> {
+    await this.assertAccess(competitionId, requester);
+    return this.listSectionsPage(competitionId, filter, rawPage, rawPageSize);
+  }
+
   // Row-bounded, section-aligned pagination: a page holds whole sections
   // until their combined running-order length reaches `pageSize` rows, so a
   // day of 500 exits never lands in one response. The editor and the public
@@ -390,9 +406,10 @@ export class ScheduleService {
   // the day-wide reorder, which a single page cannot satisfy.
   async sectionsSummary(
     competitionId: string,
+    requester: AuthenticatedUser,
     filter: { dayId?: string; venueId?: string } = {},
   ): Promise<SectionSummaryView[]> {
-    await this.assertCompetition(competitionId);
+    await this.assertAccess(competitionId, requester);
     const sections = await this.sectionModel.findAll({
       where: { competitionId, ...this.sectionWhere(filter) },
       order: [['sortOrder', 'ASC']],
@@ -416,13 +433,14 @@ export class ScheduleService {
   // ever holds one screenful, so these can't be summed on the client.
   async sectionsStats(
     competitionId: string,
+    requester: AuthenticatedUser,
     filter: { dayId?: string; venueId?: string } = {},
   ): Promise<{
     performances: number;
     noMusic: number;
     endTime: string | null;
   }> {
-    await this.assertCompetition(competitionId);
+    await this.assertAccess(competitionId, requester);
     const sections = await this.sectionModel.findAll({
       where: { competitionId, ...this.sectionWhere(filter) },
       include: [{ model: CompetitionDay, as: 'day' }],

@@ -13,6 +13,8 @@ export const REGISTRATION_CLOSED_APPLY_MESSAGE =
 export const PARTICIPANT_ALREADY_IN_NOMINATION_MESSAGE =
   'Учасник уже виступає в номінації';
 export const NOMINATION_PARTICIPANT_KEY_SEPARATOR = '|';
+export const AGE_CATEGORY_MISMATCH_MESSAGE =
+  'Вік учасника не відповідає віковій категорії номінації';
 export const DEFAULT_ENTRIES_PAGE_SIZE = 50;
 export const MAX_ENTRIES_PAGE_SIZE = 200;
 // A running number lost to a concurrent submission is the only unique

@@ -41,8 +41,11 @@ export class ScheduleController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Get('days')
-  listDays(@Param('competitionId') competitionId: string) {
-    return this.scheduleService.listDays(competitionId);
+  listDays(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.scheduleService.listDays(competitionId, user);
   }
 
   @ApiOperation({ summary: 'Delete a day (409 if it has sections)' })
@@ -68,13 +71,15 @@ export class ScheduleController {
   @Get('sections')
   listSections(
     @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('dayId') dayId?: string,
     @Query('venueId') venueId?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
-    return this.scheduleService.listSectionsPage(
+    return this.scheduleService.listSectionsPageForStaff(
       competitionId,
+      user,
       { dayId, venueId },
       page,
       pageSize,
@@ -87,10 +92,11 @@ export class ScheduleController {
   @Get('sections/summary')
   sectionsSummary(
     @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('dayId') dayId?: string,
     @Query('venueId') venueId?: string,
   ) {
-    return this.scheduleService.sectionsSummary(competitionId, {
+    return this.scheduleService.sectionsSummary(competitionId, user, {
       dayId,
       venueId,
     });
@@ -102,10 +108,11 @@ export class ScheduleController {
   @Get('sections/stats')
   sectionsStats(
     @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('dayId') dayId?: string,
     @Query('venueId') venueId?: string,
   ) {
-    return this.scheduleService.sectionsStats(competitionId, {
+    return this.scheduleService.sectionsStats(competitionId, user, {
       dayId,
       venueId,
     });

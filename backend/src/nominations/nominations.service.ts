@@ -17,6 +17,7 @@ import {
   LEAGUE_CATEGORY_TYPE,
 } from '../categories/category.model';
 import type { CategoryType } from '../categories/category.model';
+import type { AgeCategoryRange } from '../categories/resolve-age-category';
 import { Venue } from '../venues/venue.model';
 import { CompetitionRulesService } from '../competition-rules/competition-rules.service';
 import { CompetitionRule } from '../competition-rules/competition-rule.model';
@@ -438,6 +439,7 @@ export class NominationsService {
     nomination: Nomination;
     exits: NominationExit[];
     ageCategory: string | null;
+    ageRange: AgeCategoryRange | null;
     league: string | null;
   }> {
     const nomination = ref.nominationId
@@ -447,11 +449,13 @@ export class NominationsService {
     const categories = await this.loadCategories([nomination]);
     const byType = (type: string) =>
       this.categoriesFor(nomination, categories, type)[0]?.name ?? null;
+    const [ageCategory] = this.categoriesFor(nomination, categories, 'age');
 
     return {
       nomination,
       exits: this.exitsOf(nomination, categories),
       ageCategory: byType('age'),
+      ageRange: ageCategory ?? null,
       league: byType('level'),
     };
   }

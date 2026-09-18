@@ -7,15 +7,19 @@ import { getSession, getToken } from '../lib/auth';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import { getMyEntries, uploadEntryTrack } from '../lib/entries';
 import type { MyEntry } from '../lib/entries';
-import type { EntryParticipant } from '../lib/entryEdit.types';
+import { formatParticipants } from '../lib/entryParticipants';
 import { formatParticipantNumbers } from '../lib/participantNumbers';
-import { formatEntryAmount, sumEntryAmounts } from '../lib/entryAmount';
+import {
+  formatEntryAmount,
+  sumAmountsByParticipant,
+  sumEntryAmounts,
+} from '../lib/entryAmount';
 import { queryKeys } from '../lib/queryKeys';
 import {
   ENTRY_COLUMN_COUNT_BEFORE_AMOUNT,
   ENTRY_COLUMN_LABEL,
-  ENTRY_PARTICIPANTS_EMPTY_PLACEHOLDER,
-  ENTRY_PARTICIPANTS_SEPARATOR,
+  ENTRY_GRAND_TOTAL_LABEL,
+  ENTRY_PARTICIPANT_TOTALS_LABEL,
   ENTRY_TOTAL_LABEL,
 } from './ParticipantCabinetPage.constants';
 import styles from './ParticipantCabinetPage.module.css';
@@ -42,13 +46,6 @@ function groupByCompetition(entries: MyEntry[]): CompetitionGroup[] {
     }
   }
   return [...byId.values()];
-}
-
-function formatParticipants(participants: EntryParticipant[]): string {
-  if (participants.length === 0) return ENTRY_PARTICIPANTS_EMPTY_PLACEHOLDER;
-  return participants
-    .map((p) => `${p.lastName} ${p.firstName}`.trim())
-    .join(ENTRY_PARTICIPANTS_SEPARATOR);
 }
 
 export default function ParticipantCabinetPage() {
@@ -209,8 +206,29 @@ export default function ParticipantCabinetPage() {
                   </tfoot>
                 </table>
               </div>
+              <div className={styles.participantTotals}>
+                <div className={styles.participantTotalsTitle}>
+                  {ENTRY_PARTICIPANT_TOTALS_LABEL}
+                </div>
+                {sumAmountsByParticipant(group.entries).map((row) => (
+                  <div key={row.participant} className={styles.participantTotal}>
+                    <span>{row.participant}</span>
+                    <span>{formatEntryAmount(row.amount)}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
+          {groups.length > 0 && (
+            <div className={styles.grandTotal}>
+              <span>{ENTRY_GRAND_TOTAL_LABEL}</span>
+              <span>
+                {formatEntryAmount(
+                  sumEntryAmounts((myEntries ?? []).map((e) => e.price)),
+                )}
+              </span>
+            </div>
+          )}
         </section>
       </div>
     </CabinetLayout>

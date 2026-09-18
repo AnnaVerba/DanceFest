@@ -33,6 +33,7 @@ import { completeProfile } from '../lib/users';
 import MentorCoachPicker from '../components/MentorCoachPicker';
 import SchoolPicker from '../components/SchoolPicker';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
+import { nominationFitsAge, oldestAge } from '../lib/ageEligibility';
 import styles from './ApplyPage.module.css';
 
 type PayMethod = 'cash' | 'card';
@@ -87,19 +88,6 @@ function lineupMatches(categoryName: string, count: number): boolean {
     return count >= 3;
   }
   return true; // unrecognised line-up label — keep the nomination visible
-}
-
-function ageFromBirthDate(birthDate: string): number | null {
-  if (!birthDate) return null;
-  const born = new Date(birthDate);
-  if (Number.isNaN(born.getTime())) return null;
-  const now = new Date();
-  let age = now.getFullYear() - born.getFullYear();
-  const monthDiff = now.getMonth() - born.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < born.getDate())) {
-    age -= 1;
-  }
-  return age;
 }
 
 function matchAgeCategory(
@@ -358,6 +346,15 @@ export default function ApplyPage() {
 
   const pickedCount = selfParticipant ? 1 : selectedParticipants.length;
 
+  // Counted on the competition's start date, on the oldest picked dancer —
+  // the same rule the server enforces on submit.
+  const participantAge = competition
+    ? oldestAge(
+        activeParticipants.map((p) => p.birthDate),
+        competition.dateFrom,
+      )
+    : null;
+
   const styleRows: NominationRow[] = useMemo(() => {
     const rows: NominationRow[] = [];
     for (const n of nonSpecial) {
@@ -370,7 +367,12 @@ export default function ApplyPage() {
       const matchesLineup =
         n.lineups.length === 0 ||
         n.lineups.some((l) => lineupMatches(l, pickedCount));
-      if (!matchesStyle || !matchesLeague || !matchesLineup) continue;
+      const matchesAge =
+        participantAge === null ||
+        nominationFitsAge(participantAge, n.ageCategories);
+      if (!matchesStyle || !matchesLeague || !matchesLineup || !matchesAge) {
+        continue;
+      }
       rows.push({
         key: n.id,
         nominationId: n.id,
@@ -389,7 +391,7 @@ export default function ApplyPage() {
       }
     }
     return rows;
-  }, [nonSpecial, selectedStyles, league, pickedCount]);
+  }, [nonSpecial, selectedStyles, league, pickedCount, participantAge]);
 
   const specialRows: NominationRow[] = useMemo(
     () =>
@@ -423,10 +425,11 @@ export default function ApplyPage() {
     if (activeParticipants.length > 1) {
       return `Груповий номер · ${activeParticipants.length} учасників`;
     }
-    const age = ageFromBirthDate(activeParticipants[0].birthDate);
-    if (age === null) return '—';
-    const category = matchAgeCategory(age, ageCategories);
-    return category ? `${age} р. · ${category}` : `${age} р.`;
+    if (participantAge === null) return '—';
+    const category = matchAgeCategory(participantAge, ageCategories);
+    return category
+      ? `${participantAge} р. · ${category}`
+      : `${participantAge} р.`;
   })();
 
   const coachLabel = isCoach && session
@@ -1023,7 +1026,9 @@ export default function ApplyPage() {
               <label className={styles.label}>Номінації за обраними стилями</label>
               {styleRows.length === 0 ? (
                 <p className={styles.hint}>
-                  Немає номінацій для цього поєднання ліги та стилів.
+                  {participantAge === null
+                    ? 'Немає номінацій для цього поєднання ліги та стилів.'
+                    : `Немає номінацій для цього поєднання ліги та стилів у віковій категорії учасника (${participantAge} р.).`}
                 </p>
               ) : (
                 <div
