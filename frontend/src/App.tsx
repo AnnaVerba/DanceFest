@@ -63,8 +63,8 @@ function App() {
           element={<CompetitionPreviewRedirect />}
         />
 
-        {/* Everything else shares the top bar. A signed-in participant or
-            coach with an unfinished profile is bounced to /complete-profile. */}
+        {/* Everything else shares the top bar. A signed-in participant who
+            hasn't picked a mentor coach yet is bounced to /complete-profile. */}
         <Route element={<RequireCompleteProfile />}>
           <Route element={<AppShell />}>
             <Route path="/" element={<HomePage />} />

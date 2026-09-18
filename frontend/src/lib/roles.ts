@@ -10,7 +10,7 @@ export type AccessLevel = (typeof ACCESS_LEVEL)[keyof typeof ACCESS_LEVEL];
 
 export const ACCESS_LEVEL_LABELS: Record<AccessLevel, string> = {
   PARTICIPANT: 'Учасник',
-  COACH: 'Тренер',
+  COACH: 'Керівник',
   ORGANIZER: 'Організатор',
   ADMIN: 'Адмін',
 };
