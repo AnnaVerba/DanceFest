@@ -550,7 +550,7 @@ export default function ApplyPage() {
       return;
     }
     if (mentor && isCoach && !mentorSchoolId.trim()) {
-      setSubmitError('Оберіть школу, щоб зберегти тренера.');
+      setSubmitError('Оберіть школу, щоб зберегти керівника.');
       return;
     }
 
@@ -569,7 +569,7 @@ export default function ApplyPage() {
           setSubmitError(
             err instanceof Error
               ? err.message
-              : 'Не вдалося зберегти тренера у профілі.',
+              : 'Не вдалося зберегти керівника у профілі.',
           );
           return;
         }
@@ -884,7 +884,7 @@ export default function ApplyPage() {
                     <>
                       <input
                         className={styles.subInput}
-                        placeholder="Тренер — необовʼязково"
+                        placeholder="Керівник — необовʼязково"
                         value={coachQuery}
                         onChange={(e) => setCoachQuery(e.target.value)}
                       />
@@ -1109,7 +1109,7 @@ export default function ApplyPage() {
                   <div className={styles.readonlyBox}>{studioLabel}</div>
                 </div>
                 <div>
-                  <label className={styles.label}>Тренер</label>
+                  <label className={styles.label}>Керівник</label>
                   <div className={styles.readonlyBox}>{coachLabel}</div>
                 </div>
               </div>
@@ -1121,10 +1121,10 @@ export default function ApplyPage() {
                     onChange={setMentorSchoolId}
                   />
                 )}
-                <label className={styles.label}>Тренер</label>
+                <label className={styles.label}>Керівник</label>
                 <MentorCoachPicker onChange={setMentor} />
                 <p className={styles.hint}>
-                  Необовʼязково. Якщо вкажете тренера, він і його студія
+                  Необовʼязково. Якщо вкажете керівника, він і його студія
                   збережуться у вашому профілі та підтягнуться в майбутні
                   заявки.
                 </p>

@@ -5,7 +5,7 @@ export const PAGE_SIZE = 20;
 // loaded set.
 export const ENTRIES_SERVER_PAGE = 200;
 
-// Columns always shown in the table header: №, № учасника, Назва номеру,
+// Columns always shown in the table header: №, № учасника, Учасники,
 // Номінація, Вік. категорія, Ліга, Програма, К-сть уч., Студія, Хореограф,
 // Бал. The "Дії" column adds one more when canManage. Used to span the
 // "no matches" row across the full table width.

@@ -92,7 +92,6 @@ export interface AssignedClash {
 
 export interface BuildSectionInput {
   dayId: string;
-  venueId?: string;
   name: string;
   startTime: string;
   entryIds: string[];

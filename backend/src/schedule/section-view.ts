@@ -155,12 +155,20 @@ export function buildSectionView(
     };
   });
 
+  // A section's venue is the venue of its first performance's nomination —
+  // nominations are assigned to a venue via venue distribution and are the
+  // single source of truth. `section.venueId` is a legacy free-pick column
+  // and is no longer trusted here (see BUG-19).
+  const venueId =
+    liveItems.find((item) => item.type === PERFORMANCE_ITEM)?.entry
+      ?.nominationRef?.venueId ?? null;
+
   return {
     id: section.id,
     competitionId: section.competitionId,
     dayId: section.dayId,
     dayDate: section.day?.date ?? null,
-    venueId: section.venueId,
+    venueId,
     name: section.name,
     startTime: section.startTime,
     pauseSeconds: section.pauseSeconds,

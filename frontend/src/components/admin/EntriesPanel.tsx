@@ -286,7 +286,7 @@ export default function EntriesPanel({
                 <tr>
                   <th scope="col">№</th>
                   <th scope="col">№ учасника</th>
-                  <th scope="col">Назва номеру</th>
+                  <th scope="col">Учасники</th>
                   <th scope="col">Номінація</th>
                   <th scope="col">Вік. категорія</th>
                   <th scope="col">Ліга</th>

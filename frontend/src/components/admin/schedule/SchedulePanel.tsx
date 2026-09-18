@@ -297,7 +297,6 @@ export default function SchedulePanel({
     try {
       await buildSection(competitionId, {
         dayId: buildDayId,
-        venueId: venueId || undefined,
         name,
         startTime,
         entryIds: selectedIds,
@@ -314,6 +313,8 @@ export default function SchedulePanel({
         setBuildOpen(false);
         setPoolPage(0);
         await invalidatePool();
+      } else if (error instanceof ApiError && error.status === HTTP_BAD_REQUEST) {
+        onError(error.message);
       } else {
         onError('Не вдалося сформувати відділення.');
       }
