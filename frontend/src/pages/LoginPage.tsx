@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -12,9 +12,6 @@ import { MIN_PASSWORD_LENGTH } from '../lib/auth.constants';
 import PhoneField from '../components/PhoneField';
 import OtpStep from '../components/OtpStep';
 import styles from './LoginPage.module.css';
-
-const OTP_LENGTH = 6;
-const RESEND_SECONDS = 60;
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -138,62 +135,6 @@ export default function LoginPage() {
         )}
 
         {stage === 'otp' && (
-          <>
-            <h1 className={styles.title}>Підтвердження</h1>
-            <p className={styles.subtitle}>Ми надіслали код на {maskedPhone}</p>
-
-            {otpError && <p className={styles.error}>{otpError}</p>}
-
-            <div className={styles.field}>
-              <label htmlFor="otp">Код із SMS</label>
-              <input
-                type="text"
-                id="otp"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={OTP_LENGTH}
-                placeholder={'•'.repeat(OTP_LENGTH)}
-                value={code}
-                onChange={(e) =>
-                  setCode(
-                    e.target.value.replace(/\D/g, '').slice(0, OTP_LENGTH),
-                  )
-                }
-              />
-            </div>
-
-            <button
-              type="button"
-              className={styles.submit}
-              disabled={otpBusy || code.length !== OTP_LENGTH}
-              onClick={submitOtp}
-            >
-              {otpBusy ? '...' : 'Підтвердити'}
-            </button>
-
-            <button
-              type="button"
-              className={styles.inlineAction}
-              disabled={resendIn > 0}
-              onClick={doResend}
-            >
-              {resendIn > 0
-                ? `Надіслати код ще раз (${resendIn})`
-                : 'Надіслати код ще раз'}
-            </button>
-
-            <button
-              type="button"
-              className={styles.inlineAction}
-              onClick={() => {
-                setStage('login');
-                setCode('');
-                setOtpError(null);
-              }}
-            >
-              ← Змінити номер
-            </button>
-          </>
           <OtpStep
             phone={maskedPhone}
             backLabel="← Змінити номер"

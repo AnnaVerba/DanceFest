@@ -222,8 +222,6 @@ export async function resetPassword(
   return toSession(raw);
 }
 
-export async function register(payload: RegisterPayload): Promise<Session> {
-  const raw = await postAuth('/auth/register', payload, REGISTER_FAILED_MESSAGE);
 export function resendOtp(loginId: string): Promise<{ phone: string }> {
   return postForCode(
     '/auth/otp/resend',
