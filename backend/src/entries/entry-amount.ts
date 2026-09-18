@@ -5,7 +5,10 @@ import {
 } from './entries.constants';
 
 export function roundMoney(amount: number): number {
-  return Math.round(amount * MONEY_ROUNDING_FACTOR) / MONEY_ROUNDING_FACTOR;
+  return (
+    Math.round((amount + Number.EPSILON) * MONEY_ROUNDING_FACTOR) /
+    MONEY_ROUNDING_FACTOR
+  );
 }
 
 // The nomination price of one entry, or null when the nomination is
