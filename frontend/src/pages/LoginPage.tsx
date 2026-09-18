@@ -114,6 +114,9 @@ export default function LoginPage() {
                   Перший вхід? Введіть номер і придумайте пароль — ми
                   надішлемо код підтвердження в SMS.
                 </p>
+                <Link to="/forgot-password" className={styles.inlineAction}>
+                  Забули пароль?
+                </Link>
               </div>
 
               <button

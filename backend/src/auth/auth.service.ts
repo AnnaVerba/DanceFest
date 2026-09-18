@@ -210,6 +210,37 @@ export class AuthService {
     return { phone: maskPhone(user.phone) };
   }
 
+  // Forgot password, step 1: an existing account requests an SMS code to
+  // prove phone ownership before choosing a new password.
+  async forgotPassword(dto: OtpResendDto): Promise<{ phone: string }> {
+    const user = await this.usersService.findByPhone(dto.login.trim());
+    if (!user || !user.passwordHash || !isRealPhone(user.phone)) {
+      throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
+    }
+    await this.otpService.start(user.phone);
+    return { phone: maskPhone(user.phone) };
+  }
+
+  // Forgot password, step 2: verify the SMS code and replace the password.
+  async resetPassword(
+    dto: OtpVerifyDto,
+    ctx: ClientContext,
+  ): Promise<AuthResult> {
+    const user = await this.usersService.findByPhone(dto.login.trim());
+    if (!user || !user.passwordHash || !isRealPhone(user.phone)) {
+      throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
+    }
+    await this.otpService.verify(user.phone, dto.code);
+    await this.usersService.setPassword(
+      user.id,
+      await bcrypt.hash(dto.password, SALT_ROUNDS),
+    );
+    return this.issueSession(
+      await this.usersService.findByIdOrFail(user.id),
+      ctx,
+    );
+  }
+
   private async assertPassword(
     passwordHash: string | null | undefined,
     password: string,
