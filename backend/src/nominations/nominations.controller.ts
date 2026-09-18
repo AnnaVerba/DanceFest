@@ -23,6 +23,7 @@ import type { AuthenticatedAdmin } from '../auth/current-user.decorator';
 import { NominationsService } from './nominations.service';
 import { CreateNominationDto } from './dto/create-nomination.dto';
 import { BulkCreateNominationsDto } from './dto/bulk-create-nominations.dto';
+import { BulkSetImprovisationDto } from './dto/bulk-set-improvisation.dto';
 import { UpdateNominationDto } from './dto/update-nomination.dto';
 
 @ApiTags('nominations')
@@ -107,6 +108,44 @@ export class NominationsController {
     @Body() dto: BulkCreateNominationsDto,
   ) {
     return this.nominationsService.bulkCreate(
+      competitionId,
+      admin.id,
+      admin.accessLevel,
+      dto,
+    );
+  }
+
+  @ApiOperation({
+    summary: 'Set or clear the improvisation flag on many nominations at once',
+    description:
+      'Selects nominations either by an explicit id list or by a filter (category ids / name ' +
+      'substring) — a filter is how hundreds of improvisation nominations get updated in one call.',
+  })
+  @ApiResponse({ status: 200, description: 'Nominations updated.' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Validation failed, neither or both of ids/filter were given, some listed ids do not ' +
+      'belong to this competition, or nothing matched.',
+  })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'The caller has no access to this competition.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'No competition exists with the given id.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Patch('bulk-improvisation')
+  bulkSetImprovisation(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() admin: AuthenticatedAdmin,
+    @Body() dto: BulkSetImprovisationDto,
+  ) {
+    return this.nominationsService.bulkSetImprovisation(
       competitionId,
       admin.id,
       admin.accessLevel,
