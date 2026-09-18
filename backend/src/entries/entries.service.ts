@@ -541,18 +541,45 @@ export class EntriesService {
       where: { id: { [Op.in]: competitionIds } },
     });
     const byId = new Map(competitions.map((c) => [c.id, c]));
+    const allParticipantIds = entries.flatMap((e) => e.participantIds ?? []);
     const numbers = await this.participantNumbersService.loadLookup(
       competitionIds,
-      entries.flatMap((e) => e.participantIds ?? []),
+      allParticipantIds,
     );
+
+    const nominationIds = [
+      ...new Set(
+        entries
+          .map((e) => e.nominationId)
+          .filter((id): id is string => id !== null),
+      ),
+    ];
+    const prices = await this.nominationsService.findPricesByIds(nominationIds);
+
+    const people = await this.usersService.findManyByIds([
+      ...new Set(allParticipantIds),
+    ]);
+    const peopleById = new Map(people.map((p) => [p.id, p]));
 
     return entries.map((entry) => {
       const competition = byId.get(entry.competitionId);
+      const participants: EntryParticipant[] = (entry.participantIds ?? [])
+        .map((id) => peopleById.get(id))
+        .filter((p): p is User => p !== undefined)
+        .map((p) => ({
+          id: p.id,
+          firstName: p.firstName,
+          lastName: p.lastName,
+        }));
       return {
         ...this.toDto(entry, numbers),
         competitionId: entry.competitionId,
         competitionName: competition?.name ?? null,
         competitionDateFrom: competition?.dateFrom ?? null,
+        price: entry.nominationId
+          ? (prices.get(entry.nominationId) ?? null)
+          : null,
+        participants,
       };
     });
   }

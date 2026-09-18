@@ -456,6 +456,19 @@ export class NominationsService {
     };
   }
 
+  // Nomination price per id — what an entry against that nomination costs
+  // (BUG-28's "Мої заявки" total, same field TASK-20 reads elsewhere).
+  async findPricesByIds(ids: string[]): Promise<Map<string, number | null>> {
+    if (ids.length === 0) return new Map();
+    const nominations = await this.nominationModel.findAll({
+      where: { id: { [Op.in]: ids } },
+      attributes: ['id', 'price'],
+    });
+    return new Map(
+      nominations.map((n) => [n.id, n.price === null ? null : Number(n.price)]),
+    );
+  }
+
   private toAttributes(
     competitionId: string,
     dto: CreateNominationDto,
