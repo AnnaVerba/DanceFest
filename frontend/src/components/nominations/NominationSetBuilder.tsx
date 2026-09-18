@@ -168,11 +168,16 @@ export default function NominationSetBuilder({
     clearInput();
   };
 
-  const removeValue = (type: CategoryType, id: string) =>
+  // Прибрати значення з осі — і з уже згенерованих номінацій, що на нього
+  // посилаються: інакше застарілий categoryIds лишається в payload і бекенд
+  // валідує діапазон, якого вже нема серед вибраних (BUG-09).
+  const removeValue = (type: CategoryType, id: string) => {
     updateSelection((current) => ({
       ...current,
       [type]: current[type].filter((c) => c.id !== id),
     }));
+    onChange(nominations.filter((n) => !n.categoryIds.includes(id)));
+  };
 
   const generate = () => {
     const active = CATEGORY_TYPES.map((t) => selection[t]).filter(
