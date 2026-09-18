@@ -20,9 +20,4 @@ export const CLEAR_SELECTION_LABEL = 'Зняти вибір';
 export const SELECT_NOMINATION_ARIA_PREFIX = 'Обрати номінацію';
 export const NOTHING_FOUND_MESSAGE = 'Нічого не знайдено за обраними фільтрами.';
 
-export const FIRST_PAGE = 0;
-export const PAGER_PREV_LABEL = '← Назад';
-export const PAGER_NEXT_LABEL = 'Далі →';
 export const PAGER_ARIA_LABEL = 'Сторінки номінацій';
-export const PAGER_SHOWN_LABEL = 'Показано';
-export const PAGER_OF_LABEL = 'з';

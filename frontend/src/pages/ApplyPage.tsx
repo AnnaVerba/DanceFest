@@ -21,7 +21,7 @@ import {
   PARTICIPANT_SEARCH_MIN_CHARS,
 } from '../lib/participants.constants';
 import { getSchool } from '../lib/schools';
-import { formatEntryAmount } from '../lib/entryAmount';
+import { entryCostForDancers, formatEntryAmount } from '../lib/entryAmount';
 import {
   getMyMentorCoach,
   getSelectableCoaches,
@@ -409,7 +409,10 @@ export default function ApplyPage() {
   );
 
   const selectedRows = allRows.filter((r) => selectedKeys.includes(r.key));
-  const total = selectedRows.reduce((sum, r) => sum + (r.price ?? 0), 0);
+  const total = selectedRows.reduce(
+    (sum, r) => sum + (entryCostForDancers(r.price, pickedCount) ?? 0),
+    0,
+  );
 
   // Which required field to highlight red — mirrors the checks in
   // handleSubmit, so the invalid one stays marked until it's actually fixed.

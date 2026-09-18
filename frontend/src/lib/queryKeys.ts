@@ -3,6 +3,7 @@ import type { CategoryType } from './categories';
 import type { PublicProgramQuery } from './program';
 import type { PageRequest, UnassignedFilter } from './schedule';
 import type { NominationPageQuery, VenueSummaryGroupBy } from './nominations.types';
+import type { FinanceGroup, FinanceGroupQuery } from './finance.types';
 
 // Single source of truth for React Query cache keys. Filters and search
 // terms are always part of the key — otherwise results from different
@@ -24,6 +25,10 @@ export const queryKeys = {
   entries: (competitionId: string) => ['applications', competitionId, 'cabinet'] as const,
   myEntries: () => ['applications', 'mine'] as const,
   overages: (competitionId: string) => ['overages', competitionId] as const,
+  financeSummary: (competitionId: string) =>
+    ['finance', competitionId, 'summary'] as const,
+  financeGroup: (competitionId: string, group: FinanceGroup, query: FinanceGroupQuery) =>
+    ['finance', competitionId, group, query] as const,
 
   categories: (type?: CategoryType) => ['categories', type ?? 'all'] as const,
   categoryTemplates: (

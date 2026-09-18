@@ -7,8 +7,7 @@
   gap: 12px;
 }
 
-.range,
-.pageOf {
+.range {
   color: var(--g-muted);
   font-size: 13.5px;
 }

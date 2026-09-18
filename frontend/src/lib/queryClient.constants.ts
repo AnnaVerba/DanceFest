@@ -27,3 +27,7 @@ export const TIMING_STALE_TIME_MS = 10_000;
 // Доплати за час і переліміти — це гроші, тому без кешу: завжди перевіряємо
 // сервер перед показом (див. .claude/prompt-caching-strategy.md).
 export const OVERAGES_STALE_TIME_MS = 0;
+
+// Фінанси конкурсу — теж гроші, і складаються із заявок та доплат, що
+// змінюються на інших вкладках, тому без кешу.
+export const FINANCE_STALE_TIME_MS = 0;

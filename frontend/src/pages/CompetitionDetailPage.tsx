@@ -7,6 +7,7 @@ import AwardsSummary from '../components/awards/AwardsSummary';
 import FestivalProgram from '../components/program/FestivalProgram';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
 import EntriesPanel from '../components/admin/EntriesPanel';
+import FinancePanel from '../components/admin/FinancePanel';
 import JudgesPanel from '../components/admin/JudgesPanel';
 import MusicExportPanel from '../components/admin/MusicExportPanel';
 import NominationsPanel from '../components/admin/NominationsPanel';
@@ -36,6 +37,7 @@ const ALL_TABS = [
   'Майданчики',
   'Заявки',
   'Доплати',
+  'Фінанси',
   'Таймінги',
   'Програма',
   'Нагороди',
@@ -119,7 +121,7 @@ export default function CompetitionDetailPage() {
   // which any staff account can open.
   const visibleTabs = TABS.filter((tab) => {
     if (tab === 'Заявки' || tab === 'Нагороди') return !!admin;
-    if (tab === 'Доплати') return canManageEntries;
+    if (tab === 'Доплати' || tab === 'Фінанси') return canManageEntries;
     return true;
   });
 
@@ -213,7 +215,7 @@ export default function CompetitionDetailPage() {
                 <NominationsPanel
                   competitionId={id}
                   canManage={canManage}
-                  onError={(message) => showToast(message)}
+                  onError={showToast}
                 />
               )}
 
@@ -223,7 +225,7 @@ export default function CompetitionDetailPage() {
                   <EntriesPanel
                     competitionId={id}
                     canManage={canManageEntries}
-                    onError={(message) => showToast(message)}
+                    onError={showToast}
                   />
                 </>
               )}
@@ -232,7 +234,14 @@ export default function CompetitionDetailPage() {
                 <OveragesPanel
                   competitionId={id}
                   canManage={canManageEntries}
-                  onError={(message) => showToast(message)}
+                  onError={showToast}
+                />
+              )}
+
+              {activeTab === 'Фінанси' && canManageEntries && (
+                <FinancePanel
+                  competitionId={id}
+                  onError={showToast}
                 />
               )}
 
@@ -240,7 +249,7 @@ export default function CompetitionDetailPage() {
                 <JudgesPanel
                   competitionId={id}
                   canManage={canManage}
-                  onError={(message) => showToast(message)}
+                  onError={showToast}
                 />
               )}
 
@@ -248,7 +257,7 @@ export default function CompetitionDetailPage() {
                 <VenuesPanel
                   competitionId={id}
                   canManage={!!admin}
-                  onError={(message) => showToast(message)}
+                  onError={showToast}
                 />
               )}
 
@@ -256,7 +265,7 @@ export default function CompetitionDetailPage() {
                 <ScheduleSettings
                   competitionId={id}
                   canManage={canManage}
-                  onError={(message) => showToast(message)}
+                  onError={showToast}
                   onSaved={(message) => showToast(message)}
                 />
               )}
@@ -271,7 +280,7 @@ export default function CompetitionDetailPage() {
                     competition={competition}
                     canManage
                     canBuildAnytime={isAdmin}
-                    onError={(message) => showToast(message)}
+                    onError={showToast}
                     onNotice={(message) => showToast(message)}
                   />
                 ) : (
