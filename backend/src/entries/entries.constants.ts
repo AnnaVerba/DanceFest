@@ -52,3 +52,7 @@ export const NOMINATION_PROGRAM_MISMATCH_MESSAGE =
 // PATCH .../entries/:entryId/extra-time).
 export const EXTRA_TIME_SECONDS_OPTIONS = [30, 60] as const;
 export type ExtraTimeSeconds = (typeof EXTRA_TIME_SECONDS_OPTIONS)[number];
+
+// Money is kept to kopiykas: sums of DECIMAL(10,2) prices are rounded back
+// to two decimals so float drift never shows up in a total.
+export const MONEY_ROUNDING_FACTOR = 100;

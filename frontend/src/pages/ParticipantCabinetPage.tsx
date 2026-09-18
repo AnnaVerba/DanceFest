@@ -190,7 +190,7 @@ export default function ParticipantCabinetPage() {
                           </div>
                         </td>
                         <td data-label={ENTRY_COLUMN_LABEL.AMOUNT}>
-                          {formatEntryAmount(entry.price)}
+                          {formatEntryAmount(entry.amount)}
                         </td>
                       </tr>
                     ))}
@@ -202,7 +202,7 @@ export default function ParticipantCabinetPage() {
                       </td>
                       <td data-label={ENTRY_COLUMN_LABEL.AMOUNT}>
                         {formatEntryAmount(
-                          sumEntryAmounts(group.entries.map((e) => e.price)),
+                          sumEntryAmounts(group.entries.map((e) => e.amount)),
                         )}
                       </td>
                     </tr>

@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import type { NominationBulkSelector } from '../../../lib/nominations';
 import type { NominationPageQuery } from '../../../lib/nominations.types';
 import { toVenueId } from '../../../lib/nominationVenue';
-import { ANY_FILTER_VALUE, FIRST_PAGE } from './nominationFilters.constants';
+import { ANY_FILTER_VALUE } from './nominationFilters.constants';
+import { FIRST_PAGE } from '../Pager.constants';
 import type {
   NominationFilterState,
   NominationSelection,
