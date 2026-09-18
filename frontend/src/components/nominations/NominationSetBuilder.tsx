@@ -14,7 +14,11 @@ import { REFERENCE_STALE_TIME_MS } from '../../lib/queryClient.constants';
 import AgeRangeFields from './AgeRangeFields';
 import { PRICED_AXES, resolvePrice } from '../../lib/nominationPricing';
 import type { AxisPriceMap } from '../../lib/nominationPricing';
-import { EMPTY_AGE_RANGE, parseAgeRange } from '../../lib/ageRange';
+import {
+  EMPTY_AGE_RANGE,
+  ageRangeConflictMessage,
+  parseAgeRange,
+} from '../../lib/ageRange';
 import type { AgeRange } from '../../lib/ageRange';
 import type { Category, CategoryType } from '../../lib/categories';
 import type { ExitMode } from '../../lib/categoryTemplates';
@@ -121,14 +125,38 @@ export default function NominationSetBuilder({
 
     const existing = suggestions.find((s) => sameCategoryValue(s, candidate));
 
+    // Довідник спільний за назвою: якщо значення з такою назвою вже є,
+    // порожні поля «від»/«до» означають «використати наявне», а заповнені —
+    // намір користувача або підтвердити, або перевизначити його межі. Тихо
+    // відкидати введене й підставляти чуже — саме той сценарій, що ламав
+    // BUG-03.
     let range: AgeRange | undefined;
-    if (type === AGE_CATEGORY_TYPE && !existing) {
-      const parsed = parseAgeRange(ageRange);
-      if (!parsed.ok) {
-        setError(parsed.message);
-        return;
+    if (type === AGE_CATEGORY_TYPE) {
+      const rangeEntered = ageRange.from.trim() !== '' || ageRange.to.trim() !== '';
+      if (!existing || rangeEntered) {
+        const parsed = parseAgeRange(ageRange);
+        if (!parsed.ok) {
+          setError(parsed.message);
+          return;
+        }
+        if (
+          existing &&
+          existing.ageFrom !== null &&
+          existing.ageTo !== null &&
+          (existing.ageFrom !== parsed.range.ageFrom ||
+            existing.ageTo !== parsed.range.ageTo)
+        ) {
+          setError(
+            ageRangeConflictMessage(
+              existing.name,
+              existing.ageFrom,
+              existing.ageTo,
+            ),
+          );
+          return;
+        }
+        range = parsed.range;
       }
-      range = parsed.range;
     }
 
     const category = existing ?? draftCategory(raw, type, range);

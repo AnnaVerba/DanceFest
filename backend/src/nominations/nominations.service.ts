@@ -7,6 +7,7 @@ import {
 import { InjectModel } from '@nestjs/sequelize';
 import { AccessLevel } from '../auth/access-level.enum';
 import { CreationAttributes, Op } from 'sequelize';
+import type { WhereOptions } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Category, LEAGUE_CATEGORY_TYPE } from '../categories/category.model';
@@ -16,10 +17,14 @@ import type { NominationExit, NominationProgram } from './nomination-exits';
 import { CreateNominationDto } from './dto/create-nomination.dto';
 import { UpdateNominationDto } from './dto/update-nomination.dto';
 import { BulkCreateNominationsDto } from './dto/bulk-create-nominations.dto';
+import { BulkSetImprovisationDto } from './dto/bulk-set-improvisation.dto';
 import {
   NOMINATION_LEAGUE_REQUIRED_MESSAGE,
   NOMINATION_NOT_FOUND_MESSAGE,
   NOMINATION_NOT_IN_COMPETITION_MESSAGE,
+  NOMINATION_BULK_SELECTOR_REQUIRED_MESSAGE,
+  NO_NOMINATIONS_MATCHED_MESSAGE,
+  SOME_NOMINATIONS_NOT_IN_COMPETITION_MESSAGE,
 } from './nominations.constants';
 import {
   COMPETITION_NOT_FOUND_MESSAGE,
@@ -145,6 +150,76 @@ export class NominationsService {
 
     await nomination.save();
     return this.toDto(nomination, await this.loadCategories([nomination]));
+  }
+
+  // Improvisation is toggled on hundreds of nominations at once (a whole
+  // festival's worth), so it gets its own bulk route rather than forcing one
+  // PATCH per nomination. The caller picks either an explicit id list (a
+  // hand-picked selection) or a filter (name/category match) — a filter lets
+  // "every improvisation nomination" reach the database as one UPDATE
+  // instead of a request body listing 700 ids.
+  async bulkSetImprovisation(
+    competitionId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+    dto: BulkSetImprovisationDto,
+  ) {
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
+
+    const hasIds = dto.nominationIds !== undefined;
+    const hasFilter = dto.filter !== undefined;
+    if (hasIds === hasFilter) {
+      throw new BadRequestException(NOMINATION_BULK_SELECTOR_REQUIRED_MESSAGE);
+    }
+
+    const where = this.bulkSelectorWhere(competitionId, dto);
+    const nominations = await this.nominationModel.findAll({ where });
+
+    if (hasIds && nominations.length !== new Set(dto.nominationIds).size) {
+      throw new BadRequestException(
+        SOME_NOMINATIONS_NOT_IN_COMPETITION_MESSAGE,
+      );
+    }
+    if (nominations.length === 0) {
+      throw new BadRequestException(NO_NOMINATIONS_MATCHED_MESSAGE);
+    }
+
+    await this.nominationModel.update(
+      { allowsImprovisation: dto.allowsImprovisation },
+      { where },
+    );
+
+    const categories = await this.loadCategories(nominations);
+    return nominations.map((nomination) => {
+      nomination.allowsImprovisation = dto.allowsImprovisation;
+      return this.toDto(nomination, categories);
+    });
+  }
+
+  private bulkSelectorWhere(
+    competitionId: string,
+    dto: BulkSetImprovisationDto,
+  ): WhereOptions<Nomination> {
+    if (dto.nominationIds !== undefined) {
+      return {
+        id: { [Op.in]: [...new Set(dto.nominationIds)] },
+        competitionId,
+      };
+    }
+
+    const where: Record<string, unknown> = { competitionId };
+    if (dto.filter?.categoryIds?.length) {
+      where.categoryIds = { [Op.contains]: dto.filter.categoryIds };
+    }
+    const q = dto.filter?.q?.trim();
+    if (q) {
+      where.name = { [Op.iLike]: `%${q}%` };
+    }
+    return where;
   }
 
   async remove(

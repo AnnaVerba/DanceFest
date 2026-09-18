@@ -153,6 +153,64 @@
   font-weight: 600;
 }
 
+.filterBar {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.filterBar .inputSm {
+  width: 160px;
+}
+
+.filterBar .input {
+  width: 220px;
+}
+
+.bulkBar {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--g-line);
+  border-radius: 10px;
+  background: var(--g-field);
+}
+
+.bulkSelectAll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--g-ink);
+  cursor: pointer;
+}
+
+.bulkCount {
+  color: var(--g-muted);
+  font-size: 13.5px;
+}
+
+.rowCheckbox {
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+
+.badgeImprov {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--g-field-off);
+  border: 1px solid var(--g-line-strong);
+  color: var(--g-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .rows {
   list-style: none;
   margin: 12px 0 0;

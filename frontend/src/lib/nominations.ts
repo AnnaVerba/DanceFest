@@ -155,6 +155,32 @@ export function createNominationsBulk(
   });
 }
 
+export interface NominationBulkFilter {
+  categoryIds?: string[];
+  q?: string;
+}
+
+// Either a hand-picked set of ids, or a filter the backend resolves itself —
+// the filter is how "every improvisation nomination" reaches the server
+// without listing hundreds of ids in the request body.
+export type NominationBulkSelector =
+  | { nominationIds: string[] }
+  | { filter: NominationBulkFilter };
+
+export function setImprovisationBulk(
+  competitionId: string,
+  selector: NominationBulkSelector,
+  allowsImprovisation: boolean,
+): Promise<Nomination[]> {
+  return request<Nomination[]>(
+    `/competitions/${competitionId}/nominations/bulk-improvisation`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ ...selector, allowsImprovisation }),
+    },
+  );
+}
+
 export function deleteNomination(
   competitionId: string,
   nominationId: string,
