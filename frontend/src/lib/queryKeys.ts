@@ -2,6 +2,7 @@ import type { CompetitionsQuery } from './competitions';
 import type { CategoryType } from './categories';
 import type { PublicProgramQuery } from './program';
 import type { PageRequest, UnassignedFilter } from './schedule';
+import type { NominationPageQuery, VenueSummaryGroupBy } from './nominations.types';
 
 // Single source of truth for React Query cache keys. Filters and search
 // terms are always part of the key — otherwise results from different
@@ -40,6 +41,13 @@ export const queryKeys = {
   judges: (competitionId: string) => ['judges', competitionId] as const,
   nominations: (competitionId: string, q?: string) =>
     ['nominations', competitionId, q ?? ''] as const,
+  // Prefix of every nominations query of a competition — invalidate this
+  // after any change to its nominations.
+  nominationsScope: (competitionId: string) => ['nominations', competitionId] as const,
+  nominationsPage: (competitionId: string, query: NominationPageQuery) =>
+    ['nominations', competitionId, 'page', query] as const,
+  venueSummary: (competitionId: string, groupBy: VenueSummaryGroupBy) =>
+    ['nominations', competitionId, 'venue-summary', groupBy] as const,
 
   me: () => ['me'] as const,
 

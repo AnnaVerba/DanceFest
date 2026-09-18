@@ -17,6 +17,12 @@ import {
 import { UploadApiError, uploadImage } from '../lib/uploads';
 import { isValidEmail, isValidPhone } from '../lib/validation';
 import { queryKeys } from '../lib/queryKeys';
+import {
+  TAB_QUERY_PARAM,
+  VENUES_LINK_HINT,
+  VENUES_LINK_LABEL,
+  VENUES_TAB_SLUG,
+} from '../lib/competitionTabs.constants';
 import styles from './CompetitionFormPage.module.css';
 
 interface ContactFieldErrors {
@@ -251,6 +257,15 @@ export default function CompetitionEditPage() {
           </Link>
 
           <h1 className={styles.title}>Редагувати конкурс</h1>
+          <p className={styles.venuesHint}>
+            {VENUES_LINK_HINT}{' '}
+            <Link
+              to={`/competitions/${id}?${TAB_QUERY_PARAM}=${VENUES_TAB_SLUG}`}
+              className={styles.back}
+            >
+              {VENUES_LINK_LABEL}
+            </Link>
+          </p>
 
           {loading && <p className={styles.status}>Завантаження...</p>}
           {loadError && <p className={styles.status}>{loadError}</p>}

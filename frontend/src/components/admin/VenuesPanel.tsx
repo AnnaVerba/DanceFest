@@ -2,9 +2,13 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import ConfirmDialog from './ConfirmDialog';
+import VenueDistribution from './VenueDistribution';
+import VenueQuickDistribution from './VenueQuickDistribution';
+import { refreshNominations } from '../../lib/nominationsCache';
 import { createVenue, deleteVenue, getVenues } from '../../lib/venues';
 import type { Venue } from '../../lib/venues';
 import { FEATURES } from '../../lib/features';
+import { pluralNominations } from '../../lib/nominationSet';
 import { queryKeys } from '../../lib/queryKeys';
 import styles from './VenuesPanel.module.css';
 
@@ -43,9 +47,11 @@ export default function VenuesPanel({
     onSuccess: invalidateVenues,
   });
 
+  // Deleting a venue takes its nominations off it on the server, so their
+  // cached venueId is stale too.
   const deleteVenueMutation = useMutation({
     mutationFn: (venueId: string) => deleteVenue(competitionId, venueId),
-    onSuccess: invalidateVenues,
+    onSuccess: () => refreshNominations(queryClient, competitionId),
   });
 
   const handleAdd = async (e: FormEvent) => {
@@ -115,7 +121,12 @@ export default function VenuesPanel({
           {venues.map((venue) => (
             <li key={venue.id} className={styles.venue}>
               <div className={styles.venueInfo}>
-                <div className={styles.venueName}>{venue.name}</div>
+                <div className={styles.venueName}>
+                  {venue.name}
+                  <span className={styles.venueCount}>
+                    {venue.nominationCount} {pluralNominations(venue.nominationCount)}
+                  </span>
+                </div>
                 {venue.description && (
                   <div className={styles.venueDescription}>{venue.description}</div>
                 )}
@@ -141,6 +152,17 @@ export default function VenuesPanel({
             ? 'Майданчиків ще немає — додайте перший вище.'
             : 'Для цього конкурсу ще не додано майданчиків.'}
         </p>
+      )}
+
+      {canManage && venues && venues.length > 0 && (
+        <>
+          <VenueQuickDistribution
+            competitionId={competitionId}
+            venues={venues}
+            onError={onError}
+          />
+          <VenueDistribution competitionId={competitionId} venues={venues} onError={onError} />
+        </>
       )}
 
       <ConfirmDialog
