@@ -1391,26 +1391,38 @@ export default function NewCompetitionPage() {
                 </p>
               ) : (
                 <div className={styles.list}>
-                  {nominations.map((n) => (
-                    <div className={styles.item} key={n.signature}>
-                      <div style={{ flex: 1 }}>
+                  {nominations.map((n) => {
+                    const assigned = assignments[n.signature] ?? '';
+                    return (
+                      <div
+                        className={`${styles.item} ${styles.itemStacked}`}
+                        key={n.signature}
+                      >
                         <h3>{n.name}</h3>
-                      </div>
-                      <div style={{ width: 200 }}>
-                        <select
-                          aria-label="Майданчик для номінації"
-                          value={assignments[n.signature] ?? venues[0]?.name ?? ''}
-                          onChange={(e) => setAssignment(n.signature, e.target.value)}
+                        <div
+                          className={styles.venueChoices}
+                          role="group"
+                          aria-label={`Майданчик для номінації «${n.name}»`}
                         >
                           {venues.map((v) => (
-                            <option key={v.id} value={v.name}>
+                            <label key={v.id} className={styles.venueChoice}>
+                              <input
+                                type="checkbox"
+                                checked={assigned === v.name}
+                                onChange={(e) =>
+                                  setAssignment(
+                                    n.signature,
+                                    e.target.checked ? v.name : '',
+                                  )
+                                }
+                              />
                               {v.name}
-                            </option>
+                            </label>
                           ))}
-                        </select>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
