@@ -947,7 +947,6 @@ export default function ApplyPage() {
                     value={league}
                     onChange={(e) => {
                       setLeague(e.target.value);
-                      setSelectedKeys([]);
                       setSubmitError(null);
                     }}
                   >
