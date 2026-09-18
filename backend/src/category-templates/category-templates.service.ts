@@ -37,8 +37,11 @@ import {
   TEMPLATE_CANNOT_BE_EMPTY_MESSAGE,
   FORK_NAME_MUST_DIFFER_MESSAGE,
   UNKNOWN_CATEGORIES_MESSAGE_PREFIX,
+  DEFAULT_TEMPLATE_NOMINATIONS_PAGE_SIZE,
+  MAX_TEMPLATE_NOMINATIONS_PAGE_SIZE,
 } from './category-templates.constants';
 import { resolvePage } from '../common/pagination';
+import { bulkCreateChunked } from '../common/bulk-insert';
 import { normalizeLeagueNames } from './normalize-league-names';
 
 const AUTHOR_INCLUDE = [
@@ -140,6 +143,57 @@ export class CategoryTemplatesService {
     return this.toDetailDto(
       await this.loadReadable(templateId, requesterId, requesterLevel),
     );
+  }
+
+  // Header info for the template detail page: never touches the nomination
+  // rows, so it stays cheap even for a template of thousands of nominations.
+  async findMeta(
+    templateId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+  ) {
+    const template = await this.loadReadable(
+      templateId,
+      requesterId,
+      requesterLevel,
+    );
+    const nominationsCount = await this.nominationModel.count({
+      where: { templateId },
+    });
+    return { ...this.toDto(template), nominationsCount };
+  }
+
+  async listNominations(
+    templateId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+    rawPage?: string,
+    rawPageSize?: string,
+  ) {
+    await this.loadReadable(templateId, requesterId, requesterLevel);
+    const { page, pageSize, limit, offset } = resolvePage(
+      rawPage,
+      rawPageSize,
+      DEFAULT_TEMPLATE_NOMINATIONS_PAGE_SIZE,
+      MAX_TEMPLATE_NOMINATIONS_PAGE_SIZE,
+    );
+
+    const { rows, count } = await this.nominationModel.findAndCountAll({
+      where: { templateId },
+      order: [
+        ['sortOrder', 'ASC'],
+        ['createdAt', 'ASC'],
+      ],
+      limit,
+      offset,
+    });
+
+    return {
+      rows: rows.map((n) => this.nominationToDto(n)),
+      total: count,
+      page,
+      pageSize,
+    };
   }
 
   // The full template view; the caller has already checked read access.
@@ -260,17 +314,18 @@ export class CategoryTemplatesService {
     );
 
     if (sourceNominations.length > 0) {
-      await this.nominationModel.bulkCreate(
-        sourceNominations.map((n, index) => ({
-          templateId: copy.id,
-          name: n.name,
-          allowsImprovisation: n.allowsImprovisation,
-          categoryIds: n.categoryIds,
-          isSpecial: n.isSpecial,
-          specialName: n.specialName,
-          exitMode: n.exitMode,
-          sortOrder: n.sortOrder ?? index,
-        })) as CreationAttributes<TemplateNomination>[],
+      const records = sourceNominations.map((n, index) => ({
+        templateId: copy.id,
+        name: n.name,
+        allowsImprovisation: n.allowsImprovisation,
+        categoryIds: n.categoryIds,
+        isSpecial: n.isSpecial,
+        specialName: n.specialName,
+        exitMode: n.exitMode,
+        sortOrder: n.sortOrder ?? index,
+      })) as CreationAttributes<TemplateNomination>[];
+      await this.nominationModel.sequelize!.transaction((transaction) =>
+        bulkCreateChunked(this.nominationModel, records, transaction),
       );
     }
 
@@ -331,19 +386,23 @@ export class CategoryTemplatesService {
     templateId: string,
     nominations: TemplateNominationDto[],
   ): Promise<void> {
-    await this.nominationModel.destroy({ where: { templateId } });
-    await this.nominationModel.bulkCreate(
-      nominations.map((n, index) => ({
-        templateId,
-        name: n.name.trim(),
-        allowsImprovisation: n.allowsImprovisation ?? false,
-        categoryIds: n.categoryIds ?? [],
-        isSpecial: n.isSpecial ?? false,
-        specialName: n.specialName?.trim() || null,
-        exitMode: n.exitMode ?? DEFAULT_EXIT_MODE,
-        sortOrder: n.sortOrder ?? index,
-      })) as CreationAttributes<TemplateNomination>[],
-    );
+    const records = nominations.map((n, index) => ({
+      templateId,
+      name: n.name.trim(),
+      allowsImprovisation: n.allowsImprovisation ?? false,
+      categoryIds: n.categoryIds ?? [],
+      isSpecial: n.isSpecial ?? false,
+      specialName: n.specialName?.trim() || null,
+      exitMode: n.exitMode ?? DEFAULT_EXIT_MODE,
+      sortOrder: n.sortOrder ?? index,
+    })) as CreationAttributes<TemplateNomination>[];
+
+    // Chunked inserts issue several INSERT statements instead of one, so the
+    // destroy + recreate needs an explicit transaction to still be atomic.
+    await this.nominationModel.sequelize!.transaction(async (transaction) => {
+      await this.nominationModel.destroy({ where: { templateId }, transaction });
+      await bulkCreateChunked(this.nominationModel, records, transaction);
+    });
   }
 
   /**

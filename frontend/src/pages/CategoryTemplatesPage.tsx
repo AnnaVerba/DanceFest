@@ -9,10 +9,9 @@ import {
   CategoryTemplateApiError,
   deleteCategoryTemplate,
   forkCategoryTemplate,
-  getCategoryTemplate,
   getCategoryTemplates,
 } from '../lib/categoryTemplates';
-import type { CategoryTemplate, TemplateNomination } from '../lib/categoryTemplates';
+import type { CategoryTemplate } from '../lib/categoryTemplates';
 import { queryKeys } from '../lib/queryKeys';
 import { REFERENCE_STALE_TIME_MS } from '../lib/queryClient.constants';
 import styles from './CategoryTemplatesPage.module.css';
@@ -35,10 +34,6 @@ export default function CategoryTemplatesPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [scope, setScope] = useState<Scope>('all');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [nominationsById, setNominationsById] = useState<
-    Record<string, TemplateNomination[]>
-  >({});
   const [pendingDelete, setPendingDelete] = useState<CategoryTemplate | null>(null);
   const { toasts, showToast } = useToasts();
 
@@ -80,32 +75,6 @@ export default function CategoryTemplatesPage() {
       return true;
     });
   }, [templates, scope, admin?.id]);
-
-  const toggleExpanded = async (template: CategoryTemplate) => {
-    if (expandedId === template.id) {
-      setExpandedId(null);
-      return;
-    }
-    setExpandedId(template.id);
-    if (nominationsById[template.id]) return;
-
-    try {
-      // Template contents are a reference too (staleTime: Infinity) — this
-      // reuses the shared cache instead of always hitting the network.
-      const detail = await queryClient.fetchQuery({
-        queryKey: queryKeys.categoryTemplate(template.id),
-        queryFn: () => getCategoryTemplate(template.id),
-        staleTime: REFERENCE_STALE_TIME_MS,
-      });
-      setNominationsById((prev) => ({ ...prev, [template.id]: detail.nominations }));
-    } catch (err) {
-      showToast(
-        err instanceof CategoryTemplateApiError
-          ? err.message
-          : 'Не вдалося завантажити номінації шаблону.',
-      );
-    }
-  };
 
   const handleFork = async (template: CategoryTemplate) => {
     try {
@@ -249,23 +218,6 @@ export default function CategoryTemplatesPage() {
                       {count} {plural(count)} · автор: {t.author?.name ?? '—'}
                     </p>
 
-                    {expandedId === t.id && (
-                      <ul className={styles.nomList}>
-                        {nominationsById[t.id] === undefined ? (
-                          <li>Завантаження...</li>
-                        ) : nominationsById[t.id].length === 0 ? (
-                          <li>Шаблон порожній</li>
-                        ) : (
-                          nominationsById[t.id].map((nomination) => (
-                            <li key={nomination.id}>
-                              {nomination.name}
-                              {nomination.allowsImprovisation && ' · імпровізація'}
-                            </li>
-                          ))
-                        )}
-                      </ul>
-                    )}
-
                     <div className={styles.tplActions}>
                       <Link
                         to={`/competitions/new?template=${t.id}`}
@@ -273,14 +225,9 @@ export default function CategoryTemplatesPage() {
                       >
                         Використати
                       </Link>
-                      <button
-                        type="button"
-                        className={styles.btn}
-                        aria-expanded={expandedId === t.id}
-                        onClick={() => void toggleExpanded(t)}
-                      >
+                      <Link to={`/category-templates/${t.id}`} className={styles.btn}>
                         Номінації
-                      </button>
+                      </Link>
                       {t.author?.id === admin?.id && (
                         <Link
                           to={`/category-templates/${t.id}/edit`}

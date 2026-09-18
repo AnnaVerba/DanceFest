@@ -82,6 +82,53 @@ export class CategoryTemplatesController {
     );
   }
 
+  @ApiOperation({
+    summary: 'Get a template header without its nominations',
+    description:
+      'For the template detail page: name, description, author, nomination count — none of the nomination rows themselves.',
+  })
+  @ApiResponse({ status: 200, description: 'Template header returned.' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 404,
+    description: 'No readable template exists with the given id.',
+  })
+  @Get(':id/meta')
+  findMeta(@Param('id') id: string, @CurrentUser() admin: AuthenticatedAdmin) {
+    return this.categoryTemplatesService.findMeta(
+      id,
+      admin.id,
+      admin.accessLevel,
+    );
+  }
+
+  @ApiOperation({
+    summary: "Page through a template's nominations",
+  })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'pageSize', required: false })
+  @ApiResponse({ status: 200, description: 'Nominations page returned.' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 404,
+    description: 'No readable template exists with the given id.',
+  })
+  @Get(':id/nominations')
+  listNominations(
+    @Param('id') id: string,
+    @CurrentUser() admin: AuthenticatedAdmin,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.categoryTemplatesService.listNominations(
+      id,
+      admin.id,
+      admin.accessLevel,
+      page,
+      pageSize,
+    );
+  }
+
   @ApiOperation({ summary: 'Create a category template' })
   @ApiResponse({ status: 201, description: 'Template created.' })
   @ApiResponse({

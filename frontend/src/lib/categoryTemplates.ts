@@ -123,6 +123,32 @@ export function getCategoryTemplate(id: string): Promise<CategoryTemplateDetail>
   return request<CategoryTemplateDetail>(`/category-templates/${id}`);
 }
 
+// Header only — never loads the nomination rows, so it stays cheap for a
+// large template. Used by the template detail page.
+export function getCategoryTemplateMeta(id: string): Promise<CategoryTemplate> {
+  return request<CategoryTemplate>(`/category-templates/${id}/meta`);
+}
+
+export interface PagedTemplateNominations {
+  rows: TemplateNomination[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export function getCategoryTemplateNominations(
+  id: string,
+  query: { page?: number; pageSize?: number } = {},
+): Promise<PagedTemplateNominations> {
+  const params = new URLSearchParams();
+  if (query.page != null) params.set('page', String(query.page));
+  if (query.pageSize != null) params.set('pageSize', String(query.pageSize));
+  const suffix = params.toString() ? `?${params}` : '';
+  return request<PagedTemplateNominations>(
+    `/category-templates/${id}/nominations${suffix}`,
+  );
+}
+
 export function createCategoryTemplate(
   input: CategoryTemplateInput,
 ): Promise<CategoryTemplateDetail> {

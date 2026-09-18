@@ -29,6 +29,11 @@ export const queryKeys = {
     query: { page?: number; pageSize?: number; search?: string } = {},
   ) => ['category-templates', query] as const,
   categoryTemplate: (id: string) => ['category-template', id] as const,
+  categoryTemplateMeta: (id: string) => ['category-template', id, 'meta'] as const,
+  categoryTemplateNominations: (
+    id: string,
+    query: { page?: number; pageSize?: number } = {},
+  ) => ['category-template', id, 'nominations', query] as const,
 
   participants: (query?: string) => ['participants', query ?? ''] as const,
 

@@ -3,9 +3,11 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { JSON_BODY_SIZE_LIMIT } from './main.constants';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.useBodyParser('json', { limit: JSON_BODY_SIZE_LIMIT });
   // Behind a reverse proxy in prod, so req.ip reads X-Forwarded-For.
   app.set('trust proxy', true);
   app.enableCors({ origin: 'http://localhost:5173' });

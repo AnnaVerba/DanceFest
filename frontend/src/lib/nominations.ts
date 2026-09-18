@@ -1,6 +1,7 @@
 import { authorizedFetch } from './auth';
 import { GENERIC_REQUEST_ERROR_MESSAGE } from './api.constants';
 import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
+import { MAX_NOMINATIONS_PER_BULK_REQUEST } from './nominations.constants';
 
 import type { ExitMode } from './categoryTemplates';
 
@@ -62,6 +63,24 @@ export class NominationApiError extends Error {
   constructor(message: string, status: number) {
     super(message);
     this.status = status;
+  }
+}
+
+// Thrown by createNominationsBulk when one of its batches fails partway
+// through: `created` is what the server already saved, `unsaved` is the
+// failed batch plus every batch after it, so a caller can retry just that.
+export class NominationsBulkPartialFailureError extends NominationApiError {
+  created: Nomination[];
+  unsaved: NominationInput[];
+  constructor(
+    message: string,
+    status: number,
+    created: Nomination[],
+    unsaved: NominationInput[],
+  ) {
+    super(message, status);
+    this.created = created;
+    this.unsaved = unsaved;
   }
 }
 
@@ -140,19 +159,43 @@ export function updateNomination(
   );
 }
 
-export function createNominationsBulk(
+// The server caps a single bulk-create request at MAX_NOMINATIONS_PER_BULK_REQUEST
+// nominations, so a template with more than that is sent in sequential batches.
+export async function createNominationsBulk(
   competitionId: string,
   nominations: NominationInput[],
 ): Promise<Nomination[]> {
-  return request<Nomination[]>(`/competitions/${competitionId}/nominations/bulk`, {
-    method: 'POST',
-    body: JSON.stringify({
-      nominations: nominations.map((n) => ({
-        ...n,
-        name: n.name.trim(),
-      })),
-    }),
-  });
+  const created: Nomination[] = [];
+  for (
+    let start = 0;
+    start < nominations.length;
+    start += MAX_NOMINATIONS_PER_BULK_REQUEST
+  ) {
+    const batch = nominations.slice(start, start + MAX_NOMINATIONS_PER_BULK_REQUEST);
+    try {
+      const batchCreated = await request<Nomination[]>(
+        `/competitions/${competitionId}/nominations/bulk`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            nominations: batch.map((n) => ({
+              ...n,
+              name: n.name.trim(),
+            })),
+          }),
+        },
+      );
+      created.push(...batchCreated);
+    } catch (err) {
+      throw new NominationsBulkPartialFailureError(
+        err instanceof NominationApiError ? err.message : GENERIC_REQUEST_ERROR_MESSAGE,
+        err instanceof NominationApiError ? err.status : 0,
+        created,
+        nominations.slice(start),
+      );
+    }
+  }
+  return created;
 }
 
 export interface NominationBulkFilter {
