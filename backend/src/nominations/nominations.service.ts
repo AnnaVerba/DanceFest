@@ -34,6 +34,7 @@ import {
   NO_COMPETITION_ACCESS_MESSAGE,
 } from '../competitions/competitions.constants';
 import { TYPEAHEAD_LIMIT } from '../common/pagination';
+import { bulkCreateChunked } from '../common/bulk-insert';
 
 // A very generous ceiling for a single competition's nomination list.
 const MAX_NOMINATIONS = 2000;
@@ -113,7 +114,10 @@ export class NominationsService {
         return attributes;
       }),
     );
-    const created = await this.nominationModel.bulkCreate(attributesList);
+    const created = await this.nominationModel.sequelize!.transaction(
+      (transaction) =>
+        bulkCreateChunked(this.nominationModel, attributesList, transaction),
+    );
 
     const categories = await this.loadCategories(created);
     return created.map((n) => this.toDto(n, categories));

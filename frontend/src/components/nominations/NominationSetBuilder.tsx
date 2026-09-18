@@ -32,6 +32,10 @@ import {
   signatureOf,
 } from '../../lib/nominationSet';
 import type { AxisSelection, DraftNomination } from '../../lib/nominationSet';
+import {
+  CATEGORY_VALUE_NAME_REQUIRED_MESSAGE,
+  NOMINATIONS_TABLE_PAGE_SIZE,
+} from './NominationSetBuilder.constants';
 import styles from './NominationSetBuilder.module.css';
 
 // Stable reference so useMemo below doesn't see a "new" array on every
@@ -61,10 +65,12 @@ export default function NominationSetBuilder({
 }: NominationSetBuilderProps) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [ageRange, setAgeRange] = useState(EMPTY_AGE_RANGE);
   const [axisPrices, setAxisPrices] = useState<AxisPriceMap>({});
   const [specialOpen, setSpecialOpen] = useState(false);
+  const [nominationsPage, setNominationsPage] = useState(0);
 
   // Categories are a near-static reference used across many forms — cached
   // indefinitely, refreshed only when an admin edit invalidates it.
@@ -110,7 +116,10 @@ export default function NominationSetBuilder({
 
   const addValue = (type: CategoryType) => {
     const raw = (inputs[type] ?? '').trim();
-    if (!raw) return;
+    if (!raw) {
+      setError(CATEGORY_VALUE_NAME_REQUIRED_MESSAGE);
+      return;
+    }
 
     const clearInput = () => {
       setInputs((prev) => ({ ...prev, [type]: '' }));
@@ -180,6 +189,7 @@ export default function NominationSetBuilder({
   };
 
   const generate = () => {
+    setNotice(null);
     const active = CATEGORY_TYPES.map((t) => selection[t]).filter(
       (values) => values.length > 0,
     );
@@ -189,7 +199,7 @@ export default function NominationSetBuilder({
     }
     if (plannedCount > MAX_NOMINATIONS) {
       setError(
-        `${plannedCount} комбінацій — забагато. Максимум ${MAX_NOMINATIONS}, приберіть частину значень.`,
+        `${plannedCount} комбінацій за один раз — забагато. Максимум ${MAX_NOMINATIONS} за клік; приберіть частину значень або згенеруйте кількома заходами — раніше згенеровані номінації не зникнуть.`,
       );
       return;
     }
@@ -200,22 +210,31 @@ export default function NominationSetBuilder({
       [[]],
     );
 
-    const edited = new Map(nominations.map((n) => [n.signature, n]));
-    const specials = nominations.filter((n) => n.isSpecial);
-    const generated = combos.map((combo) => {
+    // Мердж, а не заміна: попередньо згенеровані номінації (зокрема з
+    // осей, які вже прибрані з поточного вибору) лишаються в наборі —
+    // інакше перегенерація партіями (обхід ліміту на комбінації за раз)
+    // губить уже зібране (BUG-05).
+    const bySignature = new Map(nominations.map((n) => [n.signature, n]));
+    let added = 0;
+    let duplicates = 0;
+
+    for (const combo of combos) {
       const categoryIds = combo.map((c) => c.id);
       const signature = signatureOf(categoryIds);
       const price = resolvePrice(combo, axisPrices);
-      const previous = edited.get(signature);
+      const existing = bySignature.get(signature);
 
-      if (previous) {
+      if (existing) {
+        duplicates += 1;
         // Ціна з осей перебиває збережену: інакше правка «Дуо — 700» не
         // доїхала б до вже згенерованих рядків. Порожня ціна нічого не чіпає,
         // тож ручне значення переживає перегенерацію.
-        return price ? { ...previous, price } : previous;
+        if (price) bySignature.set(signature, { ...existing, price });
+        continue;
       }
 
-      return {
+      added += 1;
+      bySignature.set(signature, {
         signature,
         name: combo.map((c) => c.name).join(' · '),
         price,
@@ -223,10 +242,16 @@ export default function NominationSetBuilder({
         categoryIds,
         isSpecial: false,
         exitMode: 'single' as ExitMode,
-      };
-    });
+      });
+    }
 
-    onChange([...generated, ...specials]);
+    const merged = [...bySignature.values()];
+    onChange(merged);
+    setNominationsPage(0);
+
+    const message = `Додано ${added}, пропущено дублікатів ${duplicates}, усього ${merged.length} ${pluralNominations(merged.length)}. Не забудьте зберегти зміни — інакше згенероване буде втрачено.`;
+    if (onNotice) onNotice(message);
+    else setNotice(message);
   };
 
   const addSpecial = (drafts: SpecialNominationDraft[]) => {
@@ -264,6 +289,18 @@ export default function NominationSetBuilder({
 
   const removeNomination = (signature: string) =>
     onChange(nominations.filter((n) => n.signature !== signature));
+
+  const nominationsPageCount = Math.max(
+    1,
+    Math.ceil(nominations.length / NOMINATIONS_TABLE_PAGE_SIZE),
+  );
+  // Derived, not synced via effect: shrinking the list (regenerate, remove
+  // a row) can never leave the visible page pointing past the new end.
+  const currentNominationsPage = Math.min(nominationsPage, nominationsPageCount - 1);
+  const visibleNominations = nominations.slice(
+    currentNominationsPage * NOMINATIONS_TABLE_PAGE_SIZE,
+    (currentNominationsPage + 1) * NOMINATIONS_TABLE_PAGE_SIZE,
+  );
 
   return (
     <div className={styles.builder}>
@@ -368,6 +405,7 @@ export default function NominationSetBuilder({
         </div>
 
         {error && <p className={styles.error}>{error}</p>}
+        {notice && <p className={styles.hint}>{notice}</p>}
       </section>
 
       <section className={styles.panel}>
@@ -391,7 +429,7 @@ export default function NominationSetBuilder({
                 </tr>
               </thead>
               <tbody>
-                {nominations.map((nomination) => (
+                {visibleNominations.map((nomination) => (
                   <tr key={nomination.signature}>
                     <td>
                       <div className={styles.nameCell}>
@@ -460,6 +498,32 @@ export default function NominationSetBuilder({
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {nominationsPageCount > 1 && (
+          <div className={styles.pager}>
+            <button
+              type="button"
+              className={styles.btn}
+              disabled={currentNominationsPage <= 0}
+              onClick={() => setNominationsPage((p) => Math.max(0, p - 1))}
+            >
+              ‹ Попередні
+            </button>
+            <span>
+              Сторінка {currentNominationsPage + 1} з {nominationsPageCount}
+            </span>
+            <button
+              type="button"
+              className={styles.btn}
+              disabled={currentNominationsPage >= nominationsPageCount - 1}
+              onClick={() =>
+                setNominationsPage((p) => Math.min(nominationsPageCount - 1, p + 1))
+              }
+            >
+              Наступні ›
+            </button>
           </div>
         )}
       </section>

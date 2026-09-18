@@ -6,8 +6,11 @@ import {
   getCategoryTemplates,
 } from '../../lib/categoryTemplates';
 import type { CategoryTemplate } from '../../lib/categoryTemplates';
-import { createNominationsBulk } from '../../lib/nominations';
-import type { Nomination } from '../../lib/nominations';
+import {
+  createNominationsBulk,
+  NominationsBulkPartialFailureError,
+} from '../../lib/nominations';
+import type { Nomination, NominationInput } from '../../lib/nominations';
 import { templateNominationsToInputs } from '../../lib/templateNominations';
 import {
   TEMPLATE_EMPTY_MESSAGE,
@@ -33,6 +36,12 @@ export default function TemplateImportModal({
   const [templateId, setTemplateId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Set only after a batch partially fails: holds what's left to send, so
+  // retrying doesn't resend the whole template and duplicate what already
+  // landed in the earlier, successful batches.
+  const [pendingNominations, setPendingNominations] = useState<
+    NominationInput[] | null
+  >(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,26 +59,41 @@ export default function TemplateImportModal({
     };
   }, []);
 
+  useEffect(() => {
+    setPendingNominations(null);
+    setError(null);
+  }, [templateId]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!templateId || submitting) return;
     setSubmitting(true);
     setError(null);
     try {
-      const template = await getCategoryTemplate(templateId);
-      if (template.nominations.length === 0) {
-        setError(TEMPLATE_EMPTY_MESSAGE);
-        return;
+      let toSend = pendingNominations;
+      if (!toSend) {
+        const template = await getCategoryTemplate(templateId);
+        if (template.nominations.length === 0) {
+          setError(TEMPLATE_EMPTY_MESSAGE);
+          return;
+        }
+        toSend = templateNominationsToInputs(template.id, template.nominations);
       }
-      const created = await createNominationsBulk(
-        competitionId,
-        templateNominationsToInputs(template.id, template.nominations),
-      );
+      const created = await createNominationsBulk(competitionId, toSend);
+      setPendingNominations(null);
       onImported(created);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : TEMPLATE_IMPORT_FAILED_MESSAGE,
-      );
+      if (err instanceof NominationsBulkPartialFailureError) {
+        setPendingNominations(err.unsaved);
+        setError(
+          `${err.message} Збережено ${err.created.length} із ${err.created.length + err.unsaved.length} — натисніть ще раз, щоб дозберегти решту.`,
+        );
+      } else {
+        setPendingNominations(null);
+        setError(
+          err instanceof Error ? err.message : TEMPLATE_IMPORT_FAILED_MESSAGE,
+        );
+      }
     } finally {
       setSubmitting(false);
     }
