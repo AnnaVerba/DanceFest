@@ -10,6 +10,7 @@ import {
   col,
   CreationAttributes,
   fn,
+  type Includeable,
   Op,
   type Order,
   Transaction,
@@ -24,6 +25,7 @@ import {
   NO_COMPETITION_ACCESS_MESSAGE,
 } from '../competitions/competitions.constants';
 import { Entry } from '../entries/entry.model';
+import { Nomination } from '../nominations/nomination.model';
 import { CompetitionRule } from '../competition-rules/competition-rule.model';
 import { CompetitionRulesService } from '../competition-rules/competition-rules.service';
 import { DEFAULT_DURATION_ROUND } from '../competition-rules/duration-limit.model';
@@ -31,6 +33,7 @@ import { UsersService } from '../users/users.service';
 import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
 import { CompetitionDay } from './competition-day.model';
 import { Section } from './section.model';
+import type { SectionScope } from './section-scope';
 import { SectionItem } from './section-item.model';
 import { AWARD_ITEM, PERFORMANCE_ITEM, isManualRow } from './section-item-type';
 import { performanceDuration } from './performance-duration';
@@ -113,6 +116,12 @@ export interface UnassignedExitView {
 
 const ITEMS_ORDER: [string, 'ASC'][] = [['sortOrder', 'ASC']];
 
+// Section views show each exit's venue, which lives on its nomination.
+const ENTRY_WITH_NOMINATION_VENUE: Includeable = {
+  model: Entry,
+  include: [{ model: Nomination, attributes: ['id', 'venueId'] }],
+};
+
 @Injectable()
 export class ScheduleService {
   constructor(
@@ -188,14 +197,62 @@ export class ScheduleService {
 
   // --- Sections read ------------------------------------------------------
 
-  private sectionWhere(filter: {
-    dayId?: string;
-    venueId?: string;
-  }): Record<string, unknown> {
-    const where: Record<string, unknown> = {};
+  // Sections have no venue of their own — the venue is the nomination's. A
+  // venue filter keeps the sections holding at least one performance of a
+  // nomination on that venue; onlyVenueItems then hides the other rows.
+  private async sectionScope(
+    competitionId: string,
+    filter: { dayId?: string; venueId?: string },
+  ): Promise<SectionScope> {
+    const where: Record<string, unknown> = { competitionId };
     if (filter.dayId) where.dayId = filter.dayId;
-    if (filter.venueId) where.venueId = filter.venueId;
-    return where;
+    if (!filter.venueId) return { where, venueEntryIds: null };
+
+    const items = await this.itemModel.findAll({
+      where: { type: PERFORMANCE_ITEM },
+      attributes: ['sectionId', 'entryId'],
+      include: [
+        {
+          model: Entry,
+          required: true,
+          attributes: [],
+          where: { competitionId },
+          include: [
+            {
+              model: Nomination,
+              required: true,
+              attributes: [],
+              where: { venueId: filter.venueId },
+            },
+          ],
+        },
+      ],
+      limit: MAX_SCHEDULE_QUERY_ROWS,
+    });
+    where.id = { [Op.in]: [...new Set(items.map((item) => item.sectionId))] };
+    return {
+      where,
+      venueEntryIds: new Set(
+        items.map((item) => item.entryId).filter((id): id is string => id !== null),
+      ),
+    };
+  }
+
+  // Hides other venues' performances. Every remaining row keeps the time it
+  // has in the full running order — a filter never moves a clock.
+  private onlyVenueItems(
+    views: SectionView[],
+    venueEntryIds: Set<string> | null,
+  ): SectionView[] {
+    if (!venueEntryIds) return views;
+    return views.map((view) => ({
+      ...view,
+      items: view.items.filter(
+        (item) =>
+          item.type !== PERFORMANCE_ITEM ||
+          (item.exit !== null && venueEntryIds.has(item.exit.entryId)),
+      ),
+    }));
   }
 
   private readonly sectionOrder: Order = [
@@ -238,7 +295,7 @@ export class ScheduleService {
         ['sectionId', 'ASC'],
         ['sortOrder', 'ASC'],
       ],
-      include: [{ model: Entry }],
+      include: [ENTRY_WITH_NOMINATION_VENUE],
       limit: MAX_SCHEDULE_QUERY_ROWS,
     });
     const numbers = await this.participantNumbersByEntry(competitionId, items);
@@ -260,13 +317,17 @@ export class ScheduleService {
     filter: { dayId?: string; venueId?: string } = {},
   ): Promise<SectionView[]> {
     await this.assertCompetition(competitionId);
+    const scope = await this.sectionScope(competitionId, filter);
     const sections = await this.sectionModel.findAll({
-      where: { competitionId, ...this.sectionWhere(filter) },
+      where: scope.where,
       include: [{ model: CompetitionDay, as: 'day' }],
       order: this.sectionOrder,
       limit: MAX_SCHEDULE_QUERY_ROWS,
     });
-    return this.toSectionViews(sections);
+    return this.onlyVenueItems(
+      await this.toSectionViews(sections),
+      scope.venueEntryIds,
+    );
   }
 
   // Row-bounded, section-aligned pagination: a page holds whole sections
@@ -289,8 +350,9 @@ export class ScheduleService {
       maxPageRows,
     );
 
+    const scope = await this.sectionScope(competitionId, filter);
     const ordered = await this.sectionModel.findAll({
-      where: { competitionId, ...this.sectionWhere(filter) },
+      where: scope.where,
       include: [{ model: CompetitionDay, as: 'day' }],
       order: this.sectionOrder,
       attributes: ['id'],
@@ -332,7 +394,10 @@ export class ScheduleService {
     });
 
     return {
-      rows: await this.toSectionViews(sections),
+      rows: this.onlyVenueItems(
+        await this.toSectionViews(sections),
+        scope.venueEntryIds,
+      ),
       totalSections: orderedIds.length,
       pageCount: pages.length,
       page: current,
@@ -348,8 +413,9 @@ export class ScheduleService {
     filter: { dayId?: string; venueId?: string } = {},
   ): Promise<SectionSummaryView[]> {
     await this.assertCompetition(competitionId);
+    const scope = await this.sectionScope(competitionId, filter);
     const sections = await this.sectionModel.findAll({
-      where: { competitionId, ...this.sectionWhere(filter) },
+      where: scope.where,
       order: [['sortOrder', 'ASC']],
       attributes: ['id', 'name', 'dayId', 'venueId', 'sortOrder'],
       limit: MAX_SCHEDULE_QUERY_ROWS,
@@ -374,8 +440,9 @@ export class ScheduleService {
     endTime: string | null;
   }> {
     await this.assertCompetition(competitionId);
+    const scope = await this.sectionScope(competitionId, filter);
     const sections = await this.sectionModel.findAll({
-      where: { competitionId, ...this.sectionWhere(filter) },
+      where: scope.where,
       include: [{ model: CompetitionDay, as: 'day' }],
       order: this.sectionOrder,
       attributes: ['id'],
@@ -385,12 +452,19 @@ export class ScheduleService {
       return { performances: 0, noMusic: 0, endTime: null };
     }
     const sectionIds = sections.map((s) => s.id);
+    const performanceWhere: Record<string, unknown> = {
+      sectionId: { [Op.in]: sectionIds },
+      type: PERFORMANCE_ITEM,
+    };
+    if (scope.venueEntryIds) {
+      performanceWhere.entryId = { [Op.in]: [...scope.venueEntryIds] };
+    }
 
     const performances = await this.itemModel.count({
-      where: { sectionId: { [Op.in]: sectionIds }, type: PERFORMANCE_ITEM },
+      where: performanceWhere,
     });
     const noMusic = await this.itemModel.count({
-      where: { sectionId: { [Op.in]: sectionIds }, type: PERFORMANCE_ITEM },
+      where: performanceWhere,
       include: [
         {
           model: Entry,
@@ -404,7 +478,9 @@ export class ScheduleService {
     const lastSection = await this.sectionModel.findByPk(
       sectionIds[sectionIds.length - 1],
     );
-    const lastView = lastSection ? await this.viewOf(lastSection) : null;
+    const [lastView] = lastSection
+      ? this.onlyVenueItems([await this.viewOf(lastSection)], scope.venueEntryIds)
+      : [];
     const endTime = lastView?.items[lastView.items.length - 1]?.time ?? null;
 
     return { performances, noMusic, endTime };
@@ -937,11 +1013,16 @@ export class ScheduleService {
 
   async publicProgram(
     competitionId: string,
-    query: { dayId?: string; page?: string; pageSize?: string } = {},
+    query: {
+      dayId?: string;
+      venueId?: string;
+      page?: string;
+      pageSize?: string;
+    } = {},
   ): Promise<RowPaged<PublicProgramRow>> {
     const page = await this.listSectionsPage(
       competitionId,
-      { dayId: query.dayId },
+      { dayId: query.dayId, venueId: query.venueId },
       query.page,
       query.pageSize,
       DEFAULT_PROGRAM_PAGE_ROWS,
@@ -981,7 +1062,7 @@ export class ScheduleService {
     const items = await this.itemModel.findAll({
       where: { sectionId: section.id },
       order: ITEMS_ORDER,
-      include: [{ model: Entry }],
+      include: [ENTRY_WITH_NOMINATION_VENUE],
       limit: MAX_SCHEDULE_QUERY_ROWS,
       transaction,
     });

@@ -35,6 +35,8 @@ export interface SectionExit {
   participantId: string | null;
   participantIds: string[];
   musicName: string | null;
+  // The venue of the exit's nomination — sections themselves have none.
+  venueId: string | null;
 }
 
 export interface SectionItem {
@@ -65,6 +67,9 @@ export interface Section {
   venueId: string | null;
   name: string;
   startTime: string;
+  // The first row's time in the full running order — stays put under a
+  // venue filter that hides that row.
+  startsAt: string;
   pauseSeconds: number;
   sortOrder: number;
   items: SectionItem[];
