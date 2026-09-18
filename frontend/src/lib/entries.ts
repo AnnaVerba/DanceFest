@@ -6,7 +6,11 @@ import { publicRequest } from './http';
 import { withPageParams } from './pagination';
 import type { Paged } from './pagination';
 import type { EntryStats } from './entryStats.types';
-import type { EntryDetails, EntryUpdateInput } from './entryEdit.types';
+import type {
+  EntryDetails,
+  EntryParticipant,
+  EntryUpdateInput,
+} from './entryEdit.types';
 
 export interface Entry {
   id: string;
@@ -139,6 +143,8 @@ export interface MyEntry extends Entry {
   competitionId: string;
   competitionName: string | null;
   competitionDateFrom: string | null;
+  price: number | null;
+  participants: EntryParticipant[];
 }
 
 export function getMyEntries(): Promise<MyEntry[]> {

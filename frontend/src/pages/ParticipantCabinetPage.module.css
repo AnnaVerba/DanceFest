@@ -94,8 +94,13 @@
   color: var(--g-muted);
 }
 
-.entryTable td:nth-child(2) {
+.entryTable td:nth-child(2),
+.entryTable td:nth-child(3) {
   white-space: normal;
+}
+
+.totalRow td {
+  font-weight: 700;
 }
 
 @media (max-width: 680px) {

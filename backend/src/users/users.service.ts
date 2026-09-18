@@ -118,6 +118,11 @@ export class UsersService {
     return this.userModel.findOne({ where: { email } });
   }
 
+  findManyByIds(ids: string[]): Promise<User[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.userModel.findAll({ where: { id: { [Op.in]: ids } } });
+  }
+
   findByPhone(phone: string, transaction?: Transaction): Promise<User | null> {
     return this.userModel.findOne({ where: { phone }, transaction });
   }

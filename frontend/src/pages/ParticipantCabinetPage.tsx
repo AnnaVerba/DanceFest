@@ -7,9 +7,17 @@ import { getSession, getToken } from '../lib/auth';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import { getMyEntries, uploadEntryTrack } from '../lib/entries';
 import type { MyEntry } from '../lib/entries';
+import type { EntryParticipant } from '../lib/entryEdit.types';
 import { formatParticipantNumbers } from '../lib/participantNumbers';
+import { formatEntryAmount, sumEntryAmounts } from '../lib/entryAmount';
 import { queryKeys } from '../lib/queryKeys';
-import { ENTRY_COLUMN_LABEL } from './ParticipantCabinetPage.constants';
+import {
+  ENTRY_COLUMN_COUNT_BEFORE_AMOUNT,
+  ENTRY_COLUMN_LABEL,
+  ENTRY_PARTICIPANTS_EMPTY_PLACEHOLDER,
+  ENTRY_PARTICIPANTS_SEPARATOR,
+  ENTRY_TOTAL_LABEL,
+} from './ParticipantCabinetPage.constants';
 import styles from './ParticipantCabinetPage.module.css';
 
 interface CompetitionGroup {
@@ -34,6 +42,13 @@ function groupByCompetition(entries: MyEntry[]): CompetitionGroup[] {
     }
   }
   return [...byId.values()];
+}
+
+function formatParticipants(participants: EntryParticipant[]): string {
+  if (participants.length === 0) return ENTRY_PARTICIPANTS_EMPTY_PLACEHOLDER;
+  return participants
+    .map((p) => `${p.lastName} ${p.firstName}`.trim())
+    .join(ENTRY_PARTICIPANTS_SEPARATOR);
 }
 
 export default function ParticipantCabinetPage() {
@@ -127,6 +142,9 @@ export default function ParticipantCabinetPage() {
                     {group.entries.map((entry) => (
                       <tr key={entry.id}>
                         <td data-label={ENTRY_COLUMN_LABEL.NUMBER}>{entry.number}</td>
+                        <td data-label={ENTRY_COLUMN_LABEL.PARTICIPANT}>
+                          {formatParticipants(entry.participants)}
+                        </td>
                         <td data-label={ENTRY_COLUMN_LABEL.PARTICIPANT_NUMBERS}>
                           {formatParticipantNumbers(entry.participantNumbers)}
                         </td>
@@ -171,9 +189,24 @@ export default function ParticipantCabinetPage() {
                             )}
                           </div>
                         </td>
+                        <td data-label={ENTRY_COLUMN_LABEL.AMOUNT}>
+                          {formatEntryAmount(entry.price)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot>
+                    <tr className={styles.totalRow}>
+                      <td colSpan={ENTRY_COLUMN_COUNT_BEFORE_AMOUNT}>
+                        {ENTRY_TOTAL_LABEL}
+                      </td>
+                      <td data-label={ENTRY_COLUMN_LABEL.AMOUNT}>
+                        {formatEntryAmount(
+                          sumEntryAmounts(group.entries.map((e) => e.price)),
+                        )}
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>

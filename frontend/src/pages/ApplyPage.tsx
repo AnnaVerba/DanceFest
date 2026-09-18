@@ -21,6 +21,7 @@ import {
   PARTICIPANT_SEARCH_MIN_CHARS,
 } from '../lib/participants.constants';
 import { getSchool } from '../lib/schools';
+import { formatEntryAmount } from '../lib/entryAmount';
 import {
   getMyMentorCoach,
   getSelectableCoaches,
@@ -123,10 +124,6 @@ function uniqueInOrder(values: string[]): string[] {
     out.push(value);
   }
   return out;
-}
-
-function priceLabel(price: number | null): string {
-  return price ? `${price} грн` : '—';
 }
 
 export default function ApplyPage() {
@@ -1051,7 +1048,7 @@ export default function ApplyPage() {
                         </span>
                         <span className={styles.nomLabel}>{row.label}</span>
                         <span className={styles.nomPrice}>
-                          {priceLabel(row.price)}
+                          {formatEntryAmount(row.price)}
                         </span>
                       </button>
                     );
@@ -1085,7 +1082,7 @@ export default function ApplyPage() {
                       </span>
                       <span className={styles.nomLabel}>{row.label}</span>
                       <span className={styles.nomPrice}>
-                        {priceLabel(row.price)}
+                        {formatEntryAmount(row.price)}
                       </span>
                     </button>
                   );
@@ -1169,7 +1166,7 @@ export default function ApplyPage() {
             <div>
               <label className={styles.label}>Сума до сплати</label>
               <div className={styles.readonlyBox}>
-                {total ? `${total} грн` : '—'}
+                {formatEntryAmount(total)}
               </div>
             </div>
           </div>
