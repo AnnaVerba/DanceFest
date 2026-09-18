@@ -21,6 +21,7 @@ import {
   PARTICIPANT_SEARCH_MIN_CHARS,
 } from '../lib/participants.constants';
 import { getSchool } from '../lib/schools';
+import { formatEntryAmount } from '../lib/entryAmount';
 import {
   getMyMentorCoach,
   getSelectableCoaches,
@@ -123,10 +124,6 @@ function uniqueInOrder(values: string[]): string[] {
     out.push(value);
   }
   return out;
-}
-
-function priceLabel(price: number | null): string {
-  return price ? `${price} грн` : '—';
 }
 
 export default function ApplyPage() {
@@ -553,7 +550,7 @@ export default function ApplyPage() {
       return;
     }
     if (mentor && isCoach && !mentorSchoolId.trim()) {
-      setSubmitError('Оберіть школу, щоб зберегти тренера.');
+      setSubmitError('Оберіть школу, щоб зберегти керівника.');
       return;
     }
 
@@ -572,7 +569,7 @@ export default function ApplyPage() {
           setSubmitError(
             err instanceof Error
               ? err.message
-              : 'Не вдалося зберегти тренера у профілі.',
+              : 'Не вдалося зберегти керівника у профілі.',
           );
           return;
         }
@@ -887,7 +884,7 @@ export default function ApplyPage() {
                     <>
                       <input
                         className={styles.subInput}
-                        placeholder="Тренер — необовʼязково"
+                        placeholder="Керівник — необовʼязково"
                         value={coachQuery}
                         onChange={(e) => setCoachQuery(e.target.value)}
                       />
@@ -950,7 +947,6 @@ export default function ApplyPage() {
                     value={league}
                     onChange={(e) => {
                       setLeague(e.target.value);
-                      setSelectedKeys([]);
                       setSubmitError(null);
                     }}
                   >
@@ -1051,7 +1047,7 @@ export default function ApplyPage() {
                         </span>
                         <span className={styles.nomLabel}>{row.label}</span>
                         <span className={styles.nomPrice}>
-                          {priceLabel(row.price)}
+                          {formatEntryAmount(row.price)}
                         </span>
                       </button>
                     );
@@ -1085,7 +1081,7 @@ export default function ApplyPage() {
                       </span>
                       <span className={styles.nomLabel}>{row.label}</span>
                       <span className={styles.nomPrice}>
-                        {priceLabel(row.price)}
+                        {formatEntryAmount(row.price)}
                       </span>
                     </button>
                   );
@@ -1113,7 +1109,7 @@ export default function ApplyPage() {
                   <div className={styles.readonlyBox}>{studioLabel}</div>
                 </div>
                 <div>
-                  <label className={styles.label}>Тренер</label>
+                  <label className={styles.label}>Керівник</label>
                   <div className={styles.readonlyBox}>{coachLabel}</div>
                 </div>
               </div>
@@ -1125,10 +1121,10 @@ export default function ApplyPage() {
                     onChange={setMentorSchoolId}
                   />
                 )}
-                <label className={styles.label}>Тренер</label>
+                <label className={styles.label}>Керівник</label>
                 <MentorCoachPicker onChange={setMentor} />
                 <p className={styles.hint}>
-                  Необовʼязково. Якщо вкажете тренера, він і його студія
+                  Необовʼязково. Якщо вкажете керівника, він і його студія
                   збережуться у вашому профілі та підтягнуться в майбутні
                   заявки.
                 </p>
@@ -1169,7 +1165,7 @@ export default function ApplyPage() {
             <div>
               <label className={styles.label}>Сума до сплати</label>
               <div className={styles.readonlyBox}>
-                {total ? `${total} грн` : '—'}
+                {formatEntryAmount(total)}
               </div>
             </div>
           </div>

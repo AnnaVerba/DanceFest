@@ -78,6 +78,7 @@ import {
   EXTENDED_PROGRAM_FORBIDDEN_MESSAGE,
   ITEM_SET_MISMATCH_MESSAGE,
   MERGE_NEEDS_TWO_GROUPS_MESSAGE,
+  MIXED_VENUE_SECTION_MESSAGE,
   NO_ENTRIES_FOR_SECTION_MESSAGE,
   ROW_NOT_FOUND_MESSAGE,
   ROW_NOT_MANUAL_MESSAGE,
@@ -255,6 +256,39 @@ export class ScheduleService {
     }));
   }
 
+  // A section's true venue is the venue of its earliest performance's
+  // nomination — nominations are assigned to a venue through venue
+  // distribution (NominationsService) and are the single source of truth.
+  // The section's own `venueId` column is a legacy free pick made at build
+  // time and is never read here.
+  private async liveVenueBySection(
+    sectionIds: string[],
+  ): Promise<Map<string, string | null>> {
+    if (sectionIds.length === 0) return new Map();
+    const rows = await this.itemModel.findAll({
+      where: { sectionId: { [Op.in]: sectionIds }, type: PERFORMANCE_ITEM },
+      attributes: ['sectionId'],
+      order: [
+        ['sectionId', 'ASC'],
+        ['sortOrder', 'ASC'],
+      ],
+      include: [
+        {
+          model: Entry,
+          attributes: ['id'],
+          include: [{ model: Nomination, attributes: ['venueId'] }],
+        },
+      ],
+      limit: MAX_SCHEDULE_QUERY_ROWS,
+    });
+    const result = new Map<string, string | null>();
+    for (const row of rows) {
+      if (result.has(row.sectionId)) continue;
+      result.set(row.sectionId, row.entry?.nominationRef?.venueId ?? null);
+    }
+    return result;
+  }
+
   private readonly sectionOrder: Order = [
     [{ model: CompetitionDay, as: 'day' }, 'date', 'ASC'],
     ['sortOrder', 'ASC'],
@@ -417,14 +451,15 @@ export class ScheduleService {
     const sections = await this.sectionModel.findAll({
       where: scope.where,
       order: [['sortOrder', 'ASC']],
-      attributes: ['id', 'name', 'dayId', 'venueId', 'sortOrder'],
+      attributes: ['id', 'name', 'dayId', 'sortOrder'],
       limit: MAX_SCHEDULE_QUERY_ROWS,
     });
+    const liveVenues = await this.liveVenueBySection(sections.map((s) => s.id));
     return sections.map((s) => ({
       id: s.id,
       name: s.name,
       dayId: s.dayId,
-      venueId: s.venueId,
+      venueId: liveVenues.get(s.id) ?? null,
       sortOrder: s.sortOrder,
     }));
   }
@@ -502,10 +537,23 @@ export class ScheduleService {
 
     const entries = await this.entryModel.findAll({
       where: { id: { [Op.in]: dto.entryIds }, competitionId },
+      include: [{ model: Nomination }],
       limit: MAX_SCHEDULE_QUERY_ROWS,
     });
     if (entries.length !== new Set(dto.entryIds).size) {
       throw new BadRequestException(NO_ENTRIES_FOR_SECTION_MESSAGE);
+    }
+
+    // A section runs at one physical place and time, so its entries must
+    // share one venue — venue lives on the nomination (see BUG-19), not on
+    // the section, so it's the entries' nominations that must agree here.
+    const venues = new Set(
+      entries
+        .map((entry) => entry.nominationRef?.venueId)
+        .filter((venueId): venueId is string => venueId != null),
+    );
+    if (venues.size > 1) {
+      throw new BadRequestException(MIXED_VENUE_SECTION_MESSAGE);
     }
 
     await this.assertNoneAssigned(competitionId, dto.entryIds);
@@ -540,7 +588,6 @@ export class ScheduleService {
             {
               competitionId,
               dayId: dto.dayId,
-              venueId: dto.venueId ?? null,
               name: dto.name.trim(),
               startTime: dto.startTime,
               pauseSeconds: rules.pauseSeconds,

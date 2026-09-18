@@ -219,7 +219,7 @@ export default function ProgramTable({
               Прізвище Імʼя
             </th>
             <th className={styles.th} style={{ minWidth: 150 }}>
-              Тренер
+              Керівник
             </th>
             <th className={styles.th} style={{ minWidth: 130 }}>
               Студія
@@ -281,6 +281,9 @@ export default function ProgramTable({
             // disabled at the day's edges, not the whole list's.
             const sameDay = sections.filter((s) => s.dayId === section.dayId);
             const dayPos = sameDay.findIndex((s) => s.id === section.id);
+            // Column F: the category's position among this section's
+            // category blocks, independent of the search filter below.
+            let categoryNumber = 0;
 
             return (
               <Fragment key={section.id}>
@@ -381,6 +384,8 @@ export default function ProgramTable({
                     });
                   }
                   const group = block;
+                  categoryNumber += 1;
+                  const number = categoryNumber;
                   const visible = group.items.filter(matches);
                   if (visible.length === 0) return null;
                   const isCollapsed = collapsed.has(group.key);
@@ -402,9 +407,7 @@ export default function ProgramTable({
                     // blocks with the same group.key — index keeps them apart.
                     <Fragment key={`${group.key}-${blockIndex}`}>
                       <tr className={styles.blockRow}>
-                        <td className={styles.blockF}>
-                          {group.label.slice(0, 1)}
-                        </td>
+                        <td className={styles.blockF}>{number}</td>
                         <td className={styles.blockCell} colSpan={5}>
                           <div className={styles.blockHead}>
                             <button

@@ -4,7 +4,7 @@ export const SEARCH_DEBOUNCE_MS = 300;
 
 export const CATALOG_TITLE = 'Каталог змагань';
 export const CATALOG_SUBTITLE =
-  'Оберіть конкурс — заявка подається з кабінету тренера або учасника.';
+  'Оберіть конкурс — заявка подається з кабінету керівника або учасника.';
 export const CREATE_COMPETITION_LABEL = '+ Створити конкурс';
 export const MY_COMPETITIONS_LABEL = 'Мої конкурси';
 export const SEARCH_PLACEHOLDER = 'Пошук за назвою, містом або організатором…';

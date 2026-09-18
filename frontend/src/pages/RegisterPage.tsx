@@ -167,7 +167,7 @@ export default function RegisterPage() {
                   }
                   onClick={() => setRole(ACCESS_LEVEL.COACH)}
                 >
-                  Тренер
+                  Керівник
                 </button>
               </div>
             </div>

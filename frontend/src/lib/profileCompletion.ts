@@ -33,10 +33,12 @@ export function clearProfileCompletionSkip(): void {
   }
 }
 
-// Mirrors the backend `isProfileComplete` (users/profile-completeness.ts):
-//  - PARTICIPANT needs a coach,
-//  - COACH needs a school and a coach,
-//  - ORGANIZER / ADMIN are always complete.
+// Gates the /complete-profile screen. Unlike the backend's
+// `isProfileComplete` (users/profile-completeness.ts), a COACH is never
+// sent there at registration — they can add their school and mentor coach
+// later from the profile screen instead.
+//  - PARTICIPANT needs a coach to pass this gate,
+//  - COACH / ORGANIZER / ADMIN always pass it.
 export interface ProfileCompletionInput {
   accessLevel: AccessLevel;
   schoolId: string | null;
@@ -46,9 +48,6 @@ export interface ProfileCompletionInput {
 export function isProfileComplete(profile: ProfileCompletionInput): boolean {
   if (profile.accessLevel === ACCESS_LEVEL.PARTICIPANT) {
     return profile.coachId !== null;
-  }
-  if (profile.accessLevel === ACCESS_LEVEL.COACH) {
-    return profile.schoolId !== null && profile.coachId !== null;
   }
   return true;
 }
