@@ -34,6 +34,7 @@ export interface Nomination {
   isSpecial: boolean;
   exitMode: ExitMode;
   durationLimitSeconds: number | null;
+  durationOverridden: boolean;
   programLimits: Record<string, number>;
   programs: NominationProgram[];
   leagues: string[];

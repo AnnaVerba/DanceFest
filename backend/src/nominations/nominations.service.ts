@@ -11,6 +11,9 @@ import type { WhereOptions } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Category, LEAGUE_CATEGORY_TYPE } from '../categories/category.model';
+import { CompetitionRulesService } from '../competition-rules/competition-rules.service';
+import { CompetitionRule } from '../competition-rules/competition-rule.model';
+import { resolveLeagueDurationSeconds } from '../competition-rules/resolve-league-duration';
 import { Nomination } from './nomination.model';
 import { planNominationExits, DEFAULT_EXIT_MODE } from './nomination-exits';
 import type { NominationExit, NominationProgram } from './nomination-exits';
@@ -46,6 +49,7 @@ export class NominationsService {
     private readonly nominationModel: typeof Nomination,
     @InjectModel(Category)
     private readonly categoryModel: typeof Category,
+    private readonly competitionRulesService: CompetitionRulesService,
   ) {}
 
   // `q` turns this into a name typeahead (a festival can have 500+
@@ -79,9 +83,10 @@ export class NominationsService {
     this.assertLimitsBelongToNomination(dto);
     await this.assertEveryNominationHasLeague([dto]);
 
-    const nomination = await this.nominationModel.create(
-      this.toAttributes(competitionId, dto),
-    );
+    const attributes = this.toAttributes(competitionId, dto);
+    await this.applyAutoDuration(competitionId, dto, attributes);
+
+    const nomination = await this.nominationModel.create(attributes);
 
     return this.toDto(nomination, await this.loadCategories([nomination]));
   }
@@ -100,9 +105,15 @@ export class NominationsService {
     dto.nominations.forEach((n) => this.assertLimitsBelongToNomination(n));
     await this.assertEveryNominationHasLeague(dto.nominations);
 
-    const created = await this.nominationModel.bulkCreate(
-      dto.nominations.map((n) => this.toAttributes(competitionId, n)),
+    const rules = await this.competitionRulesService.getRules(competitionId);
+    const attributesList = await Promise.all(
+      dto.nominations.map(async (n) => {
+        const attributes = this.toAttributes(competitionId, n);
+        await this.applyAutoDuration(competitionId, n, attributes, rules);
+        return attributes;
+      }),
     );
+    const created = await this.nominationModel.bulkCreate(attributesList);
 
     const categories = await this.loadCategories(created);
     return created.map((n) => this.toDto(n, categories));
@@ -143,6 +154,7 @@ export class NominationsService {
     if (dto.exitMode !== undefined) nomination.exitMode = dto.exitMode;
     if (dto.durationLimitSeconds !== undefined) {
       nomination.durationLimitSeconds = dto.durationLimitSeconds ?? null;
+      nomination.durationOverridden = true;
     }
     if (dto.programLimits !== undefined) {
       nomination.programLimits = dto.programLimits;
@@ -278,6 +290,51 @@ export class NominationsService {
       durationLimitSeconds: dto.durationLimitSeconds ?? null,
       programLimits: dto.programLimits ?? {},
     } as CreationAttributes<Nomination>;
+  }
+
+  // TASK-07: a nomination's duration follows its league unless it's
+  // improvisation (that has its own separate timing, see competition rules'
+  // improvGroupSeconds/improvIndividualSeconds) or an admin already set it by
+  // hand (durationOverridden stops later league-duration changes from
+  // clobbering that choice — see BUG-10).
+  private async applyAutoDuration(
+    competitionId: string,
+    input: {
+      categoryIds?: string[];
+      allowsImprovisation?: boolean;
+      durationLimitSeconds?: number;
+    },
+    attributes: CreationAttributes<Nomination>,
+    rules?: CompetitionRule,
+  ): Promise<void> {
+    if (input.durationLimitSeconds !== undefined) {
+      attributes.durationOverridden = true;
+      return;
+    }
+
+    attributes.durationOverridden = false;
+    if (input.allowsImprovisation) {
+      attributes.durationLimitSeconds = null;
+      return;
+    }
+
+    const categoryIds = input.categoryIds ?? [];
+    const leagueCategory = categoryIds.length
+      ? await this.categoryModel.findOne({
+          where: { id: { [Op.in]: categoryIds }, type: LEAGUE_CATEGORY_TYPE },
+        })
+      : null;
+    if (!leagueCategory) {
+      attributes.durationLimitSeconds = null;
+      return;
+    }
+
+    const effectiveRules =
+      rules ?? (await this.competitionRulesService.getRules(competitionId));
+    attributes.durationLimitSeconds = resolveLeagueDurationSeconds(
+      effectiveRules.leagueLimits,
+      leagueCategory.name,
+    );
   }
 
   private assertLimitsBelongToNomination(input: {
@@ -430,6 +487,7 @@ export class NominationsService {
       isSpecial: nomination.isSpecial,
       exitMode: nomination.exitMode,
       durationLimitSeconds: nomination.durationLimitSeconds,
+      durationOverridden: nomination.durationOverridden,
       programLimits: nomination.programLimits ?? {},
       programs: this.programsFor(nomination, categories),
       leagues: this.categoriesFor(nomination, categories, 'level').map(

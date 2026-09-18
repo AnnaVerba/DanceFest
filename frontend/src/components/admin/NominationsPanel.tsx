@@ -414,6 +414,14 @@ export default function NominationsPanel({
             {nomination.allowsImprovisation && (
               <span className={styles.badgeImprov}>імпровізація</span>
             )}
+            {nomination.durationOverridden && (
+              <span
+                className={styles.badge}
+                title="Тривалість задана вручну — зміна тривалості ліги її не торкнеться"
+              >
+                тривалість вручну
+              </span>
+            )}
           </div>
 
           {exits.length > 1 && (

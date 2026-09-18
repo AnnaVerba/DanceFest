@@ -3,6 +3,7 @@ import { SequelizeModule } from '@nestjs/sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Category } from '../categories/category.model';
+import { CompetitionRulesModule } from '../competition-rules/competition-rules.module';
 import { Nomination } from './nomination.model';
 import { NominationsController } from './nominations.controller';
 import { NominationsService } from './nominations.service';
@@ -15,6 +16,7 @@ import { NominationsService } from './nominations.service';
       Nomination,
       Category,
     ]),
+    CompetitionRulesModule,
   ],
   controllers: [NominationsController],
   providers: [NominationsService],
