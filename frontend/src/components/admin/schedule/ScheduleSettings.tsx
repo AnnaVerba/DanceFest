@@ -85,6 +85,12 @@ export default function ScheduleSettings({
     mutationFn: (patch: RulesPatch) => patchRules(competitionId, patch),
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKeys.rules(competitionId), saved);
+      // League duration changes push a new durationLimitSeconds onto that
+      // league's nominations (see BUG-10) — refetch so the Номінації tab
+      // doesn't keep showing the value it had cached before the save.
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.nominations(competitionId),
+      });
     },
   });
 

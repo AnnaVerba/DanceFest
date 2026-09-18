@@ -6,7 +6,9 @@ import { AppModule } from './app.module';
 import { JSON_BODY_SIZE_LIMIT } from './main.constants';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
+  });
   app.useBodyParser('json', { limit: JSON_BODY_SIZE_LIMIT });
   // Behind a reverse proxy in prod, so req.ip reads X-Forwarded-For.
   app.set('trust proxy', true);

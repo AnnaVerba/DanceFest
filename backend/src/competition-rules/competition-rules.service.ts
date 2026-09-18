@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes, Op, UniqueConstraintError } from 'sequelize';
-import { Category } from '../categories/category.model';
+import { Category, LEAGUE_CATEGORY_TYPE } from '../categories/category.model';
 import type { CategoryType } from '../categories/category.model';
 import { Competition } from '../competitions/competition.model';
 import { Nomination } from '../nominations/nomination.model';
@@ -22,6 +22,7 @@ import { UpdateCompetitionRuleDto } from './dto/update-competition-rule.dto';
 import { DurationLimit, DEFAULT_DURATION_ROUND } from './duration-limit.model';
 import type { DurationRound } from './duration-limit.model';
 import { OverlimitTariff } from './overlimit-tariff.model';
+import { resolveLeagueDurationSeconds } from './resolve-league-duration';
 import type { EntryLimitInput } from './entry-limit-input.interface';
 import {
   TARIFF_NOT_FOUND_MESSAGE,
@@ -78,6 +79,8 @@ export class CompetitionRulesService {
     private readonly durationLimitModel: typeof DurationLimit,
     @InjectModel(Nomination)
     private readonly nominationModel: typeof Nomination,
+    @InjectModel(Category)
+    private readonly categoryModel: typeof Category,
   ) {}
 
   async getRules(competitionId: string): Promise<CompetitionRule> {
@@ -96,10 +99,55 @@ export class CompetitionRulesService {
   ): Promise<CompetitionRule> {
     await this.loadCompetitionAndAssertAccess(competitionId, requester);
     const rules = await this.getRules(competitionId);
+    const previousLeagueLimits = rules.leagueLimits;
     if (dto.leagueLimits !== undefined) {
       dto.leagueLimits = sanitizeLeagueLimits(dto.leagueLimits);
     }
-    return rules.update(dto);
+    const updated = await rules.update(dto);
+    if (dto.leagueLimits !== undefined) {
+      await this.applyLeagueDurationChanges(
+        competitionId,
+        previousLeagueLimits,
+        updated.leagueLimits,
+      );
+    }
+    return updated;
+  }
+
+  // A league's duration is a knob on CompetitionRule, but nominations keep
+  // their own durationLimitSeconds (TASK-07) so the schedule/admin views
+  // don't need to re-resolve it on every read. Changing the knob (BUG-10)
+  // must therefore push the new value onto every nomination of that league —
+  // except ones an admin already set by hand (durationOverridden).
+  private async applyLeagueDurationChanges(
+    competitionId: string,
+    previous: Record<string, number>,
+    next: Record<string, number>,
+  ): Promise<void> {
+    const changedLeagueNames = [
+      ...new Set([...Object.keys(previous), ...Object.keys(next)]),
+    ].filter((name) => previous[name] !== next[name]);
+    if (changedLeagueNames.length === 0) return;
+
+    const leagueCategories = await this.categoryModel.findAll({
+      where: { type: LEAGUE_CATEGORY_TYPE, name: { [Op.in]: changedLeagueNames } },
+    });
+
+    for (const category of leagueCategories) {
+      await this.nominationModel.update(
+        {
+          durationLimitSeconds: resolveLeagueDurationSeconds(next, category.name),
+        },
+        {
+          where: {
+            competitionId,
+            categoryIds: { [Op.contains]: [category.id] },
+            allowsImprovisation: false,
+            durationOverridden: false,
+          },
+        },
+      );
+    }
   }
 
   async listTariffs(competitionId: string): Promise<OverlimitTariff[]> {
