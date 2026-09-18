@@ -177,6 +177,14 @@ export default function CompetitionDetailPage() {
                       Подати заявку
                     </span>
                   ))}
+                {canManageEntries && (
+                  <Link
+                    to={`/competitions/${id}/edit`}
+                    className={styles.editButton}
+                  >
+                    Редагувати
+                  </Link>
+                )}
               </div>
               {apply && !apply.allowed && (
                 <p className={styles.applyNote}>{apply.reason}</p>
@@ -274,22 +282,17 @@ export default function CompetitionDetailPage() {
                 <CompetitionDetails competition={competition} entriesCount={null} />
               )}
 
-              {/* Editing and deleting the competition itself belong to its
-                  details, not to every tab. */}
-              {activeTab === 'Деталі' && canManageEntries && (
+              {/* Deleting the competition belongs to its details, not to
+                  every tab. Editing sits up in the header, by Подати заявку. */}
+              {activeTab === 'Деталі' && isOwner && (
                 <div className={styles.actions}>
-                  {isOwner && (
-                    <button
-                      type="button"
-                      className={styles.btnDanger}
-                      onClick={() => setConfirmingDelete(true)}
-                    >
-                      Видалити
-                    </button>
-                  )}
-                  <Link to={`/competitions/${id}/edit`} className={styles.btnPrimary}>
-                    Редагувати
-                  </Link>
+                  <button
+                    type="button"
+                    className={styles.btnDanger}
+                    onClick={() => setConfirmingDelete(true)}
+                  >
+                    Видалити
+                  </button>
                 </div>
               )}
             </article>

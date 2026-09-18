@@ -4,7 +4,6 @@ import ThemeToggle from './components/ThemeToggle';
 import CatalogBackdrop from './components/home/CatalogBackdrop';
 import AppShell from './components/AppShell';
 import RequireCompleteProfile from './components/RequireCompleteProfile';
-import { getToken } from './lib/auth';
 import { FEATURES } from './lib/features';
 // The two cold-entry screens load eagerly; every other page is a separate
 // chunk fetched on first navigation, so the initial bundle stays small.
@@ -17,15 +16,12 @@ const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const TeamPage = lazy(() => import('./pages/TeamPage'));
 const NewCompetitionPage = lazy(() => import('./pages/NewCompetitionPage'));
 const CompetitionEditPage = lazy(() => import('./pages/CompetitionEditPage'));
-const CompetitionDetailPage = lazy(
-  () => import('./pages/CompetitionDetailPage'),
+const CompetitionDetailRoute = lazy(
+  () => import('./pages/CompetitionDetailRoute'),
 );
 const ScheduleRedirect = lazy(() => import('./pages/ScheduleRedirect'));
 const CompetitionEntriesPage = lazy(
   () => import('./pages/CompetitionEntriesPage'),
-);
-const PublicCompetitionPage = lazy(
-  () => import('./pages/PublicCompetitionPage'),
 );
 const JudgePage = lazy(() => import('./pages/JudgePage'));
 const ApplyPage = lazy(() => import('./pages/ApplyPage'));
@@ -71,12 +67,7 @@ function App() {
             <Route path="/" element={<HomePage />} />
           {/* «Мої конкурси» now live on the home page as a filter. */}
           <Route path="/dashboard" element={<Navigate to="/" replace />} />
-          <Route
-            path="/competitions/:id"
-            element={
-              getToken() ? <CompetitionDetailPage /> : <PublicCompetitionPage />
-            }
-          />
+          <Route path="/competitions/:id" element={<CompetitionDetailRoute />} />
           <Route
             path="/competitions/:id/schedule"
             element={<ScheduleRedirect />}
