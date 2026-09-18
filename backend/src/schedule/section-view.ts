@@ -27,6 +27,8 @@ export interface SectionExitView {
   participantId: string | null;
   participantIds: string[];
   musicName: string | null;
+  // The venue of the exit's nomination — sections themselves have none.
+  venueId: string | null;
 }
 
 // entry id -> its participant numbers, so buildSectionView stays a pure
@@ -55,6 +57,9 @@ export interface SectionView {
   venueId: string | null;
   name: string;
   startTime: string;
+  // When the section's first row starts, taken from the full running order
+  // so a venue filter hiding that row never shifts the section's clock.
+  startsAt: string;
   pauseSeconds: number;
   sortOrder: number;
   items: SectionItemView[];
@@ -103,6 +108,7 @@ function toExitView(
     participantId: entry.participantId,
     participantIds: entry.participantIds ?? [],
     musicName: entry.musicName,
+    venueId: entry.nominationRef?.venueId ?? null,
   };
 }
 
@@ -171,6 +177,7 @@ export function buildSectionView(
     venueId,
     name: section.name,
     startTime: section.startTime,
+    startsAt: items[0]?.time ?? formatHhMmSs(startTimeSeconds),
     pauseSeconds: section.pauseSeconds,
     sortOrder: section.sortOrder,
     items,

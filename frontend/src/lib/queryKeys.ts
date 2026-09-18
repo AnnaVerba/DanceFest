@@ -57,6 +57,7 @@ export const queryKeys = {
 
   rules: (competitionId: string) => ['rules', competitionId] as const,
   days: (competitionId: string) => ['days', competitionId] as const,
+  sectionsScope: (competitionId: string) => ['sections', competitionId] as const,
   sections: (
     competitionId: string,
     filter: { dayId?: string; venueId?: string } & PageRequest = {},

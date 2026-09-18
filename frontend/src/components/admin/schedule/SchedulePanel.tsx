@@ -203,10 +203,19 @@ export default function SchedulePanel({
 
   // The read-only poster: a viewer always needs it, a manager only in the
   // «Публічна» view.
-  const posterFilter = { dayId: dayId || undefined, pageSize: SECTIONS_PAGE_ROWS };
+  const posterFilter = {
+    dayId: dayId || undefined,
+    venueId: venueId || undefined,
+    pageSize: SECTIONS_PAGE_ROWS,
+  };
+
   const posterQuery = useQuery({
-    queryKey: queryKeys.publicProgram(competitionId, posterFilter),
-    queryFn: () => getPublicProgram(competitionId, posterFilter),
+    queryKey: queryKeys.publicProgram(
+        competitionId,
+        posterFilter,
+    ),
+    queryFn: () =>
+        getPublicProgram(competitionId, posterFilter),
     enabled: daysReady && (!canManage || view === 'public'),
     staleTime: TIMING_STALE_TIME_MS,
   });
@@ -891,6 +900,7 @@ export default function SchedulePanel({
             sections={sections}
             sectionSummaries={daySummary}
             days={days}
+            venues={venues}
             view={view}
             editing={editing}
             search={search}
