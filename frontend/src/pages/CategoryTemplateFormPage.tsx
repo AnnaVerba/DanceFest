@@ -17,6 +17,11 @@ import type { AxisSelection, DraftNomination } from '../lib/nominationSet';
 import { CategoryApiError, getCategories, LEAGUE_CATEGORY_TYPE } from '../lib/categories';
 import type { Category } from '../lib/categories';
 import { queryKeys } from '../lib/queryKeys';
+import {
+  clearCategoryTemplateDraft,
+  loadCategoryTemplateDraft,
+  saveCategoryTemplateDraft,
+} from '../lib/categoryTemplateDraft';
 import styles from './CategoryTemplateFormPage.module.css';
 
 export default function CategoryTemplateFormPage() {
@@ -26,16 +31,33 @@ export default function CategoryTemplateFormPage() {
   const { toasts, showToast } = useToasts();
   const isEdit = Boolean(id);
 
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [isPublic, setIsPublic] = useState(false);
-  const [nominations, setNominations] = useState<DraftNomination[]>([]);
-  const [axes, setAxes] = useState<AxisSelection | null>(null);
+  // A new template isn't saved anywhere until submit, so an accidental
+  // reload or back-navigation would otherwise wipe it. Restored once, on
+  // mount — an edit has its own saved copy on the server, so it skips this.
+  const [restoredDraft] = useState(() =>
+    isEdit ? null : loadCategoryTemplateDraft(),
+  );
+
+  const [name, setName] = useState(restoredDraft?.name ?? '');
+  const [description, setDescription] = useState(
+    restoredDraft?.description ?? '',
+  );
+  const [isPublic, setIsPublic] = useState(restoredDraft?.isPublic ?? false);
+  const [nominations, setNominations] = useState<DraftNomination[]>(
+    restoredDraft?.nominations ?? [],
+  );
+  const [axes, setAxes] = useState<AxisSelection | null>(
+    restoredDraft?.axes ?? null,
+  );
   // Категорії зі спецмодалки, відсутні в axes — потрібні resolveDraftCategories,
   // щоб не загубити ageFrom/ageTo нової вікової категорії при збереженні.
-  const [extraCategories, setExtraCategories] = useState<Category[]>([]);
+  const [extraCategories, setExtraCategories] = useState<Category[]>(
+    restoredDraft?.extraCategories ?? [],
+  );
 
-  const [allMedalLeagues, setAllMedalLeagues] = useState<string[]>([]);
+  const [allMedalLeagues, setAllMedalLeagues] = useState<string[]>(
+    restoredDraft?.allMedalLeagues ?? [],
+  );
   // Persisted league values — on edit the builder's axes stay null until the
   // organizer touches them, so names for saved ids come from here. null
   // while still loading.
@@ -88,6 +110,37 @@ export default function CategoryTemplateFormPage() {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (restoredDraft) {
+      showToast('Відновлено незбережену чернетку шаблону');
+    }
+  }, [restoredDraft, showToast]);
+
+  // Keeps the draft current so a reload or an accidental back-navigation
+  // doesn't lose it. Cleared on successful save (see `save`) or an
+  // explicit cancel.
+  useEffect(() => {
+    if (isEdit) return;
+    saveCategoryTemplateDraft({
+      name,
+      description,
+      isPublic,
+      nominations,
+      axes,
+      extraCategories,
+      allMedalLeagues,
+    });
+  }, [
+    isEdit,
+    name,
+    description,
+    isPublic,
+    nominations,
+    axes,
+    extraCategories,
+    allMedalLeagues,
+  ]);
 
   useEffect(() => {
     getCategories(LEAGUE_CATEGORY_TYPE)
@@ -191,6 +244,7 @@ export default function CategoryTemplateFormPage() {
     const template = id
       ? await updateCategoryTemplate(id, payload)
       : await createCategoryTemplate(payload);
+    if (!isEdit) clearCategoryTemplateDraft();
     // The templates list and this template's own cached detail (staleTime:
     // Infinity — see .claude/prompt-caching-strategy.md) won't pick up the
     // edit on their own.
@@ -314,7 +368,13 @@ export default function CategoryTemplateFormPage() {
               </section>
 
               <div className={styles.actions}>
-                <Link to="/category-templates" className={styles.btn}>
+                <Link
+                  to="/category-templates"
+                  className={styles.btn}
+                  onClick={() => {
+                    if (!isEdit) clearCategoryTemplateDraft();
+                  }}
+                >
                   Скасувати
                 </Link>
                 <button
