@@ -88,6 +88,25 @@
   pointer-events: none;
 }
 
+.editButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  padding: 0 22px;
+  border: 1px solid var(--g-line);
+  border-radius: 8px;
+  background: var(--g-surface);
+  color: var(--g-ink);
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.editButton:hover {
+  background: var(--g-field-off);
+}
+
 .applyNote {
   margin: 4px 0 0;
   color: #b42318;
@@ -155,7 +174,6 @@
   padding-top: 22px;
 }
 
-.btnPrimary,
 .btnDanger {
   display: inline-flex;
   align-items: center;
@@ -164,28 +182,15 @@
   height: 42px;
   padding: 0 22px;
   border-radius: 8px;
+  border: 1px solid var(--g-danger-border);
+  background: var(--g-surface);
+  color: var(--g-danger);
   font-family: inherit;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
   text-decoration: none;
   transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
-}
-
-.btnPrimary {
-  border: 0;
-  background: var(--g-accent);
-  color: #fff;
-}
-
-.btnPrimary:hover {
-  background: var(--g-accent-hover);
-}
-
-.btnDanger {
-  border: 1px solid var(--g-danger-border);
-  background: var(--g-surface);
-  color: var(--g-danger);
 }
 
 .btnDanger:hover {
@@ -214,8 +219,11 @@
     flex-direction: column-reverse;
   }
 
-  .actions .btnPrimary,
   .actions .btnDanger {
+    width: 100%;
+  }
+
+  .editButton {
     width: 100%;
   }
 }
