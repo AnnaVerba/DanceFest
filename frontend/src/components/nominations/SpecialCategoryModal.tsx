@@ -9,7 +9,11 @@ import {
 } from '../../lib/categories';
 import type { Category, CategoryType } from '../../lib/categories';
 import AgeRangeFields from './AgeRangeFields';
-import { EMPTY_AGE_RANGE, parseAgeRange } from '../../lib/ageRange';
+import {
+  EMPTY_AGE_RANGE,
+  ageRangeConflictMessage,
+  parseAgeRange,
+} from '../../lib/ageRange';
 import type { AgeRange } from '../../lib/ageRange';
 import { buildNominationLabel } from '../../lib/nominationNaming';
 import { formatDuration, parseDuration, pluralExits } from '../../lib/duration';
@@ -114,15 +118,31 @@ export default function SpecialCategoryModal({
     }
 
     // Нове вікове значення несе межі — ту саму перевірку робить майстер.
+    // Довідник спільний за назвою, тож заповнені «від»/«до» для вже наявної
+    // назви — це намір підтвердити або перевизначити її межі, а не сигнал
+    // тихо підставити чужі (BUG-03).
     let range: AgeRange | undefined;
     if (type === AGE_CATEGORY_TYPE) {
       const known = categories.find(
         (c) => c.type === type && c.name.trim().toLowerCase() === raw.toLowerCase(),
       );
-      if (!known) {
+      const rangeEntered = ageRange.from.trim() !== '' || ageRange.to.trim() !== '';
+      if (!known || rangeEntered) {
         const parsed = parseAgeRange(ageRange);
         if (!parsed.ok) {
           setError(parsed.message);
+          return;
+        }
+        if (
+          known &&
+          known.ageFrom !== null &&
+          known.ageTo !== null &&
+          (known.ageFrom !== parsed.range.ageFrom ||
+            known.ageTo !== parsed.range.ageTo)
+        ) {
+          setError(
+            ageRangeConflictMessage(known.name, known.ageFrom, known.ageTo),
+          );
           return;
         }
         range = parsed.range;

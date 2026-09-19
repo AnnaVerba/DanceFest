@@ -14,7 +14,11 @@ import { REFERENCE_STALE_TIME_MS } from '../../lib/queryClient.constants';
 import AgeRangeFields from './AgeRangeFields';
 import { PRICED_AXES, resolvePrice } from '../../lib/nominationPricing';
 import type { AxisPriceMap } from '../../lib/nominationPricing';
-import { EMPTY_AGE_RANGE, parseAgeRange } from '../../lib/ageRange';
+import {
+  EMPTY_AGE_RANGE,
+  ageRangeConflictMessage,
+  parseAgeRange,
+} from '../../lib/ageRange';
 import type { AgeRange } from '../../lib/ageRange';
 import type { Category, CategoryType } from '../../lib/categories';
 import type { ExitMode } from '../../lib/categoryTemplates';
@@ -28,6 +32,15 @@ import {
   signatureOf,
 } from '../../lib/nominationSet';
 import type { AxisSelection, DraftNomination } from '../../lib/nominationSet';
+import {
+  CATEGORY_VALUE_NAME_REQUIRED_MESSAGE,
+  NOMINATIONS_TABLE_PAGE_SIZE,
+  REMOVE_AXIS_VALUE_DROP_LABEL,
+  REMOVE_AXIS_VALUE_KEEP_LABEL,
+  REMOVE_AXIS_VALUE_TITLE,
+} from './NominationSetBuilder.constants';
+import type { PendingAxisRemoval } from './pendingAxisRemoval.types';
+import ConfirmDialog from '../admin/ConfirmDialog';
 import styles from './NominationSetBuilder.module.css';
 
 // Stable reference so useMemo below doesn't see a "new" array on every
@@ -57,10 +70,15 @@ export default function NominationSetBuilder({
 }: NominationSetBuilderProps) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [ageRange, setAgeRange] = useState(EMPTY_AGE_RANGE);
   const [axisPrices, setAxisPrices] = useState<AxisPriceMap>({});
   const [specialOpen, setSpecialOpen] = useState(false);
+  const [nominationsPage, setNominationsPage] = useState(0);
+  const [pendingRemoval, setPendingRemoval] = useState<PendingAxisRemoval | null>(
+    null,
+  );
 
   // Categories are a near-static reference used across many forms — cached
   // indefinitely, refreshed only when an admin edit invalidates it.
@@ -106,7 +124,10 @@ export default function NominationSetBuilder({
 
   const addValue = (type: CategoryType) => {
     const raw = (inputs[type] ?? '').trim();
-    if (!raw) return;
+    if (!raw) {
+      setError(CATEGORY_VALUE_NAME_REQUIRED_MESSAGE);
+      return;
+    }
 
     const clearInput = () => {
       setInputs((prev) => ({ ...prev, [type]: '' }));
@@ -121,14 +142,38 @@ export default function NominationSetBuilder({
 
     const existing = suggestions.find((s) => sameCategoryValue(s, candidate));
 
+    // Довідник спільний за назвою: якщо значення з такою назвою вже є,
+    // порожні поля «від»/«до» означають «використати наявне», а заповнені —
+    // намір користувача або підтвердити, або перевизначити його межі. Тихо
+    // відкидати введене й підставляти чуже — саме той сценарій, що ламав
+    // BUG-03.
     let range: AgeRange | undefined;
-    if (type === AGE_CATEGORY_TYPE && !existing) {
-      const parsed = parseAgeRange(ageRange);
-      if (!parsed.ok) {
-        setError(parsed.message);
-        return;
+    if (type === AGE_CATEGORY_TYPE) {
+      const rangeEntered = ageRange.from.trim() !== '' || ageRange.to.trim() !== '';
+      if (!existing || rangeEntered) {
+        const parsed = parseAgeRange(ageRange);
+        if (!parsed.ok) {
+          setError(parsed.message);
+          return;
+        }
+        if (
+          existing &&
+          existing.ageFrom !== null &&
+          existing.ageTo !== null &&
+          (existing.ageFrom !== parsed.range.ageFrom ||
+            existing.ageTo !== parsed.range.ageTo)
+        ) {
+          setError(
+            ageRangeConflictMessage(
+              existing.name,
+              existing.ageFrom,
+              existing.ageTo,
+            ),
+          );
+          return;
+        }
+        range = parsed.range;
       }
-      range = parsed.range;
     }
 
     const category = existing ?? draftCategory(raw, type, range);
@@ -140,13 +185,47 @@ export default function NominationSetBuilder({
     clearInput();
   };
 
-  const removeValue = (type: CategoryType, id: string) =>
+  const dropFromSelection = (type: CategoryType, id: string) =>
     updateSelection((current) => ({
       ...current,
       [type]: current[type].filter((c) => c.id !== id),
     }));
 
+  // Значення, яке вже використане в номінаціях, прибирається лише після
+  // вибору: «лише з вибору» зберігає згенероване (генерація частинами,
+  // BUG-05), «разом із номінаціями» — щоб видалене значення не лишилось у
+  // payload і не потрапило у валідацію діапазонів (BUG-09).
+  const removeValue = (type: CategoryType, category: Category) => {
+    const nominationCount = nominations.filter((n) =>
+      n.categoryIds.includes(category.id),
+    ).length;
+    if (nominationCount === 0) {
+      dropFromSelection(type, category.id);
+      return;
+    }
+    setPendingRemoval({ type, category, nominationCount });
+  };
+
+  const keepNominationsOfPending = () => {
+    if (!pendingRemoval) return;
+    const { type, category } = pendingRemoval;
+    dropFromSelection(type, category.id);
+    // Номінації й далі посилаються на значення, а сторінка шукає його межі
+    // та лігу лише в осях і в «додаткових» категоріях — передаємо його туди.
+    onCategoryCreated?.(category);
+    setPendingRemoval(null);
+  };
+
+  const dropNominationsOfPending = () => {
+    if (!pendingRemoval) return;
+    const { type, category } = pendingRemoval;
+    dropFromSelection(type, category.id);
+    onChange(nominations.filter((n) => !n.categoryIds.includes(category.id)));
+    setPendingRemoval(null);
+  };
+
   const generate = () => {
+    setNotice(null);
     const active = CATEGORY_TYPES.map((t) => selection[t]).filter(
       (values) => values.length > 0,
     );
@@ -156,7 +235,7 @@ export default function NominationSetBuilder({
     }
     if (plannedCount > MAX_NOMINATIONS) {
       setError(
-        `${plannedCount} комбінацій — забагато. Максимум ${MAX_NOMINATIONS}, приберіть частину значень.`,
+        `${plannedCount} комбінацій за один раз — забагато. Максимум ${MAX_NOMINATIONS} за клік; приберіть частину значень або згенеруйте кількома заходами — раніше згенеровані номінації не зникнуть.`,
       );
       return;
     }
@@ -167,22 +246,31 @@ export default function NominationSetBuilder({
       [[]],
     );
 
-    const edited = new Map(nominations.map((n) => [n.signature, n]));
-    const specials = nominations.filter((n) => n.isSpecial);
-    const generated = combos.map((combo) => {
+    // Мердж, а не заміна: попередньо згенеровані номінації (зокрема з
+    // осей, які вже прибрані з поточного вибору) лишаються в наборі —
+    // інакше перегенерація партіями (обхід ліміту на комбінації за раз)
+    // губить уже зібране (BUG-05).
+    const bySignature = new Map(nominations.map((n) => [n.signature, n]));
+    let added = 0;
+    let duplicates = 0;
+
+    for (const combo of combos) {
       const categoryIds = combo.map((c) => c.id);
       const signature = signatureOf(categoryIds);
       const price = resolvePrice(combo, axisPrices);
-      const previous = edited.get(signature);
+      const existing = bySignature.get(signature);
 
-      if (previous) {
+      if (existing) {
+        duplicates += 1;
         // Ціна з осей перебиває збережену: інакше правка «Дуо — 700» не
         // доїхала б до вже згенерованих рядків. Порожня ціна нічого не чіпає,
         // тож ручне значення переживає перегенерацію.
-        return price ? { ...previous, price } : previous;
+        if (price) bySignature.set(signature, { ...existing, price });
+        continue;
       }
 
-      return {
+      added += 1;
+      bySignature.set(signature, {
         signature,
         name: combo.map((c) => c.name).join(' · '),
         price,
@@ -190,10 +278,16 @@ export default function NominationSetBuilder({
         categoryIds,
         isSpecial: false,
         exitMode: 'single' as ExitMode,
-      };
-    });
+      });
+    }
 
-    onChange([...generated, ...specials]);
+    const merged = [...bySignature.values()];
+    onChange(merged);
+    setNominationsPage(0);
+
+    const message = `Додано ${added}, пропущено дублікатів ${duplicates}, усього ${merged.length} ${pluralNominations(merged.length)}. Не забудьте зберегти зміни — інакше згенероване буде втрачено.`;
+    if (onNotice) onNotice(message);
+    else setNotice(message);
   };
 
   const addSpecial = (drafts: SpecialNominationDraft[]) => {
@@ -232,6 +326,18 @@ export default function NominationSetBuilder({
   const removeNomination = (signature: string) =>
     onChange(nominations.filter((n) => n.signature !== signature));
 
+  const nominationsPageCount = Math.max(
+    1,
+    Math.ceil(nominations.length / NOMINATIONS_TABLE_PAGE_SIZE),
+  );
+  // Derived, not synced via effect: shrinking the list (regenerate, remove
+  // a row) can never leave the visible page pointing past the new end.
+  const currentNominationsPage = Math.min(nominationsPage, nominationsPageCount - 1);
+  const visibleNominations = nominations.slice(
+    currentNominationsPage * NOMINATIONS_TABLE_PAGE_SIZE,
+    (currentNominationsPage + 1) * NOMINATIONS_TABLE_PAGE_SIZE,
+  );
+
   return (
     <div className={styles.builder}>
       <section className={styles.panel}>
@@ -260,7 +366,7 @@ export default function NominationSetBuilder({
                       <button
                         type="button"
                         aria-label={`Прибрати ${category.name}`}
-                        onClick={() => removeValue(type, category.id)}
+                        onClick={() => removeValue(type, category)}
                       >
                         ✕
                       </button>
@@ -335,6 +441,7 @@ export default function NominationSetBuilder({
         </div>
 
         {error && <p className={styles.error}>{error}</p>}
+        {notice && <p className={styles.hint}>{notice}</p>}
       </section>
 
       <section className={styles.panel}>
@@ -358,7 +465,7 @@ export default function NominationSetBuilder({
                 </tr>
               </thead>
               <tbody>
-                {nominations.map((nomination) => (
+                {visibleNominations.map((nomination) => (
                   <tr key={nomination.signature}>
                     <td>
                       <div className={styles.nameCell}>
@@ -429,6 +536,32 @@ export default function NominationSetBuilder({
             </table>
           </div>
         )}
+
+        {nominationsPageCount > 1 && (
+          <div className={styles.pager}>
+            <button
+              type="button"
+              className={styles.btn}
+              disabled={currentNominationsPage <= 0}
+              onClick={() => setNominationsPage((p) => Math.max(0, p - 1))}
+            >
+              ‹ Попередні
+            </button>
+            <span>
+              Сторінка {currentNominationsPage + 1} з {nominationsPageCount}
+            </span>
+            <button
+              type="button"
+              className={styles.btn}
+              disabled={currentNominationsPage >= nominationsPageCount - 1}
+              onClick={() =>
+                setNominationsPage((p) => Math.min(nominationsPageCount - 1, p + 1))
+              }
+            >
+              Наступні ›
+            </button>
+          </div>
+        )}
       </section>
 
       <SpecialCategoryModal
@@ -454,6 +587,21 @@ export default function NominationSetBuilder({
           onCategoryCreated?.(category);
         }}
         onSubmit={addSpecial}
+      />
+
+      <ConfirmDialog
+        open={pendingRemoval !== null}
+        title={REMOVE_AXIS_VALUE_TITLE}
+        description={
+          pendingRemoval
+            ? `«${pendingRemoval.category.name}» уже використано в номінаціях: ${pendingRemoval.nominationCount}. Прибрати значення лише з вибору (номінації лишаться) чи видалити разом із ними?`
+            : ''
+        }
+        secondaryLabel={REMOVE_AXIS_VALUE_KEEP_LABEL}
+        onSecondary={keepNominationsOfPending}
+        confirmLabel={REMOVE_AXIS_VALUE_DROP_LABEL}
+        onConfirm={dropNominationsOfPending}
+        onCancel={() => setPendingRemoval(null)}
       />
     </div>
   );

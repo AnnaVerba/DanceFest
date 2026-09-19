@@ -180,7 +180,7 @@ export default function JudgePage() {
                 <thead>
                   <tr>
                     <th className={styles.cNo}>№</th>
-                    <th className={styles.cTitle}>Назва номеру</th>
+                    <th className={styles.cTitle}>Учасники</th>
                     <th className={styles.cNom}>Номінація</th>
                     <th className={styles.cAge}>Вік. категорія</th>
                     <th className={styles.cLeague}>Ліга</th>

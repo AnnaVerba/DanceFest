@@ -118,6 +118,11 @@ export class UsersService {
     return this.userModel.findOne({ where: { email } });
   }
 
+  findManyByIds(ids: string[]): Promise<User[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.userModel.findAll({ where: { id: { [Op.in]: ids } } });
+  }
+
   findByPhone(phone: string, transaction?: Transaction): Promise<User | null> {
     return this.userModel.findOne({ where: { phone }, transaction });
   }
@@ -194,6 +199,14 @@ export class UsersService {
       } as CreationAttributes<User>,
       { transaction },
     );
+  }
+
+  // A placeholder coach loaded with their school, ready for a picker list.
+  async createPlaceholderCoachWithSchool(
+    data: PlaceholderCoachData,
+  ): Promise<User> {
+    const coach = await this.createPlaceholderCoach(data);
+    return (await this.userModel.findByPk(coach.id, { include: [School] }))!;
   }
 
   // The real person registers with a stub's phone: fold the form data

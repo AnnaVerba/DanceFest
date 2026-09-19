@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { getApplyEligibility, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { getNominations } from '../lib/nominations';
@@ -21,7 +22,9 @@ import {
   PARTICIPANT_SEARCH_MIN_CHARS,
 } from '../lib/participants.constants';
 import { getSchool } from '../lib/schools';
+import { entryCostForDancers, formatEntryAmount } from '../lib/entryAmount';
 import {
+  createCoach,
   getMyMentorCoach,
   getSelectableCoaches,
   getSession,
@@ -29,9 +32,11 @@ import {
 } from '../lib/auth';
 import type { CoachSummary, SetMentorCoachBody } from '../lib/auth';
 import { completeProfile } from '../lib/users';
+import { refreshProgram } from '../lib/programCache';
 import MentorCoachPicker from '../components/MentorCoachPicker';
 import SchoolPicker from '../components/SchoolPicker';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
+import { nominationFitsAge, oldestAge } from '../lib/ageEligibility';
 import styles from './ApplyPage.module.css';
 
 type PayMethod = 'cash' | 'card';
@@ -88,19 +93,6 @@ function lineupMatches(categoryName: string, count: number): boolean {
   return true; // unrecognised line-up label — keep the nomination visible
 }
 
-function ageFromBirthDate(birthDate: string): number | null {
-  if (!birthDate) return null;
-  const born = new Date(birthDate);
-  if (Number.isNaN(born.getTime())) return null;
-  const now = new Date();
-  let age = now.getFullYear() - born.getFullYear();
-  const monthDiff = now.getMonth() - born.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < born.getDate())) {
-    age -= 1;
-  }
-  return age;
-}
-
 function matchAgeCategory(
   age: number,
   categories: NominationAgeCategory[],
@@ -125,13 +117,10 @@ function uniqueInOrder(values: string[]): string[] {
   return out;
 }
 
-function priceLabel(price: number | null): string {
-  return price ? `${price} грн` : '—';
-}
-
 export default function ApplyPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   // Read once: the session only changes on login/logout, which unmounts
   // this page anyway.
   const session = useMemo(() => getSession(), []);
@@ -158,6 +147,12 @@ export default function ApplyPage() {
   const [mentorSchoolId, setMentorSchoolId] = useState(
     session?.profile.schoolId ?? '',
   );
+  // Organizer/admin only: the studio and trainer the entry is filed under,
+  // instead of the dancer's own. Left empty, the server keeps the dancer's.
+  const [assignedStudioId, setAssignedStudioId] = useState('');
+  const [assignedTrainer, setAssignedTrainer] =
+    useState<SetMentorCoachBody | null>(null);
+  const [trainerPickerKey, setTrainerPickerKey] = useState(0);
   const [league, setLeague] = useState('');
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
@@ -361,6 +356,15 @@ export default function ApplyPage() {
 
   const pickedCount = selfParticipant ? 1 : selectedParticipants.length;
 
+  // Counted on the competition's start date, on the oldest picked dancer —
+  // the same rule the server enforces on submit.
+  const participantAge = competition
+    ? oldestAge(
+        activeParticipants.map((p) => p.birthDate),
+        competition.dateFrom,
+      )
+    : null;
+
   const styleRows: NominationRow[] = useMemo(() => {
     const rows: NominationRow[] = [];
     for (const n of nonSpecial) {
@@ -373,7 +377,12 @@ export default function ApplyPage() {
       const matchesLineup =
         n.lineups.length === 0 ||
         n.lineups.some((l) => lineupMatches(l, pickedCount));
-      if (!matchesStyle || !matchesLeague || !matchesLineup) continue;
+      const matchesAge =
+        participantAge === null ||
+        nominationFitsAge(participantAge, n.ageCategories);
+      if (!matchesStyle || !matchesLeague || !matchesLineup || !matchesAge) {
+        continue;
+      }
       rows.push({
         key: n.id,
         nominationId: n.id,
@@ -392,7 +401,7 @@ export default function ApplyPage() {
       }
     }
     return rows;
-  }, [nonSpecial, selectedStyles, league, pickedCount]);
+  }, [nonSpecial, selectedStyles, league, pickedCount, participantAge]);
 
   const specialRows: NominationRow[] = useMemo(
     () =>
@@ -412,7 +421,10 @@ export default function ApplyPage() {
   );
 
   const selectedRows = allRows.filter((r) => selectedKeys.includes(r.key));
-  const total = selectedRows.reduce((sum, r) => sum + (r.price ?? 0), 0);
+  const total = selectedRows.reduce(
+    (sum, r) => sum + (entryCostForDancers(r.price, pickedCount) ?? 0),
+    0,
+  );
 
   // Which required field to highlight red — mirrors the checks in
   // handleSubmit, so the invalid one stays marked until it's actually fixed.
@@ -426,10 +438,11 @@ export default function ApplyPage() {
     if (activeParticipants.length > 1) {
       return `Груповий номер · ${activeParticipants.length} учасників`;
     }
-    const age = ageFromBirthDate(activeParticipants[0].birthDate);
-    if (age === null) return '—';
-    const category = matchAgeCategory(age, ageCategories);
-    return category ? `${age} р. · ${category}` : `${age} р.`;
+    if (participantAge === null) return '—';
+    const category = matchAgeCategory(participantAge, ageCategories);
+    return category
+      ? `${participantAge} р. · ${category}`
+      : `${participantAge} р.`;
   })();
 
   const coachLabel = isCoach && session
@@ -531,8 +544,19 @@ export default function ApplyPage() {
     setPayMethod('card');
     setMusicFileByKey({});
     setMentor(null);
+    setAssignedStudioId('');
+    setAssignedTrainer(null);
+    setTrainerPickerKey((key) => key + 1);
     setCreatedCount(0);
     setSubmitError(null);
+  };
+
+  // A trainer typed in by hand is registered first, so the entry only ever
+  // carries a real trainer id.
+  const resolveAssignedTrainerId = async (): Promise<string | undefined> => {
+    if (!assignedTrainer) return undefined;
+    if ('coachId' in assignedTrainer) return assignedTrainer.coachId;
+    return (await createCoach(assignedTrainer.newCoach)).id;
   };
 
   const handleSubmit = async () => {
@@ -553,7 +577,7 @@ export default function ApplyPage() {
       return;
     }
     if (mentor && isCoach && !mentorSchoolId.trim()) {
-      setSubmitError('Оберіть школу, щоб зберегти тренера.');
+      setSubmitError('Оберіть школу, щоб зберегти керівника.');
       return;
     }
 
@@ -572,15 +596,20 @@ export default function ApplyPage() {
           setSubmitError(
             err instanceof Error
               ? err.message
-              : 'Не вдалося зберегти тренера у профілі.',
+              : 'Не вдалося зберегти керівника у профілі.',
           );
           return;
         }
       }
+      const trainerId = canPickCoach
+        ? await resolveAssignedTrainerId()
+        : undefined;
       const created = await createEntriesBulk(
         id,
         rows.map((r) => ({
           participantIds: effectiveParticipantIds,
+          studioId: canPickCoach ? assignedStudioId || undefined : undefined,
+          trainerId,
           nominationId: r.nominationId,
           improv: r.improv,
           city: city.trim() || undefined,
@@ -588,6 +617,9 @@ export default function ApplyPage() {
         })),
       );
       setCreatedCount(created.length);
+      // The server may have placed the new exits straight into a formed
+      // program; otherwise they joined the unassigned pool.
+      void refreshProgram(queryClient, id);
 
       // Entries exist now, so their ids are stable — upload each picked
       // file for real instead of just remembering its name.
@@ -887,7 +919,7 @@ export default function ApplyPage() {
                     <>
                       <input
                         className={styles.subInput}
-                        placeholder="Тренер — необовʼязково"
+                        placeholder="Керівник — необовʼязково"
                         value={coachQuery}
                         onChange={(e) => setCoachQuery(e.target.value)}
                       />
@@ -950,7 +982,6 @@ export default function ApplyPage() {
                     value={league}
                     onChange={(e) => {
                       setLeague(e.target.value);
-                      setSelectedKeys([]);
                       setSubmitError(null);
                     }}
                   >
@@ -1027,7 +1058,9 @@ export default function ApplyPage() {
               <label className={styles.label}>Номінації за обраними стилями</label>
               {styleRows.length === 0 ? (
                 <p className={styles.hint}>
-                  Немає номінацій для цього поєднання ліги та стилів.
+                  {participantAge === null
+                    ? 'Немає номінацій для цього поєднання ліги та стилів.'
+                    : `Немає номінацій для цього поєднання ліги та стилів у віковій категорії учасника (${participantAge} р.).`}
                 </p>
               ) : (
                 <div
@@ -1051,7 +1084,7 @@ export default function ApplyPage() {
                         </span>
                         <span className={styles.nomLabel}>{row.label}</span>
                         <span className={styles.nomPrice}>
-                          {priceLabel(row.price)}
+                          {formatEntryAmount(row.price)}
                         </span>
                       </button>
                     );
@@ -1085,7 +1118,7 @@ export default function ApplyPage() {
                       </span>
                       <span className={styles.nomLabel}>{row.label}</span>
                       <span className={styles.nomPrice}>
-                        {priceLabel(row.price)}
+                        {formatEntryAmount(row.price)}
                       </span>
                     </button>
                   );
@@ -1106,6 +1139,28 @@ export default function ApplyPage() {
           )}
 
           {activeParticipants.length > 0 &&
+            canPickCoach && (
+              <div>
+                <SchoolPicker
+                  value={assignedStudioId}
+                  onChange={setAssignedStudioId}
+                />
+                <label className={styles.label}>Керівник</label>
+                <MentorCoachPicker
+                  key={trainerPickerKey}
+                  onChange={setAssignedTrainer}
+                />
+                <p className={styles.hint}>
+                  Необовʼязково. Оберіть будь-яку студію й керівника або
+                  створіть нових — заявка зʼявиться у цього керівника в «Моїх
+                  заявках». Якщо не вказувати, буде взято студію й керівника
+                  учасника.
+                </p>
+              </div>
+            )}
+
+          {activeParticipants.length > 0 &&
+            !canPickCoach &&
             (session.profile.coachId ? (
               <div className={styles.two}>
                 <div>
@@ -1113,7 +1168,7 @@ export default function ApplyPage() {
                   <div className={styles.readonlyBox}>{studioLabel}</div>
                 </div>
                 <div>
-                  <label className={styles.label}>Тренер</label>
+                  <label className={styles.label}>Керівник</label>
                   <div className={styles.readonlyBox}>{coachLabel}</div>
                 </div>
               </div>
@@ -1125,10 +1180,10 @@ export default function ApplyPage() {
                     onChange={setMentorSchoolId}
                   />
                 )}
-                <label className={styles.label}>Тренер</label>
+                <label className={styles.label}>Керівник</label>
                 <MentorCoachPicker onChange={setMentor} />
                 <p className={styles.hint}>
-                  Необовʼязково. Якщо вкажете тренера, він і його студія
+                  Необовʼязково. Якщо вкажете керівника, він і його студія
                   збережуться у вашому профілі та підтягнуться в майбутні
                   заявки.
                 </p>
@@ -1169,7 +1224,7 @@ export default function ApplyPage() {
             <div>
               <label className={styles.label}>Сума до сплати</label>
               <div className={styles.readonlyBox}>
-                {total ? `${total} грн` : '—'}
+                {formatEntryAmount(total)}
               </div>
             </div>
           </div>

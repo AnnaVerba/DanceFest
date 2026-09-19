@@ -6,9 +6,11 @@ import EntryEditModal from './EntryEditModal';
 import { deleteEntry, getEntries } from '../../lib/entries';
 import type { Entry, PagedEntries } from '../../lib/entries';
 import { formatParticipantNumbers } from '../../lib/participantNumbers';
+import { formatEntryAmount } from '../../lib/entryAmount';
 import {
   ACTIONS_COLUMN_COUNT,
   ALL,
+  AMOUNT_COLUMN_COUNT,
   BASE_COLUMN_COUNT,
   ENTRIES_SERVER_PAGE,
   PAGE_SIZE,
@@ -286,7 +288,7 @@ export default function EntriesPanel({
                 <tr>
                   <th scope="col">№</th>
                   <th scope="col">№ учасника</th>
-                  <th scope="col">Назва номеру</th>
+                  <th scope="col">Учасники</th>
                   <th scope="col">Номінація</th>
                   <th scope="col">Вік. категорія</th>
                   <th scope="col">Ліга</th>
@@ -294,6 +296,7 @@ export default function EntriesPanel({
                   <th scope="col">К-сть уч.</th>
                   <th scope="col">Студія</th>
                   <th scope="col">Хореограф</th>
+                  {canManage && <th scope="col">Вартість</th>}
                   {showScore && <th scope="col">Бал</th>}
                   {canManage && (
                     <th scope="col" className={styles.colActions}>
@@ -310,7 +313,7 @@ export default function EntriesPanel({
                         (showScore
                           ? BASE_COLUMN_COUNT
                           : BASE_COLUMN_COUNT - 1) +
-                        (canManage ? ACTIONS_COLUMN_COUNT : 0)
+                        (canManage ? AMOUNT_COLUMN_COUNT + ACTIONS_COLUMN_COUNT : 0)
                       }
                       className={styles.noMatches}
                     >
@@ -330,6 +333,7 @@ export default function EntriesPanel({
                     <td>{entry.participantsCount ?? ''}</td>
                     <td>{entry.studioName}</td>
                     <td>{entry.choreographer}</td>
+                    {canManage && <td>{formatEntryAmount(entry.amount ?? null)}</td>}
                     {showScore && (
                       <td
                         className={

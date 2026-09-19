@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import SchoolPicker from '../components/SchoolPicker';
 import MentorCoachPicker from '../components/MentorCoachPicker';
 import { getSession } from '../lib/auth';
 import type { SetMentorCoachBody } from '../lib/auth';
@@ -10,7 +9,6 @@ import {
   needsProfileCompletion,
   skipProfileCompletionForSession,
 } from '../lib/profileCompletion';
-import { ACCESS_LEVEL } from '../lib/roles';
 import styles from './CompleteProfilePage.module.css';
 
 const SAVE_FAILED_MESSAGE = 'Не вдалося зберегти профіль. Спробуйте ще раз.';
@@ -18,7 +16,6 @@ const SAVE_FAILED_MESSAGE = 'Не вдалося зберегти профіль
 export default function CompleteProfilePage() {
   const navigate = useNavigate();
   const session = getSession();
-  const [schoolId, setSchoolId] = useState(session?.profile.schoolId ?? '');
   const [mentor, setMentor] = useState<SetMentorCoachBody | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -30,8 +27,7 @@ export default function CompleteProfilePage() {
     return <Navigate to="/profile" replace />;
   }
 
-  const isCoach = session.profile.accessLevel === ACCESS_LEVEL.COACH;
-  const canSubmit = mentor !== null && (!isCoach || schoolId.trim() !== '');
+  const canSubmit = mentor !== null;
 
   const handleSkip = () => {
     skipProfileCompletionForSession();
@@ -44,7 +40,7 @@ export default function CompleteProfilePage() {
     setSubmitting(true);
     setError(null);
     try {
-      await completeProfile(isCoach ? { ...mentor, schoolId } : mentor);
+      await completeProfile(mentor);
       navigate('/profile');
     } catch (err) {
       setError(err instanceof Error ? err.message : SAVE_FAILED_MESSAGE);
@@ -57,19 +53,12 @@ export default function CompleteProfilePage() {
       <form className={styles.card} onSubmit={handleSubmit}>
         <h1 className={styles.title}>Завершіть профіль</h1>
         <p className={styles.subtitle}>
-          {isCoach
-            ? 'Вкажіть школу, у якій ви працюєте, і свого тренера. Можна пропустити й заповнити пізніше у профілі.'
-            : 'Оберіть або додайте свого тренера. Можна пропустити й заповнити пізніше у профілі.'}
+          Оберіть або додайте свого керівника. Можна пропустити й заповнити
+          пізніше у профілі.
         </p>
 
-        {isCoach && (
-          <div className={styles.field}>
-            <SchoolPicker value={schoolId} onChange={setSchoolId} />
-          </div>
-        )}
-
         <div className={styles.field}>
-          <span className={styles.label}>Ваш тренер</span>
+          <span className={styles.label}>Ваш керівник</span>
           <MentorCoachPicker onChange={setMentor} />
         </div>
 

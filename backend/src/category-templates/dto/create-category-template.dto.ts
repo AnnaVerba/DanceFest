@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayNotEmpty,
   IsArray,
   IsBoolean,
@@ -10,6 +11,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { TemplateNominationDto } from './template-nomination.dto';
+import { MAX_TEMPLATE_NOMINATIONS } from '../category-templates.constants';
 
 export class CreateCategoryTemplateDto {
   @ApiProperty({ example: 'Східний танець — стандарт' })
@@ -43,6 +45,7 @@ export class CreateCategoryTemplateDto {
   @ApiProperty({ type: [TemplateNominationDto] })
   @IsArray()
   @ArrayNotEmpty()
+  @ArrayMaxSize(MAX_TEMPLATE_NOMINATIONS)
   @ValidateNested({ each: true })
   @Type(() => TemplateNominationDto)
   nominations: TemplateNominationDto[];

@@ -7,3 +7,11 @@ export const TEMPLATE_CANNOT_BE_EMPTY_MESSAGE = 'Шаблон не може бу
 export const FORK_NAME_MUST_DIFFER_MESSAGE =
   'Назва копії має відрізнятися від назви оригіналу';
 export const UNKNOWN_CATEGORIES_MESSAGE_PREFIX = 'Невідомі категорії';
+
+// A generous ceiling above the largest template this app is sized for
+// (5000 nominations) — the real guard against an unbounded payload, since
+// the JSON body-size limit alone is just a byte count, not a business rule.
+export const MAX_TEMPLATE_NOMINATIONS = 6000;
+
+export const DEFAULT_TEMPLATE_NOMINATIONS_PAGE_SIZE = 20;
+export const MAX_TEMPLATE_NOMINATIONS_PAGE_SIZE = 100;

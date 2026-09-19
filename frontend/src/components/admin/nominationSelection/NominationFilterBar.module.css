@@ -1,0 +1,59 @@
+.filterBar {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.select {
+  width: 160px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--g-line);
+  border-radius: 7px;
+  background: var(--g-surface);
+  color: var(--g-ink);
+  font-family: inherit;
+  font-size: 14px;
+  text-align: center;
+}
+
+.select:focus,
+.search:focus {
+  outline: none;
+  border-color: var(--g-accent);
+  box-shadow: 0 0 0 3px rgba(53, 102, 76, 0.15);
+}
+
+.search {
+  width: 220px;
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--g-line);
+  border-radius: 8px;
+  background: var(--g-field);
+  color: var(--g-ink);
+  font-family: inherit;
+  font-size: 14.5px;
+}
+
+.search::placeholder {
+  color: var(--g-subtle);
+}
+
+.btnLink {
+  border: 0;
+  background: none;
+  padding: 4px 8px;
+  color: var(--g-accent);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.btnLink:hover {
+  background: var(--g-accent-bg-soft);
+}

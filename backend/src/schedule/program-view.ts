@@ -1,5 +1,6 @@
 import { AWARD_ITEM, isManualRow } from './section-item-type';
 import type { SectionView, SectionItemView } from './section-view';
+import { formatHhMmSs } from './section-time';
 
 export interface ProgramAudienceIdentity {
   ownIds: string[];
@@ -13,6 +14,10 @@ export interface PublicProgramRow {
   dayId: string;
   dayDate: string | null;
   venueId: string | null;
+  // Set only on `section` rows: when the section's last position ends.
+  endTime?: string;
+  // Set only on `group` rows: the category's position within its section.
+  categoryNumber?: number;
   // Set only on `exit` rows — the program lists every performance with the
   // participant number(s), the routine, the studio and coach, and its
   // on-stage length (see docs/AppDescription.docx).
@@ -75,6 +80,14 @@ function groupLabelOf(item: SectionItemView): string {
   return item.mergedGroupLabel ?? item.exit?.nomination ?? '';
 }
 
+// The clock time a section's last position finishes; an empty section ends
+// where it starts.
+function sectionEndTime(section: SectionView): string {
+  const last = section.items[section.items.length - 1];
+  if (!last) return `${section.startTime}:00`;
+  return formatHhMmSs(last.startTimeSeconds + (last.durationSeconds ?? 0));
+}
+
 function overlaps(a: string[], b: Set<string>): boolean {
   return a.some((id) => b.has(id));
 }
@@ -93,13 +106,15 @@ export function buildPublicProgram(
     rows.push({
       kind: 'section',
       label: section.name,
-      time: section.items[0]?.time ?? `${section.startTime}:00`,
+      time: section.startsAt,
       dayId: section.dayId,
       dayDate: section.dayDate,
       venueId: section.venueId,
+      endTime: sectionEndTime(section),
     });
 
     let runLabel: string | null = null;
+    let categoryNumber = 0;
     for (const item of section.items) {
       if (item.type === AWARD_ITEM) {
         rows.push({
@@ -127,9 +142,11 @@ export function buildPublicProgram(
       const label = groupLabelOf(item);
       if (label !== runLabel) {
         runLabel = label;
+        categoryNumber += 1;
         rows.push({
           kind: 'group',
           label,
+          categoryNumber,
           time: item.time,
           dayId: section.dayId,
           dayDate: section.dayDate,
@@ -193,7 +210,7 @@ export function buildMineProgram(
     return {
       id: section.id,
       name: section.name,
-      time: section.items[0]?.time ?? `${section.startTime}:00`,
+      time: section.startsAt,
       dayId: section.dayId,
       venueId: section.venueId,
       exits,
@@ -213,7 +230,7 @@ export function buildExtendedProgram(
   return sections.map((section) => ({
     id: section.id,
     name: section.name,
-    time: section.items[0]?.time ?? `${section.startTime}:00`,
+    time: section.startsAt,
     dayId: section.dayId,
     venueId: section.venueId,
     items: section.items.map((item) => ({

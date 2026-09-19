@@ -60,7 +60,7 @@
   max-width: 380px;
 }
 
-/* "Стати тренером" followed by the organizer request block. */
+/* "Стати керівником" followed by the organizer request block. */
 .actions + .coachForm {
   margin-top: 10px;
 }

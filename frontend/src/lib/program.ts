@@ -10,6 +10,10 @@ export interface PublicProgramRow {
   dayId: string;
   dayDate: string | null;
   venueId: string | null;
+  // Only on `section` rows: when the section ends.
+  endTime?: string;
+  // Only on `group` rows: the category's position within its section.
+  categoryNumber?: number;
   // Only on `exit` rows.
   participantNumbers?: (number | null)[];
   routineName?: string | null;
@@ -69,20 +73,52 @@ export interface ExtendedProgramSection {
 export interface PublicProgramQuery {
   dayId?: string;
   page?: number;
+  venueId?:string
   pageSize?: number;
 }
 
-// Row-bounded pagination: a page carries whole sections up to ~60 rows.
-export function getPublicProgram(
-  competitionId: string,
-  query: PublicProgramQuery = {},
-): Promise<RowPaged<PublicProgramRow>> {
+function programUrl(
+    competitionId: string,
+    path: string,
+    query: PublicProgramQuery,
+): string {
   const params = new URLSearchParams();
-  if (query.dayId) params.set('dayId', query.dayId);
+
+  if (query.dayId) {
+    params.set('dayId', query.dayId);
+  }
+
+  if (query.venueId) {
+    params.set('venueId', query.venueId);
+  }
+
   withPageParams(params, query.page, query.pageSize);
-  const suffix = params.toString() ? `?${params}` : '';
+
+  const suffix = params.toString()
+      ? `?${params.toString()}`
+      : '';
+
+  return `/competitions/${competitionId}/${path}${suffix}`;
+}
+
+// The published snapshot. Row-bounded pagination: a page carries whole
+// sections up to ~60 rows. Rejects with a 404 until the program is published.
+export function getPublicProgram(
+    competitionId: string,
+    query: PublicProgramQuery = {},
+): Promise<RowPaged<PublicProgramRow>> {
   return publicRequest<RowPaged<PublicProgramRow>>(
-    `/competitions/${competitionId}/program${suffix}`,
+      programUrl(competitionId, 'program', query),
+  );
+}
+
+// The live running order, for the organizer's «Публічна» preview.
+export function getProgramPreview(
+    competitionId: string,
+    query: PublicProgramQuery = {},
+): Promise<RowPaged<PublicProgramRow>> {
+  return apiRequest<RowPaged<PublicProgramRow>>(
+      programUrl(competitionId, 'program/preview', query),
   );
 }
 

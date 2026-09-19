@@ -75,17 +75,23 @@
 
 .axisAdd {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
 .axisAdd input {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 160px;
+  min-width: 160px;
 }
 
 /* Межі віку — вузькі поля, щоб назва значення лишалась головною. */
 .axisAdd input.ageBound {
   flex: 0 0 90px;
+  min-width: 90px;
+}
+
+.axisAdd button {
+  flex: none;
 }
 
 .chips {
@@ -185,6 +191,12 @@
   .newAxis {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  /* У колонці flex-basis задає висоту — полям лишаємо природну. */
+  .axisAdd input,
+  .axisAdd input.ageBound {
+    flex: none;
   }
 }
 
@@ -317,4 +329,13 @@
   font-weight: 700;
   letter-spacing: 0.2px;
   cursor: help;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 14px;
 }

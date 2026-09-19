@@ -5,16 +5,34 @@ import ConfirmDialog from './ConfirmDialog';
 import TemplateImportModal from './TemplateImportModal';
 import SpecialCategoryModal from '../nominations/SpecialCategoryModal';
 import type { SpecialNominationDraft } from '../nominations/SpecialCategoryModal';
+import NominationFilterBar from './nominationSelection/NominationFilterBar';
+import NominationBulkBar from './nominationSelection/NominationBulkBar';
+import NominationPager from './nominationSelection/NominationPager';
+import { useNominationSelection } from './nominationSelection/useNominationSelection';
+import { useNominationsPage } from './nominationSelection/useNominationsPage';
+import {
+  NOTHING_FOUND_MESSAGE,
+  SELECT_NOMINATION_ARIA_PREFIX,
+} from './nominationSelection/nominationFilters.constants';
 import { LEAGUE_CATEGORY_TYPE, getCategories } from '../../lib/categories';
 import type { Category } from '../../lib/categories';
 import {
   createNomination,
   createNominationsBulk,
   deleteNomination,
-  getNominations,
+  setImprovisationBulk,
   updateNomination,
 } from '../../lib/nominations';
-import type { Nomination, NominationInput } from '../../lib/nominations';
+import type {
+  Nomination,
+  NominationBulkSelector,
+  NominationInput,
+} from '../../lib/nominations';
+import { refreshNominations } from '../../lib/nominationsCache';
+import {
+  DURATION_UNSET_PLACEHOLDER,
+  NOMINATIONS_PAGE_SIZE,
+} from '../../lib/nominations.constants';
 import { formatDuration, parseDuration, pluralExits } from '../../lib/duration';
 import {
   NOMINATION_LEAGUE_ARIA_LABEL,
@@ -24,6 +42,11 @@ import {
 import { queryKeys } from '../../lib/queryKeys';
 import { REFERENCE_STALE_TIME_MS } from '../../lib/queryClient.constants';
 import styles from './NominationsPanel.module.css';
+
+// Stable reference so useMemo below doesn't see a "new" array on every
+// render while the query has no data yet.
+const EMPTY_CATEGORIES: Category[] = [];
+const EMPTY_NOMINATIONS: Nomination[] = [];
 
 interface NominationsPanelProps {
   competitionId: string;
@@ -52,26 +75,29 @@ export default function NominationsPanel({
   const [editing, setEditing] = useState<Record<string, EditState>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  const nominationsQuery = useQuery({
-    queryKey: queryKeys.nominations(competitionId),
-    queryFn: () => getNominations(competitionId),
-  });
-  const nominations = nominationsQuery.data ?? null;
+  const selection = useNominationSelection(NOMINATIONS_PAGE_SIZE);
+  const nominationsQuery = useNominationsPage(competitionId, selection);
+  const rows = nominationsQuery.data?.rows ?? EMPTY_NOMINATIONS;
+  const total = nominationsQuery.data?.total ?? 0;
   const loading = nominationsQuery.isLoading;
+  const competitionHasNoNominations =
+    nominationsQuery.isSuccess && total === 0 && !selection.hasActiveFilter;
 
   useEffect(() => {
     if (nominationsQuery.isError) onError('Не вдалося завантажити номінації.');
   }, [nominationsQuery.isError, onError]);
 
   // Same reference cache as everywhere else categories are picked from —
-  // opening this modal after visiting, say, the competition wizard is free.
+  // also powers the style/league/age filters below, so it's fetched
+  // whenever the panel can manage nominations, not just while the modal
+  // is open.
   const categoriesQuery = useQuery({
     queryKey: queryKeys.categories(),
     queryFn: () => getCategories(),
-    enabled: specialOpen,
+    enabled: canManage,
     staleTime: REFERENCE_STALE_TIME_MS,
   });
-  const categories = categoriesQuery.data ?? [];
+  const categories = categoriesQuery.data ?? EMPTY_CATEGORIES;
 
   const leaguesQuery = useQuery({
     queryKey: queryKeys.categories(LEAGUE_CATEGORY_TYPE),
@@ -82,72 +108,67 @@ export default function NominationsPanel({
   const leagues = leaguesQuery.data ?? [];
 
   useEffect(() => {
-    if (specialOpen && categoriesQuery.isError) {
+    if (canManage && categoriesQuery.isError) {
       onError('Не вдалося завантажити довідник категорій.');
     }
-  }, [specialOpen, categoriesQuery.isError, onError]);
+  }, [canManage, categoriesQuery.isError, onError]);
 
   const createNominationMutation = useMutation({
     mutationFn: (input: NominationInput) => createNomination(competitionId, input),
-    onSuccess: (created) => {
-      queryClient.setQueryData<Nomination[]>(
-        queryKeys.nominations(competitionId),
-        (prev) => [...(prev ?? []), created],
-      );
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.nominations(competitionId),
-      });
-    },
+    onSuccess: () => refreshNominations(queryClient, competitionId),
   });
 
   const createNominationsBulkMutation = useMutation({
     mutationFn: (inputs: NominationInput[]) =>
       createNominationsBulk(competitionId, inputs),
-    onSuccess: (created) => {
-      queryClient.setQueryData<Nomination[]>(
-        queryKeys.nominations(competitionId),
-        (prev) => [...(prev ?? []), ...created],
-      );
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.nominations(competitionId),
-      });
-    },
+    onSuccess: () => refreshNominations(queryClient, competitionId),
   });
 
   const updateNominationMutation = useMutation({
     mutationFn: (args: { id: string; input: Partial<NominationInput> }) =>
       updateNomination(competitionId, args.id, args.input),
-    onSuccess: (updated) => {
-      queryClient.setQueryData<Nomination[]>(
-        queryKeys.nominations(competitionId),
-        (prev) => prev?.map((n) => (n.id === updated.id ? updated : n)),
-      );
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.nominations(competitionId),
-      });
+    onSuccess: () => refreshNominations(queryClient, competitionId),
+  });
+
+  const setImprovisationMutation = useMutation({
+    mutationFn: (args: {
+      selector: NominationBulkSelector;
+      allowsImprovisation: boolean;
+    }) => setImprovisationBulk(competitionId, args.selector, args.allowsImprovisation),
+    onSuccess: () => {
+      refreshNominations(queryClient, competitionId);
+      selection.clearSelection();
     },
   });
 
   const deleteNominationMutation = useMutation({
     mutationFn: (nominationId: string) => deleteNomination(competitionId, nominationId),
     onSuccess: (_data, nominationId) => {
-      queryClient.setQueryData<Nomination[]>(
-        queryKeys.nominations(competitionId),
-        (prev) => prev?.filter((n) => n.id !== nominationId),
-      );
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.nominations(competitionId),
-      });
+      refreshNominations(queryClient, competitionId);
+      selection.deselect(nominationId);
     },
   });
 
-  const { regular, special } = useMemo(() => {
-    const list = nominations ?? [];
-    return {
-      regular: list.filter((n) => !n.isSpecial),
-      special: list.filter((n) => n.isSpecial),
-    };
-  }, [nominations]);
+  // The server orders special categories first, so each page splits cleanly.
+  const { regular, special } = useMemo(
+    () => ({
+      regular: rows.filter((n) => !n.isSpecial),
+      special: rows.filter((n) => n.isSpecial),
+    }),
+    [rows],
+  );
+
+  const handleBulkImprovisation = async (allowsImprovisation: boolean) => {
+    if (selection.selectedCount(total) === 0 || setImprovisationMutation.isPending) return;
+    try {
+      await setImprovisationMutation.mutateAsync({
+        selector: selection.buildBulkSelector(),
+        allowsImprovisation,
+      });
+    } catch {
+      onError('Не вдалося оновити ознаку імпровізації. Спробуйте ще раз.');
+    }
+  };
 
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
@@ -219,13 +240,17 @@ export default function NominationsPanel({
       return;
     }
 
+    // A duration sent back unchanged would still mark it as set by hand and
+    // stop league-timing changes from reaching this nomination (BUG-10).
+    const durationChanged = seconds !== nomination.durationLimitSeconds;
+
     setSavingId(nomination.id);
     try {
       await updateNominationMutation.mutateAsync({
         id: nomination.id,
         input: {
           price: state.price.trim() === '' ? undefined : Number(state.price),
-          durationLimitSeconds: seconds ?? undefined,
+          durationLimitSeconds: durationChanged ? (seconds ?? undefined) : undefined,
         },
       });
       setEditing((prev) => {
@@ -257,6 +282,16 @@ export default function NominationsPanel({
 
     return (
       <li key={nomination.id} className={styles.row}>
+        {canManage && (
+          <input
+            type="checkbox"
+            className={styles.rowCheckbox}
+            aria-label={`${SELECT_NOMINATION_ARIA_PREFIX} ${nomination.name}`}
+            checked={selection.isSelected(nomination.id)}
+            disabled={selection.allFilteredSelected}
+            onChange={() => selection.toggleSelected(nomination.id)}
+          />
+        )}
         <div className={styles.rowMain}>
           <div className={styles.rowName}>
             {nomination.name}
@@ -265,6 +300,17 @@ export default function NominationsPanel({
                 {nomination.exitMode === 'single'
                   ? 'один вихід'
                   : `${exits.length} ${pluralExits(exits.length)}`}
+              </span>
+            )}
+            {nomination.allowsImprovisation && (
+              <span className={styles.badgeImprov}>імпровізація</span>
+            )}
+            {nomination.durationOverridden && (
+              <span
+                className={styles.badge}
+                title="Тривалість задана вручну — зміна тривалості ліги її не торкнеться"
+              >
+                тривалість вручну
               </span>
             )}
           </div>
@@ -309,7 +355,7 @@ export default function NominationsPanel({
               className={styles.inputSm}
               type="text"
               inputMode="numeric"
-              placeholder="2:30"
+              placeholder={DURATION_UNSET_PLACEHOLDER}
               aria-label={`Тривалість номінації ${nomination.name}`}
               disabled={nomination.exitMode === 'per_program'}
               value={
@@ -425,7 +471,7 @@ export default function NominationsPanel({
 
       {loading && <p className={styles.status}>Завантаження...</p>}
 
-      {!loading && nominations && nominations.length === 0 && (
+      {competitionHasNoNominations && (
         <div className={styles.empty}>
           <p className={styles.emptyText}>
             Для цього конкурсу ще не сформовано номінацій. Додайте їх вручну або
@@ -443,36 +489,57 @@ export default function NominationsPanel({
         </div>
       )}
 
+      {canManage && nominationsQuery.isSuccess && !competitionHasNoNominations && (
+        <NominationFilterBar selection={selection} />
+      )}
+
+      {nominationsQuery.isSuccess && !competitionHasNoNominations && total === 0 && (
+        <p className={styles.status}>{NOTHING_FOUND_MESSAGE}</p>
+      )}
+
+      {canManage && (
+        <NominationBulkBar selection={selection} total={total}>
+          <button
+            type="button"
+            className={styles.btnSecondary}
+            disabled={setImprovisationMutation.isPending}
+            onClick={() => void handleBulkImprovisation(true)}
+          >
+            Встановити «Імпровізація»
+          </button>
+          <button
+            type="button"
+            className={styles.btnSecondary}
+            disabled={setImprovisationMutation.isPending}
+            onClick={() => void handleBulkImprovisation(false)}
+          >
+            Зняти «Імпровізація»
+          </button>
+        </NominationBulkBar>
+      )}
+
       {special.length > 0 && (
         <>
-          <h3 className={styles.groupTitle}>
-            Спеціальні категорії <span className={styles.count}>{special.length}</span>
-          </h3>
+          <h3 className={styles.groupTitle}>Спеціальні категорії</h3>
           <ul className={styles.rows}>{special.map(renderRow)}</ul>
         </>
       )}
 
       {regular.length > 0 && (
         <>
-          <h3 className={styles.groupTitle}>
-            Номінації <span className={styles.count}>{regular.length}</span>
-          </h3>
+          <h3 className={styles.groupTitle}>Номінації</h3>
           <ul className={styles.rows}>{regular.map(renderRow)}</ul>
         </>
       )}
+
+      <NominationPager selection={selection} total={total} />
 
       {importOpen && (
         <TemplateImportModal
           competitionId={competitionId}
           onClose={() => setImportOpen(false)}
-          onImported={(created) => {
-            queryClient.setQueryData<Nomination[]>(
-              queryKeys.nominations(competitionId),
-              (prev) => [...(prev ?? []), ...created],
-            );
-            void queryClient.invalidateQueries({
-              queryKey: queryKeys.nominations(competitionId),
-            });
+          onImported={() => {
+            refreshNominations(queryClient, competitionId);
             setImportOpen(false);
           }}
         />

@@ -28,6 +28,7 @@ import { UpgradeLevelDto } from './dto/upgrade-level.dto';
 import { SetLevelDto } from './dto/set-level.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { SetMentorCoachDto } from './dto/set-mentor-coach.dto';
+import { NewMentorCoachDto } from './dto/new-mentor-coach.dto';
 import { CompleteProfileDto } from './dto/complete-profile.dto';
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { User } from './user.model';
@@ -208,6 +209,25 @@ export class UsersController {
         lastName: coach.lastName,
         schoolName: coach.school?.name ?? null,
       }));
+  }
+
+  @ApiOperation({
+    summary: 'Create a coach who is not in the system yet (organizer/admin)',
+    description:
+      'Reuses the existing account when the phone is already known. The ' +
+      'coach can claim the account later by registering with this phone.',
+  })
+  @ApiResponse({ status: 201, description: 'Coach returned.' })
+  @MinLevel(AccessLevel.ORGANIZER)
+  @Post('coaches')
+  async createCoach(@Body() dto: NewMentorCoachDto): Promise<CoachSummary> {
+    const coach = await this.usersService.createPlaceholderCoachWithSchool(dto);
+    return {
+      id: coach.id,
+      firstName: coach.firstName,
+      lastName: coach.lastName,
+      schoolName: coach.school?.name ?? null,
+    };
   }
 
   @ApiOperation({ summary: 'Organizers a competition can be attributed to' })

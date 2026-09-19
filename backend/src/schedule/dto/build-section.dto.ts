@@ -1,8 +1,7 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import {
   ArrayNotEmpty,
   IsArray,
-  IsOptional,
   IsString,
   IsUUID,
   Matches,
@@ -14,11 +13,6 @@ export class BuildSectionDto {
   @ApiProperty({ description: 'День конкурсу, до якого належить відділення.' })
   @IsUUID()
   dayId: string;
-
-  @ApiPropertyOptional({ description: 'Майданчик. Не обовʼязково.' })
-  @IsOptional()
-  @IsUUID()
-  venueId?: string;
 
   @ApiProperty({ example: 'Відділення 1' })
   @IsString()

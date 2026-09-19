@@ -11,6 +11,7 @@ import { Competition } from '../competitions/competition.model';
 import { Score } from './score.model';
 import { Nomination } from '../nominations/nomination.model';
 import { User } from '../users/user.model';
+import { School } from '../schools/school.model';
 
 @Table({ tableName: 'entries' })
 export class Entry extends Model<Entry> {
@@ -75,6 +76,18 @@ export class Entry extends Model<Entry> {
 
   @Column({ type: DataType.STRING, allowNull: true })
   declare choreographer: string | null;
+
+  // The studio and the trainer (керівник) the entry is filed under. They
+  // default to the dancer's own coach and school; an organizer/admin may
+  // pick any pair. A trainer sees every entry carrying their trainerId,
+  // whoever submitted it.
+  @ForeignKey(() => School)
+  @Column({ type: DataType.UUID, allowNull: true })
+  declare studioId: string | null;
+
+  @ForeignKey(() => User)
+  @Column({ type: DataType.UUID, allowNull: true })
+  declare trainerId: string | null;
 
   @Column({ type: DataType.STRING, allowNull: true })
   declare city: string | null;

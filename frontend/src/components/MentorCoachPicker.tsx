@@ -127,7 +127,7 @@ export default function MentorCoachPicker({ onChange }: MentorCoachPickerProps) 
             <input
               className={styles.input}
               autoComplete="off"
-              placeholder="Почніть вводити ім'я тренера…"
+              placeholder="Почніть вводити ім'я керівника…"
               value={query}
               onChange={(event) => editQuery(event.target.value)}
             />
@@ -156,7 +156,7 @@ export default function MentorCoachPicker({ onChange }: MentorCoachPickerProps) 
           {query.trim().length < MIN_QUERY_CHARS && !picked && (
             <p className={styles.hint}>
               Введіть щонайменше {MIN_QUERY_CHARS} символи, щоб побачити список
-              наявних тренерів.
+              наявних керівників.
             </p>
           )}
           <button
@@ -164,7 +164,7 @@ export default function MentorCoachPicker({ onChange }: MentorCoachPickerProps) 
             className={styles.linkBtn}
             onClick={() => switchMode('new')}
           >
-            Тренера немає у списку? Додати вручну
+            Керівника немає у списку? Додати вручну
           </button>
         </>
       ) : (
