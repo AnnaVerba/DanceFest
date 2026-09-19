@@ -31,6 +31,7 @@ import { UpdateSectionDto } from './dto/update-section.dto';
 import { MergeGroupsDto } from './dto/merge-groups.dto';
 import { MoveExitDto } from './dto/move-exit.dto';
 import { MoveNominationDto } from './dto/move-nomination.dto';
+import { RenameGroupDto } from './dto/rename-group.dto';
 import { RecalculateScheduleDto } from './dto/recalculate-schedule.dto';
 import { ReorderSectionDto } from './dto/reorder-section.dto';
 
@@ -249,6 +250,39 @@ export class ScheduleController {
       sectionId,
       dto,
     );
+  }
+
+  @ApiOperation({ summary: 'Rename a merged nomination block' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Patch('sections/:sectionId/merge-groups/:groupKey')
+  renameMergedGroup(
+    @Param('competitionId') competitionId: string,
+    @Param('sectionId') sectionId: string,
+    @Param('groupKey') groupKey: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RenameGroupDto,
+  ) {
+    return this.scheduleService.renameMergedGroup(
+      competitionId,
+      user,
+      sectionId,
+      groupKey,
+      dto,
+    );
+  }
+
+  @ApiOperation({
+    summary: 'Participants booked on two venues at overlapping times',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get('schedule/conflicts')
+  venueConflicts(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.scheduleService.venueConflicts(competitionId, user);
   }
 
   @ApiOperation({ summary: 'Split a merged nomination group back' })

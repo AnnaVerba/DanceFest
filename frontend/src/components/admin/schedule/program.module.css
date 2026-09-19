@@ -546,3 +546,21 @@
   color: var(--g-warning);
   font-size: 12.5px;
 }
+
+.conflictList {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+/* A nomination block's name, edited in place. */
+.titleInput {
+  min-width: 220px;
+  box-sizing: border-box;
+  padding: 4px 7px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--g-surface);
+}
