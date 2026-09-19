@@ -8,6 +8,8 @@ import { CompetitionParticipantNumbersModule } from '../competition-participant-
 import { UsersModule } from '../users/users.module';
 import { ScheduleController } from './schedule.controller';
 import { ScheduleService } from './schedule.service';
+import { ProgramPublicationService } from './program-publication.service';
+import { ProgramPublication } from './program-publication.model';
 import { CompetitionDay } from './competition-day.model';
 import { Section } from './section.model';
 import { SectionItem } from './section-item.model';
@@ -21,13 +23,14 @@ import { SectionItem } from './section-item.model';
       CompetitionDay,
       Section,
       SectionItem,
+      ProgramPublication,
     ]),
     CompetitionRulesModule,
     CompetitionParticipantNumbersModule,
     UsersModule,
   ],
   controllers: [ScheduleController],
-  providers: [ScheduleService],
+  providers: [ScheduleService, ProgramPublicationService],
   exports: [ScheduleService],
 })
 export class ScheduleModule {}

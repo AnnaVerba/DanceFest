@@ -55,3 +55,4 @@ export const SECTION_SET_MISMATCH_MESSAGE =
   'Список відділень не збігається зі складом дня — оновіть сторінку';
 export const MIXED_VENUE_SECTION_MESSAGE =
   'Обрані виходи належать до різних майданчиків — сформуйте окремі відділення для кожного';
+export const PROGRAM_NOT_PUBLISHED_MESSAGE = 'Програма ще не опублікована';

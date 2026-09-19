@@ -78,6 +78,24 @@ export class CreateEntryDto {
   @IsString()
   choreographer?: string;
 
+  @ApiPropertyOptional({
+    example: 'e7c1a2b4-5d6f-4a8b-9c0d-1e2f3a4b5c6d',
+    description:
+      "Studio to file the entry under. Organizer of the competition or admin only; defaults to the trainer's studio.",
+  })
+  @IsOptional()
+  @IsUUID('4')
+  studioId?: string;
+
+  @ApiPropertyOptional({
+    example: 'e7c1a2b4-5d6f-4a8b-9c0d-1e2f3a4b5c6d',
+    description:
+      "Trainer (керівник) to file the entry under. Organizer of the competition or admin only; defaults to the dancer's own coach.",
+  })
+  @IsOptional()
+  @IsUUID('4')
+  trainerId?: string;
+
   @ApiPropertyOptional({ example: 'Львів' })
   @IsOptional()
   @IsString()

@@ -29,7 +29,6 @@ import { Nomination } from '../nominations/nomination.model';
 import { CompetitionRule } from '../competition-rules/competition-rule.model';
 import { CompetitionRulesService } from '../competition-rules/competition-rules.service';
 import { DEFAULT_DURATION_ROUND } from '../competition-rules/duration-limit.model';
-import { UsersService } from '../users/users.service';
 import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
 import { CompetitionDay } from './competition-day.model';
 import { Section } from './section.model';
@@ -38,6 +37,7 @@ import { SectionItem } from './section-item.model';
 import { AWARD_ITEM, PERFORMANCE_ITEM, isManualRow } from './section-item-type';
 import { performanceDuration } from './performance-duration';
 import { eachDateInclusive } from './date-range';
+import { onlyVenueItems } from './venue-items';
 import {
   buildSectionView,
   isGroupImprov,
@@ -47,10 +47,8 @@ import {
 } from './section-view';
 import {
   buildExtendedProgram,
-  buildMineProgram,
   buildPublicProgram,
   type ExtendedProgramSection,
-  type MineProgram,
   type PublicProgramRow,
 } from './program-view';
 import {
@@ -139,7 +137,6 @@ export class ScheduleService {
     @InjectModel(Entry)
     private readonly entryModel: typeof Entry,
     private readonly rulesService: CompetitionRulesService,
-    private readonly usersService: UsersService,
     private readonly participantNumbersService: CompetitionParticipantNumbersService,
   ) {}
 
@@ -240,23 +237,6 @@ export class ScheduleService {
         items.map((item) => item.entryId).filter((id): id is string => id !== null),
       ),
     };
-  }
-
-  // Hides other venues' performances. Every remaining row keeps the time it
-  // has in the full running order — a filter never moves a clock.
-  private onlyVenueItems(
-    views: SectionView[],
-    venueEntryIds: Set<string> | null,
-  ): SectionView[] {
-    if (!venueEntryIds) return views;
-    return views.map((view) => ({
-      ...view,
-      items: view.items.filter(
-        (item) =>
-          item.type !== PERFORMANCE_ITEM ||
-          (item.exit !== null && venueEntryIds.has(item.exit.entryId)),
-      ),
-    }));
   }
 
   // A section's true venue is the venue of its earliest performance's
@@ -361,7 +341,7 @@ export class ScheduleService {
       order: this.sectionOrder,
       limit: MAX_SCHEDULE_QUERY_ROWS,
     });
-    return this.onlyVenueItems(
+    return onlyVenueItems(
       await this.toSectionViews(sections),
       scope.venueEntryIds,
     );
@@ -444,7 +424,7 @@ export class ScheduleService {
     });
 
     return {
-      rows: this.onlyVenueItems(
+      rows: onlyVenueItems(
         await this.toSectionViews(sections),
         scope.venueEntryIds,
       ),
@@ -532,7 +512,7 @@ export class ScheduleService {
       sectionIds[sectionIds.length - 1],
     );
     const [lastView] = lastSection
-      ? this.onlyVenueItems([await this.viewOf(lastSection)], scope.venueEntryIds)
+      ? onlyVenueItems([await this.viewOf(lastSection)], scope.venueEntryIds)
       : [];
     const endTime = lastView?.items[lastView.items.length - 1]?.time ?? null;
 
@@ -1076,8 +1056,11 @@ export class ScheduleService {
 
   // --- Projections ---------------------------------------------------
 
-  async publicProgram(
+  // The live running order in program shape — the organizer's preview of
+  // what publishing would show. Staff only; the audience reads the snapshot.
+  async previewProgram(
     competitionId: string,
+    requester: AuthenticatedUser,
     query: {
       dayId?: string;
       venueId?: string;
@@ -1085,6 +1068,7 @@ export class ScheduleService {
       pageSize?: string;
     } = {},
   ): Promise<RowPaged<PublicProgramRow>> {
+    await this.assertAccess(competitionId, requester);
     const page = await this.listSectionsPage(
       competitionId,
       { dayId: query.dayId, venueId: query.venueId },
@@ -1094,15 +1078,6 @@ export class ScheduleService {
       MAX_PROGRAM_PAGE_ROWS,
     );
     return { ...page, rows: buildPublicProgram(page.rows) };
-  }
-
-  async myProgram(competitionId: string, userId: string): Promise<MineProgram> {
-    const sections = await this.listSections(competitionId);
-    const roster = await this.usersService.listRosterByCoach(userId);
-    return buildMineProgram(sections, {
-      ownIds: [userId],
-      studentIds: roster.map((r) => r.id),
-    });
   }
 
   async extendedProgram(
@@ -1290,7 +1265,7 @@ export class ScheduleService {
     return sections.map((s) => s.id);
   }
 
-  private async assertCompetition(competitionId: string): Promise<Competition> {
+  async assertCompetition(competitionId: string): Promise<Competition> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
       throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
@@ -1298,7 +1273,7 @@ export class ScheduleService {
     return competition;
   }
 
-  private async assertAccess(
+  async assertAccess(
     competitionId: string,
     requester: AuthenticatedUser,
   ): Promise<Competition> {

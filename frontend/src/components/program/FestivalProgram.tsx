@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
+import { ApiError } from '../../lib/http';
+import { HTTP_STATUS_NOT_FOUND } from '../../lib/api.constants';
 import { getPublicProgram } from '../../lib/program';
 import type { PublicProgramRow } from '../../lib/program';
 import { getVenues } from '../../lib/venues';
@@ -68,8 +70,16 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
         setProgramPage(paged.page);
         setProgramPageCount(paged.pageCount);
       })
-      .catch(() => {
-        if (!cancelled) setLoadError(PROGRAM_LOAD_ERROR);
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        if (
+          error instanceof ApiError &&
+          error.status === HTTP_STATUS_NOT_FOUND
+        ) {
+          setPublicRows([]);
+          return;
+        }
+        setLoadError(PROGRAM_LOAD_ERROR);
       });
 
     getVenues(competitionId)

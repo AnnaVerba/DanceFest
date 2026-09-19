@@ -77,11 +77,11 @@ export interface PublicProgramQuery {
   pageSize?: number;
 }
 
-// Row-bounded pagination: a page carries whole sections up to ~60 rows.
-export function getPublicProgram(
+function programUrl(
     competitionId: string,
-    query: PublicProgramQuery = {},
-): Promise<RowPaged<PublicProgramRow>> {
+    path: string,
+    query: PublicProgramQuery,
+): string {
   const params = new URLSearchParams();
 
   if (query.dayId) {
@@ -98,8 +98,27 @@ export function getPublicProgram(
       ? `?${params.toString()}`
       : '';
 
+  return `/competitions/${competitionId}/${path}${suffix}`;
+}
+
+// The published snapshot. Row-bounded pagination: a page carries whole
+// sections up to ~60 rows. Rejects with a 404 until the program is published.
+export function getPublicProgram(
+    competitionId: string,
+    query: PublicProgramQuery = {},
+): Promise<RowPaged<PublicProgramRow>> {
   return publicRequest<RowPaged<PublicProgramRow>>(
-      `/competitions/${competitionId}/program${suffix}`,
+      programUrl(competitionId, 'program', query),
+  );
+}
+
+// The live running order, for the organizer's «Публічна» preview.
+export function getProgramPreview(
+    competitionId: string,
+    query: PublicProgramQuery = {},
+): Promise<RowPaged<PublicProgramRow>> {
+  return apiRequest<RowPaged<PublicProgramRow>>(
+      programUrl(competitionId, 'program/preview', query),
   );
 }
 

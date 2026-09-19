@@ -23,6 +23,7 @@ import {
 import { getSchool } from '../lib/schools';
 import { formatEntryAmount } from '../lib/entryAmount';
 import {
+  createCoach,
   getMyMentorCoach,
   getSelectableCoaches,
   getSession,
@@ -143,6 +144,12 @@ export default function ApplyPage() {
   const [mentorSchoolId, setMentorSchoolId] = useState(
     session?.profile.schoolId ?? '',
   );
+  // Organizer/admin only: the studio and trainer the entry is filed under,
+  // instead of the dancer's own. Left empty, the server keeps the dancer's.
+  const [assignedStudioId, setAssignedStudioId] = useState('');
+  const [assignedTrainer, setAssignedTrainer] =
+    useState<SetMentorCoachBody | null>(null);
+  const [trainerPickerKey, setTrainerPickerKey] = useState(0);
   const [league, setLeague] = useState('');
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
@@ -531,8 +538,19 @@ export default function ApplyPage() {
     setPayMethod('card');
     setMusicFileByKey({});
     setMentor(null);
+    setAssignedStudioId('');
+    setAssignedTrainer(null);
+    setTrainerPickerKey((key) => key + 1);
     setCreatedCount(0);
     setSubmitError(null);
+  };
+
+  // A trainer typed in by hand is registered first, so the entry only ever
+  // carries a real trainer id.
+  const resolveAssignedTrainerId = async (): Promise<string | undefined> => {
+    if (!assignedTrainer) return undefined;
+    if ('coachId' in assignedTrainer) return assignedTrainer.coachId;
+    return (await createCoach(assignedTrainer.newCoach)).id;
   };
 
   const handleSubmit = async () => {
@@ -577,10 +595,15 @@ export default function ApplyPage() {
           return;
         }
       }
+      const trainerId = canPickCoach
+        ? await resolveAssignedTrainerId()
+        : undefined;
       const created = await createEntriesBulk(
         id,
         rows.map((r) => ({
           participantIds: effectiveParticipantIds,
+          studioId: canPickCoach ? assignedStudioId || undefined : undefined,
+          trainerId,
           nominationId: r.nominationId,
           improv: r.improv,
           city: city.trim() || undefined,
@@ -1107,6 +1130,28 @@ export default function ApplyPage() {
           )}
 
           {activeParticipants.length > 0 &&
+            canPickCoach && (
+              <div>
+                <SchoolPicker
+                  value={assignedStudioId}
+                  onChange={setAssignedStudioId}
+                />
+                <label className={styles.label}>Керівник</label>
+                <MentorCoachPicker
+                  key={trainerPickerKey}
+                  onChange={setAssignedTrainer}
+                />
+                <p className={styles.hint}>
+                  Необовʼязково. Оберіть будь-яку студію й керівника або
+                  створіть нових — заявка зʼявиться у цього керівника в «Моїх
+                  заявках». Якщо не вказувати, буде взято студію й керівника
+                  учасника.
+                </p>
+              </div>
+            )}
+
+          {activeParticipants.length > 0 &&
+            !canPickCoach &&
             (session.profile.coachId ? (
               <div className={styles.two}>
                 <div>

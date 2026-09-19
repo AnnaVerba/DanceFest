@@ -6,6 +6,7 @@ import BuildSectionModal from './BuildSectionModal';
 import MergeGroupsModal from './MergeGroupsModal';
 import ProgramTable from './ProgramTable';
 import ProgramPoster from './ProgramPoster';
+import ProgramPublicationBar from './ProgramPublicationBar';
 import type { GroupOption } from './MergeGroupsModal';
 import {
   addRow,
@@ -35,7 +36,7 @@ import type {
   UnassignedFacets,
 } from '../../../lib/schedule';
 import type { RowPaged } from '../../../lib/pagination';
-import { getPublicProgram } from '../../../lib/program';
+import { getProgramPreview, getPublicProgram } from '../../../lib/program';
 import type { PublicProgramRow } from '../../../lib/program';
 import { getVenues } from '../../../lib/venues';
 import { formatClock } from '../../../lib/duration';
@@ -209,13 +210,16 @@ export default function SchedulePanel({
     pageSize: SECTIONS_PAGE_ROWS,
   };
 
+  // A manager previews the live running order; everyone else reads the
+  // published snapshot.
   const posterQuery = useQuery({
-    queryKey: queryKeys.publicProgram(
-        competitionId,
-        posterFilter,
-    ),
+    queryKey: canManage
+      ? queryKeys.programPreview(competitionId, posterFilter)
+      : queryKeys.publicProgram(competitionId, posterFilter),
     queryFn: () =>
-        getPublicProgram(competitionId, posterFilter),
+      canManage
+        ? getProgramPreview(competitionId, posterFilter)
+        : getPublicProgram(competitionId, posterFilter),
     enabled: daysReady && (!canManage || view === 'public'),
     staleTime: TIMING_STALE_TIME_MS,
   });
@@ -276,6 +280,9 @@ export default function SchedulePanel({
     });
     // An in-place edit can shift the day's end time or no-music count.
     void queryClient.invalidateQueries({ queryKey: ['sections', competitionId, 'stats'] });
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.programPublication(competitionId),
+    });
   };
 
   // Changing the day/venue scope starts the pager over.
@@ -608,6 +615,11 @@ export default function SchedulePanel({
 
   return (
     <div className={styles.panel}>
+      <ProgramPublicationBar
+        competitionId={competitionId}
+        onError={onError}
+        onNotice={onNotice}
+      />
       {/* top bar */}
       <div className={styles.topbar}>
         {days.length > 1 && (

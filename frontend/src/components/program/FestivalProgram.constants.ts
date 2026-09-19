@@ -3,7 +3,7 @@ export const PROGRAM_SUBTITLE =
   'Час початку й завершення кожного відділення. Точний порядок може незначно зсуватися по ходу дня.';
 export const PROGRAM_LOAD_ERROR = 'Не вдалося завантажити програму.';
 export const PROGRAM_LOADING_LABEL = 'Завантаження…';
-export const PROGRAM_NOT_PUBLISHED_LABEL = 'Розклад ще не опубліковано.';
+export const PROGRAM_NOT_PUBLISHED_LABEL = 'Програма ще не опублікована.';
 export const SEARCH_PLACEHOLDER = 'Пошук за прізвищем або номером';
 export const SEARCH_NO_RESULTS_LABEL = 'Нічого не знайдено.';
 export const LOAD_MORE_LABEL = 'Показати ще';

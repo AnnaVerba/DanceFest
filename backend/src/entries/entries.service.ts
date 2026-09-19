@@ -48,6 +48,8 @@ import {
   MAX_ENTRY_STATS_ROWS,
   NOMINATION_PROGRAM_MISMATCH_MESSAGE,
   MIN_PARTICIPANTS_PER_ENTRY,
+  ASSIGN_STUDIO_TRAINER_FORBIDDEN_MESSAGE,
+  TRAINER_NOT_A_COACH_MESSAGE,
 } from './entries.constants';
 import {
   COMPETITION_NOT_FOUND_MESSAGE,
@@ -62,7 +64,9 @@ interface SubmitterContext {
   participantsCount: number | null;
   birthDates: (string | null)[];
   routineName: string | null;
+  studioId: string | null;
   studioName: string | null;
+  trainerId: string | null;
   choreographer: string | null;
 }
 
@@ -461,7 +465,12 @@ export class EntriesService {
       throw new BadRequestException(NOMINATION_REQUIRED_MESSAGE);
     }
 
-    const submitter = await this.resolveSubmitter(dto, user);
+    const submitter = await this.applyStudioAndTrainer(
+      competition,
+      dto,
+      user,
+      await this.resolveSubmitter(dto, user),
+    );
     const routineName = dto.routineName?.trim() || submitter.routineName;
     if (!routineName) {
       throw new BadRequestException(ROUTINE_NAME_REQUIRED_MESSAGE);
@@ -487,6 +496,47 @@ export class EntriesService {
     };
   }
 
+  // The organizer of this competition (or an admin) may file the entry under
+  // any studio and trainer instead of the dancer's own; nobody else may.
+  // A trainer picked without a studio brings their own studio along.
+  private async applyStudioAndTrainer(
+    competition: Competition,
+    dto: CreateEntryDto,
+    user: AuthenticatedUser,
+    submitter: SubmitterContext,
+  ): Promise<SubmitterContext> {
+    if (!dto.studioId && !dto.trainerId) return submitter;
+
+    const isStaff =
+      meetsLevel(user.accessLevel, AccessLevel.ORGANIZER) &&
+      (await this.isCompetitionStaff(competition, user.id, user.accessLevel));
+    if (!isStaff) {
+      throw new ForbiddenException(ASSIGN_STUDIO_TRAINER_FORBIDDEN_MESSAGE);
+    }
+
+    const trainer = dto.trainerId
+      ? await this.usersService.findByIdOrFail(dto.trainerId)
+      : null;
+    if (trainer && !meetsLevel(trainer.accessLevel, AccessLevel.COACH)) {
+      throw new BadRequestException(TRAINER_NOT_A_COACH_MESSAGE);
+    }
+    const studioId =
+      dto.studioId ?? (trainer ? trainer.schoolId : submitter.studioId);
+    const studio = studioId
+      ? await this.schoolsService.findByIdOrFail(studioId)
+      : null;
+
+    return {
+      ...submitter,
+      studioId: studio?.id ?? null,
+      studioName: studio?.name ?? null,
+      trainerId: trainer?.id ?? submitter.trainerId,
+      choreographer: trainer
+        ? `${trainer.firstName} ${trainer.lastName}`.trim()
+        : submitter.choreographer,
+    };
+  }
+
   private buildRow(
     competitionId: string,
     entry: PreparedEntry,
@@ -509,6 +559,8 @@ export class EntriesService {
       program: exit.programName,
       participantsCount,
       lineup: resolveLineup(participantsCount ?? 1),
+      studioId: submitter.studioId,
+      trainerId: submitter.trainerId,
       studioName: dto.studioName?.trim() || submitter.studioName,
       choreographer: dto.choreographer?.trim() || submitter.choreographer,
       city: dto.city?.trim() || null,
@@ -568,7 +620,8 @@ export class EntriesService {
   }
 
   // Entries the current user is involved in — their own performances and,
-  // if they coach, every performance one of their roster dancers is in.
+  // if they coach, every performance one of their roster dancers is in, and
+  // every performance filed under them as trainer, whoever submitted it.
   async listForUser(user: AuthenticatedUser) {
     const ids = await this.ownParticipantIds(user);
 
@@ -577,6 +630,7 @@ export class EntriesService {
         [Op.or]: [
           { participantIds: { [Op.overlap]: ids } },
           { participantId: { [Op.in]: ids } },
+          { trainerId: user.id },
         ],
       },
       include: [Score],
@@ -879,7 +933,9 @@ export class EntriesService {
         participantsCount: null,
         birthDates: [],
         routineName: null,
+        studioId: null,
         studioName: null,
+        trainerId: null,
         choreographer: null,
       };
     }
@@ -898,7 +954,9 @@ export class EntriesService {
       participantsCount: participants.length,
       birthDates: participants.map((p) => p.birthDate),
       routineName: this.routineNameFor(participants),
+      studioId: school?.id ?? null,
       studioName: school?.name ?? null,
+      trainerId: coach?.id ?? null,
       choreographer: coach
         ? `${coach.firstName} ${coach.lastName}`.trim()
         : null,
@@ -1034,7 +1092,9 @@ export class EntriesService {
       program: entry.program,
       participantsCount: entry.participantsCount,
       lineup: entry.lineup,
+      studioId: entry.studioId,
       studioName: entry.studioName,
+      trainerId: entry.trainerId,
       choreographer: entry.choreographer,
       city: entry.city,
       improv: entry.improv,
