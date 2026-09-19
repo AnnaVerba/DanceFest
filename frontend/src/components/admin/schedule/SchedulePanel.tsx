@@ -6,6 +6,8 @@ import BuildSectionModal from './BuildSectionModal';
 import MergeGroupsModal from './MergeGroupsModal';
 import ProgramTable from './ProgramTable';
 import ProgramPoster from './ProgramPoster';
+import NewEntriesNotice from './NewEntriesNotice';
+import { NEW_ENTRIES_PROBE } from './newEntriesNotice.constants';
 import type { GroupOption } from './MergeGroupsModal';
 import {
   addRow,
@@ -44,6 +46,7 @@ import { getCompetitionStatus } from '../../../lib/competitions';
 import type { Competition } from '../../../lib/competitions';
 import { COMPETITION_STATUS } from '../../../lib/competitionStatus';
 import { queryKeys } from '../../../lib/queryKeys';
+import { refreshProgram } from '../../../lib/programCache';
 import { TIMING_STALE_TIME_MS } from '../../../lib/queryClient.constants';
 import styles from './program.module.css';
 
@@ -239,6 +242,14 @@ export default function SchedulePanel({
     queryFn: () => getUnassignedFacets(competitionId),
     enabled: daysReady && canManage && building,
   });
+  // Entries not yet in a formed program — late ones whose nomination had
+  // no block to join. Refetched with the pool, since they share its key.
+  const newEntriesQuery = useQuery({
+    queryKey: queryKeys.unassigned(competitionId, NEW_ENTRIES_PROBE),
+    queryFn: () => getUnassigned(competitionId, NEW_ENTRIES_PROBE),
+    enabled: daysReady && canManage,
+  });
+  const newEntriesCount = newEntriesQuery.data?.total ?? 0;
   const unassigned = poolQuery.data?.rows ?? [];
   const poolTotal = poolQuery.data?.total ?? 0;
   const poolFacets = facetsQuery.data ?? EMPTY_FACETS;
@@ -249,8 +260,9 @@ export default function SchedulePanel({
     }
   }, [building, poolQuery.isError, facetsQuery.isError, onError]);
 
-  const invalidateSections = () =>
-    queryClient.invalidateQueries({ queryKey: ['sections', competitionId] });
+  // Any schedule edit can move exits in or out of the pool, so the pool and
+  // the new-entries count are refreshed along with the sections.
+  const invalidateSections = () => refreshProgram(queryClient, competitionId);
   const invalidatePool = () =>
     queryClient.invalidateQueries({ queryKey: ['unassigned', competitionId] });
 
@@ -314,7 +326,6 @@ export default function SchedulePanel({
       setBuildOpen(false);
       setBuilding(false);
       await invalidateSections();
-      await invalidatePool();
     } catch (error) {
       if (error instanceof ApiError && error.status === HTTP_CONFLICT) {
         const payload = error.payload as { assigned?: AssignedClash[] } | null;
@@ -759,6 +770,11 @@ export default function SchedulePanel({
           </button>
         </div>
       )}
+
+      {view === 'tech' &&
+        !building &&
+        sectionsMeta.totalSections > 0 &&
+        newEntriesCount > 0 && <NewEntriesNotice count={newEntriesCount} />}
 
       {view === 'public' ? (
         <ProgramPoster rows={posterRows} days={days} />

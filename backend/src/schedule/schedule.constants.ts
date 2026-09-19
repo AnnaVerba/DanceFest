@@ -7,11 +7,6 @@ export const SECONDS_PER_MINUTE = 60;
 export const MINUTES_PER_HOUR = 60;
 export const SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR;
 
-// Sanity ceiling for every list query in the schedule module. A single
-// competition's sections/items/entries stay well under this; the cap only
-// stops a pathological or malicious request from loading unbounded rows.
-export const MAX_SCHEDULE_QUERY_ROWS = 5000;
-
 // Upper bound on days auto-created for a competition. Guards against a
 // competition mis-saved with a dateFrom..dateTo span of months.
 export const MAX_COMPETITION_DAYS = 60;

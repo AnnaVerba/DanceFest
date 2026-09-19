@@ -67,7 +67,6 @@ import {
   MAX_COMPETITION_DAYS,
   MAX_PROGRAM_PAGE_ROWS,
   MAX_SECTIONS_PAGE_ROWS,
-  MAX_SCHEDULE_QUERY_ROWS,
   MAX_UNASSIGNED_PAGE_SIZE,
 } from './schedule.constants';
 import {
@@ -154,7 +153,6 @@ export class ScheduleService {
 
     const existing = await this.dayModel.findAll({
       where: { competitionId },
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
     const known = new Set(existing.map((day) => day.date));
     const missing = dates.filter((date) => !known.has(date));
@@ -171,7 +169,6 @@ export class ScheduleService {
     return this.dayModel.findAll({
       where: { competitionId },
       order: [['date', 'ASC']],
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
   }
 
@@ -228,7 +225,6 @@ export class ScheduleService {
           ],
         },
       ],
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
     where.id = { [Op.in]: [...new Set(items.map((item) => item.sectionId))] };
     return {
@@ -279,7 +275,6 @@ export class ScheduleService {
           include: [{ model: Nomination, attributes: ['venueId'] }],
         },
       ],
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
     const result = new Map<string, string | null>();
     for (const row of rows) {
@@ -330,7 +325,6 @@ export class ScheduleService {
         ['sortOrder', 'ASC'],
       ],
       include: [ENTRY_WITH_NOMINATION_VENUE],
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
     const numbers = await this.participantNumbersByEntry(competitionId, items);
     const bySection = new Map<string, SectionItem[]>();
@@ -344,7 +338,7 @@ export class ScheduleService {
     );
   }
 
-  // Unpaginated (capped) read — used by the program projections, which need
+  // Unpaginated read — used by the program projections, which need
   // the whole schedule to compute running times end to end.
   async listSections(
     competitionId: string,
@@ -356,7 +350,6 @@ export class ScheduleService {
       where: scope.where,
       include: [{ model: CompetitionDay, as: 'day' }],
       order: this.sectionOrder,
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
     return this.onlyVenueItems(
       await this.toSectionViews(sections),
@@ -390,7 +383,6 @@ export class ScheduleService {
       include: [{ model: CompetitionDay, as: 'day' }],
       order: this.sectionOrder,
       attributes: ['id'],
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
     const orderedIds = ordered.map((s) => s.id);
     if (orderedIds.length === 0) {
@@ -452,7 +444,6 @@ export class ScheduleService {
       where: scope.where,
       order: [['sortOrder', 'ASC']],
       attributes: ['id', 'name', 'dayId', 'sortOrder'],
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
     const liveVenues = await this.liveVenueBySection(sections.map((s) => s.id));
     return sections.map((s) => ({
@@ -481,7 +472,6 @@ export class ScheduleService {
       include: [{ model: CompetitionDay, as: 'day' }],
       order: this.sectionOrder,
       attributes: ['id'],
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
     if (sections.length === 0) {
       return { performances: 0, noMusic: 0, endTime: null };
@@ -538,7 +528,6 @@ export class ScheduleService {
     const entries = await this.entryModel.findAll({
       where: { id: { [Op.in]: dto.entryIds }, competitionId },
       include: [{ model: Nomination }],
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
     if (entries.length !== new Set(dto.entryIds).size) {
       throw new BadRequestException(NO_ENTRIES_FOR_SECTION_MESSAGE);
@@ -662,7 +651,6 @@ export class ScheduleService {
     const daySections = await this.sectionModel.findAll({
       where: { competitionId, dayId: dto.dayId },
       attributes: ['id'],
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
     const current = new Set(daySections.map((s) => s.id));
     const next = new Set(dto.sectionIds);
@@ -699,7 +687,6 @@ export class ScheduleService {
     const items = await this.itemModel.findAll({
       where: { sectionId },
       order: ITEMS_ORDER,
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
 
     const currentIds = new Set(items.map((i) => i.id));
@@ -814,7 +801,6 @@ export class ScheduleService {
     const items = await this.itemModel.findAll({
       where: { sectionId },
       order: ITEMS_ORDER,
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
 
     await this.sectionModel.sequelize!.transaction(async (transaction) => {
@@ -915,7 +901,6 @@ export class ScheduleService {
       : await this.sectionModel.findAll({
           where: { competitionId },
           order: [['sortOrder', 'ASC']],
-          limit: MAX_SCHEDULE_QUERY_ROWS,
         });
 
     // One transaction for every section: an unresolvable entry halfway
@@ -934,7 +919,6 @@ export class ScheduleService {
         const items = await this.itemModel.findAll({
           where: { sectionId: section.id, type: PERFORMANCE_ITEM },
           include: [{ model: Entry }],
-          limit: MAX_SCHEDULE_QUERY_ROWS,
           transaction,
         });
         for (const item of items) {
@@ -954,6 +938,122 @@ export class ScheduleService {
     return {
       sections: await Promise.all(sections.map((s) => this.viewOf(s))),
     };
+  }
+
+  // --- Late entries -----------------------------------------------------
+
+  // An entry submitted after the program was formed joins the end of its
+  // nomination's block when that block is already scheduled (BUG-13). Only
+  // the rows below the insertion point shift down — the formed order is
+  // never rebuilt — and their times follow on read. An entry whose
+  // nomination has no block yet stays in the unassigned pool.
+  async appendToScheduledBlocks(
+    competitionId: string,
+    entries: Entry[],
+  ): Promise<void> {
+    if (entries.length === 0) return;
+    const rules = await this.rulesService.getRules(competitionId);
+    const limitCache = new Map<string, number>();
+
+    await this.sectionModel.sequelize!.transaction(async (transaction) => {
+      // Serializes concurrent submissions of one competition, so two late
+      // entries of the same block never read the same tail position.
+      await this.competitionModel.findByPk(competitionId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      const blockEnds = await this.lastBlockRows(
+        competitionId,
+        entries.map((entry) => this.nominationGroupKeyOf(entry)),
+        transaction,
+      );
+      const ordered = [...entries].sort((a, b) => a.number - b.number);
+      for (const entry of ordered) {
+        const key = this.nominationGroupKeyOf(entry);
+        const blockEnd = blockEnds.get(key);
+        if (!blockEnd) continue;
+        const inserted = await this.insertAfterBlock(
+          blockEnd,
+          entry,
+          await this.durationOf(entry, rules, limitCache),
+          transaction,
+        );
+        blockEnds.set(key, inserted);
+      }
+    });
+  }
+
+  // nomination group key -> its block's last performance row in running
+  // order (latest section, then latest position). A block split across
+  // sections by move-exit grows in the section it ends in.
+  private async lastBlockRows(
+    competitionId: string,
+    groupKeys: string[],
+    transaction: Transaction,
+  ): Promise<Map<string, SectionItem>> {
+    const sections = await this.sectionModel.findAll({
+      where: { competitionId },
+      include: [{ model: CompetitionDay, as: 'day' }],
+      order: this.sectionOrder,
+      attributes: ['id'],
+      transaction,
+    });
+    const blockEnds = new Map<string, SectionItem>();
+    if (sections.length === 0) return blockEnds;
+    const position = new Map(sections.map((section, i) => [section.id, i]));
+
+    const rows = await this.itemModel.findAll({
+      where: {
+        sectionId: { [Op.in]: [...position.keys()] },
+        type: PERFORMANCE_ITEM,
+        nominationGroupKey: { [Op.in]: [...new Set(groupKeys)] },
+      },
+      transaction,
+    });
+    for (const row of rows) {
+      const key = row.nominationGroupKey as string;
+      const current = blockEnds.get(key);
+      const runsLater =
+        !current ||
+        position.get(row.sectionId)! > position.get(current.sectionId)! ||
+        (row.sectionId === current.sectionId &&
+          row.sortOrder > current.sortOrder);
+      if (runsLater) blockEnds.set(key, row);
+    }
+    return blockEnds;
+  }
+
+  // Inserts the entry right after `blockEnd` and returns the new row — the
+  // block's new tail, so the next late entry of the nomination follows it.
+  private async insertAfterBlock(
+    blockEnd: SectionItem,
+    entry: Entry,
+    durationSeconds: number,
+    transaction: Transaction,
+  ): Promise<SectionItem> {
+    // One shift of the rows below instead of rewriting the whole section —
+    // the (sectionId, sortOrder) index is not unique, and gaps left by a
+    // deleted row keep the order intact.
+    await this.itemModel.increment('sortOrder', {
+      by: 1,
+      where: {
+        sectionId: blockEnd.sectionId,
+        sortOrder: { [Op.gt]: blockEnd.sortOrder },
+      },
+      transaction,
+    });
+    return this.itemModel.create(
+      {
+        sectionId: blockEnd.sectionId,
+        entryId: entry.id,
+        type: PERFORMANCE_ITEM,
+        nominationGroupKey: blockEnd.nominationGroupKey,
+        mergedGroupLabel: blockEnd.mergedGroupLabel,
+        durationSeconds,
+        sortOrder: blockEnd.sortOrder + 1,
+      } as CreationAttributes<SectionItem>,
+      { transaction },
+    );
   }
 
   // --- Unassigned pool ------------------------------------------------
@@ -1024,7 +1124,6 @@ export class ScheduleService {
     const rows = await this.entryModel.findAll({
       where,
       attributes: ['league', 'ageCategory'],
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
     const leagues = new Set<string>();
     const ageCategories = new Set<string>();
@@ -1051,7 +1150,6 @@ export class ScheduleService {
       where,
       attributes: ['id'],
       order: [['number', 'ASC']],
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
     return rows.map((r) => r.id);
   }
@@ -1110,7 +1208,6 @@ export class ScheduleService {
       where: { sectionId: section.id },
       order: ITEMS_ORDER,
       include: [ENTRY_WITH_NOMINATION_VENUE],
-      limit: MAX_SCHEDULE_QUERY_ROWS,
       transaction,
     });
     const numbers = await this.participantNumbersByEntry(
@@ -1128,12 +1225,18 @@ export class ScheduleService {
     return this.viewOf(section);
   }
 
+  // The key a section groups an entry's exits under — also how a late entry
+  // finds its nomination's block.
+  private nominationGroupKeyOf(entry: Entry): string {
+    return entry.nominationId ?? entry.nomination;
+  }
+
   private groupByNomination(
     entries: Entry[],
   ): { key: string; entries: Entry[] }[] {
     const groups = new Map<string, Entry[]>();
     for (const entry of entries) {
-      const key = entry.nominationId ?? entry.nomination;
+      const key = this.nominationGroupKeyOf(entry);
       const bucket = groups.get(key) ?? [];
       bucket.push(entry);
       groups.set(key, bucket);
@@ -1209,7 +1312,6 @@ export class ScheduleService {
     const items = await this.itemModel.findAll({
       where: { sectionId },
       order: ITEMS_ORDER,
-      limit: MAX_SCHEDULE_QUERY_ROWS,
       transaction,
     });
     const ordered = [
@@ -1229,7 +1331,6 @@ export class ScheduleService {
         entryId: { [Op.ne]: null },
       },
       attributes: ['entryId'],
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
     return items.map((i) => i.entryId as string);
   }
@@ -1247,7 +1348,6 @@ export class ScheduleService {
         entryId: { [Op.in]: entryIds },
       },
       include: [{ model: Section }, { model: Entry }],
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
     if (clashing.length > 0) {
       throw new ConflictException({
@@ -1267,7 +1367,6 @@ export class ScheduleService {
     const sections = await this.sectionModel.findAll({
       where: { competitionId },
       attributes: ['id'],
-      limit: MAX_SCHEDULE_QUERY_ROWS,
     });
     return sections.map((s) => s.id);
   }
