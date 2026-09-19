@@ -22,6 +22,7 @@ import { Public } from '../auth/public.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { ScheduleService } from './schedule.service';
+import { ProgramPublicationService } from './program-publication.service';
 import { AddRowDto } from './dto/add-row.dto';
 import { AddExitsDto } from './dto/add-exits.dto';
 import { BuildSectionDto } from './dto/build-section.dto';
@@ -37,14 +38,20 @@ import { ReorderSectionDto } from './dto/reorder-section.dto';
 @ApiTags('schedule')
 @Controller('competitions/:competitionId')
 export class ScheduleController {
-  constructor(private readonly scheduleService: ScheduleService) {}
+  constructor(
+    private readonly scheduleService: ScheduleService,
+    private readonly publicationService: ProgramPublicationService,
+  ) {}
 
   @ApiOperation({ summary: 'List competition days (created on first read)' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Get('days')
-  listDays(@Param('competitionId') competitionId: string) {
-    return this.scheduleService.listDays(competitionId);
+  listDays(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.scheduleService.listDays(competitionId, user);
   }
 
   @ApiOperation({ summary: 'Delete a day (409 if it has sections)' })
@@ -70,13 +77,15 @@ export class ScheduleController {
   @Get('sections')
   listSections(
     @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('dayId') dayId?: string,
     @Query('venueId') venueId?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
-    return this.scheduleService.listSectionsPage(
+    return this.scheduleService.listSectionsPageForStaff(
       competitionId,
+      user,
       { dayId, venueId },
       page,
       pageSize,
@@ -89,10 +98,11 @@ export class ScheduleController {
   @Get('sections/summary')
   sectionsSummary(
     @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('dayId') dayId?: string,
     @Query('venueId') venueId?: string,
   ) {
-    return this.scheduleService.sectionsSummary(competitionId, {
+    return this.scheduleService.sectionsSummary(competitionId, user, {
       dayId,
       venueId,
     });
@@ -104,10 +114,11 @@ export class ScheduleController {
   @Get('sections/stats')
   sectionsStats(
     @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('dayId') dayId?: string,
     @Query('venueId') venueId?: string,
   ) {
-    return this.scheduleService.sectionsStats(competitionId, {
+    return this.scheduleService.sectionsStats(competitionId, user, {
       dayId,
       venueId,
     });
@@ -406,7 +417,12 @@ export class ScheduleController {
   }
 
   @ApiOperation({
-    summary: 'Public program — service rows with times only (paged by section)',
+    summary:
+      'Public program — the published snapshot, service rows with times only (paged by section)',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'The program is not published yet.',
   })
   @Public()
   @Get('program')
@@ -417,12 +433,73 @@ export class ScheduleController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
-    return this.scheduleService.publicProgram(competitionId, {
+    return this.publicationService.publishedProgram(competitionId, {
       dayId,
       venueId,
       page,
       pageSize,
     });
+  }
+
+  @ApiOperation({
+    summary: 'Live program preview — what publishing would show (staff only)',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get('program/preview')
+  previewProgram(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('dayId') dayId?: string,
+    @Query('venueId') venueId?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.scheduleService.previewProgram(competitionId, user, {
+      dayId,
+      venueId,
+      page,
+      pageSize,
+    });
+  }
+
+  @ApiOperation({
+    summary: 'Publication state of the program and unpublished changes flag',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get('program/publication')
+  publicationStatus(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.publicationService.status(competitionId, user);
+  }
+
+  @ApiOperation({
+    summary: 'Publish the program, or refresh the published version',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('program/publish')
+  @HttpCode(HttpStatus.OK)
+  publishProgram(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.publicationService.publish(competitionId, user);
+  }
+
+  @ApiOperation({ summary: 'Take the program off publication' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('program/unpublish')
+  @HttpCode(HttpStatus.OK)
+  unpublishProgram(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.publicationService.unpublish(competitionId, user);
   }
 
   @ApiOperation({ summary: 'My exits in the program' })
@@ -433,7 +510,7 @@ export class ScheduleController {
     @Param('competitionId') competitionId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.scheduleService.myProgram(competitionId, user.id);
+    return this.publicationService.publishedMineProgram(competitionId, user.id);
   }
 
   @ApiOperation({ summary: 'Extended program for the sound engineer' })

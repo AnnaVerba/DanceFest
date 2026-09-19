@@ -13,6 +13,11 @@ export const REGISTRATION_CLOSED_APPLY_MESSAGE =
 export const PARTICIPANT_ALREADY_IN_NOMINATION_MESSAGE =
   'Учасник уже виступає в номінації';
 export const NOMINATION_PARTICIPANT_KEY_SEPARATOR = '|';
+export const ASSIGN_STUDIO_TRAINER_FORBIDDEN_MESSAGE =
+  'Студію й керівника може обирати лише організатор конкурсу або адміністратор';
+export const TRAINER_NOT_A_COACH_MESSAGE = 'Обраний користувач не є керівником';
+export const AGE_CATEGORY_MISMATCH_MESSAGE =
+  'Вік учасника не відповідає віковій категорії номінації';
 export const DEFAULT_ENTRIES_PAGE_SIZE = 50;
 export const MAX_ENTRIES_PAGE_SIZE = 200;
 // A running number lost to a concurrent submission is the only unique

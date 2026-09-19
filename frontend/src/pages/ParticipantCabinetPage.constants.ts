@@ -17,5 +17,5 @@ export const ENTRY_COLUMN_COUNT_BEFORE_AMOUNT =
   Object.keys(ENTRY_COLUMN_LABEL).length - 1;
 
 export const ENTRY_TOTAL_LABEL = 'Разом';
-export const ENTRY_PARTICIPANTS_SEPARATOR = ', ';
-export const ENTRY_PARTICIPANTS_EMPTY_PLACEHOLDER = '—';
+export const ENTRY_PARTICIPANT_TOTALS_LABEL = 'Сума по учасниках';
+export const ENTRY_GRAND_TOTAL_LABEL = 'Загальна сума';

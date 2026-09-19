@@ -58,6 +58,12 @@ export const queryKeys = {
 
   publicProgram: (competitionId: string, query: PublicProgramQuery = {}) =>
     ['timing', competitionId, 'public', query] as const,
+  programPreview: (competitionId: string, query: PublicProgramQuery = {}) =>
+    ['timing', competitionId, 'preview', query] as const,
+  // Under the sections scope so every schedule edit refreshes the
+  // «unpublished changes» flag along with the sections.
+  programPublication: (competitionId: string) =>
+    ['sections', competitionId, 'publication'] as const,
   myProgram: (competitionId: string) => ['timing', competitionId, 'mine'] as const,
   // Prefix of every program projection (public poster, «моя програма»).
   timingScope: (competitionId: string) => ['timing', competitionId] as const,

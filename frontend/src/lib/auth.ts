@@ -243,9 +243,15 @@ export interface CoachSummary {
   schoolName: string | null;
 }
 
+export interface NewMentorCoach {
+  firstName: string;
+  lastName: string;
+  phone: string;
+}
+
 export type SetMentorCoachBody =
   | { coachId: string }
-  | { newCoach: { firstName: string; lastName: string; phone: string } };
+  | { newCoach: NewMentorCoach };
 
 export interface MentorCoach {
   id: string;
@@ -268,6 +274,24 @@ export async function getSelectableCoaches(
     throw new AuthError(UNEXPECTED_SERVER_RESPONSE_MESSAGE);
   }
   return response.json() as Promise<CoachSummary[]>;
+}
+
+// Organizer/admin only: registers a coach who is not in the system yet.
+export async function createCoach(
+  newCoach: NewMentorCoach,
+): Promise<CoachSummary> {
+  const response = await authorizedFetch('/users/coaches', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(newCoach),
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as ErrorPayload | null;
+    throw new AuthError(
+      extractErrorMessage(payload, UNEXPECTED_SERVER_RESPONSE_MESSAGE),
+    );
+  }
+  return response.json() as Promise<CoachSummary>;
 }
 
 export async function getMyMentorCoach(): Promise<MentorCoach | null> {

@@ -30,7 +30,6 @@ import { Venue } from '../venues/venue.model';
 import { CompetitionRule } from '../competition-rules/competition-rule.model';
 import { CompetitionRulesService } from '../competition-rules/competition-rules.service';
 import { DEFAULT_DURATION_ROUND } from '../competition-rules/duration-limit.model';
-import { UsersService } from '../users/users.service';
 import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
 import { CompetitionDay } from './competition-day.model';
 import { Section } from './section.model';
@@ -48,10 +47,8 @@ import {
 } from './section-view';
 import {
   buildExtendedProgram,
-  buildMineProgram,
   buildPublicProgram,
   type ExtendedProgramSection,
-  type MineProgram,
   type PublicProgramRow,
 } from './program-view';
 import {
@@ -154,14 +151,16 @@ export class ScheduleService {
     @InjectModel(Nomination)
     private readonly nominationModel: typeof Nomination,
     private readonly rulesService: CompetitionRulesService,
-    private readonly usersService: UsersService,
     private readonly participantNumbersService: CompetitionParticipantNumbersService,
   ) {}
 
   // --- Days -----------------------------------------------------------------
 
-  async listDays(competitionId: string): Promise<CompetitionDay[]> {
-    const competition = await this.assertCompetition(competitionId);
+  async listDays(
+    competitionId: string,
+    requester: AuthenticatedUser,
+  ): Promise<CompetitionDay[]> {
+    const competition = await this.assertAccess(competitionId, requester);
     const dates = eachDateInclusive(
       competition.dateFrom,
       competition.dateTo,
@@ -298,6 +297,19 @@ export class ScheduleService {
     return this.toSectionViews(sections);
   }
 
+  // The editor's section list — competition staff only. The public program
+  // reads the same pages through listSectionsPage directly.
+  async listSectionsPageForStaff(
+    competitionId: string,
+    requester: AuthenticatedUser,
+    filter: { dayId?: string; venueId?: string },
+    rawPage: string | undefined,
+    rawPageSize: string | undefined,
+  ): Promise<RowPaged<SectionView>> {
+    await this.assertAccess(competitionId, requester);
+    return this.listSectionsPage(competitionId, filter, rawPage, rawPageSize);
+  }
+
   // Row-bounded, section-aligned pagination: a page holds whole sections
   // until their combined running-order length reaches `pageSize` rows, so a
   // day of 500 exits never lands in one response. The editor and the public
@@ -375,9 +387,10 @@ export class ScheduleService {
   // cannot satisfy.
   async sectionsSummary(
     competitionId: string,
+    requester: AuthenticatedUser,
     filter: { dayId?: string; venueId?: string } = {},
   ): Promise<SectionSummaryView[]> {
-    await this.assertCompetition(competitionId);
+    await this.assertAccess(competitionId, requester);
     const sections = await this.sectionModel.findAll({
       where: this.sectionWhere(competitionId, filter),
       include: SECTION_ORDER_INCLUDES,
@@ -397,13 +410,14 @@ export class ScheduleService {
   // ever holds one screenful, so these can't be summed on the client.
   async sectionsStats(
     competitionId: string,
+    requester: AuthenticatedUser,
     filter: { dayId?: string; venueId?: string } = {},
   ): Promise<{
     performances: number;
     noMusic: number;
     endTime: string | null;
   }> {
-    await this.assertCompetition(competitionId);
+    await this.assertAccess(competitionId, requester);
     const sections = await this.sectionModel.findAll({
       where: this.sectionWhere(competitionId, filter),
       include: SECTION_ORDER_INCLUDES,
@@ -1306,8 +1320,11 @@ export class ScheduleService {
 
   // --- Projections ---------------------------------------------------
 
-  async publicProgram(
+  // The live running order in program shape — the organizer's preview of
+  // what publishing would show. Staff only; the audience reads the snapshot.
+  async previewProgram(
     competitionId: string,
+    requester: AuthenticatedUser,
     query: {
       dayId?: string;
       venueId?: string;
@@ -1315,6 +1332,7 @@ export class ScheduleService {
       pageSize?: string;
     } = {},
   ): Promise<RowPaged<PublicProgramRow>> {
+    await this.assertAccess(competitionId, requester);
     const page = await this.listSectionsPage(
       competitionId,
       { dayId: query.dayId, venueId: query.venueId },
@@ -1324,15 +1342,6 @@ export class ScheduleService {
       MAX_PROGRAM_PAGE_ROWS,
     );
     return { ...page, rows: buildPublicProgram(page.rows) };
-  }
-
-  async myProgram(competitionId: string, userId: string): Promise<MineProgram> {
-    const sections = await this.listSections(competitionId);
-    const roster = await this.usersService.listRosterByCoach(userId);
-    return buildMineProgram(sections, {
-      ownIds: [userId],
-      studentIds: roster.map((r) => r.id),
-    });
   }
 
   async extendedProgram(
@@ -1561,7 +1570,7 @@ export class ScheduleService {
     return sections.map((s) => s.id);
   }
 
-  private async assertCompetition(competitionId: string): Promise<Competition> {
+  async assertCompetition(competitionId: string): Promise<Competition> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
       throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
@@ -1569,7 +1578,7 @@ export class ScheduleService {
     return competition;
   }
 
-  private async assertAccess(
+  async assertAccess(
     competitionId: string,
     requester: AuthenticatedUser,
   ): Promise<Competition> {
