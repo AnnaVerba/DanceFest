@@ -29,7 +29,9 @@ export interface Entry {
   program: string | null;
   participantsCount: number | null;
   lineup: string | null;
+  studioId?: string | null;
   studioName: string | null;
+  trainerId?: string | null;
   choreographer: string | null;
   city?: string | null;
   improv?: boolean;
@@ -69,6 +71,9 @@ export interface EntryInput {
   participantsCount?: number;
   studioName?: string;
   choreographer?: string;
+  // Organizer/admin only: file the entry under this studio / trainer.
+  studioId?: string;
+  trainerId?: string;
   city?: string;
   improv?: boolean;
   paymentMethod?: 'cash' | 'card';

@@ -14,7 +14,12 @@ import type { NominationToMove } from './nominationToMove.types';
 import MergeGroupsModal from './MergeGroupsModal';
 import ProgramTable from './ProgramTable';
 import ProgramPoster from './ProgramPoster';
+import ProgramPublicationBar from './ProgramPublicationBar';
 import NewEntriesNotice from './NewEntriesNotice';
+import VenueConflictsNotice from './VenueConflictsNotice';
+import type { BlockRename } from './blockRename.types';
+import { RENAME_BLOCK_FAILED_MESSAGE } from './schedulePanel.constants';
+import { updateNomination } from '../../../lib/nominations';
 import { NEW_ENTRIES_PROBE } from './newEntriesNotice.constants';
 import { unassignedVenueOf } from './unassignedVenue';
 import type { GroupOption } from './MergeGroupsModal';
@@ -31,7 +36,9 @@ import {
   getUnassigned,
   getUnassignedFacets,
   getUnassignedIds,
+  getVenueConflicts,
   mergeGroups,
+  renameMergedGroup,
   moveExit,
   moveNomination,
   recalculateSchedule,
@@ -48,7 +55,7 @@ import type {
   UnassignedFacets,
 } from '../../../lib/schedule';
 import type { RowPaged } from '../../../lib/pagination';
-import { getPublicProgram } from '../../../lib/program';
+import { getProgramPreview, getPublicProgram } from '../../../lib/program';
 import type { PublicProgramRow } from '../../../lib/program';
 import { getVenues } from '../../../lib/venues';
 import { formatClock } from '../../../lib/duration';
@@ -227,13 +234,16 @@ export default function SchedulePanel({
     pageSize: SECTIONS_PAGE_ROWS,
   };
 
+  // A manager previews the live running order; everyone else reads the
+  // published snapshot.
   const posterQuery = useQuery({
-    queryKey: queryKeys.publicProgram(
-        competitionId,
-        posterFilter,
-    ),
+    queryKey: canManage
+      ? queryKeys.programPreview(competitionId, posterFilter)
+      : queryKeys.publicProgram(competitionId, posterFilter),
     queryFn: () =>
-        getPublicProgram(competitionId, posterFilter),
+      canManage
+        ? getProgramPreview(competitionId, posterFilter)
+        : getPublicProgram(competitionId, posterFilter),
     enabled: daysReady && (!canManage || view === 'public'),
     staleTime: TIMING_STALE_TIME_MS,
   });
@@ -265,6 +275,12 @@ export default function SchedulePanel({
     enabled: daysReady && canManage,
   });
   const newEntriesCount = newEntriesQuery.data?.total ?? 0;
+  const conflictsQuery = useQuery({
+    queryKey: queryKeys.venueConflicts(competitionId),
+    queryFn: () => getVenueConflicts(competitionId),
+    enabled: daysReady && canManage,
+  });
+  const venueConflicts = conflictsQuery.data ?? [];
   // Every section of every day — the target list of «Додати у відділення»
   // and «Перенести номінацію».
   const allSectionsQuery = useQuery({
@@ -323,6 +339,9 @@ export default function SchedulePanel({
     });
     // An in-place edit can shift the day's end time or no-music count.
     void queryClient.invalidateQueries({ queryKey: ['sections', competitionId, 'stats'] });
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.programPublication(competitionId),
+    });
   };
 
   // Changing the day/venue scope starts the pager over.
@@ -568,6 +587,31 @@ export default function SchedulePanel({
     }
   };
 
+  // A merged block renames its label; a single nomination is renamed itself,
+  // so the Номінації cache goes stale too.
+  const handleRenameBlock = async (rename: BlockRename) => {
+    try {
+      if (rename.merged) {
+        await renameMergedGroup(
+          competitionId,
+          rename.sectionId,
+          rename.groupKey,
+          rename.label,
+        );
+      } else if (rename.nominationId) {
+        await updateNomination(competitionId, rename.nominationId, {
+          name: rename.label,
+        });
+        refreshNominations(queryClient, competitionId);
+      }
+      await invalidateSections();
+    } catch (error) {
+      onError(
+        error instanceof ApiError ? error.message : RENAME_BLOCK_FAILED_MESSAGE,
+      );
+    }
+  };
+
   const handleUnmerge = async (sectionId: string, groupKey: string) => {
     try {
       const updated = await unmergeGroup(competitionId, sectionId, groupKey);
@@ -700,6 +744,11 @@ export default function SchedulePanel({
 
   return (
     <div className={styles.panel}>
+      <ProgramPublicationBar
+        competitionId={competitionId}
+        onError={onError}
+        onNotice={onNotice}
+      />
       {/* top bar */}
       <div className={styles.topbar}>
         {days.length > 1 && (
@@ -856,6 +905,10 @@ export default function SchedulePanel({
         !building &&
         sectionsMeta.totalSections > 0 &&
         newEntriesCount > 0 && <NewEntriesNotice count={newEntriesCount} />}
+
+      {view === 'tech' && !building && venueConflicts.length > 0 && (
+        <VenueConflictsNotice conflicts={venueConflicts} venues={venues} />
+      )}
 
       {view === 'public' ? (
         <ProgramPoster rows={posterRows} days={days} venues={venues} />
@@ -1016,6 +1069,7 @@ export default function SchedulePanel({
             onMergeSection={setMergeFor}
             onUnmerge={handleUnmerge}
             onMoveNomination={setMoveFor}
+            onRenameBlock={handleRenameBlock}
             onDeleteSection={(id) =>
               setPendingDeleteSection(sections.find((s) => s.id === id) ?? null)
             }

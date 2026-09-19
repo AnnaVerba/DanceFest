@@ -201,6 +201,14 @@ export class UsersService {
     );
   }
 
+  // A placeholder coach loaded with their school, ready for a picker list.
+  async createPlaceholderCoachWithSchool(
+    data: PlaceholderCoachData,
+  ): Promise<User> {
+    const coach = await this.createPlaceholderCoach(data);
+    return (await this.userModel.findByPk(coach.id, { include: [School] }))!;
+  }
+
   // The real person registers with a stub's phone: fold the form data
   // into the existing row, keeping its id so every coachId / participantId
   // pointing at it stays valid.

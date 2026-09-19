@@ -12,6 +12,7 @@ import { formatHhMmSs, parseHhMm } from './section-time';
 export interface SectionExitView {
   entryId: string;
   number: number;
+  nominationId: string | null;
   // Per-competition participant number, one per dancer in `participantIds`
   // order; null for a dancer with no number yet or an organizer-typed entry.
   // This is the number the program shows.
@@ -96,6 +97,7 @@ function toExitView(
   return {
     entryId: entry.id,
     number: entry.number,
+    nominationId: entry.nominationId,
     participantNumbers,
     nomination: entry.nomination,
     routineName: entry.routineName,

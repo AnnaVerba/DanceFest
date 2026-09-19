@@ -30,7 +30,6 @@ import { Venue } from '../venues/venue.model';
 import { CompetitionRule } from '../competition-rules/competition-rule.model';
 import { CompetitionRulesService } from '../competition-rules/competition-rules.service';
 import { LimitCache } from '../competition-rules/limit-cache';
-import { UsersService } from '../users/users.service';
 import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
 import { CompetitionDay } from './competition-day.model';
 import { Section } from './section.model';
@@ -48,10 +47,8 @@ import {
 } from './section-view';
 import {
   buildExtendedProgram,
-  buildMineProgram,
   buildPublicProgram,
   type ExtendedProgramSection,
-  type MineProgram,
   type PublicProgramRow,
 } from './program-view';
 import {
@@ -96,6 +93,9 @@ import { UpdateSectionDto } from './dto/update-section.dto';
 import { MergeGroupsDto } from './dto/merge-groups.dto';
 import { MoveExitDto } from './dto/move-exit.dto';
 import { MoveNominationDto } from './dto/move-nomination.dto';
+import { RenameGroupDto } from './dto/rename-group.dto';
+import { findVenueConflicts } from './find-venue-conflicts';
+import type { VenueConflictView } from './venue-conflict';
 import { RecalculateScheduleDto } from './dto/recalculate-schedule.dto';
 import { ReorderSectionDto } from './dto/reorder-section.dto';
 
@@ -153,14 +153,16 @@ export class ScheduleService {
     @InjectModel(Nomination)
     private readonly nominationModel: typeof Nomination,
     private readonly rulesService: CompetitionRulesService,
-    private readonly usersService: UsersService,
     private readonly participantNumbersService: CompetitionParticipantNumbersService,
   ) {}
 
   // --- Days -----------------------------------------------------------------
 
-  async listDays(competitionId: string): Promise<CompetitionDay[]> {
-    const competition = await this.assertCompetition(competitionId);
+  async listDays(
+    competitionId: string,
+    requester: AuthenticatedUser,
+  ): Promise<CompetitionDay[]> {
+    const competition = await this.assertAccess(competitionId, requester);
     const dates = eachDateInclusive(
       competition.dateFrom,
       competition.dateTo,
@@ -297,6 +299,19 @@ export class ScheduleService {
     return this.toSectionViews(sections);
   }
 
+  // The editor's section list — competition staff only. The public program
+  // reads the same pages through listSectionsPage directly.
+  async listSectionsPageForStaff(
+    competitionId: string,
+    requester: AuthenticatedUser,
+    filter: { dayId?: string; venueId?: string },
+    rawPage: string | undefined,
+    rawPageSize: string | undefined,
+  ): Promise<RowPaged<SectionView>> {
+    await this.assertAccess(competitionId, requester);
+    return this.listSectionsPage(competitionId, filter, rawPage, rawPageSize);
+  }
+
   // Row-bounded, section-aligned pagination: a page holds whole sections
   // until their combined running-order length reaches `pageSize` rows, so a
   // day of 500 exits never lands in one response. The editor and the public
@@ -374,9 +389,10 @@ export class ScheduleService {
   // cannot satisfy.
   async sectionsSummary(
     competitionId: string,
+    requester: AuthenticatedUser,
     filter: { dayId?: string; venueId?: string } = {},
   ): Promise<SectionSummaryView[]> {
-    await this.assertCompetition(competitionId);
+    await this.assertAccess(competitionId, requester);
     const sections = await this.sectionModel.findAll({
       where: this.sectionWhere(competitionId, filter),
       include: SECTION_ORDER_INCLUDES,
@@ -396,13 +412,14 @@ export class ScheduleService {
   // ever holds one screenful, so these can't be summed on the client.
   async sectionsStats(
     competitionId: string,
+    requester: AuthenticatedUser,
     filter: { dayId?: string; venueId?: string } = {},
   ): Promise<{
     performances: number;
     noMusic: number;
     endTime: string | null;
   }> {
-    await this.assertCompetition(competitionId);
+    await this.assertAccess(competitionId, requester);
     const sections = await this.sectionModel.findAll({
       where: this.sectionWhere(competitionId, filter),
       include: SECTION_ORDER_INCLUDES,
@@ -781,40 +798,126 @@ export class ScheduleService {
         throw new NotFoundException(NOMINATION_NOT_IN_SCHEDULE_MESSAGE);
       }
       await this.followTargetVenue(moving, target, transaction);
-
-      const movingIds = new Set(moving.map((row) => row.id));
-      const targetItems = await this.itemModel.findAll({
-        where: { sectionId: target.id },
-        order: ITEMS_ORDER,
-        transaction,
-      });
-      const kept = targetItems.filter((item) => !movingIds.has(item.id));
-      // The block keeps its place when the section already runs part of
-      // it; otherwise it follows the section's last performance.
-      const ownFirst = targetItems.findIndex((item) => movingIds.has(item.id));
-      const insertAt =
-        ownFirst >= 0
-          ? ownFirst
-          : kept.findLastIndex((item) => item.type === PERFORMANCE_ITEM) + 1;
-      // A merge label is per section: keep the target's, drop a source's.
-      const mergedGroupLabel =
-        ownFirst >= 0 ? targetItems[ownFirst].mergedGroupLabel : null;
-
-      await this.itemModel.update(
-        { sectionId: target.id, mergedGroupLabel },
-        { where: { id: { [Op.in]: [...movingIds] } }, transaction },
-      );
-      const ids = kept.map((item) => item.id);
-      ids.splice(insertAt, 0, ...moving.map((row) => row.id));
-      await this.persistOrder(ids, transaction);
-
-      const sources = new Set(moving.map((row) => row.sectionId));
-      sources.delete(target.id);
-      for (const sourceId of sources) {
-        await this.normalize(sourceId, transaction);
-      }
+      await this.placeRows(moving, target, transaction);
     });
     return this.viewOf(target);
+  }
+
+  // A nomination moved to another venue (Майданчики tab, one or many at
+  // once) leaves its old venue's program (TASK-14): its exits of each day
+  // join the end of the new venue's last section that day, or go back to
+  // the unassigned pool when that venue runs no section then. Exits already
+  // on the new venue stay put.
+  async relocateToVenue(
+    competitionId: string,
+    nominationIds: string[],
+    venueId: string | null,
+  ): Promise<void> {
+    if (nominationIds.length === 0) return;
+    await this.sectionModel.sequelize!.transaction(async (transaction) => {
+      await this.competitionModel.findByPk(competitionId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      const sections = await this.sectionModel.findAll({
+        where: { competitionId },
+        include: SECTION_ORDER_INCLUDES,
+        order: this.sectionOrder,
+        attributes: ['id', 'dayId', 'venueId'],
+        transaction,
+      });
+      const sectionById = new Map(sections.map((s) => [s.id, s]));
+      // Sections come in running order, so the last one per day wins.
+      const lastOnVenue = new Map<string, Section>();
+      for (const section of sections) {
+        if (venueId && section.venueId === venueId) {
+          lastOnVenue.set(section.dayId, section);
+        }
+      }
+
+      for (const nominationId of nominationIds) {
+        const rows = await this.groupRows(
+          competitionId,
+          nominationId,
+          transaction,
+        );
+        const byDay = new Map<string, SectionItem[]>();
+        for (const row of rows) {
+          const section = sectionById.get(row.sectionId)!;
+          if (section.venueId === venueId) continue;
+          byDay.set(section.dayId, [...(byDay.get(section.dayId) ?? []), row]);
+        }
+        for (const [dayId, dayRows] of byDay) {
+          const target = lastOnVenue.get(dayId);
+          if (target) await this.placeRows(dayRows, target, transaction);
+          else await this.unschedule(dayRows, transaction);
+        }
+      }
+    });
+  }
+
+  // Puts `rows` (running order) into `target` as one block: where the
+  // section already runs part of it, else after its last performance. Only
+  // the moved rows change place; the sections they left close up.
+  private async placeRows(
+    moving: SectionItem[],
+    target: Section,
+    transaction: Transaction,
+  ): Promise<void> {
+    const movingIds = new Set(moving.map((row) => row.id));
+    const targetItems = await this.itemModel.findAll({
+      where: { sectionId: target.id },
+      order: ITEMS_ORDER,
+      transaction,
+    });
+    const kept = targetItems.filter((item) => !movingIds.has(item.id));
+    // The block keeps its place when the section already runs part of
+    // it; otherwise it follows the section's last performance.
+    const ownFirst = targetItems.findIndex((item) => movingIds.has(item.id));
+    const insertAt =
+      ownFirst >= 0
+        ? ownFirst
+        : kept.findLastIndex((item) => item.type === PERFORMANCE_ITEM) + 1;
+    // A merge label is per section: keep the target's, drop a source's.
+    const mergedGroupLabel =
+      ownFirst >= 0 ? targetItems[ownFirst].mergedGroupLabel : null;
+
+    await this.itemModel.update(
+      { sectionId: target.id, mergedGroupLabel },
+      { where: { id: { [Op.in]: [...movingIds] } }, transaction },
+    );
+    const ids = kept.map((item) => item.id);
+    ids.splice(insertAt, 0, ...moving.map((row) => row.id));
+    await this.persistOrder(ids, transaction);
+
+    const sources = new Set(moving.map((row) => row.sectionId));
+    sources.delete(target.id);
+    for (const sourceId of sources) {
+      await this.normalize(sourceId, transaction);
+    }
+  }
+
+  // Takes rows out of the program — their exits return to the pool.
+  private async unschedule(
+    rows: SectionItem[],
+    transaction: Transaction,
+  ): Promise<void> {
+    await this.itemModel.destroy({
+      where: { id: { [Op.in]: rows.map((row) => row.id) } },
+      transaction,
+    });
+    for (const sectionId of new Set(rows.map((row) => row.sectionId))) {
+      await this.normalize(sectionId, transaction);
+    }
+  }
+
+  // Participants booked on two venues at overlapping times (TASK-14).
+  async venueConflicts(
+    competitionId: string,
+    requester: AuthenticatedUser,
+  ): Promise<VenueConflictView[]> {
+    await this.assertAccess(competitionId, requester);
+    return findVenueConflicts(await this.listSections(competitionId));
   }
 
   // Every performance row of one nomination group, in running order.
@@ -869,11 +972,72 @@ export class ScheduleService {
     if (new Set(dto.groupKeys).size < 2) {
       throw new BadRequestException(MERGE_NEEDS_TWO_GROUPS_MESSAGE);
     }
-    await this.itemModel.update(
-      { mergedGroupLabel: dto.label.trim() },
-      { where: { sectionId, nominationGroupKey: { [Op.in]: dto.groupKeys } } },
-    );
+    await this.sectionModel.sequelize!.transaction(async (transaction) => {
+      await this.itemModel.update(
+        { mergedGroupLabel: dto.label.trim() },
+        {
+          where: { sectionId, nominationGroupKey: { [Op.in]: dto.groupKeys } },
+          transaction,
+        },
+      );
+      // One block (TASK-15): the merged rows gather where the first of them
+      // runs, each keeping its order; nothing else moves.
+      const items = await this.itemModel.findAll({
+        where: { sectionId },
+        order: ITEMS_ORDER,
+        transaction,
+      });
+      const keys = new Set(dto.groupKeys);
+      const merged = items.filter(
+        (item) =>
+          item.nominationGroupKey !== null && keys.has(item.nominationGroupKey),
+      );
+      if (merged.length === 0) return;
+      const mergedIds = new Set(merged.map((item) => item.id));
+      const firstAt = items.findIndex((item) => mergedIds.has(item.id));
+      const ids = items
+        .filter((item) => !mergedIds.has(item.id))
+        .map((item) => item.id);
+      ids.splice(firstAt, 0, ...merged.map((item) => item.id));
+      await this.persistOrder(ids, transaction);
+    });
     return this.viewOf(section);
+  }
+
+  // Renames a merged block in place — every group sharing its label.
+  async renameMergedGroup(
+    competitionId: string,
+    requester: AuthenticatedUser,
+    sectionId: string,
+    groupKey: string,
+    dto: RenameGroupDto,
+  ): Promise<SectionView> {
+    await this.assertAccess(competitionId, requester);
+    const section = await this.assertSection(competitionId, sectionId);
+    const label = await this.mergedLabelOf(sectionId, groupKey);
+    if (label !== null) {
+      await this.itemModel.update(
+        { mergedGroupLabel: dto.label.trim() },
+        { where: { sectionId, mergedGroupLabel: label } },
+      );
+    }
+    return this.viewOf(section);
+  }
+
+  // The merged label a group carries in a section, null when not merged.
+  private async mergedLabelOf(
+    sectionId: string,
+    groupKey: string,
+  ): Promise<string | null> {
+    const row = await this.itemModel.findOne({
+      where: {
+        sectionId,
+        nominationGroupKey: groupKey,
+        mergedGroupLabel: { [Op.ne]: null },
+      },
+      attributes: ['mergedGroupLabel'],
+    });
+    return row?.mergedGroupLabel ?? null;
   }
 
   async unmergeGroup(
@@ -884,10 +1048,14 @@ export class ScheduleService {
   ): Promise<SectionView> {
     await this.assertAccess(competitionId, requester);
     const section = await this.assertSection(competitionId, sectionId);
-    await this.itemModel.update(
-      { mergedGroupLabel: null },
-      { where: { sectionId, nominationGroupKey: groupKey } },
-    );
+    // A merged block splits back as a whole — every group sharing its label.
+    const label = await this.mergedLabelOf(sectionId, groupKey);
+    if (label !== null) {
+      await this.itemModel.update(
+        { mergedGroupLabel: null },
+        { where: { sectionId, mergedGroupLabel: label } },
+      );
+    }
     return this.viewOf(section);
   }
 
@@ -1305,8 +1473,11 @@ export class ScheduleService {
 
   // --- Projections ---------------------------------------------------
 
-  async publicProgram(
+  // The live running order in program shape — the organizer's preview of
+  // what publishing would show. Staff only; the audience reads the snapshot.
+  async previewProgram(
     competitionId: string,
+    requester: AuthenticatedUser,
     query: {
       dayId?: string;
       venueId?: string;
@@ -1314,6 +1485,7 @@ export class ScheduleService {
       pageSize?: string;
     } = {},
   ): Promise<RowPaged<PublicProgramRow>> {
+    await this.assertAccess(competitionId, requester);
     const page = await this.listSectionsPage(
       competitionId,
       { dayId: query.dayId, venueId: query.venueId },
@@ -1323,15 +1495,6 @@ export class ScheduleService {
       MAX_PROGRAM_PAGE_ROWS,
     );
     return { ...page, rows: buildPublicProgram(page.rows) };
-  }
-
-  async myProgram(competitionId: string, userId: string): Promise<MineProgram> {
-    const sections = await this.listSections(competitionId);
-    const roster = await this.usersService.listRosterByCoach(userId);
-    return buildMineProgram(sections, {
-      ownIds: [userId],
-      studentIds: roster.map((r) => r.id),
-    });
   }
 
   async extendedProgram(
@@ -1544,7 +1707,7 @@ export class ScheduleService {
     return sections.map((s) => s.id);
   }
 
-  private async assertCompetition(competitionId: string): Promise<Competition> {
+  async assertCompetition(competitionId: string): Promise<Competition> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
       throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
@@ -1552,7 +1715,7 @@ export class ScheduleService {
     return competition;
   }
 
-  private async assertAccess(
+  async assertAccess(
     competitionId: string,
     requester: AuthenticatedUser,
   ): Promise<Competition> {

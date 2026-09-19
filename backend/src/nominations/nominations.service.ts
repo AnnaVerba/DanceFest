@@ -17,7 +17,10 @@ import {
   LEAGUE_CATEGORY_TYPE,
 } from '../categories/category.model';
 import type { CategoryType } from '../categories/category.model';
+import type { AgeCategoryRange } from '../categories/resolve-age-category';
 import { Venue } from '../venues/venue.model';
+import { Entry } from '../entries/entry.model';
+import { ScheduleService } from '../schedule/schedule.service';
 import { CompetitionRulesService } from '../competition-rules/competition-rules.service';
 import { CompetitionRule } from '../competition-rules/competition-rule.model';
 import { resolveLeagueDurationSeconds } from '../competition-rules/resolve-league-duration';
@@ -75,7 +78,10 @@ export class NominationsService {
     private readonly categoryModel: typeof Category,
     @InjectModel(Venue)
     private readonly venueModel: typeof Venue,
+    @InjectModel(Entry)
+    private readonly entryModel: typeof Entry,
     private readonly competitionRulesService: CompetitionRulesService,
+    private readonly scheduleService: ScheduleService,
   ) {}
 
   // `q` turns this into a name typeahead (a festival can have 500+
@@ -172,12 +178,16 @@ export class NominationsService {
         { name: dto.name ?? nomination.name, categoryIds: dto.categoryIds },
       ]);
     }
+    const venueChanged =
+      dto.venueId !== undefined && dto.venueId !== nomination.venueId;
     if (dto.venueId !== undefined) {
       await this.assertVenueInCompetition(competitionId, dto.venueId);
       nomination.venueId = dto.venueId;
     }
 
     const wasImprovisation = nomination.allowsImprovisation;
+    const renamed =
+      dto.name !== undefined && dto.name.trim() !== nomination.name;
     if (dto.name !== undefined) nomination.name = dto.name.trim();
     if (dto.price !== undefined) nomination.price = dto.price ?? null;
     if (dto.allowsImprovisation !== undefined) {
@@ -201,6 +211,21 @@ export class NominationsService {
     }
 
     await nomination.save();
+    // Entries keep a copy of the nomination's name, which the program,
+    // start list and results print — a rename must reach them (TASK-15).
+    if (renamed) {
+      await this.entryModel.update(
+        { nomination: nomination.name },
+        { where: { nominationId: nomination.id } },
+      );
+    }
+    if (venueChanged) {
+      await this.scheduleService.relocateToVenue(
+        competitionId,
+        [nomination.id],
+        nomination.venueId,
+      );
+    }
     return this.toDto(nomination, await this.loadCategories([nomination]));
   }
 
@@ -276,6 +301,14 @@ export class NominationsService {
     );
 
     await this.nominationModel.update({ venueId: dto.venueId }, { where });
+    // Their scheduled exits follow them to the new venue's program.
+    await this.scheduleService.relocateToVenue(
+      competitionId,
+      nominations
+        .filter((nomination) => nomination.venueId !== dto.venueId)
+        .map((nomination) => nomination.id),
+      dto.venueId,
+    );
 
     const categories = await this.loadCategories(nominations);
     return nominations.map((nomination) => {
@@ -465,6 +498,7 @@ export class NominationsService {
     nomination: Nomination;
     exits: NominationExit[];
     ageCategory: string | null;
+    ageRange: AgeCategoryRange | null;
     league: string | null;
   }> {
     const nomination = ref.nominationId
@@ -474,11 +508,13 @@ export class NominationsService {
     const categories = await this.loadCategories([nomination]);
     const byType = (type: string) =>
       this.categoriesFor(nomination, categories, type)[0]?.name ?? null;
+    const [ageCategory] = this.categoriesFor(nomination, categories, 'age');
 
     return {
       nomination,
       exits: this.exitsOf(nomination, categories),
       ageCategory: byType('age'),
+      ageRange: ageCategory ?? null,
       league: byType('level'),
     };
   }

@@ -43,6 +43,8 @@ const ALL_TABS = [
   'Нагороди',
 ] as const;
 type Tab = (typeof ALL_TABS)[number];
+const DEFAULT_TAB: Tab = 'Деталі';
+const PUBLIC_TABS: readonly Tab[] = [DEFAULT_TAB, 'Номінації', 'Програма'];
 const TABS: readonly Tab[] = ALL_TABS.filter(
   (tab) => FEATURES.judges || tab !== 'Судді',
 );
@@ -114,16 +116,16 @@ export default function CompetitionDetailPage() {
   // invited co-organizer (team member).
   const canManageEntries = canManage || isTeamMember;
 
-  // The entries list is staff-only (a participant only ever sees their own
-  // entries, in their cabinet) — so is its whole search/filter toolbar.
-  // Awards are staff-only too; the server still checks the team.
-  // Overages are organizer/admin-only money data — tighter than "Заявки",
-  // which any staff account can open.
-  const visibleTabs = TABS.filter((tab) => {
-    if (tab === 'Заявки' || tab === 'Нагороди') return !!admin;
-    if (tab === 'Доплати' || tab === 'Фінанси') return canManageEntries;
-    return true;
-  });
+  // Only the details, nominations and programme are public. Every working
+  // tab belongs to the competition's staff (owner, invited team, admin) —
+  // a pending organizer request or another competition's organizer gets
+  // none of them; the server enforces the same rule.
+  const visibleTabs = TABS.filter(
+    (tab) => PUBLIC_TABS.includes(tab) || canManageEntries,
+  );
+
+  // A tab the viewer may not see (e.g. from ?tab=venues) falls back to the details.
+  const shownTab: Tab = visibleTabs.includes(activeTab) ? activeTab : DEFAULT_TAB;
 
   // The single apply entry point on this page lives in the header next to
   // the name; an owner/admin may still open it after registration closes,
@@ -202,7 +204,7 @@ export default function CompetitionDetailPage() {
                     key={tab}
                     type="button"
                     role="tab"
-                    aria-selected={activeTab === tab}
+                    aria-selected={shownTab === tab}
                     className={styles.tab}
                     onClick={() => setActiveTab(tab)}
                   >
@@ -211,7 +213,7 @@ export default function CompetitionDetailPage() {
                 ))}
               </div>
 
-              {activeTab === 'Номінації' && (
+              {shownTab === 'Номінації' && (
                 <NominationsPanel
                   competitionId={id}
                   canManage={canManage}
@@ -219,7 +221,7 @@ export default function CompetitionDetailPage() {
                 />
               )}
 
-              {activeTab === 'Заявки' && !!admin && (
+              {shownTab === 'Заявки' && !!admin && (
                 <>
                   <MusicExportPanel competitionId={id} canManage={canManageEntries} />
                   <EntriesPanel
@@ -230,7 +232,7 @@ export default function CompetitionDetailPage() {
                 </>
               )}
 
-              {activeTab === 'Доплати' && canManageEntries && (
+              {shownTab === 'Доплати' && canManageEntries && (
                 <OveragesPanel
                   competitionId={id}
                   canManage={canManageEntries}
@@ -245,7 +247,7 @@ export default function CompetitionDetailPage() {
                 />
               )}
 
-              {FEATURES.judges && activeTab === 'Судді' && (
+              {FEATURES.judges && shownTab === 'Судді' && (
                 <JudgesPanel
                   competitionId={id}
                   canManage={canManage}
@@ -253,15 +255,15 @@ export default function CompetitionDetailPage() {
                 />
               )}
 
-              {activeTab === 'Майданчики' && (
+              {shownTab === 'Майданчики' && (
                 <VenuesPanel
                   competitionId={id}
-                  canManage={!!admin}
-                  onError={showToast}
+                  canManage={canManageEntries}
+                  onError={(message) => showToast(message)}
                 />
               )}
 
-              {activeTab === 'Таймінги' && (
+              {shownTab === 'Таймінги' && (
                 <ScheduleSettings
                   competitionId={id}
                   canManage={canManage}
@@ -273,7 +275,7 @@ export default function CompetitionDetailPage() {
               {/* One programme view: the editor for whoever manages it,
                   the read-only programme (with "your performances") for
                   everyone else. The music export lives under "Заявки". */}
-              {activeTab === 'Програма' &&
+              {shownTab === 'Програма' &&
                 (canManage ? (
                   <SchedulePanel
                     competitionId={id}
@@ -287,17 +289,17 @@ export default function CompetitionDetailPage() {
                   <FestivalProgram competitionId={id} />
                 ))}
 
-              {activeTab === 'Нагороди' && !!admin && (
+              {shownTab === 'Нагороди' && !!admin && (
                 <AwardsSummary competitionId={id} />
               )}
 
-              {activeTab === 'Деталі' && (
+              {shownTab === 'Деталі' && (
                 <CompetitionDetails competition={competition} entriesCount={null} />
               )}
 
               {/* Deleting the competition belongs to its details, not to
                   every tab. Editing sits up in the header, by Подати заявку. */}
-              {activeTab === 'Деталі' && isOwner && (
+              {shownTab === 'Деталі' && isOwner && (
                 <div className={styles.actions}>
                   <button
                     type="button"
