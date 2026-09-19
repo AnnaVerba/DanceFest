@@ -23,6 +23,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { ScheduleService } from './schedule.service';
 import { AddRowDto } from './dto/add-row.dto';
+import { AddExitsDto } from './dto/add-exits.dto';
 import { BuildSectionDto } from './dto/build-section.dto';
 import { ReorderSectionsDto } from './dto/reorder-sections.dto';
 import { UpdateRowDto } from './dto/update-row.dto';
@@ -126,6 +127,24 @@ export class ScheduleController {
     @Body() dto: BuildSectionDto,
   ) {
     return this.scheduleService.buildSection(competitionId, user, dto);
+  }
+
+  @ApiOperation({ summary: 'Add unassigned exits to a formed section' })
+  @ApiResponse({ status: 201, description: 'Exits added.' })
+  @ApiResponse({
+    status: 409,
+    description: 'Some exits are already in a section.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('sections/:sectionId/exits')
+  addExits(
+    @Param('competitionId') competitionId: string,
+    @Param('sectionId') sectionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: AddExitsDto,
+  ) {
+    return this.scheduleService.addExits(competitionId, user, sectionId, dto);
   }
 
   @ApiOperation({ summary: 'Reorder the positions inside a section' })

@@ -197,6 +197,19 @@ export function buildSection(
   });
 }
 
+// Unassigned exits into an already formed section — the server places each
+// at the end of its nomination's block, or opens a new block.
+export function addExitsToSection(
+  competitionId: string,
+  sectionId: string,
+  entryIds: string[],
+): Promise<Section> {
+  return apiRequest<Section>(
+    `${base(competitionId)}/sections/${sectionId}/exits`,
+    { method: 'POST', body: JSON.stringify({ entryIds }) },
+  );
+}
+
 export function reorderSection(
   competitionId: string,
   sectionId: string,

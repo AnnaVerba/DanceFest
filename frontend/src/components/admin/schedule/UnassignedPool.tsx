@@ -18,6 +18,9 @@ interface UnassignedPoolProps {
   onSelectionChange: (ids: string[]) => void;
   onSelectAll: () => void;
   onBuild: () => void;
+  /** False while the program has no section to add to yet. */
+  canAddToSection: boolean;
+  onAddToSection: () => void;
 }
 
 export default function UnassignedPool({
@@ -34,6 +37,8 @@ export default function UnassignedPool({
   onSelectionChange,
   onSelectAll,
   onBuild,
+  canAddToSection,
+  onAddToSection,
 }: UnassignedPoolProps) {
   const selected = new Set(selectedIds);
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
@@ -105,6 +110,14 @@ export default function UnassignedPool({
           onClick={onBuild}
         >
           Сформувати відділення
+        </button>
+        <button
+          type="button"
+          className={styles.btn}
+          disabled={selectedIds.length === 0 || !canAddToSection}
+          onClick={onAddToSection}
+        >
+          Додати у відділення
         </button>
       </div>
 

@@ -26,6 +26,7 @@ import {
 } from '../competitions/competitions.constants';
 import { Entry } from '../entries/entry.model';
 import { Nomination } from '../nominations/nomination.model';
+import { Venue } from '../venues/venue.model';
 import { CompetitionRule } from '../competition-rules/competition-rule.model';
 import { CompetitionRulesService } from '../competition-rules/competition-rules.service';
 import { DEFAULT_DURATION_ROUND } from '../competition-rules/duration-limit.model';
@@ -34,6 +35,7 @@ import { CompetitionParticipantNumbersService } from '../competition-participant
 import { CompetitionDay } from './competition-day.model';
 import { Section } from './section.model';
 import type { SectionScope } from './section-scope';
+import type { ExitRun } from './exit-run';
 import { SectionItem } from './section-item.model';
 import { AWARD_ITEM, PERFORMANCE_ITEM, isManualRow } from './section-item-type';
 import { performanceDuration } from './performance-duration';
@@ -68,6 +70,7 @@ import {
   MAX_PROGRAM_PAGE_ROWS,
   MAX_SECTIONS_PAGE_ROWS,
   MAX_UNASSIGNED_PAGE_SIZE,
+  PERSIST_ORDER_SQL,
 } from './schedule.constants';
 import {
   DAY_HAS_SECTIONS_MESSAGE,
@@ -79,11 +82,13 @@ import {
   MERGE_NEEDS_TWO_GROUPS_MESSAGE,
   MIXED_VENUE_SECTION_MESSAGE,
   NO_ENTRIES_FOR_SECTION_MESSAGE,
+  OTHER_VENUE_SECTION_MESSAGE,
   ROW_NOT_FOUND_MESSAGE,
   ROW_NOT_MANUAL_MESSAGE,
   SECTION_NOT_FOUND_MESSAGE,
   SECTION_SET_MISMATCH_MESSAGE,
 } from './schedule.constants';
+import { AddExitsDto } from './dto/add-exits.dto';
 import { AddRowDto } from './dto/add-row.dto';
 import { BuildSectionDto } from './dto/build-section.dto';
 import { ReorderSectionsDto } from './dto/reorder-sections.dto';
@@ -137,6 +142,8 @@ export class ScheduleService {
     private readonly itemModel: typeof SectionItem,
     @InjectModel(Entry)
     private readonly entryModel: typeof Entry,
+    @InjectModel(Venue)
+    private readonly venueModel: typeof Venue,
     private readonly rulesService: CompetitionRulesService,
     private readonly usersService: UsersService,
     private readonly participantNumbersService: CompetitionParticipantNumbersService,
@@ -284,6 +291,40 @@ export class ScheduleService {
     return result;
   }
 
+  // Every venue runs its own program, so with no venue filter a day lists
+  // one venue's sections after another's — venues in the order the venue
+  // list shows them, sections without a venue yet last — and each venue's
+  // sections keep their own order. `sections` must come in sectionOrder.
+  private async inVenueOrder<T extends Section>(
+    competitionId: string,
+    sections: T[],
+  ): Promise<T[]> {
+    if (sections.length < 2) return sections;
+    const [liveVenues, venues] = await Promise.all([
+      this.liveVenueBySection(sections.map((s) => s.id)),
+      this.venueModel.findAll({
+        where: { competitionId },
+        attributes: ['id'],
+        order: [['createdAt', 'ASC']],
+      }),
+    ]);
+    const venueRank = new Map(venues.map((venue, i) => [venue.id, i]));
+    const rankOf = (section: T): number => {
+      const venueId = liveVenues.get(section.id);
+      const rank = venueId ? venueRank.get(venueId) : undefined;
+      return rank ?? venues.length;
+    };
+    const dayRank = new Map<string, number>();
+    for (const section of sections) {
+      if (!dayRank.has(section.dayId)) dayRank.set(section.dayId, dayRank.size);
+    }
+    // Array.prototype.sort is stable: equal day + venue keeps section order.
+    return [...sections].sort(
+      (a, b) =>
+        dayRank.get(a.dayId)! - dayRank.get(b.dayId)! || rankOf(a) - rankOf(b),
+    );
+  }
+
   private readonly sectionOrder: Order = [
     [{ model: CompetitionDay, as: 'day' }, 'date', 'ASC'],
     ['sortOrder', 'ASC'],
@@ -351,8 +392,11 @@ export class ScheduleService {
       include: [{ model: CompetitionDay, as: 'day' }],
       order: this.sectionOrder,
     });
+    const ordered = filter.venueId
+      ? sections
+      : await this.inVenueOrder(competitionId, sections);
     return this.onlyVenueItems(
-      await this.toSectionViews(sections),
+      await this.toSectionViews(ordered),
       scope.venueEntryIds,
     );
   }
@@ -378,12 +422,15 @@ export class ScheduleService {
     );
 
     const scope = await this.sectionScope(competitionId, filter);
-    const ordered = await this.sectionModel.findAll({
+    const found = await this.sectionModel.findAll({
       where: scope.where,
       include: [{ model: CompetitionDay, as: 'day' }],
       order: this.sectionOrder,
-      attributes: ['id'],
+      attributes: ['id', 'dayId'],
     });
+    const ordered = filter.venueId
+      ? found
+      : await this.inVenueOrder(competitionId, found);
     const orderedIds = ordered.map((s) => s.id);
     if (orderedIds.length === 0) {
       return {
@@ -413,11 +460,12 @@ export class ScheduleService {
       .slice(0, current)
       .reduce((sum, ids) => sum + ids.length, 0);
 
-    const sections = await this.sectionModel.findAll({
+    const loaded = await this.sectionModel.findAll({
       where: { id: { [Op.in]: pageIds } },
       include: [{ model: CompetitionDay, as: 'day' }],
-      order: this.sectionOrder,
     });
+    const byId = new Map(loaded.map((section) => [section.id, section]));
+    const sections = pageIds.map((id) => byId.get(id)!);
 
     return {
       rows: this.onlyVenueItems(
@@ -521,30 +569,8 @@ export class ScheduleService {
     await this.assertAccess(competitionId, requester);
     await this.assertDay(competitionId, dto.dayId);
 
-    if (dto.entryIds.length === 0) {
-      throw new BadRequestException(NO_ENTRIES_FOR_SECTION_MESSAGE);
-    }
-
-    const entries = await this.entryModel.findAll({
-      where: { id: { [Op.in]: dto.entryIds }, competitionId },
-      include: [{ model: Nomination }],
-    });
-    if (entries.length !== new Set(dto.entryIds).size) {
-      throw new BadRequestException(NO_ENTRIES_FOR_SECTION_MESSAGE);
-    }
-
-    // A section runs at one physical place and time, so its entries must
-    // share one venue — venue lives on the nomination (see BUG-19), not on
-    // the section, so it's the entries' nominations that must agree here.
-    const venues = new Set(
-      entries
-        .map((entry) => entry.nominationRef?.venueId)
-        .filter((venueId): venueId is string => venueId != null),
-    );
-    if (venues.size > 1) {
-      throw new BadRequestException(MIXED_VENUE_SECTION_MESSAGE);
-    }
-
+    const entries = await this.loadSectionEntries(competitionId, dto.entryIds);
+    this.assertOneVenue(entries, null);
     await this.assertNoneAssigned(competitionId, dto.entryIds);
 
     const rules = await this.rulesService.getRules(competitionId);
@@ -613,6 +639,91 @@ export class ScheduleService {
       }
       throw err;
     }
+  }
+
+  // Puts unassigned exits into an already formed section: an exit whose
+  // nomination is there joins the end of that block, a new nomination opens
+  // a block after the last performance. The rest of the order stays as is.
+  async addExits(
+    competitionId: string,
+    requester: AuthenticatedUser,
+    sectionId: string,
+    dto: AddExitsDto,
+  ): Promise<SectionView> {
+    await this.assertAccess(competitionId, requester);
+    const section = await this.assertSection(competitionId, sectionId);
+    const entries = await this.loadSectionEntries(competitionId, dto.entryIds);
+    const sectionVenues = await this.liveVenueBySection([sectionId]);
+    this.assertOneVenue(entries, sectionVenues.get(sectionId) ?? null);
+    await this.assertNoneAssigned(competitionId, dto.entryIds);
+
+    // Durations resolve before the transaction, as in buildSection.
+    const rules = await this.rulesService.getRules(competitionId);
+    const limitCache = new Map<string, number>();
+    const groups: { key: string; rows: CreationAttributes<SectionItem>[] }[] =
+      [];
+    for (const group of this.groupByNomination(entries)) {
+      groups.push({
+        key: group.key,
+        rows: await this.exitRows(group.key, group.entries, rules, limitCache),
+      });
+    }
+
+    try {
+      await this.sectionModel.sequelize!.transaction(async (transaction) => {
+        // Same lock as late-entry placement, which may target this section.
+        await this.competitionModel.findByPk(competitionId, {
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        });
+        const items = await this.itemModel.findAll({
+          where: { sectionId, type: PERFORMANCE_ITEM },
+          order: ITEMS_ORDER,
+          transaction,
+        });
+        const blockEnds = new Map<string, SectionItem>();
+        for (const item of items) {
+          if (item.nominationGroupKey) {
+            blockEnds.set(item.nominationGroupKey, item);
+          }
+        }
+        const lastPerformance = items[items.length - 1]?.sortOrder ?? -1;
+
+        const runs: ExitRun[] = [];
+        const opening: CreationAttributes<SectionItem>[] = [];
+        for (const group of groups) {
+          const blockEnd = blockEnds.get(group.key);
+          if (!blockEnd) {
+            opening.push(...group.rows);
+            continue;
+          }
+          runs.push({
+            sectionId,
+            afterSortOrder: blockEnd.sortOrder,
+            opensBlocks: false,
+            mergedGroupLabel: blockEnd.mergedGroupLabel,
+            rows: group.rows,
+          });
+        }
+        if (opening.length > 0) {
+          runs.push({
+            sectionId,
+            afterSortOrder: lastPerformance,
+            opensBlocks: true,
+            mergedGroupLabel: null,
+            rows: opening,
+          });
+        }
+        await this.insertRuns(runs, transaction);
+      });
+    } catch (err) {
+      // The partial-unique index on entryId catches a concurrent claim.
+      if (err instanceof UniqueConstraintError) {
+        throw new ConflictException(EXITS_ALREADY_ASSIGNED_MESSAGE);
+      }
+      throw err;
+    }
+    return this.viewOf(section);
   }
 
   async updateSection(
@@ -967,19 +1078,24 @@ export class ScheduleService {
         entries.map((entry) => this.nominationGroupKeyOf(entry)),
         transaction,
       );
-      const ordered = [...entries].sort((a, b) => a.number - b.number);
-      for (const entry of ordered) {
-        const key = this.nominationGroupKeyOf(entry);
-        const blockEnd = blockEnds.get(key);
+      const runs: ExitRun[] = [];
+      for (const group of this.groupByNomination(entries)) {
+        const blockEnd = blockEnds.get(group.key);
         if (!blockEnd) continue;
-        const inserted = await this.insertAfterBlock(
-          blockEnd,
-          entry,
-          await this.durationOf(entry, rules, limitCache),
-          transaction,
-        );
-        blockEnds.set(key, inserted);
+        runs.push({
+          sectionId: blockEnd.sectionId,
+          afterSortOrder: blockEnd.sortOrder,
+          opensBlocks: false,
+          mergedGroupLabel: blockEnd.mergedGroupLabel,
+          rows: await this.exitRows(
+            group.key,
+            group.entries,
+            rules,
+            limitCache,
+          ),
+        });
       }
+      await this.insertRuns(runs, transaction);
     });
   }
 
@@ -1023,37 +1139,58 @@ export class ScheduleService {
     return blockEnds;
   }
 
-  // Inserts the entry right after `blockEnd` and returns the new row — the
-  // block's new tail, so the next late entry of the nomination follows it.
-  private async insertAfterBlock(
-    blockEnd: SectionItem,
-    entry: Entry,
-    durationSeconds: number,
-    transaction: Transaction,
-  ): Promise<SectionItem> {
-    // One shift of the rows below instead of rewriting the whole section —
-    // the (sectionId, sortOrder) index is not unique, and gaps left by a
-    // deleted row keep the order intact.
-    await this.itemModel.increment('sortOrder', {
-      by: 1,
-      where: {
-        sectionId: blockEnd.sectionId,
-        sortOrder: { [Op.gt]: blockEnd.sortOrder },
-      },
-      transaction,
-    });
-    return this.itemModel.create(
-      {
-        sectionId: blockEnd.sectionId,
+  // Performance rows for one nomination group, in the group's order; the
+  // section, position and merged label come from the run they go into.
+  private async exitRows(
+    groupKey: string,
+    entries: Entry[],
+    rules: CompetitionRule,
+    limitCache: Map<string, number>,
+  ): Promise<CreationAttributes<SectionItem>[]> {
+    const rows: CreationAttributes<SectionItem>[] = [];
+    for (const entry of entries) {
+      rows.push({
         entryId: entry.id,
         type: PERFORMANCE_ITEM,
-        nominationGroupKey: blockEnd.nominationGroupKey,
-        mergedGroupLabel: blockEnd.mergedGroupLabel,
-        durationSeconds,
-        sortOrder: blockEnd.sortOrder + 1,
-      } as CreationAttributes<SectionItem>,
-      { transaction },
+        nominationGroupKey: groupKey,
+        durationSeconds: await this.durationOf(entry, rules, limitCache),
+      } as CreationAttributes<SectionItem>);
+    }
+    return rows;
+  }
+
+  // Each run costs one shift of the rows below it plus one insert, instead
+  // of rewriting the whole section — the (sectionId, sortOrder) index is not
+  // unique, and gaps left by a deleted row keep the order intact. Runs go
+  // bottom-up, so a shift never moves an anchor a later run still relies on.
+  private async insertRuns(
+    runs: ExitRun[],
+    transaction: Transaction,
+  ): Promise<void> {
+    const bottomUp = [...runs].sort(
+      (a, b) =>
+        b.afterSortOrder - a.afterSortOrder ||
+        Number(b.opensBlocks) - Number(a.opensBlocks),
     );
+    for (const run of bottomUp) {
+      await this.itemModel.increment('sortOrder', {
+        by: run.rows.length,
+        where: {
+          sectionId: run.sectionId,
+          sortOrder: { [Op.gt]: run.afterSortOrder },
+        },
+        transaction,
+      });
+      await this.itemModel.bulkCreate(
+        run.rows.map((row, index) => ({
+          ...row,
+          sectionId: run.sectionId,
+          mergedGroupLabel: run.mergedGroupLabel,
+          sortOrder: run.afterSortOrder + 1 + index,
+        })),
+        { transaction },
+      );
+    }
   }
 
   // --- Unassigned pool ------------------------------------------------
@@ -1294,15 +1431,13 @@ export class ScheduleService {
     orderedIds: string[],
     transaction?: Transaction,
   ): Promise<void> {
-    // Sequential, not Promise.all: a partial failure must leave sortOrder
-    // untouched (the caller wraps this in a transaction), and parallel writes
-    // on one transaction's connection are unsafe anyway.
-    for (const [index, id] of orderedIds.entries()) {
-      await this.itemModel.update(
-        { sortOrder: index },
-        { where: { id }, transaction },
-      );
-    }
+    // One UPDATE for the whole section instead of one per row — a
+    // 100-row reorder used to cost 100 round trips.
+    if (orderedIds.length === 0) return;
+    await this.itemModel.sequelize!.query(PERSIST_ORDER_SQL, {
+      bind: [orderedIds],
+      transaction,
+    });
   }
 
   private async normalize(
@@ -1333,6 +1468,46 @@ export class ScheduleService {
       attributes: ['entryId'],
     });
     return items.map((i) => i.entryId as string);
+  }
+
+  // The exits a section is built from or extended with — every one must be
+  // an entry of this competition.
+  private async loadSectionEntries(
+    competitionId: string,
+    entryIds: string[],
+  ): Promise<Entry[]> {
+    if (entryIds.length === 0) {
+      throw new BadRequestException(NO_ENTRIES_FOR_SECTION_MESSAGE);
+    }
+    const entries = await this.entryModel.findAll({
+      where: { id: { [Op.in]: entryIds }, competitionId },
+      include: [{ model: Nomination }],
+    });
+    if (entries.length !== new Set(entryIds).size) {
+      throw new BadRequestException(NO_ENTRIES_FOR_SECTION_MESSAGE);
+    }
+    return entries;
+  }
+
+  // A section runs at one physical place and time, so its entries must
+  // share one venue — venue lives on the nomination (see BUG-19), not on
+  // the section, so it's the entries' nominations that must agree here,
+  // and with the venue an already formed section has (`sectionVenueId`).
+  private assertOneVenue(
+    entries: Entry[],
+    sectionVenueId: string | null,
+  ): void {
+    const venues = new Set(
+      entries
+        .map((entry) => entry.nominationRef?.venueId)
+        .filter((venueId): venueId is string => venueId != null),
+    );
+    if (venues.size > 1) {
+      throw new BadRequestException(MIXED_VENUE_SECTION_MESSAGE);
+    }
+    if (sectionVenueId && venues.size === 1 && !venues.has(sectionVenueId)) {
+      throw new BadRequestException(OTHER_VENUE_SECTION_MESSAGE);
+    }
   }
 
   private async assertNoneAssigned(

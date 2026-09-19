@@ -3,6 +3,16 @@
 // schedule module has no reason to import that service just for a number.
 export const DEFAULT_LIMIT_SECONDS = 180;
 
+export const SECTION_ITEMS_TABLE = 'section_items';
+
+// Rewrites a section's running order in one statement: each id in the bound
+// uuid[] gets its zero-based index as sortOrder.
+export const PERSIST_ORDER_SQL = `
+  UPDATE "${SECTION_ITEMS_TABLE}" AS item
+     SET "sortOrder" = ordered.position - 1, "updatedAt" = NOW()
+    FROM unnest($1::uuid[]) WITH ORDINALITY AS ordered(id, position)
+   WHERE item.id = ordered.id`;
+
 export const SECONDS_PER_MINUTE = 60;
 export const MINUTES_PER_HOUR = 60;
 export const SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR;
@@ -50,3 +60,5 @@ export const SECTION_SET_MISMATCH_MESSAGE =
   'Список відділень не збігається зі складом дня — оновіть сторінку';
 export const MIXED_VENUE_SECTION_MESSAGE =
   'Обрані виходи належать до різних майданчиків — сформуйте окремі відділення для кожного';
+export const OTHER_VENUE_SECTION_MESSAGE =
+  'Обрані виходи належать до іншого майданчика, ніж це відділення';

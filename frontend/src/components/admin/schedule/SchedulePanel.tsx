@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ConfirmDialog from '../ConfirmDialog';
 import UnassignedPool from './UnassignedPool';
 import BuildSectionModal from './BuildSectionModal';
+import AddToSectionModal from './AddToSectionModal';
 import MergeGroupsModal from './MergeGroupsModal';
 import ProgramTable from './ProgramTable';
 import ProgramPoster from './ProgramPoster';
@@ -10,6 +11,7 @@ import NewEntriesNotice from './NewEntriesNotice';
 import { NEW_ENTRIES_PROBE } from './newEntriesNotice.constants';
 import type { GroupOption } from './MergeGroupsModal';
 import {
+  addExitsToSection,
   addRow,
   buildSection,
   deleteRow,
@@ -109,6 +111,7 @@ export default function SchedulePanel({
   const [building, setBuilding] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [buildOpen, setBuildOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [submittingBuild, setSubmittingBuild] = useState(false);
   const [mergeFor, setMergeFor] = useState<Section | null>(null);
   const [merging, setMerging] = useState(false);
@@ -250,6 +253,13 @@ export default function SchedulePanel({
     enabled: daysReady && canManage,
   });
   const newEntriesCount = newEntriesQuery.data?.total ?? 0;
+  // Every section of every day — the «Додати у відділення» target list.
+  const allSectionsQuery = useQuery({
+    queryKey: queryKeys.sectionsSummary(competitionId),
+    queryFn: () => getSectionsSummary(competitionId),
+    enabled: daysReady && canManage && building,
+  });
+  const allSections = allSectionsQuery.data ?? [];
   const unassigned = poolQuery.data?.rows ?? [];
   const poolTotal = poolQuery.data?.total ?? 0;
   const poolFacets = facetsQuery.data ?? EMPTY_FACETS;
@@ -322,24 +332,48 @@ export default function SchedulePanel({
         startTime,
         entryIds: selectedIds,
       });
-      setSelectedIds([]);
-      setBuildOpen(false);
-      setBuilding(false);
-      await invalidateSections();
+      await finishAssigning();
     } catch (error) {
-      if (error instanceof ApiError && error.status === HTTP_CONFLICT) {
-        const payload = error.payload as { assigned?: AssignedClash[] } | null;
-        setClashes(payload?.assigned ?? []);
-        setBuildOpen(false);
-        setPoolPage(0);
-        await invalidatePool();
-      } else if (error instanceof ApiError && error.status === HTTP_BAD_REQUEST) {
-        onError(error.message);
-      } else {
-        onError('Не вдалося сформувати відділення.');
-      }
+      await handleAssignError(error, 'Не вдалося сформувати відділення.');
     } finally {
       setSubmittingBuild(false);
+    }
+  };
+
+  const handleAddToSection = async (sectionId: string) => {
+    setSubmittingBuild(true);
+    setClashes(null);
+    try {
+      await addExitsToSection(competitionId, sectionId, selectedIds);
+      await finishAssigning();
+    } catch (error) {
+      await handleAssignError(error, 'Не вдалося додати виходи у відділення.');
+    } finally {
+      setSubmittingBuild(false);
+    }
+  };
+
+  // The selected exits left the pool for a section — back to the program.
+  const finishAssigning = async () => {
+    setSelectedIds([]);
+    setBuildOpen(false);
+    setAddOpen(false);
+    setBuilding(false);
+    await invalidateSections();
+  };
+
+  const handleAssignError = async (error: unknown, fallback: string) => {
+    if (error instanceof ApiError && error.status === HTTP_CONFLICT) {
+      const payload = error.payload as { assigned?: AssignedClash[] } | null;
+      setClashes(payload?.assigned ?? []);
+      setBuildOpen(false);
+      setAddOpen(false);
+      setPoolPage(0);
+      await invalidatePool();
+    } else if (error instanceof ApiError && error.status === HTTP_BAD_REQUEST) {
+      onError(error.message);
+    } else {
+      onError(fallback);
     }
   };
 
@@ -387,12 +421,17 @@ export default function SchedulePanel({
       const dayAll = await getSectionsSummary(competitionId, {
         dayId: section.dayId,
       });
-      const ids = dayAll
-        .sort((a, b) => a.sortOrder - b.sortOrder)
+      const sorted = dayAll.sort((a, b) => a.sortOrder - b.sortOrder);
+      const ids = sorted.map((s) => s.id);
+      // Each venue runs its own program, so ↑/↓ swaps with the neighbour on
+      // the same venue — a swap across venues would not move it on screen.
+      const venueIds = sorted
+        .filter((s) => s.venueId === section.venueId)
         .map((s) => s.id);
+      const neighbour = venueIds[venueIds.indexOf(sectionId) + dir];
+      if (!neighbour) return;
       const from = ids.indexOf(sectionId);
-      const to = from + dir;
-      if (from < 0 || to < 0 || to >= ids.length) return;
+      const to = ids.indexOf(neighbour);
       [ids[from], ids[to]] = [ids[to], ids[from]];
       await reorderSections(competitionId, section.dayId, ids);
       await invalidateSections();
@@ -612,7 +651,7 @@ export default function SchedulePanel({
             ))}
           </div>
         )}
-        <ProgramPoster rows={posterRows} days={days} />
+        <ProgramPoster rows={posterRows} days={days} venues={venues} />
       </div>
     );
   }
@@ -777,7 +816,7 @@ export default function SchedulePanel({
         newEntriesCount > 0 && <NewEntriesNotice count={newEntriesCount} />}
 
       {view === 'public' ? (
-        <ProgramPoster rows={posterRows} days={days} />
+        <ProgramPoster rows={posterRows} days={days} venues={venues} />
       ) : building ? (
         <div className={styles.buildCols}>
           <UnassignedPool
@@ -798,6 +837,8 @@ export default function SchedulePanel({
             onSelectionChange={setSelectedIds}
             onSelectAll={handleSelectAllUnassigned}
             onBuild={() => setBuildOpen(true)}
+            canAddToSection={allSections.length > 0}
+            onAddToSection={() => setAddOpen(true)}
           />
           <div>
             <button
@@ -947,6 +988,18 @@ export default function SchedulePanel({
         submitting={submittingBuild}
         onCancel={() => setBuildOpen(false)}
         onSubmit={handleBuild}
+      />
+
+      <AddToSectionModal
+        open={addOpen}
+        exitCount={selectedIds.length}
+        days={days}
+        sections={allSections}
+        venues={venues}
+        defaultDayId={dayId}
+        submitting={submittingBuild}
+        onCancel={() => setAddOpen(false)}
+        onSubmit={handleAddToSection}
       />
 
       <MergeGroupsModal

@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { getMyProgram, getPublicProgram, hasSession } from '../../lib/program';
 import type { MineProgram, PublicProgramRow } from '../../lib/program';
 import { formatParticipantNumbers } from '../../lib/participantNumbers';
 import { formatClock, formatDuration } from '../../lib/duration';
+import { getVenues } from '../../lib/venues';
+import { queryKeys } from '../../lib/queryKeys';
+import { venueHeadingAt } from '../../lib/programVenueHeading';
 import {
   EMPTY_ROUTINE_NAME,
   FULL_PROGRAM_TITLE,
@@ -37,6 +41,16 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
   const [mine, setMine] = useState<MineProgram | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  // Venue names for the per-venue headings; without them the program still
+  // reads fine, so a failure here stays silent.
+  const venuesQuery = useQuery({
+    queryKey: queryKeys.venues(competitionId),
+    queryFn: () => getVenues(competitionId),
+  });
+  const venueNames = useMemo(
+    () => new Map((venuesQuery.data ?? []).map((v) => [v.id, v.name])),
+    [venuesQuery.data],
+  );
 
   const hasMore = programPage + 1 < programPageCount;
 
@@ -188,6 +202,7 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
           multiDay && publicRows[index - 1]?.dayId !== row.dayId ? (
             <h3 className={styles.dayHeading}>{row.dayDate ?? ''}</h3>
           ) : null;
+        const venueHeading = venueHeadingAt(publicRows, index, venueNames);
 
         let body;
         if (row.kind === 'section') {
@@ -240,6 +255,9 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
         return (
           <div key={index}>
             {dayHead}
+            {venueHeading && (
+              <h4 className={styles.venueHeading}>{venueHeading}</h4>
+            )}
             {body}
           </div>
         );

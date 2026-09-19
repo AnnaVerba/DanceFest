@@ -1,6 +1,8 @@
 import { Fragment } from 'react';
 import type { PublicProgramRow } from '../../../lib/program';
 import type { CompetitionDay } from '../../../lib/schedule';
+import type { Venue } from '../../../lib/venues';
+import { venueHeadingAt } from '../../../lib/programVenueHeading';
 import { formatParticipantNumbers } from '../../../lib/participantNumbers';
 import { formatClock, formatDuration } from '../../../lib/duration';
 import styles from './Schedule.module.css';
@@ -8,6 +10,7 @@ import styles from './Schedule.module.css';
 interface ProgramPosterProps {
   rows: PublicProgramRow[];
   days?: CompetitionDay[];
+  venues?: Venue[];
 }
 
 const KIND_LABEL: Record<'award' | 'break' | 'gala', string> = {
@@ -23,12 +26,17 @@ function studioAndCoach(row: PublicProgramRow): string {
 // The festival programme, same for everyone: section starts, nomination
 // blocks, every performance (participant number, routine, studio + coach,
 // length), and the award.
-export default function ProgramPoster({ rows, days = [] }: ProgramPosterProps) {
+export default function ProgramPoster({
+  rows,
+  days = [],
+  venues = [],
+}: ProgramPosterProps) {
   if (rows.length === 0) {
     return <p className={styles.empty}>Публічна програма ще порожня.</p>;
   }
 
   const multiDay = new Set(rows.map((r) => r.dayId)).size > 1;
+  const venueNames = new Map(venues.map((venue) => [venue.id, venue.name]));
   const dayLabel = (row: PublicProgramRow) => {
     const day = days.find((d) => d.id === row.dayId);
     return day ? (day.label ?? day.date) : (row.dayDate ?? '');
@@ -43,6 +51,7 @@ export default function ProgramPoster({ rows, days = [] }: ProgramPosterProps) {
               <h3 className={styles.sectionName}>{dayLabel(row)}</h3>
             </div>
           ) : null;
+        const venueHeading = venueHeadingAt(rows, index, venueNames);
 
         let body;
         if (row.kind === 'section') {
@@ -88,6 +97,9 @@ export default function ProgramPoster({ rows, days = [] }: ProgramPosterProps) {
         return (
           <Fragment key={index}>
             {dayHeader}
+            {venueHeading && (
+              <h4 className={styles.venueHeading}>{venueHeading}</h4>
+            )}
             {body}
           </Fragment>
         );

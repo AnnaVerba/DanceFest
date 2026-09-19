@@ -275,3 +275,13 @@
   font-size: 0.82rem;
   color: var(--warning-text, #92400e);
 }
+
+/* Opens each venue's own program within a day. */
+.venueHeading {
+  margin: 1.25rem 0 0.5rem;
+  color: var(--g-dark-cta);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
