@@ -79,6 +79,9 @@ export const queryKeys = {
     competitionId: string,
     filter: { dayId?: string; venueId?: string } = {},
   ) => ['sections', competitionId, 'summary', filter] as const,
+  // Under the sections prefix: every schedule edit can create or clear one.
+  venueConflicts: (competitionId: string) =>
+    ['sections', competitionId, 'conflicts'] as const,
   sectionsStats: (
     competitionId: string,
     filter: { dayId?: string; venueId?: string } = {},

@@ -1,6 +1,7 @@
 import { apiRequest } from './http';
 import { withPageParams } from './pagination';
 import type { Paged, RowPaged } from './pagination';
+import type { VenueConflict } from './venueConflict.types';
 
 export interface CompetitionDay {
   id: string;
@@ -21,6 +22,7 @@ export const ROW_TYPE_LABELS: Record<'break' | 'gala', string> = {
 export interface SectionExit {
   entryId: string;
   number: number;
+  nominationId: string | null;
   // Per-competition participant number per dancer (participantIds order);
   // this is what the programme shows.
   participantNumbers: (number | null)[];
@@ -265,6 +267,28 @@ export function moveNomination(
     method: 'POST',
     body: JSON.stringify({ groupKey, targetSectionId }),
   });
+}
+
+// Renames a merged block — every group sharing its label in the section.
+export function renameMergedGroup(
+  competitionId: string,
+  sectionId: string,
+  groupKey: string,
+  label: string,
+): Promise<Section> {
+  return apiRequest<Section>(
+    `${base(competitionId)}/sections/${sectionId}/merge-groups/${encodeURIComponent(groupKey)}`,
+    { method: 'PATCH', body: JSON.stringify({ label }) },
+  );
+}
+
+// Participants booked on two venues at overlapping times.
+export function getVenueConflicts(
+  competitionId: string,
+): Promise<VenueConflict[]> {
+  return apiRequest<VenueConflict[]>(
+    `${base(competitionId)}/schedule/conflicts`,
+  );
 }
 
 export function mergeGroups(
