@@ -43,13 +43,26 @@ export class CompetitionRulesController {
     description:
       'Rules returned. Every competition has one from the moment it is created, with defaults if the organizer never touched them.',
   })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'The caller has no access to this competition.',
+  })
   @ApiResponse({
     status: 404,
     description: 'No competition exists with the given id.',
   })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @Get('rules')
-  getRules(@Param('competitionId') competitionId: string) {
-    return this.competitionRulesService.getRules(competitionId);
+  getRules(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() admin: AuthenticatedAdmin,
+  ) {
+    return this.competitionRulesService.getRulesForStaff(
+      competitionId,
+      admin,
+    );
   }
 
   @ApiOperation({ summary: "Partially update a competition's rules" })
@@ -79,9 +92,19 @@ export class CompetitionRulesController {
   }
 
   @ApiOperation({ summary: 'List overrun tariffs for a competition' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'The caller has no access to this competition.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @Get('overlimit-tariffs')
-  listTariffs(@Param('competitionId') competitionId: string) {
-    return this.competitionRulesService.listTariffs(competitionId);
+  listTariffs(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() admin: AuthenticatedAdmin,
+  ) {
+    return this.competitionRulesService.listTariffs(competitionId, admin);
   }
 
   @ApiOperation({ summary: 'Add an overrun tariff bracket' })
@@ -131,9 +154,22 @@ export class CompetitionRulesController {
   }
 
   @ApiOperation({ summary: 'List duration limits for a competition' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'The caller has no access to this competition.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @Get('duration-limits')
-  listDurationLimits(@Param('competitionId') competitionId: string) {
-    return this.competitionRulesService.listDurationLimits(competitionId);
+  listDurationLimits(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() admin: AuthenticatedAdmin,
+  ) {
+    return this.competitionRulesService.listDurationLimits(
+      competitionId,
+      admin,
+    );
   }
 
   @ApiOperation({
