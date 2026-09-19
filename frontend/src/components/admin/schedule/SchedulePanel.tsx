@@ -3,12 +3,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ConfirmDialog from '../ConfirmDialog';
 import UnassignedPool from './UnassignedPool';
 import BuildSectionModal from './BuildSectionModal';
-import AddToSectionModal from './AddToSectionModal';
+import SectionPickerModal from './SectionPickerModal';
+import {
+  ADD_TO_SECTION_SUMMARY_PREFIX,
+  ADD_TO_SECTION_TEXTS,
+  MOVE_NOMINATION_FAILED_MESSAGE,
+  MOVE_NOMINATION_TEXTS,
+} from './sectionPicker.constants';
+import type { NominationToMove } from './nominationToMove.types';
 import MergeGroupsModal from './MergeGroupsModal';
 import ProgramTable from './ProgramTable';
 import ProgramPoster from './ProgramPoster';
 import NewEntriesNotice from './NewEntriesNotice';
 import { NEW_ENTRIES_PROBE } from './newEntriesNotice.constants';
+import { unassignedVenueOf } from './unassignedVenue';
 import type { GroupOption } from './MergeGroupsModal';
 import {
   addExitsToSection,
@@ -25,6 +33,7 @@ import {
   getUnassignedIds,
   mergeGroups,
   moveExit,
+  moveNomination,
   recalculateSchedule,
   reorderSection,
   reorderSections,
@@ -49,6 +58,7 @@ import type { Competition } from '../../../lib/competitions';
 import { COMPETITION_STATUS } from '../../../lib/competitionStatus';
 import { queryKeys } from '../../../lib/queryKeys';
 import { refreshProgram } from '../../../lib/programCache';
+import { refreshNominations } from '../../../lib/nominationsCache';
 import { TIMING_STALE_TIME_MS } from '../../../lib/queryClient.constants';
 import styles from './program.module.css';
 
@@ -112,6 +122,8 @@ export default function SchedulePanel({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [buildOpen, setBuildOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [moveFor, setMoveFor] = useState<NominationToMove | null>(null);
+  const [movingNomination, setMovingNomination] = useState(false);
   const [submittingBuild, setSubmittingBuild] = useState(false);
   const [mergeFor, setMergeFor] = useState<Section | null>(null);
   const [merging, setMerging] = useState(false);
@@ -253,13 +265,26 @@ export default function SchedulePanel({
     enabled: daysReady && canManage,
   });
   const newEntriesCount = newEntriesQuery.data?.total ?? 0;
-  // Every section of every day — the «Додати у відділення» target list.
+  // Every section of every day — the target list of «Додати у відділення»
+  // and «Перенести номінацію».
   const allSectionsQuery = useQuery({
     queryKey: queryKeys.sectionsSummary(competitionId),
     queryFn: () => getSectionsSummary(competitionId),
-    enabled: daysReady && canManage && building,
+    enabled: daysReady && canManage && (building || moveFor !== null),
   });
   const allSections = allSectionsQuery.data ?? [];
+
+  // A new section joins the program of its exits' venue, numbered within
+  // that venue's day. The venue is read off the selected exits on screen.
+  const buildVenueId =
+    unassignedVenueOf(poolQuery.data?.rows ?? [], selectedIds) ?? null;
+  const nextSectionNumberByDay: Record<string, number> = {};
+  for (const day of days) {
+    nextSectionNumberByDay[day.id] =
+      allSections.filter(
+        (s) => s.dayId === day.id && s.venueId === buildVenueId,
+      ).length + 1;
+  }
   const unassigned = poolQuery.data?.rows ?? [];
   const poolTotal = poolQuery.data?.total ?? 0;
   const poolFacets = facetsQuery.data ?? EMPTY_FACETS;
@@ -416,24 +441,20 @@ export default function SchedulePanel({
     const section = sections.find((s) => s.id === sectionId);
     if (!section) return;
     try {
-      // Reorder needs the day's *complete* section set — the visible list
-      // may be filtered by venue or split across pages, so fetch the summary.
+      // Reorder needs the *complete* program of the section's venue that day
+      // — the visible list may be split across pages, so fetch the summary.
       const dayAll = await getSectionsSummary(competitionId, {
         dayId: section.dayId,
       });
-      const sorted = dayAll.sort((a, b) => a.sortOrder - b.sortOrder);
-      const ids = sorted.map((s) => s.id);
-      // Each venue runs its own program, so ↑/↓ swaps with the neighbour on
-      // the same venue — a swap across venues would not move it on screen.
-      const venueIds = sorted
+      const ids = dayAll
         .filter((s) => s.venueId === section.venueId)
+        .sort((a, b) => a.sortOrder - b.sortOrder)
         .map((s) => s.id);
-      const neighbour = venueIds[venueIds.indexOf(sectionId) + dir];
-      if (!neighbour) return;
       const from = ids.indexOf(sectionId);
-      const to = ids.indexOf(neighbour);
+      const to = from + dir;
+      if (from < 0 || to < 0 || to >= ids.length) return;
       [ids[from], ids[to]] = [ids[to], ids[from]];
-      await reorderSections(competitionId, section.dayId, ids);
+      await reorderSections(competitionId, section.dayId, section.venueId, ids);
       await invalidateSections();
     } catch {
       onError('Не вдалося перемістити відділення.');
@@ -523,6 +544,27 @@ export default function SchedulePanel({
       onError('Не вдалося обʼєднати групи.');
     } finally {
       setMerging(false);
+    }
+  };
+
+  // A nomination's venue may change with the move, so the Номінації and
+  // Майданчики caches go stale along with the program.
+  const handleMoveNomination = async (targetSectionId: string) => {
+    if (!moveFor) return;
+    setMovingNomination(true);
+    try {
+      await moveNomination(competitionId, moveFor.groupKey, targetSectionId);
+      setMoveFor(null);
+      refreshNominations(queryClient, competitionId);
+      await invalidateSections();
+    } catch (error) {
+      onError(
+        error instanceof ApiError && error.status === HTTP_BAD_REQUEST
+          ? error.message
+          : MOVE_NOMINATION_FAILED_MESSAGE,
+      );
+    } finally {
+      setMovingNomination(false);
     }
   };
 
@@ -825,6 +867,7 @@ export default function SchedulePanel({
             page={poolPage}
             pageSize={POOL_PAGE_SIZE}
             facets={poolFacets}
+            venues={venues}
             league={poolLeague}
             ageCategory={poolAge}
             onFilterChange={(next) => {
@@ -972,6 +1015,7 @@ export default function SchedulePanel({
             onMoveExit={handleMoveExit}
             onMergeSection={setMergeFor}
             onUnmerge={handleUnmerge}
+            onMoveNomination={setMoveFor}
             onDeleteSection={(id) =>
               setPendingDeleteSection(sections.find((s) => s.id === id) ?? null)
             }
@@ -981,7 +1025,7 @@ export default function SchedulePanel({
 
       <BuildSectionModal
         open={buildOpen}
-        defaultName={`Відділення ${sections.length + 1}`}
+        nextNumberByDay={nextSectionNumberByDay}
         exitCount={selectedIds.length}
         days={days}
         defaultDayId={dayId}
@@ -990,9 +1034,10 @@ export default function SchedulePanel({
         onSubmit={handleBuild}
       />
 
-      <AddToSectionModal
+      <SectionPickerModal
         open={addOpen}
-        exitCount={selectedIds.length}
+        texts={ADD_TO_SECTION_TEXTS}
+        summary={`${ADD_TO_SECTION_SUMMARY_PREFIX} ${selectedIds.length}`}
         days={days}
         sections={allSections}
         venues={venues}
@@ -1000,6 +1045,19 @@ export default function SchedulePanel({
         submitting={submittingBuild}
         onCancel={() => setAddOpen(false)}
         onSubmit={handleAddToSection}
+      />
+
+      <SectionPickerModal
+        open={moveFor !== null}
+        texts={MOVE_NOMINATION_TEXTS}
+        summary={moveFor?.label ?? ''}
+        days={days}
+        sections={allSections}
+        venues={venues}
+        defaultDayId={moveFor?.dayId ?? dayId}
+        submitting={movingNomination}
+        onCancel={() => setMoveFor(null)}
+        onSubmit={handleMoveNomination}
       />
 
       <MergeGroupsModal

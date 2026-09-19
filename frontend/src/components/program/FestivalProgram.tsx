@@ -6,7 +6,7 @@ import { formatParticipantNumbers } from '../../lib/participantNumbers';
 import { formatClock, formatDuration } from '../../lib/duration';
 import { getVenues } from '../../lib/venues';
 import { queryKeys } from '../../lib/queryKeys';
-import { venueHeadingAt } from '../../lib/programVenueHeading';
+import { opensProgram, programHeading } from '../../lib/programHeading';
 import {
   EMPTY_ROUTINE_NAME,
   FULL_PROGRAM_TITLE,
@@ -122,7 +122,6 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
 
   const hasHighlights =
     mine != null && mine.totals.mine + mine.totals.students > 0;
-  const multiDay = new Set(publicRows.map((r) => r.dayId)).size > 1;
 
   return (
     <div>
@@ -198,11 +197,11 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
         <p className={styles.status}>{PROGRAM_NOT_PUBLISHED_LABEL}</p>
       )}
       {publicRows.map((row, index) => {
-        const dayHead =
-          multiDay && publicRows[index - 1]?.dayId !== row.dayId ? (
-            <h3 className={styles.dayHeading}>{row.dayDate ?? ''}</h3>
-          ) : null;
-        const venueHeading = venueHeadingAt(publicRows, index, venueNames);
+        const heading = opensProgram(row, publicRows[index - 1]) ? (
+          <h3 className={styles.dayHeading}>
+            {programHeading(row.dayDate ?? '', row.venueId, venueNames)}
+          </h3>
+        ) : null;
 
         let body;
         if (row.kind === 'section') {
@@ -254,10 +253,7 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
 
         return (
           <div key={index}>
-            {dayHead}
-            {venueHeading && (
-              <h4 className={styles.venueHeading}>{venueHeading}</h4>
-            )}
+            {heading}
             {body}
           </div>
         );

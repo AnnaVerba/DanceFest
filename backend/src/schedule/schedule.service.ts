@@ -34,7 +34,6 @@ import { UsersService } from '../users/users.service';
 import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
 import { CompetitionDay } from './competition-day.model';
 import { Section } from './section.model';
-import type { SectionScope } from './section-scope';
 import type { ExitRun } from './exit-run';
 import { SectionItem } from './section-item.model';
 import { AWARD_ITEM, PERFORMANCE_ITEM, isManualRow } from './section-item-type';
@@ -82,6 +81,7 @@ import {
   MERGE_NEEDS_TWO_GROUPS_MESSAGE,
   MIXED_VENUE_SECTION_MESSAGE,
   NO_ENTRIES_FOR_SECTION_MESSAGE,
+  NOMINATION_NOT_IN_SCHEDULE_MESSAGE,
   OTHER_VENUE_SECTION_MESSAGE,
   ROW_NOT_FOUND_MESSAGE,
   ROW_NOT_MANUAL_MESSAGE,
@@ -96,6 +96,7 @@ import { UpdateRowDto } from './dto/update-row.dto';
 import { UpdateSectionDto } from './dto/update-section.dto';
 import { MergeGroupsDto } from './dto/merge-groups.dto';
 import { MoveExitDto } from './dto/move-exit.dto';
+import { MoveNominationDto } from './dto/move-nomination.dto';
 import { RecalculateScheduleDto } from './dto/recalculate-schedule.dto';
 import { ReorderSectionDto } from './dto/reorder-section.dto';
 
@@ -117,9 +118,17 @@ export interface UnassignedExitView {
   improv: boolean;
   participantsCount: number | null;
   studioName: string | null;
+  // The venue of the exit's nomination, so the pool shows where it runs.
+  venueId: string | null;
 }
 
 const ITEMS_ORDER: [string, 'ASC'][] = [['sortOrder', 'ASC']];
+
+// The joins sectionOrder sorts by — the day's date and the venue's rank.
+const SECTION_ORDER_INCLUDES: Includeable[] = [
+  { model: CompetitionDay, as: 'day' },
+  { model: Venue, as: 'venue', attributes: [] },
+];
 
 // Section views show each exit's venue, which lives on its nomination.
 const ENTRY_WITH_NOMINATION_VENUE: Includeable = {
@@ -142,8 +151,8 @@ export class ScheduleService {
     private readonly itemModel: typeof SectionItem,
     @InjectModel(Entry)
     private readonly entryModel: typeof Entry,
-    @InjectModel(Venue)
-    private readonly venueModel: typeof Venue,
+    @InjectModel(Nomination)
+    private readonly nominationModel: typeof Nomination,
     private readonly rulesService: CompetitionRulesService,
     private readonly usersService: UsersService,
     private readonly participantNumbersService: CompetitionParticipantNumbersService,
@@ -202,131 +211,26 @@ export class ScheduleService {
 
   // --- Sections read ------------------------------------------------------
 
-  // Sections have no venue of their own — the venue is the nomination's. A
-  // venue filter keeps the sections holding at least one performance of a
-  // nomination on that venue; onlyVenueItems then hides the other rows.
-  private async sectionScope(
+  // Every venue runs its own program per day: a section belongs to one venue
+  // (sections.venueId, taken from its exits' nominations when it is built),
+  // so a venue filter is a plain column match.
+  private sectionWhere(
     competitionId: string,
     filter: { dayId?: string; venueId?: string },
-  ): Promise<SectionScope> {
+  ): Record<string, unknown> {
     const where: Record<string, unknown> = { competitionId };
     if (filter.dayId) where.dayId = filter.dayId;
-    if (!filter.venueId) return { where, venueEntryIds: null };
-
-    const items = await this.itemModel.findAll({
-      where: { type: PERFORMANCE_ITEM },
-      attributes: ['sectionId', 'entryId'],
-      include: [
-        {
-          model: Entry,
-          required: true,
-          attributes: [],
-          where: { competitionId },
-          include: [
-            {
-              model: Nomination,
-              required: true,
-              attributes: [],
-              where: { venueId: filter.venueId },
-            },
-          ],
-        },
-      ],
-    });
-    where.id = { [Op.in]: [...new Set(items.map((item) => item.sectionId))] };
-    return {
-      where,
-      venueEntryIds: new Set(
-        items.map((item) => item.entryId).filter((id): id is string => id !== null),
-      ),
-    };
+    if (filter.venueId) where.venueId = filter.venueId;
+    return where;
   }
 
-  // Hides other venues' performances. Every remaining row keeps the time it
-  // has in the full running order — a filter never moves a clock.
-  private onlyVenueItems(
-    views: SectionView[],
-    venueEntryIds: Set<string> | null,
-  ): SectionView[] {
-    if (!venueEntryIds) return views;
-    return views.map((view) => ({
-      ...view,
-      items: view.items.filter(
-        (item) =>
-          item.type !== PERFORMANCE_ITEM ||
-          (item.exit !== null && venueEntryIds.has(item.exit.entryId)),
-      ),
-    }));
-  }
-
-  // A section's true venue is the venue of its earliest performance's
-  // nomination — nominations are assigned to a venue through venue
-  // distribution (NominationsService) and are the single source of truth.
-  // The section's own `venueId` column is a legacy free pick made at build
-  // time and is never read here.
-  private async liveVenueBySection(
-    sectionIds: string[],
-  ): Promise<Map<string, string | null>> {
-    if (sectionIds.length === 0) return new Map();
-    const rows = await this.itemModel.findAll({
-      where: { sectionId: { [Op.in]: sectionIds }, type: PERFORMANCE_ITEM },
-      attributes: ['sectionId'],
-      order: [
-        ['sectionId', 'ASC'],
-        ['sortOrder', 'ASC'],
-      ],
-      include: [
-        {
-          model: Entry,
-          attributes: ['id'],
-          include: [{ model: Nomination, attributes: ['venueId'] }],
-        },
-      ],
-    });
-    const result = new Map<string, string | null>();
-    for (const row of rows) {
-      if (result.has(row.sectionId)) continue;
-      result.set(row.sectionId, row.entry?.nominationRef?.venueId ?? null);
-    }
-    return result;
-  }
-
-  // Every venue runs its own program, so with no venue filter a day lists
-  // one venue's sections after another's — venues in the order the venue
-  // list shows them, sections without a venue yet last — and each venue's
-  // sections keep their own order. `sections` must come in sectionOrder.
-  private async inVenueOrder<T extends Section>(
-    competitionId: string,
-    sections: T[],
-  ): Promise<T[]> {
-    if (sections.length < 2) return sections;
-    const [liveVenues, venues] = await Promise.all([
-      this.liveVenueBySection(sections.map((s) => s.id)),
-      this.venueModel.findAll({
-        where: { competitionId },
-        attributes: ['id'],
-        order: [['createdAt', 'ASC']],
-      }),
-    ]);
-    const venueRank = new Map(venues.map((venue, i) => [venue.id, i]));
-    const rankOf = (section: T): number => {
-      const venueId = liveVenues.get(section.id);
-      const rank = venueId ? venueRank.get(venueId) : undefined;
-      return rank ?? venues.length;
-    };
-    const dayRank = new Map<string, number>();
-    for (const section of sections) {
-      if (!dayRank.has(section.dayId)) dayRank.set(section.dayId, dayRank.size);
-    }
-    // Array.prototype.sort is stable: equal day + venue keeps section order.
-    return [...sections].sort(
-      (a, b) =>
-        dayRank.get(a.dayId)! - dayRank.get(b.dayId)! || rankOf(a) - rankOf(b),
-    );
-  }
-
+  // Day, then one venue's program after another (venues in the order the
+  // venue list shows them, sections without a venue last), then the
+  // section's place in its venue's day. Needs SECTION_ORDER_INCLUDES.
   private readonly sectionOrder: Order = [
     [{ model: CompetitionDay, as: 'day' }, 'date', 'ASC'],
+    [{ model: Venue, as: 'venue' }, 'createdAt', 'ASC NULLS LAST'],
+    ['venueId', 'ASC'],
     ['sortOrder', 'ASC'],
   ];
 
@@ -386,19 +290,12 @@ export class ScheduleService {
     filter: { dayId?: string; venueId?: string } = {},
   ): Promise<SectionView[]> {
     await this.assertCompetition(competitionId);
-    const scope = await this.sectionScope(competitionId, filter);
     const sections = await this.sectionModel.findAll({
-      where: scope.where,
-      include: [{ model: CompetitionDay, as: 'day' }],
+      where: this.sectionWhere(competitionId, filter),
+      include: SECTION_ORDER_INCLUDES,
       order: this.sectionOrder,
     });
-    const ordered = filter.venueId
-      ? sections
-      : await this.inVenueOrder(competitionId, sections);
-    return this.onlyVenueItems(
-      await this.toSectionViews(ordered),
-      scope.venueEntryIds,
-    );
+    return this.toSectionViews(sections);
   }
 
   // Row-bounded, section-aligned pagination: a page holds whole sections
@@ -421,16 +318,12 @@ export class ScheduleService {
       maxPageRows,
     );
 
-    const scope = await this.sectionScope(competitionId, filter);
-    const found = await this.sectionModel.findAll({
-      where: scope.where,
-      include: [{ model: CompetitionDay, as: 'day' }],
+    const ordered = await this.sectionModel.findAll({
+      where: this.sectionWhere(competitionId, filter),
+      include: SECTION_ORDER_INCLUDES,
       order: this.sectionOrder,
-      attributes: ['id', 'dayId'],
+      attributes: ['id'],
     });
-    const ordered = filter.venueId
-      ? found
-      : await this.inVenueOrder(competitionId, found);
     const orderedIds = ordered.map((s) => s.id);
     if (orderedIds.length === 0) {
       return {
@@ -468,10 +361,7 @@ export class ScheduleService {
     const sections = pageIds.map((id) => byId.get(id)!);
 
     return {
-      rows: this.onlyVenueItems(
-        await this.toSectionViews(sections),
-        scope.venueEntryIds,
-      ),
+      rows: await this.toSectionViews(sections),
       totalSections: orderedIds.length,
       pageCount: pages.length,
       page: current,
@@ -480,25 +370,25 @@ export class ScheduleService {
     };
   }
 
-  // Every section of the day, id + name only — for the move-exit menu and
-  // the day-wide reorder, which a single page cannot satisfy.
+  // Every section in scope, without items — for the move-exit menu, the
+  // add-to-section picker and the section reorder, which a single page
+  // cannot satisfy.
   async sectionsSummary(
     competitionId: string,
     filter: { dayId?: string; venueId?: string } = {},
   ): Promise<SectionSummaryView[]> {
     await this.assertCompetition(competitionId);
-    const scope = await this.sectionScope(competitionId, filter);
     const sections = await this.sectionModel.findAll({
-      where: scope.where,
-      order: [['sortOrder', 'ASC']],
-      attributes: ['id', 'name', 'dayId', 'sortOrder'],
+      where: this.sectionWhere(competitionId, filter),
+      include: SECTION_ORDER_INCLUDES,
+      order: this.sectionOrder,
+      attributes: ['id', 'name', 'dayId', 'venueId', 'sortOrder'],
     });
-    const liveVenues = await this.liveVenueBySection(sections.map((s) => s.id));
     return sections.map((s) => ({
       id: s.id,
       name: s.name,
       dayId: s.dayId,
-      venueId: liveVenues.get(s.id) ?? null,
+      venueId: s.venueId,
       sortOrder: s.sortOrder,
     }));
   }
@@ -514,10 +404,9 @@ export class ScheduleService {
     endTime: string | null;
   }> {
     await this.assertCompetition(competitionId);
-    const scope = await this.sectionScope(competitionId, filter);
     const sections = await this.sectionModel.findAll({
-      where: scope.where,
-      include: [{ model: CompetitionDay, as: 'day' }],
+      where: this.sectionWhere(competitionId, filter),
+      include: SECTION_ORDER_INCLUDES,
       order: this.sectionOrder,
       attributes: ['id'],
     });
@@ -529,9 +418,6 @@ export class ScheduleService {
       sectionId: { [Op.in]: sectionIds },
       type: PERFORMANCE_ITEM,
     };
-    if (scope.venueEntryIds) {
-      performanceWhere.entryId = { [Op.in]: [...scope.venueEntryIds] };
-    }
 
     const performances = await this.itemModel.count({
       where: performanceWhere,
@@ -551,9 +437,7 @@ export class ScheduleService {
     const lastSection = await this.sectionModel.findByPk(
       sectionIds[sectionIds.length - 1],
     );
-    const [lastView] = lastSection
-      ? this.onlyVenueItems([await this.viewOf(lastSection)], scope.venueEntryIds)
-      : [];
+    const lastView = lastSection ? await this.viewOf(lastSection) : null;
     const endTime = lastView?.items[lastView.items.length - 1]?.time ?? null;
 
     return { performances, noMusic, endTime };
@@ -570,7 +454,7 @@ export class ScheduleService {
     await this.assertDay(competitionId, dto.dayId);
 
     const entries = await this.loadSectionEntries(competitionId, dto.entryIds);
-    this.assertOneVenue(entries, null);
+    const venueId = this.venueOf(entries);
     await this.assertNoneAssigned(competitionId, dto.entryIds);
 
     const rules = await this.rulesService.getRules(competitionId);
@@ -595,14 +479,16 @@ export class ScheduleService {
     try {
       return await this.sectionModel.sequelize!.transaction(
         async (transaction) => {
+          // Each venue's day program keeps its own section order.
           const sortOrder = await this.sectionModel.count({
-            where: { dayId: dto.dayId },
+            where: { dayId: dto.dayId, venueId },
             transaction,
           });
           const section = await this.sectionModel.create(
             {
               competitionId,
               dayId: dto.dayId,
+              venueId,
               name: dto.name.trim(),
               startTime: dto.startTime,
               pauseSeconds: rules.pauseSeconds,
@@ -653,8 +539,7 @@ export class ScheduleService {
     await this.assertAccess(competitionId, requester);
     const section = await this.assertSection(competitionId, sectionId);
     const entries = await this.loadSectionEntries(competitionId, dto.entryIds);
-    const sectionVenues = await this.liveVenueBySection([sectionId]);
-    this.assertOneVenue(entries, sectionVenues.get(sectionId) ?? null);
+    this.assertSectionVenue(section, entries);
     await this.assertNoneAssigned(competitionId, dto.entryIds);
 
     // Durations resolve before the transaction, as in buildSection.
@@ -760,7 +645,7 @@ export class ScheduleService {
     await this.assertDay(competitionId, dto.dayId);
 
     const daySections = await this.sectionModel.findAll({
-      where: { competitionId, dayId: dto.dayId },
+      where: { competitionId, dayId: dto.dayId, venueId: dto.venueId ?? null },
       attributes: ['id'],
     });
     const current = new Set(daySections.map((s) => s.id));
@@ -841,6 +726,10 @@ export class ScheduleService {
       throw new NotFoundException(EXIT_NOT_IN_SCHEDULE_MESSAGE);
     }
     const target = await this.assertSection(competitionId, dto.targetSectionId);
+    this.assertSectionVenue(
+      target,
+      await this.loadSectionEntries(competitionId, [dto.entryId]),
+    );
     const sourceId = item.sectionId;
     if (sourceId === target.id) {
       return { sections: [await this.sectionViewById(sourceId)] };
@@ -864,6 +753,110 @@ export class ScheduleService {
         await this.sectionViewById(target.id),
       ],
     };
+  }
+
+  // Moves a whole nomination — every exit of it in the program — into one
+  // formed section of any day. A section on another venue moves the
+  // nomination itself there: its venue changes with it, so no exit stays
+  // behind on the old venue's program. Only the moved rows change place.
+  async moveNomination(
+    competitionId: string,
+    requester: AuthenticatedUser,
+    dto: MoveNominationDto,
+  ): Promise<SectionView> {
+    await this.assertAccess(competitionId, requester);
+    const target = await this.assertSection(competitionId, dto.targetSectionId);
+
+    await this.sectionModel.sequelize!.transaction(async (transaction) => {
+      // Same lock as late-entry placement and add-exits.
+      await this.competitionModel.findByPk(competitionId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      const moving = await this.groupRows(
+        competitionId,
+        dto.groupKey,
+        transaction,
+      );
+      if (moving.length === 0) {
+        throw new NotFoundException(NOMINATION_NOT_IN_SCHEDULE_MESSAGE);
+      }
+      await this.followTargetVenue(moving, target, transaction);
+
+      const movingIds = new Set(moving.map((row) => row.id));
+      const targetItems = await this.itemModel.findAll({
+        where: { sectionId: target.id },
+        order: ITEMS_ORDER,
+        transaction,
+      });
+      const kept = targetItems.filter((item) => !movingIds.has(item.id));
+      // The block keeps its place when the section already runs part of
+      // it; otherwise it follows the section's last performance.
+      const ownFirst = targetItems.findIndex((item) => movingIds.has(item.id));
+      const insertAt =
+        ownFirst >= 0
+          ? ownFirst
+          : kept.findLastIndex((item) => item.type === PERFORMANCE_ITEM) + 1;
+      // A merge label is per section: keep the target's, drop a source's.
+      const mergedGroupLabel =
+        ownFirst >= 0 ? targetItems[ownFirst].mergedGroupLabel : null;
+
+      await this.itemModel.update(
+        { sectionId: target.id, mergedGroupLabel },
+        { where: { id: { [Op.in]: [...movingIds] } }, transaction },
+      );
+      const ids = kept.map((item) => item.id);
+      ids.splice(insertAt, 0, ...moving.map((row) => row.id));
+      await this.persistOrder(ids, transaction);
+
+      const sources = new Set(moving.map((row) => row.sectionId));
+      sources.delete(target.id);
+      for (const sourceId of sources) {
+        await this.normalize(sourceId, transaction);
+      }
+    });
+    return this.viewOf(target);
+  }
+
+  // Every performance row of one nomination group, in running order.
+  private async groupRows(
+    competitionId: string,
+    groupKey: string,
+    transaction: Transaction,
+  ): Promise<SectionItem[]> {
+    const position = await this.sectionPositions(competitionId, transaction);
+    if (position.size === 0) return [];
+    const rows = await this.itemModel.findAll({
+      where: {
+        sectionId: { [Op.in]: [...position.keys()] },
+        type: PERFORMANCE_ITEM,
+        nominationGroupKey: groupKey,
+      },
+      include: [{ model: Entry, attributes: ['id', 'nominationId'] }],
+      transaction,
+    });
+    return rows.sort((a, b) => this.runningOrder(a, b, position));
+  }
+
+  // A nomination moved onto another venue's section now runs there.
+  private async followTargetVenue(
+    rows: SectionItem[],
+    target: Section,
+    transaction: Transaction,
+  ): Promise<void> {
+    if (!target.venueId) return;
+    const nominationIds = [
+      ...new Set(
+        rows
+          .map((row) => row.entry?.nominationId)
+          .filter((id): id is string => id != null),
+      ),
+    ];
+    if (nominationIds.length === 0) return;
+    await this.nominationModel.update(
+      { venueId: target.venueId },
+      { where: { id: { [Op.in]: nominationIds } }, transaction },
+    );
   }
 
   async mergeGroups(
@@ -1107,16 +1100,9 @@ export class ScheduleService {
     groupKeys: string[],
     transaction: Transaction,
   ): Promise<Map<string, SectionItem>> {
-    const sections = await this.sectionModel.findAll({
-      where: { competitionId },
-      include: [{ model: CompetitionDay, as: 'day' }],
-      order: this.sectionOrder,
-      attributes: ['id'],
-      transaction,
-    });
+    const position = await this.sectionPositions(competitionId, transaction);
     const blockEnds = new Map<string, SectionItem>();
-    if (sections.length === 0) return blockEnds;
-    const position = new Map(sections.map((section, i) => [section.id, i]));
+    if (position.size === 0) return blockEnds;
 
     const rows = await this.itemModel.findAll({
       where: {
@@ -1129,14 +1115,39 @@ export class ScheduleService {
     for (const row of rows) {
       const key = row.nominationGroupKey as string;
       const current = blockEnds.get(key);
-      const runsLater =
-        !current ||
-        position.get(row.sectionId)! > position.get(current.sectionId)! ||
-        (row.sectionId === current.sectionId &&
-          row.sortOrder > current.sortOrder);
-      if (runsLater) blockEnds.set(key, row);
+      if (!current || this.runningOrder(row, current, position) > 0) {
+        blockEnds.set(key, row);
+      }
     }
     return blockEnds;
+  }
+
+  // section id -> its place in the whole program's running order.
+  private async sectionPositions(
+    competitionId: string,
+    transaction: Transaction,
+  ): Promise<Map<string, number>> {
+    const sections = await this.sectionModel.findAll({
+      where: { competitionId },
+      include: SECTION_ORDER_INCLUDES,
+      order: this.sectionOrder,
+      attributes: ['id'],
+      transaction,
+    });
+    return new Map(sections.map((section, i) => [section.id, i]));
+  }
+
+  // Compares two rows by running order: their sections' places, then their
+  // own positions. Negative when `a` runs first.
+  private runningOrder(
+    a: SectionItem,
+    b: SectionItem,
+    position: Map<string, number>,
+  ): number {
+    return (
+      position.get(a.sectionId)! - position.get(b.sectionId)! ||
+      a.sortOrder - b.sortOrder
+    );
   }
 
   // Performance rows for one nomination group, in the group's order; the
@@ -1226,6 +1237,7 @@ export class ScheduleService {
 
     const { rows, count } = await this.entryModel.findAndCountAll({
       where,
+      include: [{ model: Nomination, attributes: ['id', 'venueId'] }],
       order: [['number', 'ASC']],
       limit,
       offset,
@@ -1243,6 +1255,7 @@ export class ScheduleService {
         improv: entry.improv,
         participantsCount: entry.participantsCount,
         studioName: entry.studioName,
+        venueId: entry.nominationRef?.venueId ?? null,
       })),
       total: count,
       page,
@@ -1489,14 +1502,10 @@ export class ScheduleService {
     return entries;
   }
 
-  // A section runs at one physical place and time, so its entries must
-  // share one venue — venue lives on the nomination (see BUG-19), not on
-  // the section, so it's the entries' nominations that must agree here,
-  // and with the venue an already formed section has (`sectionVenueId`).
-  private assertOneVenue(
-    entries: Entry[],
-    sectionVenueId: string | null,
-  ): void {
+  // The one venue the exits' nominations share, null when none has one — a
+  // section runs at one physical place and time, and its venue is taken
+  // from the nominations (see BUG-19), never picked by hand.
+  private venueOf(entries: Entry[]): string | null {
     const venues = new Set(
       entries
         .map((entry) => entry.nominationRef?.venueId)
@@ -1505,7 +1514,13 @@ export class ScheduleService {
     if (venues.size > 1) {
       throw new BadRequestException(MIXED_VENUE_SECTION_MESSAGE);
     }
-    if (sectionVenueId && venues.size === 1 && !venues.has(sectionVenueId)) {
+    return [...venues][0] ?? null;
+  }
+
+  // Exits join a formed section only on its own venue's program.
+  private assertSectionVenue(section: Section, entries: Entry[]): void {
+    const venueId = this.venueOf(entries);
+    if (section.venueId && venueId && venueId !== section.venueId) {
       throw new BadRequestException(OTHER_VENUE_SECTION_MESSAGE);
     }
   }

@@ -276,12 +276,24 @@
   color: var(--warning-text, #92400e);
 }
 
-/* Opens each venue's own program within a day. */
-.venueHeading {
+/* Opens each program: «день · майданчик». */
+.programHeading {
   margin: 1.25rem 0 0.5rem;
   color: var(--g-dark-cta);
   font-size: 0.85rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+/* Where an unassigned exit's nomination runs. */
+.poolVenue {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--g-accent-bg-soft);
+  color: var(--g-accent-hover);
+  font-size: 0.75rem;
+  white-space: nowrap;
 }

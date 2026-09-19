@@ -48,6 +48,8 @@ export const ITEM_SET_MISMATCH_MESSAGE =
   'Список позицій не збігається зі складом відділення — розклад змінив хтось інший';
 export const EXIT_NOT_IN_SCHEDULE_MESSAGE =
   'Цей вихід не розподілений у розклад';
+export const NOMINATION_NOT_IN_SCHEDULE_MESSAGE =
+  'Цієї номінації немає в розкладі';
 export const MERGE_NEEDS_TWO_GROUPS_MESSAGE =
   'Для об’єднання потрібно щонайменше дві групи';
 export const MERGE_LABEL_REQUIRED_MESSAGE = 'Вкажіть назву об’єднаної групи';

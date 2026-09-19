@@ -1,5 +1,7 @@
 import type { UnassignedExit, UnassignedFacets } from '../../../lib/schedule';
 import { pluralExits } from '../../../lib/duration';
+import type { Venue } from '../../../lib/venues';
+import { VENUE_UNASSIGNED_LABEL } from '../../../lib/nominationVenue.constants';
 import styles from './Schedule.module.css';
 
 const ALL = '';
@@ -10,6 +12,7 @@ interface UnassignedPoolProps {
   page: number;
   pageSize: number;
   facets: UnassignedFacets;
+  venues: Venue[];
   league: string;
   ageCategory: string;
   onFilterChange: (next: { league: string; ageCategory: string }) => void;
@@ -29,6 +32,7 @@ export default function UnassignedPool({
   page,
   pageSize,
   facets,
+  venues,
   league,
   ageCategory,
   onFilterChange,
@@ -41,6 +45,11 @@ export default function UnassignedPool({
   onAddToSection,
 }: UnassignedPoolProps) {
   const selected = new Set(selectedIds);
+  // Every venue runs its own program — the organizer must see where each
+  // exit's nomination runs before picking a section for it.
+  const venueNames = new Map(venues.map((venue) => [venue.id, venue.name]));
+  const venueOf = (exit: UnassignedExit): string =>
+    (exit.venueId && venueNames.get(exit.venueId)) || VENUE_UNASSIGNED_LABEL;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
   const toggle = (id: string) => {
@@ -139,6 +148,9 @@ export default function UnassignedPool({
                   {exit.nomination} — {exit.routineName}
                   {exit.improv ? ' · імпро' : ''}
                 </span>
+                {venues.length > 0 && (
+                  <span className={styles.poolVenue}>{venueOf(exit)}</span>
+                )}
               </li>
             ))}
           </ul>

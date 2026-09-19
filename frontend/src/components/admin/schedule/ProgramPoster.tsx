@@ -2,7 +2,7 @@ import { Fragment } from 'react';
 import type { PublicProgramRow } from '../../../lib/program';
 import type { CompetitionDay } from '../../../lib/schedule';
 import type { Venue } from '../../../lib/venues';
-import { venueHeadingAt } from '../../../lib/programVenueHeading';
+import { opensProgram, programHeading } from '../../../lib/programHeading';
 import { formatParticipantNumbers } from '../../../lib/participantNumbers';
 import { formatClock, formatDuration } from '../../../lib/duration';
 import styles from './Schedule.module.css';
@@ -35,7 +35,6 @@ export default function ProgramPoster({
     return <p className={styles.empty}>Публічна програма ще порожня.</p>;
   }
 
-  const multiDay = new Set(rows.map((r) => r.dayId)).size > 1;
   const venueNames = new Map(venues.map((venue) => [venue.id, venue.name]));
   const dayLabel = (row: PublicProgramRow) => {
     const day = days.find((d) => d.id === row.dayId);
@@ -45,13 +44,11 @@ export default function ProgramPoster({
   return (
     <div className={styles.card}>
       {rows.map((row, index) => {
-        const dayHeader =
-          multiDay && rows[index - 1]?.dayId !== row.dayId ? (
-            <div key={`day-${index}`} className={styles.sectionHead}>
-              <h3 className={styles.sectionName}>{dayLabel(row)}</h3>
-            </div>
-          ) : null;
-        const venueHeading = venueHeadingAt(rows, index, venueNames);
+        const heading = opensProgram(row, rows[index - 1]) ? (
+          <h3 className={styles.programHeading}>
+            {programHeading(dayLabel(row), row.venueId, venueNames)}
+          </h3>
+        ) : null;
 
         let body;
         if (row.kind === 'section') {
@@ -96,10 +93,7 @@ export default function ProgramPoster({
 
         return (
           <Fragment key={index}>
-            {dayHeader}
-            {venueHeading && (
-              <h4 className={styles.venueHeading}>{venueHeading}</h4>
-            )}
+            {heading}
             {body}
           </Fragment>
         );

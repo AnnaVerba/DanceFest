@@ -30,6 +30,7 @@ import { UpdateRowDto } from './dto/update-row.dto';
 import { UpdateSectionDto } from './dto/update-section.dto';
 import { MergeGroupsDto } from './dto/merge-groups.dto';
 import { MoveExitDto } from './dto/move-exit.dto';
+import { MoveNominationDto } from './dto/move-nomination.dto';
 import { RecalculateScheduleDto } from './dto/recalculate-schedule.dto';
 import { ReorderSectionDto } from './dto/reorder-section.dto';
 
@@ -203,6 +204,20 @@ export class ScheduleController {
       user,
       sectionId,
     );
+  }
+
+  @ApiOperation({
+    summary: 'Move a whole nomination to a section of any day or venue',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('schedule/move-nomination')
+  moveNomination(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: MoveNominationDto,
+  ) {
+    return this.scheduleService.moveNomination(competitionId, user, dto);
   }
 
   @ApiOperation({ summary: 'Move one exit to another section' })

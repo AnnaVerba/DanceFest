@@ -3,11 +3,14 @@ import Modal from '../Modal';
 import type { CompetitionDay, SectionSummary } from '../../../lib/schedule';
 import type { Venue } from '../../../lib/venues';
 import { VENUE_UNASSIGNED_LABEL } from '../../../lib/nominationVenue.constants';
+import type { SectionPickerTexts } from './sectionPicker.types';
 import styles from './Schedule.module.css';
 
-interface AddToSectionModalProps {
+interface SectionPickerModalProps {
   open: boolean;
-  exitCount: number;
+  texts: SectionPickerTexts;
+  // Shown above the pickers, e.g. how many exits are being added.
+  summary: string;
   days: CompetitionDay[];
   sections: SectionSummary[];
   venues: Venue[];
@@ -17,9 +20,13 @@ interface AddToSectionModalProps {
   onSubmit: (sectionId: string) => void;
 }
 
-export default function AddToSectionModal({
+// Picks a formed section: a day, then one of its sections grouped by venue —
+// every venue runs its own «Відділення 1, 2…», so same-named sections of
+// different venues are told apart by their venue group.
+export default function SectionPickerModal({
   open,
-  exitCount,
+  texts,
+  summary,
   days,
   sections,
   venues,
@@ -27,13 +34,11 @@ export default function AddToSectionModal({
   submitting,
   onCancel,
   onSubmit,
-}: AddToSectionModalProps) {
+}: SectionPickerModalProps) {
   const [dayId, setDayId] = useState(defaultDayId || days[0]?.id || '');
   const [sectionId, setSectionId] = useState('');
   const daySections = sections.filter((section) => section.dayId === dayId);
 
-  // Every venue runs its own «Відділення 1, 2…», so same-named sections of
-  // different venues are told apart by their venue group.
   const venueName = new Map(venues.map((venue) => [venue.id, venue.name]));
   const byVenue = new Map<string, SectionSummary[]>();
   for (const section of daySections) {
@@ -56,17 +61,17 @@ export default function AddToSectionModal({
   return (
     <Modal
       open={open}
-      title="Додати у відділення"
+      title={texts.title}
       onClose={onCancel}
       closeDisabled={submitting}
     >
       <div className={styles.modalBody}>
-        <p className={styles.counter}>Виходів до додавання: {exitCount}</p>
+        <p className={styles.counter}>{summary}</p>
         {days.length > 1 && (
           <div className={styles.modalField}>
-            <label htmlFor="addSectionDay">День</label>
+            <label htmlFor="pickSectionDay">День</label>
             <select
-              id="addSectionDay"
+              id="pickSectionDay"
               className={styles.input}
               value={dayId}
               onChange={(e) => setDayId(e.target.value)}
@@ -84,9 +89,9 @@ export default function AddToSectionModal({
           <p className={styles.counter}>У цьому дні ще немає відділень.</p>
         ) : (
           <div className={styles.modalField}>
-            <label htmlFor="addSectionTarget">Відділення</label>
+            <label htmlFor="pickSectionTarget">Відділення</label>
             <select
-              id="addSectionTarget"
+              id="pickSectionTarget"
               className={styles.input}
               value={sectionId}
               onChange={(e) => setSectionId(e.target.value)}
@@ -104,6 +109,7 @@ export default function AddToSectionModal({
             </select>
           </div>
         )}
+        {texts.hint && <p className={styles.counter}>{texts.hint}</p>}
         <div className={styles.modalActions}>
           <button
             type="button"
@@ -119,7 +125,7 @@ export default function AddToSectionModal({
             disabled={sectionId === '' || submitting}
             onClick={() => onSubmit(sectionId)}
           >
-            {submitting ? 'Додавання…' : 'Додати'}
+            {submitting ? texts.submittingLabel : texts.submitLabel}
           </button>
         </div>
       </div>

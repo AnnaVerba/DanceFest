@@ -87,6 +87,8 @@ export interface UnassignedExit {
   improv: boolean;
   participantsCount: number | null;
   studioName: string | null;
+  // The venue of the exit's nomination.
+  venueId: string | null;
 }
 
 export interface AssignedClash {
@@ -252,6 +254,19 @@ export function moveExit(
   );
 }
 
+// Every exit of one nomination into a formed section of any day; a section
+// on another venue moves the nomination's venue too.
+export function moveNomination(
+  competitionId: string,
+  groupKey: string,
+  targetSectionId: string,
+): Promise<Section> {
+  return apiRequest<Section>(`${base(competitionId)}/schedule/move-nomination`, {
+    method: 'POST',
+    body: JSON.stringify({ groupKey, targetSectionId }),
+  });
+}
+
 export function mergeGroups(
   competitionId: string,
   sectionId: string,
@@ -309,14 +324,20 @@ export function deleteRow(
   );
 }
 
+// Orders one venue's program of one day (venueId null: sections without a
+// venue) — every venue keeps its own section order.
 export function reorderSections(
   competitionId: string,
   dayId: string,
+  venueId: string | null,
   sectionIds: string[],
 ): Promise<{ sections: Section[] }> {
   return apiRequest<{ sections: Section[] }>(
     `${base(competitionId)}/schedule/reorder-sections`,
-    { method: 'POST', body: JSON.stringify({ dayId, sectionIds }) },
+    {
+      method: 'POST',
+      body: JSON.stringify({ dayId, venueId: venueId ?? undefined, sectionIds }),
+    },
   );
 }
 
