@@ -4,8 +4,10 @@ import type { Venue } from '../../../lib/venues';
 import {
   FOREIGN_VENUE_WARNING_HINT,
   FOREIGN_VENUE_WARNING_PREFIX,
+  MERGED_BLOCK_KEY_PREFIX,
   VENUE_LIST_SEPARATOR,
 } from './programTable.constants';
+import type { BlockRename } from './blockRename.types';
 import type {
   CompetitionDay,
   Section,
@@ -46,11 +48,18 @@ interface ProgramTableProps {
   onMergeSection: (section: Section) => void;
   onUnmerge: (sectionId: string, groupKey: string) => void;
   onMoveNomination: (nomination: NominationToMove) => void;
+  onRenameBlock: (rename: BlockRename) => void;
   onDeleteSection: (sectionId: string) => void;
 }
 
 function groupKeyOf(item: SectionItem): string {
   return item.nominationGroupKey ?? item.exit?.nomination ?? '—';
+}
+// Merged groups share one block (TASK-15); any other group is its own.
+function blockKeyOf(item: SectionItem): string {
+  return item.mergedGroupLabel
+    ? `${MERGED_BLOCK_KEY_PREFIX}${item.mergedGroupLabel}`
+    : groupKeyOf(item);
 }
 function groupLabelOf(item: SectionItem): string {
   return item.mergedGroupLabel ?? item.exit?.nomination ?? '—';
@@ -79,6 +88,7 @@ export default function ProgramTable({
   onMergeSection,
   onUnmerge,
   onMoveNomination,
+  onRenameBlock,
   onDeleteSection,
 }: ProgramTableProps) {
   const tech = view === 'tech';
@@ -259,7 +269,7 @@ export default function ProgramTable({
             const blocks: Block[] = [];
             for (const item of section.items) {
               if (item.type === 'performance') {
-                const key = groupKeyOf(item);
+                const key = blockKeyOf(item);
                 const last = blocks[blocks.length - 1];
                 if (last && last.kind === 'group' && last.key === key) {
                   last.items.push(item);
@@ -438,6 +448,12 @@ export default function ProgramTable({
                   if (visible.length === 0) return null;
                   const isCollapsed = collapsed.has(group.key);
                   const merged = group.items[0]?.mergedGroupLabel != null;
+                  // The block's own nomination group — for move, unmerge and
+                  // rename, which the server resolves per group key.
+                  const firstKey = groupKeyOf(group.items[0]);
+                  const nominationId =
+                    group.items[0]?.exit?.nominationId ?? null;
+                  const titleKey = `n-${section.id}-${group.key}`;
                   // A merged group can span nominations on different venues.
                   const groupVenues = [
                     ...new Set(
@@ -465,9 +481,33 @@ export default function ProgramTable({
                             >
                               {isCollapsed ? '▸' : '▾'}
                             </button>
-                            <span className={styles.blockTitle}>
-                              {group.label}
-                            </span>
+                            {editing && (merged || nominationId) ? (
+                              <input
+                                className={styles.titleInput}
+                                value={draft(titleKey, group.label)}
+                                onChange={(e) =>
+                                  setDraft(titleKey, e.target.value)
+                                }
+                                onBlur={() => {
+                                  const label = draft(
+                                    titleKey,
+                                    group.label,
+                                  ).trim();
+                                  if (!label || label === group.label) return;
+                                  onRenameBlock({
+                                    sectionId: section.id,
+                                    groupKey: firstKey,
+                                    merged,
+                                    nominationId,
+                                    label,
+                                  });
+                                }}
+                              />
+                            ) : (
+                              <span className={styles.blockTitle}>
+                                {group.label}
+                              </span>
+                            )}
                             <span className={styles.count}>
                               {group.items.length}
                             </span>
@@ -499,14 +539,14 @@ export default function ProgramTable({
                             <td
                               className={`${styles.blockCell} ${styles.tdActions}`}
                             >
-                              {editing && (
+                              {editing && !merged && (
                                 <button
                                   type="button"
                                   className={styles.iconBtnBlue}
                                   title={MOVE_NOMINATION_TITLE}
                                   onClick={() =>
                                     onMoveNomination({
-                                      groupKey: group.key,
+                                      groupKey: firstKey,
                                       label:
                                         group.items[0]?.exit?.nomination ??
                                         group.label,
@@ -523,7 +563,7 @@ export default function ProgramTable({
                                   className={styles.iconBtnBlue}
                                   title="Розʼєднати"
                                   onClick={() =>
-                                    onUnmerge(section.id, group.key)
+                                    onUnmerge(section.id, firstKey)
                                   }
                                 >
                                   ⇤⇥

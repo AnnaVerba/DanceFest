@@ -1,3 +1,5 @@
+import { Entry } from '../entries/entry.model';
+import { ScheduleModule } from '../schedule/schedule.module';
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { Competition } from '../competitions/competition.model';
@@ -17,8 +19,10 @@ import { NominationsService } from './nominations.service';
       Nomination,
       Category,
       Venue,
+      Entry,
     ]),
     CompetitionRulesModule,
+    ScheduleModule,
   ],
   controllers: [NominationsController],
   providers: [NominationsService],

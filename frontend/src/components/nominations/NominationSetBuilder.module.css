@@ -192,6 +192,12 @@
     flex-direction: column;
     align-items: stretch;
   }
+
+  /* У колонці flex-basis задає висоту — полям лишаємо природну. */
+  .axisAdd input,
+  .axisAdd input.ageBound {
+    flex: none;
+  }
 }
 
 /* Стоїть одразу під кнопками генерації: людина натиснула тут — і відповідь

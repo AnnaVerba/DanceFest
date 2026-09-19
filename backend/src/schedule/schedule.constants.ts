@@ -1,8 +1,3 @@
-// Fallback when an exit has no nomination to resolve a limit from. Mirrors
-// DEFAULT_DURATION_LIMIT_SECONDS in competition-rules, kept separate so the
-// schedule module has no reason to import that service just for a number.
-export const DEFAULT_LIMIT_SECONDS = 180;
-
 export const SECTION_ITEMS_TABLE = 'section_items';
 
 // Rewrites a section's running order in one statement: each id in the bound

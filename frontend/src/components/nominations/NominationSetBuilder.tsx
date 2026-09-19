@@ -35,7 +35,12 @@ import type { AxisSelection, DraftNomination } from '../../lib/nominationSet';
 import {
   CATEGORY_VALUE_NAME_REQUIRED_MESSAGE,
   NOMINATIONS_TABLE_PAGE_SIZE,
+  REMOVE_AXIS_VALUE_DROP_LABEL,
+  REMOVE_AXIS_VALUE_KEEP_LABEL,
+  REMOVE_AXIS_VALUE_TITLE,
 } from './NominationSetBuilder.constants';
+import type { PendingAxisRemoval } from './pendingAxisRemoval.types';
+import ConfirmDialog from '../admin/ConfirmDialog';
 import styles from './NominationSetBuilder.module.css';
 
 // Stable reference so useMemo below doesn't see a "new" array on every
@@ -71,6 +76,9 @@ export default function NominationSetBuilder({
   const [axisPrices, setAxisPrices] = useState<AxisPriceMap>({});
   const [specialOpen, setSpecialOpen] = useState(false);
   const [nominationsPage, setNominationsPage] = useState(0);
+  const [pendingRemoval, setPendingRemoval] = useState<PendingAxisRemoval | null>(
+    null,
+  );
 
   // Categories are a near-static reference used across many forms — cached
   // indefinitely, refreshed only when an admin edit invalidates it.
@@ -177,15 +185,43 @@ export default function NominationSetBuilder({
     clearInput();
   };
 
-  // Прибрати значення з осі — і з уже згенерованих номінацій, що на нього
-  // посилаються: інакше застарілий categoryIds лишається в payload і бекенд
-  // валідує діапазон, якого вже нема серед вибраних (BUG-09).
-  const removeValue = (type: CategoryType, id: string) => {
+  const dropFromSelection = (type: CategoryType, id: string) =>
     updateSelection((current) => ({
       ...current,
       [type]: current[type].filter((c) => c.id !== id),
     }));
-    onChange(nominations.filter((n) => !n.categoryIds.includes(id)));
+
+  // Значення, яке вже використане в номінаціях, прибирається лише після
+  // вибору: «лише з вибору» зберігає згенероване (генерація частинами,
+  // BUG-05), «разом із номінаціями» — щоб видалене значення не лишилось у
+  // payload і не потрапило у валідацію діапазонів (BUG-09).
+  const removeValue = (type: CategoryType, category: Category) => {
+    const nominationCount = nominations.filter((n) =>
+      n.categoryIds.includes(category.id),
+    ).length;
+    if (nominationCount === 0) {
+      dropFromSelection(type, category.id);
+      return;
+    }
+    setPendingRemoval({ type, category, nominationCount });
+  };
+
+  const keepNominationsOfPending = () => {
+    if (!pendingRemoval) return;
+    const { type, category } = pendingRemoval;
+    dropFromSelection(type, category.id);
+    // Номінації й далі посилаються на значення, а сторінка шукає його межі
+    // та лігу лише в осях і в «додаткових» категоріях — передаємо його туди.
+    onCategoryCreated?.(category);
+    setPendingRemoval(null);
+  };
+
+  const dropNominationsOfPending = () => {
+    if (!pendingRemoval) return;
+    const { type, category } = pendingRemoval;
+    dropFromSelection(type, category.id);
+    onChange(nominations.filter((n) => !n.categoryIds.includes(category.id)));
+    setPendingRemoval(null);
   };
 
   const generate = () => {
@@ -330,7 +366,7 @@ export default function NominationSetBuilder({
                       <button
                         type="button"
                         aria-label={`Прибрати ${category.name}`}
-                        onClick={() => removeValue(type, category.id)}
+                        onClick={() => removeValue(type, category)}
                       >
                         ✕
                       </button>
@@ -551,6 +587,21 @@ export default function NominationSetBuilder({
           onCategoryCreated?.(category);
         }}
         onSubmit={addSpecial}
+      />
+
+      <ConfirmDialog
+        open={pendingRemoval !== null}
+        title={REMOVE_AXIS_VALUE_TITLE}
+        description={
+          pendingRemoval
+            ? `«${pendingRemoval.category.name}» уже використано в номінаціях: ${pendingRemoval.nominationCount}. Прибрати значення лише з вибору (номінації лишаться) чи видалити разом із ними?`
+            : ''
+        }
+        secondaryLabel={REMOVE_AXIS_VALUE_KEEP_LABEL}
+        onSecondary={keepNominationsOfPending}
+        confirmLabel={REMOVE_AXIS_VALUE_DROP_LABEL}
+        onConfirm={dropNominationsOfPending}
+        onCancel={() => setPendingRemoval(null)}
       />
     </div>
   );

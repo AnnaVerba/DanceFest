@@ -29,7 +29,7 @@ import { Nomination } from '../nominations/nomination.model';
 import { Venue } from '../venues/venue.model';
 import { CompetitionRule } from '../competition-rules/competition-rule.model';
 import { CompetitionRulesService } from '../competition-rules/competition-rules.service';
-import { DEFAULT_DURATION_ROUND } from '../competition-rules/duration-limit.model';
+import { LimitCache } from '../competition-rules/limit-cache';
 import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
 import { CompetitionDay } from './competition-day.model';
 import { Section } from './section.model';
@@ -58,7 +58,6 @@ import {
   type RowPaged,
 } from './pagination';
 import {
-  DEFAULT_LIMIT_SECONDS,
   DEFAULT_PROGRAM_PAGE_ROWS,
   DEFAULT_SECTIONS_PAGE_ROWS,
   DEFAULT_UNASSIGNED_PAGE_SIZE,
@@ -94,6 +93,9 @@ import { UpdateSectionDto } from './dto/update-section.dto';
 import { MergeGroupsDto } from './dto/merge-groups.dto';
 import { MoveExitDto } from './dto/move-exit.dto';
 import { MoveNominationDto } from './dto/move-nomination.dto';
+import { RenameGroupDto } from './dto/rename-group.dto';
+import { findVenueConflicts } from './find-venue-conflicts';
+import type { VenueConflictView } from './venue-conflict';
 import { RecalculateScheduleDto } from './dto/recalculate-schedule.dto';
 import { ReorderSectionDto } from './dto/reorder-section.dto';
 
@@ -476,7 +478,7 @@ export class ScheduleService {
 
     // Resolve every duration up front: durationOf hits the rules service and
     // can throw, so it must not run mid-insert and leave a half-built section.
-    const limitCache = new Map<string, number>();
+    const limitCache = new LimitCache();
     const performanceRows: CreationAttributes<SectionItem>[] = [];
     for (const group of grouped) {
       for (const entry of group.entries) {
@@ -558,7 +560,7 @@ export class ScheduleService {
 
     // Durations resolve before the transaction, as in buildSection.
     const rules = await this.rulesService.getRules(competitionId);
-    const limitCache = new Map<string, number>();
+    const limitCache = new LimitCache();
     const groups: { key: string; rows: CreationAttributes<SectionItem>[] }[] =
       [];
     for (const group of this.groupByNomination(entries)) {
@@ -796,40 +798,126 @@ export class ScheduleService {
         throw new NotFoundException(NOMINATION_NOT_IN_SCHEDULE_MESSAGE);
       }
       await this.followTargetVenue(moving, target, transaction);
-
-      const movingIds = new Set(moving.map((row) => row.id));
-      const targetItems = await this.itemModel.findAll({
-        where: { sectionId: target.id },
-        order: ITEMS_ORDER,
-        transaction,
-      });
-      const kept = targetItems.filter((item) => !movingIds.has(item.id));
-      // The block keeps its place when the section already runs part of
-      // it; otherwise it follows the section's last performance.
-      const ownFirst = targetItems.findIndex((item) => movingIds.has(item.id));
-      const insertAt =
-        ownFirst >= 0
-          ? ownFirst
-          : kept.findLastIndex((item) => item.type === PERFORMANCE_ITEM) + 1;
-      // A merge label is per section: keep the target's, drop a source's.
-      const mergedGroupLabel =
-        ownFirst >= 0 ? targetItems[ownFirst].mergedGroupLabel : null;
-
-      await this.itemModel.update(
-        { sectionId: target.id, mergedGroupLabel },
-        { where: { id: { [Op.in]: [...movingIds] } }, transaction },
-      );
-      const ids = kept.map((item) => item.id);
-      ids.splice(insertAt, 0, ...moving.map((row) => row.id));
-      await this.persistOrder(ids, transaction);
-
-      const sources = new Set(moving.map((row) => row.sectionId));
-      sources.delete(target.id);
-      for (const sourceId of sources) {
-        await this.normalize(sourceId, transaction);
-      }
+      await this.placeRows(moving, target, transaction);
     });
     return this.viewOf(target);
+  }
+
+  // A nomination moved to another venue (Майданчики tab, one or many at
+  // once) leaves its old venue's program (TASK-14): its exits of each day
+  // join the end of the new venue's last section that day, or go back to
+  // the unassigned pool when that venue runs no section then. Exits already
+  // on the new venue stay put.
+  async relocateToVenue(
+    competitionId: string,
+    nominationIds: string[],
+    venueId: string | null,
+  ): Promise<void> {
+    if (nominationIds.length === 0) return;
+    await this.sectionModel.sequelize!.transaction(async (transaction) => {
+      await this.competitionModel.findByPk(competitionId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      const sections = await this.sectionModel.findAll({
+        where: { competitionId },
+        include: SECTION_ORDER_INCLUDES,
+        order: this.sectionOrder,
+        attributes: ['id', 'dayId', 'venueId'],
+        transaction,
+      });
+      const sectionById = new Map(sections.map((s) => [s.id, s]));
+      // Sections come in running order, so the last one per day wins.
+      const lastOnVenue = new Map<string, Section>();
+      for (const section of sections) {
+        if (venueId && section.venueId === venueId) {
+          lastOnVenue.set(section.dayId, section);
+        }
+      }
+
+      for (const nominationId of nominationIds) {
+        const rows = await this.groupRows(
+          competitionId,
+          nominationId,
+          transaction,
+        );
+        const byDay = new Map<string, SectionItem[]>();
+        for (const row of rows) {
+          const section = sectionById.get(row.sectionId)!;
+          if (section.venueId === venueId) continue;
+          byDay.set(section.dayId, [...(byDay.get(section.dayId) ?? []), row]);
+        }
+        for (const [dayId, dayRows] of byDay) {
+          const target = lastOnVenue.get(dayId);
+          if (target) await this.placeRows(dayRows, target, transaction);
+          else await this.unschedule(dayRows, transaction);
+        }
+      }
+    });
+  }
+
+  // Puts `rows` (running order) into `target` as one block: where the
+  // section already runs part of it, else after its last performance. Only
+  // the moved rows change place; the sections they left close up.
+  private async placeRows(
+    moving: SectionItem[],
+    target: Section,
+    transaction: Transaction,
+  ): Promise<void> {
+    const movingIds = new Set(moving.map((row) => row.id));
+    const targetItems = await this.itemModel.findAll({
+      where: { sectionId: target.id },
+      order: ITEMS_ORDER,
+      transaction,
+    });
+    const kept = targetItems.filter((item) => !movingIds.has(item.id));
+    // The block keeps its place when the section already runs part of
+    // it; otherwise it follows the section's last performance.
+    const ownFirst = targetItems.findIndex((item) => movingIds.has(item.id));
+    const insertAt =
+      ownFirst >= 0
+        ? ownFirst
+        : kept.findLastIndex((item) => item.type === PERFORMANCE_ITEM) + 1;
+    // A merge label is per section: keep the target's, drop a source's.
+    const mergedGroupLabel =
+      ownFirst >= 0 ? targetItems[ownFirst].mergedGroupLabel : null;
+
+    await this.itemModel.update(
+      { sectionId: target.id, mergedGroupLabel },
+      { where: { id: { [Op.in]: [...movingIds] } }, transaction },
+    );
+    const ids = kept.map((item) => item.id);
+    ids.splice(insertAt, 0, ...moving.map((row) => row.id));
+    await this.persistOrder(ids, transaction);
+
+    const sources = new Set(moving.map((row) => row.sectionId));
+    sources.delete(target.id);
+    for (const sourceId of sources) {
+      await this.normalize(sourceId, transaction);
+    }
+  }
+
+  // Takes rows out of the program — their exits return to the pool.
+  private async unschedule(
+    rows: SectionItem[],
+    transaction: Transaction,
+  ): Promise<void> {
+    await this.itemModel.destroy({
+      where: { id: { [Op.in]: rows.map((row) => row.id) } },
+      transaction,
+    });
+    for (const sectionId of new Set(rows.map((row) => row.sectionId))) {
+      await this.normalize(sectionId, transaction);
+    }
+  }
+
+  // Participants booked on two venues at overlapping times (TASK-14).
+  async venueConflicts(
+    competitionId: string,
+    requester: AuthenticatedUser,
+  ): Promise<VenueConflictView[]> {
+    await this.assertAccess(competitionId, requester);
+    return findVenueConflicts(await this.listSections(competitionId));
   }
 
   // Every performance row of one nomination group, in running order.
@@ -884,11 +972,72 @@ export class ScheduleService {
     if (new Set(dto.groupKeys).size < 2) {
       throw new BadRequestException(MERGE_NEEDS_TWO_GROUPS_MESSAGE);
     }
-    await this.itemModel.update(
-      { mergedGroupLabel: dto.label.trim() },
-      { where: { sectionId, nominationGroupKey: { [Op.in]: dto.groupKeys } } },
-    );
+    await this.sectionModel.sequelize!.transaction(async (transaction) => {
+      await this.itemModel.update(
+        { mergedGroupLabel: dto.label.trim() },
+        {
+          where: { sectionId, nominationGroupKey: { [Op.in]: dto.groupKeys } },
+          transaction,
+        },
+      );
+      // One block (TASK-15): the merged rows gather where the first of them
+      // runs, each keeping its order; nothing else moves.
+      const items = await this.itemModel.findAll({
+        where: { sectionId },
+        order: ITEMS_ORDER,
+        transaction,
+      });
+      const keys = new Set(dto.groupKeys);
+      const merged = items.filter(
+        (item) =>
+          item.nominationGroupKey !== null && keys.has(item.nominationGroupKey),
+      );
+      if (merged.length === 0) return;
+      const mergedIds = new Set(merged.map((item) => item.id));
+      const firstAt = items.findIndex((item) => mergedIds.has(item.id));
+      const ids = items
+        .filter((item) => !mergedIds.has(item.id))
+        .map((item) => item.id);
+      ids.splice(firstAt, 0, ...merged.map((item) => item.id));
+      await this.persistOrder(ids, transaction);
+    });
     return this.viewOf(section);
+  }
+
+  // Renames a merged block in place — every group sharing its label.
+  async renameMergedGroup(
+    competitionId: string,
+    requester: AuthenticatedUser,
+    sectionId: string,
+    groupKey: string,
+    dto: RenameGroupDto,
+  ): Promise<SectionView> {
+    await this.assertAccess(competitionId, requester);
+    const section = await this.assertSection(competitionId, sectionId);
+    const label = await this.mergedLabelOf(sectionId, groupKey);
+    if (label !== null) {
+      await this.itemModel.update(
+        { mergedGroupLabel: dto.label.trim() },
+        { where: { sectionId, mergedGroupLabel: label } },
+      );
+    }
+    return this.viewOf(section);
+  }
+
+  // The merged label a group carries in a section, null when not merged.
+  private async mergedLabelOf(
+    sectionId: string,
+    groupKey: string,
+  ): Promise<string | null> {
+    const row = await this.itemModel.findOne({
+      where: {
+        sectionId,
+        nominationGroupKey: groupKey,
+        mergedGroupLabel: { [Op.ne]: null },
+      },
+      attributes: ['mergedGroupLabel'],
+    });
+    return row?.mergedGroupLabel ?? null;
   }
 
   async unmergeGroup(
@@ -899,10 +1048,14 @@ export class ScheduleService {
   ): Promise<SectionView> {
     await this.assertAccess(competitionId, requester);
     const section = await this.assertSection(competitionId, sectionId);
-    await this.itemModel.update(
-      { mergedGroupLabel: null },
-      { where: { sectionId, nominationGroupKey: groupKey } },
-    );
+    // A merged block splits back as a whole — every group sharing its label.
+    const label = await this.mergedLabelOf(sectionId, groupKey);
+    if (label !== null) {
+      await this.itemModel.update(
+        { mergedGroupLabel: null },
+        { where: { sectionId, mergedGroupLabel: label } },
+      );
+    }
     return this.viewOf(section);
   }
 
@@ -1023,7 +1176,7 @@ export class ScheduleService {
 
     // One transaction for every section: an unresolvable entry halfway
     // through must not leave the schedule split between old and new rules.
-    const limitCache = new Map<string, number>();
+    const limitCache = new LimitCache();
     await this.sectionModel.sequelize!.transaction(async (transaction) => {
       for (const section of sections) {
         await this.itemModel.destroy({
@@ -1071,7 +1224,7 @@ export class ScheduleService {
   ): Promise<void> {
     if (entries.length === 0) return;
     const rules = await this.rulesService.getRules(competitionId);
-    const limitCache = new Map<string, number>();
+    const limitCache = new LimitCache();
 
     await this.sectionModel.sequelize!.transaction(async (transaction) => {
       // Serializes concurrent submissions of one competition, so two late
@@ -1170,7 +1323,7 @@ export class ScheduleService {
     groupKey: string,
     entries: Entry[],
     rules: CompetitionRule,
-    limitCache: Map<string, number>,
+    limitCache: LimitCache,
   ): Promise<CreationAttributes<SectionItem>[]> {
     const rows: CreationAttributes<SectionItem>[] = [];
     for (const entry of entries) {
@@ -1408,37 +1561,21 @@ export class ScheduleService {
       .sort((a, b) => a.entries[0].number - b.entries[0].number);
   }
 
-  // Priority for a non-improv exit's on-stage limit:
-  //   league limit (the simple knob) → per-nomination / per-axis
-  //   duration_limits → 180s default.
-  // `limitCache` (nominationId -> seconds) is passed by callers that resolve
-  // many entries in one pass — a section or a whole recalculate — where the
-  // same nomination recurs and its limit cannot change mid-pass.
+  // A non-improv exit runs for its effective limit (see
+  // CompetitionRulesService.resolveEffectiveLimit for the priority).
+  // `limitCache` is passed by callers that resolve many entries in one
+  // pass — a section or a whole recalculate — where the same nomination
+  // recurs and its limit cannot change mid-pass.
   private async durationOf(
     entry: Entry,
     rules: CompetitionRule,
-    limitCache?: Map<string, number>,
+    limitCache: LimitCache,
   ): Promise<number> {
-    // leagueLimits keys are stored trimmed (see sanitizeLeagueLimits).
-    const leagueKey = entry.league?.trim();
-    const leagueLimit = leagueKey ? rules.leagueLimits?.[leagueKey] : undefined;
-    let limitSeconds: number;
-    if (typeof leagueLimit === 'number' && leagueLimit > 0) {
-      limitSeconds = leagueLimit;
-    } else if (entry.nominationId) {
-      const cached = limitCache?.get(entry.nominationId);
-      if (cached !== undefined) {
-        limitSeconds = cached;
-      } else {
-        limitSeconds = await this.rulesService.resolveLimit(
-          entry.nominationId,
-          DEFAULT_DURATION_ROUND,
-        );
-        limitCache?.set(entry.nominationId, limitSeconds);
-      }
-    } else {
-      limitSeconds = DEFAULT_LIMIT_SECONDS;
-    }
+    const limitSeconds = await this.rulesService.resolveEffectiveLimit(
+      entry,
+      rules,
+      limitCache,
+    );
     return performanceDuration(
       {
         improv: entry.improv,
