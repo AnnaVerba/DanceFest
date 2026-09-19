@@ -87,6 +87,8 @@ export interface UnassignedExit {
   improv: boolean;
   participantsCount: number | null;
   studioName: string | null;
+  // The venue of the exit's nomination.
+  venueId: string | null;
 }
 
 export interface AssignedClash {
@@ -197,6 +199,19 @@ export function buildSection(
   });
 }
 
+// Unassigned exits into an already formed section — the server places each
+// at the end of its nomination's block, or opens a new block.
+export function addExitsToSection(
+  competitionId: string,
+  sectionId: string,
+  entryIds: string[],
+): Promise<Section> {
+  return apiRequest<Section>(
+    `${base(competitionId)}/sections/${sectionId}/exits`,
+    { method: 'POST', body: JSON.stringify({ entryIds }) },
+  );
+}
+
 export function reorderSection(
   competitionId: string,
   sectionId: string,
@@ -237,6 +252,19 @@ export function moveExit(
     `${base(competitionId)}/schedule/move-exit`,
     { method: 'POST', body: JSON.stringify({ entryId, targetSectionId }) },
   );
+}
+
+// Every exit of one nomination into a formed section of any day; a section
+// on another venue moves the nomination's venue too.
+export function moveNomination(
+  competitionId: string,
+  groupKey: string,
+  targetSectionId: string,
+): Promise<Section> {
+  return apiRequest<Section>(`${base(competitionId)}/schedule/move-nomination`, {
+    method: 'POST',
+    body: JSON.stringify({ groupKey, targetSectionId }),
+  });
 }
 
 export function mergeGroups(
@@ -296,14 +324,20 @@ export function deleteRow(
   );
 }
 
+// Orders one venue's program of one day (venueId null: sections without a
+// venue) — every venue keeps its own section order.
 export function reorderSections(
   competitionId: string,
   dayId: string,
+  venueId: string | null,
   sectionIds: string[],
 ): Promise<{ sections: Section[] }> {
   return apiRequest<{ sections: Section[] }>(
     `${base(competitionId)}/schedule/reorder-sections`,
-    { method: 'POST', body: JSON.stringify({ dayId, sectionIds }) },
+    {
+      method: 'POST',
+      body: JSON.stringify({ dayId, venueId: venueId ?? undefined, sectionIds }),
+    },
   );
 }
 

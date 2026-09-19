@@ -3,6 +3,7 @@ import type { CategoryType } from './categories';
 import type { PublicProgramQuery } from './program';
 import type { PageRequest, UnassignedFilter } from './schedule';
 import type { NominationPageQuery, VenueSummaryGroupBy } from './nominations.types';
+import type { FinanceGroup, FinanceGroupQuery } from './finance.types';
 
 // Single source of truth for React Query cache keys. Filters and search
 // terms are always part of the key — otherwise results from different
@@ -24,6 +25,10 @@ export const queryKeys = {
   entries: (competitionId: string) => ['applications', competitionId, 'cabinet'] as const,
   myEntries: () => ['applications', 'mine'] as const,
   overages: (competitionId: string) => ['overages', competitionId] as const,
+  financeSummary: (competitionId: string) =>
+    ['finance', competitionId, 'summary'] as const,
+  financeGroup: (competitionId: string, group: FinanceGroup, query: FinanceGroupQuery) =>
+    ['finance', competitionId, group, query] as const,
 
   categories: (type?: CategoryType) => ['categories', type ?? 'all'] as const,
   categoryTemplates: (
@@ -60,6 +65,8 @@ export const queryKeys = {
   programPublication: (competitionId: string) =>
     ['sections', competitionId, 'publication'] as const,
   myProgram: (competitionId: string) => ['timing', competitionId, 'mine'] as const,
+  // Prefix of every program projection (public poster, «моя програма»).
+  timingScope: (competitionId: string) => ['timing', competitionId] as const,
 
   rules: (competitionId: string) => ['rules', competitionId] as const,
   days: (competitionId: string) => ['days', competitionId] as const,
@@ -80,6 +87,8 @@ export const queryKeys = {
     competitionId: string,
     filter: UnassignedFilter & PageRequest = {},
   ) => ['unassigned', competitionId, filter] as const,
+  // Prefix of every unassigned-pool query of a competition.
+  unassignedScope: (competitionId: string) => ['unassigned', competitionId] as const,
   unassignedFacets: (competitionId: string) =>
     ['unassigned', competitionId, 'facets'] as const,
 

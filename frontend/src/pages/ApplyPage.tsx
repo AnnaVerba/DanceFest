@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { getApplyEligibility, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { getNominations } from '../lib/nominations';
@@ -21,7 +22,7 @@ import {
   PARTICIPANT_SEARCH_MIN_CHARS,
 } from '../lib/participants.constants';
 import { getSchool } from '../lib/schools';
-import { formatEntryAmount } from '../lib/entryAmount';
+import { entryCostForDancers, formatEntryAmount } from '../lib/entryAmount';
 import {
   createCoach,
   getMyMentorCoach,
@@ -31,6 +32,7 @@ import {
 } from '../lib/auth';
 import type { CoachSummary, SetMentorCoachBody } from '../lib/auth';
 import { completeProfile } from '../lib/users';
+import { refreshProgram } from '../lib/programCache';
 import MentorCoachPicker from '../components/MentorCoachPicker';
 import SchoolPicker from '../components/SchoolPicker';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
@@ -118,6 +120,7 @@ function uniqueInOrder(values: string[]): string[] {
 export default function ApplyPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   // Read once: the session only changes on login/logout, which unmounts
   // this page anyway.
   const session = useMemo(() => getSession(), []);
@@ -418,7 +421,10 @@ export default function ApplyPage() {
   );
 
   const selectedRows = allRows.filter((r) => selectedKeys.includes(r.key));
-  const total = selectedRows.reduce((sum, r) => sum + (r.price ?? 0), 0);
+  const total = selectedRows.reduce(
+    (sum, r) => sum + (entryCostForDancers(r.price, pickedCount) ?? 0),
+    0,
+  );
 
   // Which required field to highlight red — mirrors the checks in
   // handleSubmit, so the invalid one stays marked until it's actually fixed.
@@ -611,6 +617,9 @@ export default function ApplyPage() {
         })),
       );
       setCreatedCount(created.length);
+      // The server may have placed the new exits straight into a formed
+      // program; otherwise they joined the unassigned pool.
+      void refreshProgram(queryClient, id);
 
       // Entries exist now, so their ids are stable — upload each picked
       // file for real instead of just remembering its name.

@@ -2,7 +2,7 @@ import type { EntryParticipant } from './entryEdit.types';
 
 export interface PricedEntry {
   participants: EntryParticipant[];
-  price: number | null;
+  amount: number;
 }
 
 export interface ParticipantAmount {

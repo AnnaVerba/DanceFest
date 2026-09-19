@@ -57,3 +57,12 @@ export const NOMINATION_PROGRAM_MISMATCH_MESSAGE =
 // PATCH .../entries/:entryId/extra-time).
 export const EXTRA_TIME_SECONDS_OPTIONS = [30, 60] as const;
 export type ExtraTimeSeconds = (typeof EXTRA_TIME_SECONDS_OPTIONS)[number];
+
+// Money is kept to kopiykas: sums of DECIMAL(10,2) prices are rounded back
+// to two decimals so float drift never shows up in a total.
+export const MONEY_ROUNDING_FACTOR = 100;
+
+// Logged when a late entry could not join its nomination's block in an
+// already formed program — the entry stays in the unassigned pool.
+export const PROGRAM_PLACEMENT_FAILED_MESSAGE =
+  'Could not place late entries into the formed program of competition';

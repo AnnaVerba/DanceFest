@@ -10,8 +10,9 @@ import { Entry } from '../entries/entry.model';
 import { Section } from './section.model';
 import { SECTION_ITEM_TYPES } from './section-item-type';
 import type { SectionItemType } from './section-item-type';
+import { SECTION_ITEMS_TABLE } from './schedule.constants';
 
-@Table({ tableName: 'section_items' })
+@Table({ tableName: SECTION_ITEMS_TABLE })
 export class SectionItem extends Model<SectionItem> {
   @Column({
     type: DataType.UUID,

@@ -1,6 +1,7 @@
 import {
   ENTRY_AMOUNT_CURRENCY,
   ENTRY_AMOUNT_EMPTY_PLACEHOLDER,
+  ENTRY_MIN_DANCERS,
 } from './entryAmount.constants';
 import type { ParticipantAmount, PricedEntry } from './entryAmount.types';
 import { formatParticipants } from './entryParticipants';
@@ -27,7 +28,16 @@ export function sumAmountsByParticipant(
   const totals = new Map<string, number>();
   for (const entry of entries) {
     const participant = formatParticipants(entry.participants);
-    totals.set(participant, (totals.get(participant) ?? 0) + (entry.price ?? 0));
+    totals.set(participant, (totals.get(participant) ?? 0) + entry.amount);
   }
   return [...totals].map(([participant, amount]) => ({ participant, amount }));
+}
+
+// Nomination prices are per person (TASK-20): a trio at 500 costs 1500.
+// Mirrors the server's calculateEntryAmount, before any «Доплати» fee.
+export function entryCostForDancers(
+  price: number | null,
+  dancers: number,
+): number | null {
+  return price === null ? null : price * Math.max(dancers, ENTRY_MIN_DANCERS);
 }

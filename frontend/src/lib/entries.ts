@@ -43,6 +43,9 @@ export interface Entry {
   scoresCount?: number;
   purchasedExtraSeconds?: number;
   extraFee?: number;
+  // What the entry costs: nomination price × dancers + extraFee. Staff
+  // payload only.
+  amount?: number;
   createdAt: string;
 }
 
@@ -148,7 +151,7 @@ export interface MyEntry extends Entry {
   competitionId: string;
   competitionName: string | null;
   competitionDateFrom: string | null;
-  price: number | null;
+  amount: number;
   participants: EntryParticipant[];
 }
 

@@ -1,7 +1,11 @@
 import { Fragment, useMemo, useState } from 'react';
 import KebabMenu from '../KebabMenu';
 import type { Venue } from '../../../lib/venues';
-import { VENUE_LIST_SEPARATOR } from './programTable.constants';
+import {
+  FOREIGN_VENUE_WARNING_HINT,
+  FOREIGN_VENUE_WARNING_PREFIX,
+  VENUE_LIST_SEPARATOR,
+} from './programTable.constants';
 import type {
   CompetitionDay,
   Section,
@@ -9,8 +13,11 @@ import type {
   SectionSummary,
 } from '../../../lib/schedule';
 import { ROW_TYPE_LABELS } from '../../../lib/schedule';
+import type { NominationToMove } from './nominationToMove.types';
+import { MOVE_NOMINATION_TITLE } from './sectionPicker.constants';
 import { formatParticipantNumbers } from '../../../lib/participantNumbers';
 import { formatClock, formatDuration } from '../../../lib/duration';
+import { opensProgram, programHeading } from '../../../lib/programHeading';
 import styles from './program.module.css';
 
 interface ProgramTableProps {
@@ -38,6 +45,7 @@ interface ProgramTableProps {
   onMoveExit: (entryId: string, targetSectionId: string) => void;
   onMergeSection: (section: Section) => void;
   onUnmerge: (sectionId: string, groupKey: string) => void;
+  onMoveNomination: (nomination: NominationToMove) => void;
   onDeleteSection: (sectionId: string) => void;
 }
 
@@ -70,6 +78,7 @@ export default function ProgramTable({
   onMoveExit,
   onMergeSection,
   onUnmerge,
+  onMoveNomination,
   onDeleteSection,
 }: ProgramTableProps) {
   const tech = view === 'tech';
@@ -80,7 +89,6 @@ export default function ProgramTable({
     const day = days.find((d) => d.id === id);
     return day ? (day.label ?? day.date) : '';
   };
-  const showDayRows = new Set(sections.map((s) => s.dayId)).size > 1;
   const venueNames = useMemo(
     () => new Map(venues.map((venue) => [venue.id, venue.name])),
     [venues],
@@ -271,15 +279,37 @@ export default function ProgramTable({
             }
 
             const sectionStart = section.startsAt;
+            // An exit moves only within its own venue's program.
             const other = sectionSummaries
               .filter((s) => s.id !== section.id)
-              .map((s) => ({ id: s.id, name: s.name }));
-            const newDay =
-              showDayRows &&
-              sections[sectionIndex - 1]?.dayId !== section.dayId;
-            // Section reorder acts within a day, so the arrows must be
-            // disabled at the day's edges, not the whole list's.
-            const sameDay = sections.filter((s) => s.dayId === section.dayId);
+              .map((s) => ({ id: s.id, name: s.name, venueId: s.venueId }));
+            const targetsFor = (exitVenueId: string | null) =>
+              other.filter(
+                (t) => !exitVenueId || !t.venueId || t.venueId === exitVenueId,
+              );
+            const foreignVenues = [
+              ...new Set(
+                section.items
+                  .map((it) => it.exit?.venueId ?? null)
+                  .filter(
+                    (id): id is string =>
+                      id !== null && id !== section.venueId,
+                  ),
+              ),
+            ];
+            const mixed = section.venueId
+              ? foreignVenues.length > 0
+              : foreignVenues.length > 1;
+            const newProgram = opensProgram(
+              section,
+              sections[sectionIndex - 1],
+            );
+            // Section reorder acts within one venue's day program, so the
+            // arrows are disabled at that program's edges.
+            const sameDay = sections.filter(
+              (s) =>
+                s.dayId === section.dayId && s.venueId === section.venueId,
+            );
             const dayPos = sameDay.findIndex((s) => s.id === section.id);
             // Column F: the category's position among this section's
             // category blocks, independent of the search filter below.
@@ -287,9 +317,15 @@ export default function ProgramTable({
 
             return (
               <Fragment key={section.id}>
-                {newDay && (
+                {newProgram && (
                   <tr className={styles.dayRow}>
-                    <td colSpan={colCount}>{dayLabel(section.dayId)}</td>
+                    <td colSpan={colCount}>
+                      {programHeading(
+                        dayLabel(section.dayId),
+                        section.venueId,
+                        venueNames,
+                      )}
+                    </td>
                   </tr>
                 )}
                 {renderServiceRow({
@@ -335,6 +371,18 @@ export default function ProgramTable({
                     </>
                   ),
                 })}
+
+                {mixed && (
+                  <tr className={styles.warnRow}>
+                    <td colSpan={colCount}>
+                      {FOREIGN_VENUE_WARNING_PREFIX}{' '}
+                      {foreignVenues
+                        .map((id) => venueNameOf(id) ?? id)
+                        .join(VENUE_LIST_SEPARATOR)}
+                      {FOREIGN_VENUE_WARNING_HINT}
+                    </td>
+                  </tr>
+                )}
 
                 {blocks.map((block, blockIndex) => {
                   if (block.kind === 'award') {
@@ -451,6 +499,24 @@ export default function ProgramTable({
                             <td
                               className={`${styles.blockCell} ${styles.tdActions}`}
                             >
+                              {editing && (
+                                <button
+                                  type="button"
+                                  className={styles.iconBtnBlue}
+                                  title={MOVE_NOMINATION_TITLE}
+                                  onClick={() =>
+                                    onMoveNomination({
+                                      groupKey: group.key,
+                                      label:
+                                        group.items[0]?.exit?.nomination ??
+                                        group.label,
+                                      dayId: section.dayId,
+                                    })
+                                  }
+                                >
+                                  ⇆
+                                </button>
+                              )}
                               {editing && merged && (
                                 <button
                                   type="button"
@@ -518,9 +584,13 @@ export default function ProgramTable({
                                       >
                                         ↓
                                       </button>
-                                      {other.length > 0 && item.exit && (
+                                      {item.exit &&
+                                        targetsFor(item.exit.venueId).length >
+                                          0 && (
                                         <KebabMenu
-                                          items={other.map((t) => ({
+                                          items={targetsFor(
+                                            item.exit.venueId,
+                                          ).map((t) => ({
                                             label: `→ «${t.name}»`,
                                             onSelect: () =>
                                               item.exit &&

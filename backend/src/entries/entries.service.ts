@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
@@ -16,12 +17,17 @@ import type { NominationExit } from '../nominations/nomination-exits';
 import { UsersService } from '../users/users.service';
 import { SchoolsService } from '../schools/schools.service';
 import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
+import { ScheduleService } from '../schedule/schedule.service';
 import { ParticipantNumberLookup } from '../competition-participant-numbers/participant-number-lookup';
 import { AccessLevel, meetsLevel } from '../auth/access-level.enum';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Entry } from './entry.model';
 import { isNumberAllocationRace } from './number-allocation-race';
 import { resolveLineup } from './lineup';
+import {
+  calculateEntryAmount,
+  calculateParticipantShare,
+} from './entry-amount';
 import { Score } from './score.model';
 import { User } from '../users/user.model';
 import { CreateEntryDto } from './dto/create-entry.dto';
@@ -50,6 +56,7 @@ import {
   MIN_PARTICIPANTS_PER_ENTRY,
   ASSIGN_STUDIO_TRAINER_FORBIDDEN_MESSAGE,
   TRAINER_NOT_A_COACH_MESSAGE,
+  PROGRAM_PLACEMENT_FAILED_MESSAGE,
 } from './entries.constants';
 import {
   COMPETITION_NOT_FOUND_MESSAGE,
@@ -84,6 +91,8 @@ interface PreparedEntry {
 
 @Injectable()
 export class EntriesService {
+  private readonly logger = new Logger(EntriesService.name);
+
   constructor(
     @InjectModel(Competition)
     private readonly competitionModel: typeof Competition,
@@ -97,6 +106,7 @@ export class EntriesService {
     private readonly usersService: UsersService,
     private readonly schoolsService: SchoolsService,
     private readonly participantNumbersService: CompetitionParticipantNumbersService,
+    private readonly scheduleService: ScheduleService,
   ) {}
 
   async list(
@@ -137,8 +147,19 @@ export class EntriesService {
       [competitionId],
       personIds,
     );
+    // What each entry costs is money data — staff only, like paymentMethod.
+    const prices = staff
+      ? await this.loadPrices(rows)
+      : new Map<string, number | null>();
     return {
-      rows: rows.map((e) => this.toDto(e, numbers, staff)),
+      rows: rows.map((e) =>
+        staff
+          ? {
+              ...this.toDto(e, numbers),
+              amount: calculateEntryAmount(e, prices),
+            }
+          : this.toDto(e, numbers, false),
+      ),
       total: count,
       page,
       pageSize,
@@ -258,11 +279,29 @@ export class EntriesService {
     this.assertNoRepeatWithinSubmission(prepared);
 
     const created = await this.insertWithRetry(competitionId, prepared);
+    await this.placeInProgram(competitionId, created);
 
     const numbers = await this.participantNumbersService.loadLookup([
       competitionId,
     ]);
     return created.map((entry) => this.toDto(entry, numbers));
+  }
+
+  // A late entry joins its nomination's block if the program already has
+  // one. The submission itself must not fail over that — an entry the
+  // program could not take simply waits in the unassigned pool.
+  private async placeInProgram(
+    competitionId: string,
+    entries: Entry[],
+  ): Promise<void> {
+    try {
+      await this.scheduleService.appendToScheduledBlocks(competitionId, entries);
+    } catch (err) {
+      this.logger.warn(
+        `${PROGRAM_PLACEMENT_FAILED_MESSAGE} ${competitionId}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+    }
   }
 
   // One dancer performs in a nomination once. The several exits of a
@@ -649,14 +688,8 @@ export class EntriesService {
       allParticipantIds,
     );
 
-    const nominationIds = [
-      ...new Set(
-        entries
-          .map((e) => e.nominationId)
-          .filter((id): id is string => id !== null),
-      ),
-    ];
-    const prices = await this.nominationsService.findPricesByIds(nominationIds);
+    const prices = await this.loadPrices(entries);
+    const seesFullCost = meetsLevel(user.accessLevel, AccessLevel.COACH);
 
     const people = await this.usersService.findManyByIds([
       ...new Set(allParticipantIds),
@@ -678,9 +711,10 @@ export class EntriesService {
         competitionId: entry.competitionId,
         competitionName: competition?.name ?? null,
         competitionDateFrom: competition?.dateFrom ?? null,
-        price: entry.nominationId
-          ? (prices.get(entry.nominationId) ?? null)
-          : null,
+        // A coach pays for the whole number; a dancer sees only their part.
+        amount: seesFullCost
+          ? calculateEntryAmount(entry, prices)
+          : calculateParticipantShare(entry, prices),
         participants,
       };
     });
@@ -877,7 +911,25 @@ export class EntriesService {
         firstName: person.firstName,
         lastName: person.lastName,
       }));
-    return { ...this.toDto(entry, numbers), participants };
+    const prices = await this.loadPrices([entry]);
+    return {
+      ...this.toDto(entry, numbers),
+      amount: calculateEntryAmount(entry, prices),
+      participants,
+    };
+  }
+
+  // Nomination price per nomination id for these entries — the input to
+  // calculateEntryAmount.
+  async loadPrices(entries: Entry[]): Promise<Map<string, number | null>> {
+    const nominationIds = [
+      ...new Set(
+        entries
+          .map((e) => e.nominationId)
+          .filter((id): id is string => id !== null),
+      ),
+    ];
+    return this.nominationsService.findPricesByIds(nominationIds);
   }
 
   // Records purchased additional on-stage time and its fee for an overrun

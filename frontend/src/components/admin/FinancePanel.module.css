@@ -1,0 +1,190 @@
+.panel {
+  padding-top: 20px;
+}
+
+.status {
+  margin: 16px 0 0;
+  color: var(--g-muted);
+  font-style: italic;
+}
+
+.empty {
+  margin-top: 18px;
+  padding: 26px 20px;
+  border: 1px solid var(--g-line);
+  border-radius: 10px;
+  background: var(--g-field);
+  text-align: center;
+  color: var(--g-muted);
+  font-size: 14.5px;
+}
+
+.total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--g-line);
+  border-radius: 10px;
+  background: var(--g-field);
+}
+
+.totalLabel {
+  color: var(--g-muted);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.totalValue {
+  color: var(--g-ink);
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.section {
+  margin-top: 16px;
+}
+
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--g-ink);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.toggle:hover {
+  color: var(--g-accent);
+}
+
+.chevron {
+  color: var(--g-muted);
+  transition: transform 0.15s ease;
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.search {
+  width: 100%;
+  max-width: 240px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--g-line);
+  border-radius: 8px;
+  background: var(--g-field);
+  color: var(--g-ink);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.search:focus {
+  outline: none;
+  background: var(--g-surface);
+  border-color: var(--g-accent);
+}
+
+.noMatches {
+  text-align: center;
+  color: var(--g-muted);
+}
+
+.note {
+  margin: 4px 0 0;
+  color: var(--g-muted);
+  font-size: 12px;
+}
+
+/* Table + its pager, as wide as the content (names are short) — the pager
+   lines up under the table instead of the far edge of the tab. */
+.tableBlock {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.tableWrap {
+  margin-top: 8px;
+  border: 1px solid var(--g-line);
+  border-radius: 10px;
+  overflow-x: auto;
+}
+
+/* Scoped by class, never bare `table`/`th`/`td`: CSS Modules don't scope
+   element selectors, and other panels' global `table { min-width: 900px }`
+   would otherwise stretch this one (and these rules would leak onto theirs).
+   The class also outranks those element rules. */
+.table {
+  width: 100%;
+  min-width: 0;
+  border-collapse: collapse;
+}
+
+.table th {
+  text-align: left;
+  padding: 6px 10px;
+  background: var(--g-field-off);
+  border-bottom: 1px solid var(--g-line);
+  color: var(--g-muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--g-line);
+  font-size: 13px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table tbody tr:hover {
+  background: var(--g-field-off);
+}
+
+.numCol {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.name {
+  font-weight: 600;
+}
+
+.unspecified {
+  color: var(--g-muted);
+  font-style: italic;
+}
+
+.amount {
+  font-weight: 700;
+}
