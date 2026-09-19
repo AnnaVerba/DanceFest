@@ -10,6 +10,7 @@ import {
   RATE_LIMIT_MESSAGE,
   RATE_LIMIT_WINDOW_MS,
 } from './main.constants';
+import { DEFAULT_FRONTEND_URL } from './team/team.constants';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -27,7 +28,7 @@ async function bootstrap() {
       message: { message: RATE_LIMIT_MESSAGE },
     }),
   );
-  app.enableCors({ origin: 'http://localhost:5173' });
+  app.enableCors({ origin: process.env.FRONTEND_URL ?? DEFAULT_FRONTEND_URL });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

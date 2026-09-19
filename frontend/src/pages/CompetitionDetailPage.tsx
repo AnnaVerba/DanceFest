@@ -46,7 +46,9 @@ type Tab = (typeof ALL_TABS)[number];
 const DEFAULT_TAB: Tab = 'Деталі';
 const PUBLIC_TABS: readonly Tab[] = [DEFAULT_TAB, 'Номінації', 'Програма'];
 const TABS: readonly Tab[] = ALL_TABS.filter(
-  (tab) => FEATURES.judges || tab !== 'Судді',
+  (tab) =>
+    (FEATURES.judges || tab !== 'Судді') &&
+    (FEATURES.schedule || (tab !== 'Таймінги' && tab !== 'Програма')),
 );
 
 export default function CompetitionDetailPage() {
@@ -263,7 +265,7 @@ export default function CompetitionDetailPage() {
                 />
               )}
 
-              {shownTab === 'Таймінги' && (
+              {FEATURES.schedule && shownTab === 'Таймінги' && (
                 <ScheduleSettings
                   competitionId={id}
                   canManage={canManage}
@@ -275,7 +277,8 @@ export default function CompetitionDetailPage() {
               {/* One programme view: the editor for whoever manages it,
                   the read-only programme (with "your performances") for
                   everyone else. The music export lives under "Заявки". */}
-              {shownTab === 'Програма' &&
+              {FEATURES.schedule &&
+                shownTab === 'Програма' &&
                 (canManage ? (
                   <SchedulePanel
                     competitionId={id}

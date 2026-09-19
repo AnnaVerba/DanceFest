@@ -28,6 +28,14 @@ import { UsersModule } from './users/users.module';
 import { CompetitionParticipantNumbersModule } from './competition-participant-numbers/competition-participant-numbers.module';
 import { OrganizerRequestsModule } from './organizer-requests/organizer-requests.module';
 import { AppBootstrapModule } from './app-bootstrap/app-bootstrap.module';
+import {
+  DEFAULT_REDIS_HOST,
+  DEFAULT_REDIS_PORT,
+  REDIS_HOST_ENV,
+  REDIS_PASSWORD_ENV,
+  REDIS_PORT_ENV,
+  REDIS_USERNAME_ENV,
+} from './config/redis.constants';
 
 @Module({
   imports: [
@@ -57,11 +65,12 @@ import { AppBootstrapModule } from './app-bootstrap/app-bootstrap.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         connection: {
-          // IPv4 literal, not "localhost": Node resolves "localhost" to ::1
-          // first, while a Docker-published port binds IPv4 only, so a bare
-          // "localhost" here fails with ECONNREFUSED ::1.
-          host: config.get<string>('REDIS_HOST') || '127.0.0.1',
-          port: Number(config.get<string>('REDIS_PORT')) || 6380,
+          host: config.get<string>(REDIS_HOST_ENV) || DEFAULT_REDIS_HOST,
+          port:
+            Number(config.get<string>(REDIS_PORT_ENV)) || DEFAULT_REDIS_PORT,
+          // Unset locally (docker-compose.yml Redis has no auth).
+          username: config.get<string>(REDIS_USERNAME_ENV) || undefined,
+          password: config.get<string>(REDIS_PASSWORD_ENV) || undefined,
         },
       }),
     }),
