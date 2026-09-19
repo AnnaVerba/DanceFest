@@ -120,13 +120,16 @@ export class EntriesService {
     if (!competition) {
       throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
-    // Any signed-in user may read the start list; only staff also get the
-    // payment method and the judging scores.
+    // Only staff read the full entry list; the logged-out start list lives
+    // at `listPublic`.
     const staff = await this.isCompetitionStaff(
       competition,
       requesterId,
       requesterLevel,
     );
+    if (!staff) {
+      throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);
+    }
     const { page, pageSize, limit, offset } = resolvePage(
       rawPage,
       rawPageSize,
@@ -147,19 +150,12 @@ export class EntriesService {
       [competitionId],
       personIds,
     );
-    // What each entry costs is money data — staff only, like paymentMethod.
-    const prices = staff
-      ? await this.loadPrices(rows)
-      : new Map<string, number | null>();
+    const prices = await this.loadPrices(rows);
     return {
-      rows: rows.map((e) =>
-        staff
-          ? {
-              ...this.toDto(e, numbers),
-              amount: calculateEntryAmount(e, prices),
-            }
-          : this.toDto(e, numbers, false),
-      ),
+      rows: rows.map((e) => ({
+        ...this.toDto(e, numbers),
+        amount: calculateEntryAmount(e, prices),
+      })),
       total: count,
       page,
       pageSize,
@@ -1118,13 +1114,7 @@ export class EntriesService {
     };
   }
 
-  // `includeStaffFields` off returns the start-list view any signed-in
-  // user may read: no payment method, no music link, no judging scores.
-  private toDto(
-    entry: Entry,
-    numbers: ParticipantNumberLookup,
-    includeStaffFields = true,
-  ) {
+  private toDto(entry: Entry, numbers: ParticipantNumberLookup) {
     const participantIds = entry.participantIds ?? [];
     const base = {
       id: entry.id,
@@ -1153,10 +1143,6 @@ export class EntriesService {
       musicName: entry.musicName,
       createdAt: entry.createdAt,
     };
-    if (!includeStaffFields) {
-      return base;
-    }
-
     const scores = entry.scores ?? [];
     const averageScore =
       scores.length > 0

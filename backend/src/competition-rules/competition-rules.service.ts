@@ -93,6 +93,15 @@ export class CompetitionRulesService {
     return rules;
   }
 
+  // Staff-only read for the HTTP layer; other services keep using getRules.
+  async getRulesForStaff(
+    competitionId: string,
+    requester: AuthenticatedUser,
+  ): Promise<CompetitionRule> {
+    await this.loadCompetitionAndAssertAccess(competitionId, requester);
+    return this.getRules(competitionId);
+  }
+
   async updateRules(
     competitionId: string,
     requester: AuthenticatedUser,
@@ -151,8 +160,11 @@ export class CompetitionRulesService {
     }
   }
 
-  async listTariffs(competitionId: string): Promise<OverlimitTariff[]> {
-    await this.assertCompetitionExists(competitionId);
+  async listTariffs(
+    competitionId: string,
+    requester: AuthenticatedUser,
+  ): Promise<OverlimitTariff[]> {
+    await this.loadCompetitionAndAssertAccess(competitionId, requester);
     return this.overlimitTariffModel.findAll({
       where: { competitionId },
       order: [['uptoSeconds', 'ASC']],
@@ -196,8 +208,11 @@ export class CompetitionRulesService {
     await tariff.destroy();
   }
 
-  async listDurationLimits(competitionId: string): Promise<DurationLimit[]> {
-    await this.assertCompetitionExists(competitionId);
+  async listDurationLimits(
+    competitionId: string,
+    requester: AuthenticatedUser,
+  ): Promise<DurationLimit[]> {
+    await this.loadCompetitionAndAssertAccess(competitionId, requester);
     return this.durationLimitModel.findAll({
       where: { competitionId },
       order: [['createdAt', 'ASC']],

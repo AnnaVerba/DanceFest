@@ -2,8 +2,14 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { rateLimit } from 'express-rate-limit';
 import { AppModule } from './app.module';
-import { JSON_BODY_SIZE_LIMIT } from './main.constants';
+import {
+  JSON_BODY_SIZE_LIMIT,
+  RATE_LIMIT_MAX_REQUESTS,
+  RATE_LIMIT_MESSAGE,
+  RATE_LIMIT_WINDOW_MS,
+} from './main.constants';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -12,6 +18,15 @@ async function bootstrap() {
   app.useBodyParser('json', { limit: JSON_BODY_SIZE_LIMIT });
   // Behind a reverse proxy in prod, so req.ip reads X-Forwarded-For.
   app.set('trust proxy', true);
+  app.use(
+    rateLimit({
+      windowMs: RATE_LIMIT_WINDOW_MS,
+      limit: RATE_LIMIT_MAX_REQUESTS,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { message: RATE_LIMIT_MESSAGE },
+    }),
+  );
   app.enableCors({ origin: 'http://localhost:5173' });
   app.useGlobalPipes(
     new ValidationPipe({
