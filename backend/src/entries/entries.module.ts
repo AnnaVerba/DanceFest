@@ -7,6 +7,7 @@ import { NominationsModule } from '../nominations/nominations.module';
 import { UsersModule } from '../users/users.module';
 import { SchoolsModule } from '../schools/schools.module';
 import { CompetitionParticipantNumbersModule } from '../competition-participant-numbers/competition-participant-numbers.module';
+import { ScheduleModule } from '../schedule/schedule.module';
 import { Entry } from './entry.model';
 import { Score } from './score.model';
 import { EntriesController } from './entries.controller';
@@ -26,6 +27,7 @@ import { EntriesService } from './entries.service';
     UsersModule,
     SchoolsModule,
     CompetitionParticipantNumbersModule,
+    ScheduleModule,
   ],
   controllers: [EntriesController, MyEntriesController],
   providers: [EntriesService],

@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
@@ -14,6 +15,7 @@ import type { NominationExit } from '../nominations/nomination-exits';
 import { UsersService } from '../users/users.service';
 import { SchoolsService } from '../schools/schools.service';
 import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
+import { ScheduleService } from '../schedule/schedule.service';
 import { ParticipantNumberLookup } from '../competition-participant-numbers/participant-number-lookup';
 import { AccessLevel, meetsLevel } from '../auth/access-level.enum';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
@@ -49,6 +51,7 @@ import {
   MAX_ENTRY_STATS_ROWS,
   NOMINATION_PROGRAM_MISMATCH_MESSAGE,
   MIN_PARTICIPANTS_PER_ENTRY,
+  PROGRAM_PLACEMENT_FAILED_MESSAGE,
 } from './entries.constants';
 import {
   COMPETITION_NOT_FOUND_MESSAGE,
@@ -80,6 +83,8 @@ interface PreparedEntry {
 
 @Injectable()
 export class EntriesService {
+  private readonly logger = new Logger(EntriesService.name);
+
   constructor(
     @InjectModel(Competition)
     private readonly competitionModel: typeof Competition,
@@ -93,6 +98,7 @@ export class EntriesService {
     private readonly usersService: UsersService,
     private readonly schoolsService: SchoolsService,
     private readonly participantNumbersService: CompetitionParticipantNumbersService,
+    private readonly scheduleService: ScheduleService,
   ) {}
 
   async list(
@@ -265,11 +271,29 @@ export class EntriesService {
     this.assertNoRepeatWithinSubmission(prepared);
 
     const created = await this.insertWithRetry(competitionId, prepared);
+    await this.placeInProgram(competitionId, created);
 
     const numbers = await this.participantNumbersService.loadLookup([
       competitionId,
     ]);
     return created.map((entry) => this.toDto(entry, numbers));
+  }
+
+  // A late entry joins its nomination's block if the program already has
+  // one. The submission itself must not fail over that — an entry the
+  // program could not take simply waits in the unassigned pool.
+  private async placeInProgram(
+    competitionId: string,
+    entries: Entry[],
+  ): Promise<void> {
+    try {
+      await this.scheduleService.appendToScheduledBlocks(competitionId, entries);
+    } catch (err) {
+      this.logger.warn(
+        `${PROGRAM_PLACEMENT_FAILED_MESSAGE} ${competitionId}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+    }
   }
 
   // One dancer performs in a nomination once. The several exits of a

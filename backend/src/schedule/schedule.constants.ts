@@ -3,14 +3,19 @@
 // schedule module has no reason to import that service just for a number.
 export const DEFAULT_LIMIT_SECONDS = 180;
 
+export const SECTION_ITEMS_TABLE = 'section_items';
+
+// Rewrites a section's running order in one statement: each id in the bound
+// uuid[] gets its zero-based index as sortOrder.
+export const PERSIST_ORDER_SQL = `
+  UPDATE "${SECTION_ITEMS_TABLE}" AS item
+     SET "sortOrder" = ordered.position - 1, "updatedAt" = NOW()
+    FROM unnest($1::uuid[]) WITH ORDINALITY AS ordered(id, position)
+   WHERE item.id = ordered.id`;
+
 export const SECONDS_PER_MINUTE = 60;
 export const MINUTES_PER_HOUR = 60;
 export const SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR;
-
-// Sanity ceiling for every list query in the schedule module. A single
-// competition's sections/items/entries stay well under this; the cap only
-// stops a pathological or malicious request from loading unbounded rows.
-export const MAX_SCHEDULE_QUERY_ROWS = 5000;
 
 // Upper bound on days auto-created for a competition. Guards against a
 // competition mis-saved with a dateFrom..dateTo span of months.
@@ -43,6 +48,8 @@ export const ITEM_SET_MISMATCH_MESSAGE =
   'Список позицій не збігається зі складом відділення — розклад змінив хтось інший';
 export const EXIT_NOT_IN_SCHEDULE_MESSAGE =
   'Цей вихід не розподілений у розклад';
+export const NOMINATION_NOT_IN_SCHEDULE_MESSAGE =
+  'Цієї номінації немає в розкладі';
 export const MERGE_NEEDS_TWO_GROUPS_MESSAGE =
   'Для об’єднання потрібно щонайменше дві групи';
 export const MERGE_LABEL_REQUIRED_MESSAGE = 'Вкажіть назву об’єднаної групи';
@@ -55,3 +62,5 @@ export const SECTION_SET_MISMATCH_MESSAGE =
   'Список відділень не збігається зі складом дня — оновіть сторінку';
 export const MIXED_VENUE_SECTION_MESSAGE =
   'Обрані виходи належать до різних майданчиків — сформуйте окремі відділення для кожного';
+export const OTHER_VENUE_SECTION_MESSAGE =
+  'Обрані виходи належать до іншого майданчика, ніж це відділення';

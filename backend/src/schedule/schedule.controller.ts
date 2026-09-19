@@ -23,12 +23,14 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { ScheduleService } from './schedule.service';
 import { AddRowDto } from './dto/add-row.dto';
+import { AddExitsDto } from './dto/add-exits.dto';
 import { BuildSectionDto } from './dto/build-section.dto';
 import { ReorderSectionsDto } from './dto/reorder-sections.dto';
 import { UpdateRowDto } from './dto/update-row.dto';
 import { UpdateSectionDto } from './dto/update-section.dto';
 import { MergeGroupsDto } from './dto/merge-groups.dto';
 import { MoveExitDto } from './dto/move-exit.dto';
+import { MoveNominationDto } from './dto/move-nomination.dto';
 import { RecalculateScheduleDto } from './dto/recalculate-schedule.dto';
 import { ReorderSectionDto } from './dto/reorder-section.dto';
 
@@ -128,6 +130,24 @@ export class ScheduleController {
     return this.scheduleService.buildSection(competitionId, user, dto);
   }
 
+  @ApiOperation({ summary: 'Add unassigned exits to a formed section' })
+  @ApiResponse({ status: 201, description: 'Exits added.' })
+  @ApiResponse({
+    status: 409,
+    description: 'Some exits are already in a section.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('sections/:sectionId/exits')
+  addExits(
+    @Param('competitionId') competitionId: string,
+    @Param('sectionId') sectionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: AddExitsDto,
+  ) {
+    return this.scheduleService.addExits(competitionId, user, sectionId, dto);
+  }
+
   @ApiOperation({ summary: 'Reorder the positions inside a section' })
   @ApiResponse({
     status: 400,
@@ -184,6 +204,20 @@ export class ScheduleController {
       user,
       sectionId,
     );
+  }
+
+  @ApiOperation({
+    summary: 'Move a whole nomination to a section of any day or venue',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('schedule/move-nomination')
+  moveNomination(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: MoveNominationDto,
+  ) {
+    return this.scheduleService.moveNomination(competitionId, user, dto);
   }
 
   @ApiOperation({ summary: 'Move one exit to another section' })
