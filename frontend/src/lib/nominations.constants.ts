@@ -6,3 +6,7 @@ export const MAX_NOMINATIONS_PER_BULK_REQUEST = 2000;
 // Must match LIST_QUERY_SEPARATOR in backend/src/nominations/nominations.constants.ts.
 export const LIST_QUERY_SEPARATOR = ',';
 export const NOMINATIONS_PAGE_SIZE = 50;
+
+// Shown in an empty duration field (no league timing, nothing set by hand) —
+// a sample value like «2:30» there reads as a real duration.
+export const DURATION_UNSET_PLACEHOLDER = '—';

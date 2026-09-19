@@ -177,6 +177,7 @@ export class NominationsService {
       nomination.venueId = dto.venueId;
     }
 
+    const wasImprovisation = nomination.allowsImprovisation;
     if (dto.name !== undefined) nomination.name = dto.name.trim();
     if (dto.price !== undefined) nomination.price = dto.price ?? null;
     if (dto.allowsImprovisation !== undefined) {
@@ -188,6 +189,12 @@ export class NominationsService {
     if (dto.durationLimitSeconds !== undefined) {
       nomination.durationLimitSeconds = dto.durationLimitSeconds ?? null;
       nomination.durationOverridden = true;
+    }
+    if (
+      nomination.allowsImprovisation !== wasImprovisation &&
+      dto.durationLimitSeconds === undefined
+    ) {
+      await this.reapplyAutoDurations(competitionId, [nomination]);
     }
     if (dto.programLimits !== undefined) {
       nomination.programLimits = dto.programLimits;
@@ -219,16 +226,36 @@ export class NominationsService {
       dto,
     );
 
-    await this.nominationModel.update(
-      { allowsImprovisation: dto.allowsImprovisation },
-      { where },
+    const flipped = nominations.filter(
+      (nomination) => nomination.allowsImprovisation !== dto.allowsImprovisation,
     );
+    for (const nomination of nominations) {
+      nomination.allowsImprovisation = dto.allowsImprovisation;
+    }
+    const retimed = await this.reapplyAutoDurations(competitionId, flipped);
+    const idsBySeconds = new Map<number | null, string[]>();
+    for (const nomination of retimed) {
+      const ids = idsBySeconds.get(nomination.durationLimitSeconds);
+      if (ids) ids.push(nomination.id);
+      else idsBySeconds.set(nomination.durationLimitSeconds, [nomination.id]);
+    }
+
+    await this.nominationModel.sequelize!.transaction(async (transaction) => {
+      await this.nominationModel.update(
+        { allowsImprovisation: dto.allowsImprovisation },
+        { where, transaction },
+      );
+      // One UPDATE per distinct duration, not one per nomination.
+      for (const [seconds, ids] of idsBySeconds) {
+        await this.nominationModel.update(
+          { durationLimitSeconds: seconds },
+          { where: { id: { [Op.in]: ids } }, transaction },
+        );
+      }
+    });
 
     const categories = await this.loadCategories(nominations);
-    return nominations.map((nomination) => {
-      nomination.allowsImprovisation = dto.allowsImprovisation;
-      return this.toDto(nomination, categories);
-    });
+    return nominations.map((nomination) => this.toDto(nomination, categories));
   }
 
   async bulkAssignVenue(
@@ -513,23 +540,69 @@ export class NominationsService {
       return;
     }
 
-    const categoryIds = input.categoryIds ?? [];
-    const leagueCategory = categoryIds.length
-      ? await this.categoryModel.findOne({
-          where: { id: { [Op.in]: categoryIds }, type: LEAGUE_CATEGORY_TYPE },
-        })
-      : null;
-    if (!leagueCategory) {
-      attributes.durationLimitSeconds = null;
-      return;
-    }
-
     const effectiveRules =
       rules ?? (await this.competitionRulesService.getRules(competitionId));
-    attributes.durationLimitSeconds = resolveLeagueDurationSeconds(
-      effectiveRules.leagueLimits,
-      leagueCategory.name,
+    attributes.durationLimitSeconds = this.autoDurationSeconds(
+      input,
+      await this.leagueNamesById(input.categoryIds ?? []),
+      effectiveRules,
     );
+  }
+
+  // An improvisation flip moves a nomination between TASK-07's two duration
+  // sources; one whose duration was set by hand keeps it. Returns the
+  // nominations it retimed (in memory only — the caller persists them).
+  private async reapplyAutoDurations(
+    competitionId: string,
+    nominations: Nomination[],
+  ): Promise<Nomination[]> {
+    const automatic = nominations.filter((n) => !n.durationOverridden);
+    if (automatic.length === 0) return [];
+
+    const rules = await this.competitionRulesService.getRules(competitionId);
+    const leagueNames = await this.leagueNamesById(
+      automatic.flatMap((n) => n.categoryIds),
+    );
+    for (const nomination of automatic) {
+      nomination.durationLimitSeconds = this.autoDurationSeconds(
+        nomination,
+        leagueNames,
+        rules,
+      );
+    }
+    return automatic;
+  }
+
+  // TASK-07's rule: improvisation has no duration of its own, a regular
+  // nomination runs for its league's.
+  private autoDurationSeconds(
+    nomination: { categoryIds?: string[]; allowsImprovisation?: boolean },
+    leagueNames: Map<string, string>,
+    rules: CompetitionRule,
+  ): number | null {
+    if (nomination.allowsImprovisation) return null;
+    const leagueId = (nomination.categoryIds ?? []).find((id) =>
+      leagueNames.has(id),
+    );
+    return resolveLeagueDurationSeconds(
+      rules.leagueLimits,
+      leagueId ? (leagueNames.get(leagueId) ?? null) : null,
+    );
+  }
+
+  // league category id -> name, in one query for any number of nominations.
+  private async leagueNamesById(
+    categoryIds: string[],
+  ): Promise<Map<string, string>> {
+    if (categoryIds.length === 0) return new Map();
+    const leagues = await this.categoryModel.findAll({
+      where: {
+        id: { [Op.in]: [...new Set(categoryIds)] },
+        type: LEAGUE_CATEGORY_TYPE,
+      },
+      attributes: ['id', 'name'],
+    });
+    return new Map(leagues.map((league) => [league.id, league.name]));
   }
 
   private assertLimitsBelongToNomination(input: {

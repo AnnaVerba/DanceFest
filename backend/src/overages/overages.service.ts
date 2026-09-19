@@ -5,6 +5,7 @@ import { Entry } from '../entries/entry.model';
 import { Track } from '../tracks/track.model';
 import { CompetitionsService } from '../competitions/competitions.service';
 import { CompetitionRulesService } from '../competition-rules/competition-rules.service';
+import { LimitCache } from '../competition-rules/limit-cache';
 import type { AccessLevel } from '../auth/access-level.enum';
 import type { OverageEntryView, OveragesResponse } from './overage-entry.view';
 
@@ -40,7 +41,7 @@ export class OveragesService {
     });
     const durationByEntryId = await this.loadDurations(entries);
 
-    const limitCache = new Map<string, number>();
+    const limitCache = new LimitCache();
     const items: OverageEntryView[] = [];
     for (const entry of entries) {
       const durationSec = durationByEntryId.get(entry.id);

@@ -329,6 +329,12 @@
     flex-direction: column;
   }
 
+  /* У колонці flex-basis задає висоту — полям лишаємо природну. */
+  .axisAdd input,
+  .axisAdd input.ageBound {
+    flex: none;
+  }
+
   .actions {
     flex-direction: column-reverse;
   }

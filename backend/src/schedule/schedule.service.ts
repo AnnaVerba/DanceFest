@@ -29,7 +29,7 @@ import { Nomination } from '../nominations/nomination.model';
 import { Venue } from '../venues/venue.model';
 import { CompetitionRule } from '../competition-rules/competition-rule.model';
 import { CompetitionRulesService } from '../competition-rules/competition-rules.service';
-import { DEFAULT_DURATION_ROUND } from '../competition-rules/duration-limit.model';
+import { LimitCache } from '../competition-rules/limit-cache';
 import { UsersService } from '../users/users.service';
 import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
 import { CompetitionDay } from './competition-day.model';
@@ -61,7 +61,6 @@ import {
   type RowPaged,
 } from './pagination';
 import {
-  DEFAULT_LIMIT_SECONDS,
   DEFAULT_PROGRAM_PAGE_ROWS,
   DEFAULT_SECTIONS_PAGE_ROWS,
   DEFAULT_UNASSIGNED_PAGE_SIZE,
@@ -462,7 +461,7 @@ export class ScheduleService {
 
     // Resolve every duration up front: durationOf hits the rules service and
     // can throw, so it must not run mid-insert and leave a half-built section.
-    const limitCache = new Map<string, number>();
+    const limitCache = new LimitCache();
     const performanceRows: CreationAttributes<SectionItem>[] = [];
     for (const group of grouped) {
       for (const entry of group.entries) {
@@ -544,7 +543,7 @@ export class ScheduleService {
 
     // Durations resolve before the transaction, as in buildSection.
     const rules = await this.rulesService.getRules(competitionId);
-    const limitCache = new Map<string, number>();
+    const limitCache = new LimitCache();
     const groups: { key: string; rows: CreationAttributes<SectionItem>[] }[] =
       [];
     for (const group of this.groupByNomination(entries)) {
@@ -1009,7 +1008,7 @@ export class ScheduleService {
 
     // One transaction for every section: an unresolvable entry halfway
     // through must not leave the schedule split between old and new rules.
-    const limitCache = new Map<string, number>();
+    const limitCache = new LimitCache();
     await this.sectionModel.sequelize!.transaction(async (transaction) => {
       for (const section of sections) {
         await this.itemModel.destroy({
@@ -1057,7 +1056,7 @@ export class ScheduleService {
   ): Promise<void> {
     if (entries.length === 0) return;
     const rules = await this.rulesService.getRules(competitionId);
-    const limitCache = new Map<string, number>();
+    const limitCache = new LimitCache();
 
     await this.sectionModel.sequelize!.transaction(async (transaction) => {
       // Serializes concurrent submissions of one competition, so two late
@@ -1156,7 +1155,7 @@ export class ScheduleService {
     groupKey: string,
     entries: Entry[],
     rules: CompetitionRule,
-    limitCache: Map<string, number>,
+    limitCache: LimitCache,
   ): Promise<CreationAttributes<SectionItem>[]> {
     const rows: CreationAttributes<SectionItem>[] = [];
     for (const entry of entries) {
@@ -1399,37 +1398,21 @@ export class ScheduleService {
       .sort((a, b) => a.entries[0].number - b.entries[0].number);
   }
 
-  // Priority for a non-improv exit's on-stage limit:
-  //   league limit (the simple knob) → per-nomination / per-axis
-  //   duration_limits → 180s default.
-  // `limitCache` (nominationId -> seconds) is passed by callers that resolve
-  // many entries in one pass — a section or a whole recalculate — where the
-  // same nomination recurs and its limit cannot change mid-pass.
+  // A non-improv exit runs for its effective limit (see
+  // CompetitionRulesService.resolveEffectiveLimit for the priority).
+  // `limitCache` is passed by callers that resolve many entries in one
+  // pass — a section or a whole recalculate — where the same nomination
+  // recurs and its limit cannot change mid-pass.
   private async durationOf(
     entry: Entry,
     rules: CompetitionRule,
-    limitCache?: Map<string, number>,
+    limitCache: LimitCache,
   ): Promise<number> {
-    // leagueLimits keys are stored trimmed (see sanitizeLeagueLimits).
-    const leagueKey = entry.league?.trim();
-    const leagueLimit = leagueKey ? rules.leagueLimits?.[leagueKey] : undefined;
-    let limitSeconds: number;
-    if (typeof leagueLimit === 'number' && leagueLimit > 0) {
-      limitSeconds = leagueLimit;
-    } else if (entry.nominationId) {
-      const cached = limitCache?.get(entry.nominationId);
-      if (cached !== undefined) {
-        limitSeconds = cached;
-      } else {
-        limitSeconds = await this.rulesService.resolveLimit(
-          entry.nominationId,
-          DEFAULT_DURATION_ROUND,
-        );
-        limitCache?.set(entry.nominationId, limitSeconds);
-      }
-    } else {
-      limitSeconds = DEFAULT_LIMIT_SECONDS;
-    }
+    const limitSeconds = await this.rulesService.resolveEffectiveLimit(
+      entry,
+      rules,
+      limitCache,
+    );
     return performanceDuration(
       {
         improv: entry.improv,

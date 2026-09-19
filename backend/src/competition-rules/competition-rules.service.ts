@@ -24,6 +24,7 @@ import type { DurationRound } from './duration-limit.model';
 import { OverlimitTariff } from './overlimit-tariff.model';
 import { resolveLeagueDurationSeconds } from './resolve-league-duration';
 import type { EntryLimitInput } from './entry-limit-input.interface';
+import { LimitCache } from './limit-cache';
 import {
   TARIFF_NOT_FOUND_MESSAGE,
   DURATION_LIMIT_NOT_FOUND_MESSAGE,
@@ -291,17 +292,22 @@ export class CompetitionRulesService {
     return DEFAULT_DURATION_LIMIT_SECONDS;
   }
 
-  // Priority for an entry's effective on-stage time limit: league limit
-  // (the simple per-league knob on CompetitionRule) → per-nomination/axis
-  // duration_limits → DEFAULT_DURATION_LIMIT_SECONDS. `limitCache`
-  // (nominationId -> seconds) lets a caller resolving many entries in one
-  // pass — e.g. a whole competition's overage list — skip repeat lookups
-  // for the same nomination.
+  // Priority for an entry's effective on-stage time limit: the nomination's
+  // duration set by hand (TASK-07) → league limit (the simple per-league
+  // knob on CompetitionRule) → per-nomination/axis duration_limits →
+  // DEFAULT_DURATION_LIMIT_SECONDS. `limitCache` lets a caller resolving
+  // many entries in one pass — e.g. a whole competition's overage list —
+  // skip repeat lookups for the same nomination.
   async resolveEffectiveLimit(
     entry: EntryLimitInput,
     rules: CompetitionRule,
-    limitCache?: Map<string, number>,
+    limitCache: LimitCache = new LimitCache(),
   ): Promise<number> {
+    if (entry.nominationId) {
+      const manual = await this.manualLimitOf(entry.nominationId, limitCache);
+      if (manual !== null) return manual;
+    }
+
     // leagueLimits keys are stored trimmed (see sanitizeLeagueLimits).
     const leagueKey = entry.league?.trim();
     const leagueLimit = leagueKey ? rules.leagueLimits?.[leagueKey] : undefined;
@@ -310,17 +316,37 @@ export class CompetitionRulesService {
     }
 
     if (entry.nominationId) {
-      const cached = limitCache?.get(entry.nominationId);
+      const cached = limitCache.resolved.get(entry.nominationId);
       if (cached !== undefined) return cached;
       const resolved = await this.resolveLimit(
         entry.nominationId,
         DEFAULT_DURATION_ROUND,
       );
-      limitCache?.set(entry.nominationId, resolved);
+      limitCache.resolved.set(entry.nominationId, resolved);
       return resolved;
     }
 
     return DEFAULT_DURATION_LIMIT_SECONDS;
+  }
+
+  // A duration an admin set on the nomination by hand; null when it follows
+  // its league (durationOverridden is false) or has none.
+  private async manualLimitOf(
+    nominationId: string,
+    limitCache: LimitCache,
+  ): Promise<number | null> {
+    const cached = limitCache.manual.get(nominationId);
+    if (cached !== undefined) return cached;
+    const nomination = await this.nominationModel.findByPk(nominationId, {
+      attributes: ['id', 'durationOverridden', 'durationLimitSeconds'],
+    });
+    const seconds = nomination?.durationLimitSeconds ?? null;
+    const manual =
+      nomination?.durationOverridden && seconds !== null && seconds > 0
+        ? seconds
+        : null;
+    limitCache.manual.set(nominationId, manual);
+    return manual;
   }
 
   private async assertCompetitionExists(

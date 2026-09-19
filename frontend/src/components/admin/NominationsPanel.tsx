@@ -29,7 +29,10 @@ import type {
   NominationInput,
 } from '../../lib/nominations';
 import { refreshNominations } from '../../lib/nominationsCache';
-import { NOMINATIONS_PAGE_SIZE } from '../../lib/nominations.constants';
+import {
+  DURATION_UNSET_PLACEHOLDER,
+  NOMINATIONS_PAGE_SIZE,
+} from '../../lib/nominations.constants';
 import { formatDuration, parseDuration, pluralExits } from '../../lib/duration';
 import {
   NOMINATION_LEAGUE_ARIA_LABEL,
@@ -237,13 +240,17 @@ export default function NominationsPanel({
       return;
     }
 
+    // A duration sent back unchanged would still mark it as set by hand and
+    // stop league-timing changes from reaching this nomination (BUG-10).
+    const durationChanged = seconds !== nomination.durationLimitSeconds;
+
     setSavingId(nomination.id);
     try {
       await updateNominationMutation.mutateAsync({
         id: nomination.id,
         input: {
           price: state.price.trim() === '' ? undefined : Number(state.price),
-          durationLimitSeconds: seconds ?? undefined,
+          durationLimitSeconds: durationChanged ? (seconds ?? undefined) : undefined,
         },
       });
       setEditing((prev) => {
@@ -348,7 +355,7 @@ export default function NominationsPanel({
               className={styles.inputSm}
               type="text"
               inputMode="numeric"
-              placeholder="2:30"
+              placeholder={DURATION_UNSET_PLACEHOLDER}
               aria-label={`Тривалість номінації ${nomination.name}`}
               disabled={nomination.exitMode === 'per_program'}
               value={
