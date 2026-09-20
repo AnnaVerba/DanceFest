@@ -63,7 +63,7 @@ const STEP_LABELS = [
   'Судді',
   'Категорії',
   'Майданчики',
-  'Розподіл',
+
 ] as const;
 const TOTAL_STEPS = STEP_LABELS.length;
 const JUDGES_STEP = 4;
