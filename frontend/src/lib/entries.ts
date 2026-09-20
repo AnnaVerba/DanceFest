@@ -35,6 +35,8 @@ export interface Entry {
   choreographer: string | null;
   city?: string | null;
   improv?: boolean;
+  // Improvisation entries take no track (the organizer plays the music).
+  trackNotNeeded?: boolean;
   paymentMethod?: 'cash' | 'card' | null;
   musicName?: string | null;
   musicUrl?: string | null;

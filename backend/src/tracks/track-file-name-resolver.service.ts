@@ -5,7 +5,11 @@ import { Entry } from '../entries/entry.model';
 import { Nomination } from '../nominations/nomination.model';
 import { Category } from '../categories/category.model';
 import { User } from '../users/user.model';
-import { buildTrackFileName } from '../music-export/build-track-filename';
+import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
+import {
+  buildTrackFileName,
+  buildTrackNumberLabel,
+} from '../music-export/build-track-filename';
 import type { TrackFileNameInput } from '../music-export/build-track-filename';
 
 const STYLE_CATEGORY_TYPE = 'style';
@@ -22,15 +26,17 @@ export class TrackFileNameResolver {
     private readonly categoryModel: typeof Category,
     @InjectModel(User)
     private readonly userModel: typeof User,
+    private readonly participantNumbersService: CompetitionParticipantNumbersService,
   ) {}
 
   async resolve(entry: Entry, extension: string): Promise<string> {
-    const [style, soloParticipant] = await Promise.all([
+    const [style, soloParticipant, numberLabel] = await Promise.all([
       this.resolveStyle(entry),
       this.resolveSoloParticipant(entry),
+      this.resolveNumberLabel(entry),
     ]);
     const input: TrackFileNameInput = {
-      entryNumber: entry.number,
+      numberLabel,
       soloParticipant,
       routineName: entry.routineName,
       league: entry.league,
@@ -38,6 +44,18 @@ export class TrackFileNameResolver {
       extension,
     };
     return buildTrackFileName(input);
+  }
+
+  private async resolveNumberLabel(entry: Entry): Promise<string> {
+    const participantIds = entry.participantIds ?? [];
+    const lookup = await this.participantNumbersService.loadLookup(
+      [entry.competitionId],
+      participantIds,
+    );
+    return buildTrackNumberLabel(
+      lookup.numbersFor(entry.competitionId, participantIds),
+      entry.number,
+    );
   }
 
   // Style is a Category (type='style') reached via the entry's nomination —

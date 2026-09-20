@@ -35,6 +35,7 @@ import {
 } from '../uploads/uploads.constants';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Track } from './track.model';
+import { isImprovisationEntry } from './is-improvisation-entry';
 import { TrackFileNameResolver } from './track-file-name-resolver.service';
 import {
   ALLOWED_TRACK_MIME_TYPES,
@@ -218,7 +219,7 @@ export class TracksService {
   }
 
   private assertNotImprov(entry: Entry): void {
-    if (entry.improv) {
+    if (isImprovisationEntry(entry)) {
       throw new BadRequestException(IMPROV_TRACK_NOT_NEEDED_MESSAGE);
     }
   }

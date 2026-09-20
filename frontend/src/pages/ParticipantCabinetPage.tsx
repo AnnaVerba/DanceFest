@@ -155,7 +155,7 @@ export default function ParticipantCabinetPage() {
                         </td>
                         <td data-label={ENTRY_COLUMN_LABEL.MUSIC}>
                           <div className={styles.musicCell}>
-                            {entry.improv ? (
+                            {entry.trackNotNeeded ? (
                               <span>Імпровізація</span>
                             ) : (
                               <>
