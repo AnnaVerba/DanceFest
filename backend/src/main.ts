@@ -20,6 +20,7 @@ async function bootstrap() {
   // Behind a reverse proxy in prod, so req.ip reads X-Forwarded-For.
   app.set('trust proxy', true);
   app.use(
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
     rateLimit({
       windowMs: RATE_LIMIT_WINDOW_MS,
       limit: RATE_LIMIT_MAX_REQUESTS,
