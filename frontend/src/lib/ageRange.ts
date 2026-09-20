@@ -3,7 +3,6 @@ import {
   AGE_RANGE_MUST_BE_INTEGERS_MESSAGE,
   AGE_RANGE_MUST_NOT_BE_NEGATIVE_MESSAGE,
   AGE_RANGE_FROM_EXCEEDS_TO_MESSAGE,
-  AGE_RANGE_CONFLICT_MESSAGE_SUFFIX,
 } from './ageRange.constants';
 
 export interface AgeRangeDraft {
@@ -48,18 +47,4 @@ export function parseAgeRange(draft: AgeRangeDraft): AgeRangeResult {
   }
 
   return { ok: true, range: { ageFrom, ageTo } };
-}
-
-/**
- * Категорії — спільний довідник за назвою: якщо вікове значення з такою
- * назвою вже існує з іншими межами, тихо підмінювати введене користувачем
- * не можна (саме це й було багом BUG-03). Повідомлення дзеркалить перевірку
- * бекенда (`categories.service.ts`), щоб розходження впіймалось ще до запиту.
- */
-export function ageRangeConflictMessage(
-  name: string,
-  ageFrom: number,
-  ageTo: number,
-): string {
-  return `Вікова категорія «${name}» уже існує з межами ${ageFrom}–${ageTo}. ${AGE_RANGE_CONFLICT_MESSAGE_SUFFIX}`;
 }
