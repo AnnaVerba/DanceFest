@@ -7,7 +7,9 @@ import {
   AGE_CATEGORY_TYPE,
   CATEGORY_TYPES,
   CATEGORY_TYPE_LABELS,
+  CategoryApiError,
   getCategories,
+  updateCategoryAgeRange,
 } from '../../lib/categories';
 import { queryKeys } from '../../lib/queryKeys';
 import { REFERENCE_STALE_TIME_MS } from '../../lib/queryClient.constants';
@@ -16,7 +18,6 @@ import { PRICED_AXES, resolvePrice } from '../../lib/nominationPricing';
 import type { AxisPriceMap } from '../../lib/nominationPricing';
 import {
   EMPTY_AGE_RANGE,
-  ageRangeConflictMessage,
   parseAgeRange,
 } from '../../lib/ageRange';
 import type { AgeRange } from '../../lib/ageRange';
@@ -33,6 +34,11 @@ import {
 } from '../../lib/nominationSet';
 import type { AxisSelection, DraftNomination } from '../../lib/nominationSet';
 import {
+  AGE_RANGE_CANCEL_LABEL,
+  AGE_RANGE_EDIT_LABEL,
+  AGE_RANGE_SAVE_FAILED_MESSAGE,
+  AGE_RANGE_SAVE_LABEL,
+  AGE_RANGE_SAVING_LABEL,
   CATEGORY_VALUE_NAME_REQUIRED_MESSAGE,
   NOMINATIONS_TABLE_PAGE_SIZE,
   REMOVE_AXIS_VALUE_DROP_LABEL,
@@ -73,6 +79,9 @@ export default function NominationSetBuilder({
   const [notice, setNotice] = useState<string | null>(null);
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [ageRange, setAgeRange] = useState(EMPTY_AGE_RANGE);
+  const [editingAgeId, setEditingAgeId] = useState<string | null>(null);
+  const [editedRange, setEditedRange] = useState(EMPTY_AGE_RANGE);
+  const [savingRange, setSavingRange] = useState(false);
   const [axisPrices, setAxisPrices] = useState<AxisPriceMap>({});
   const [specialOpen, setSpecialOpen] = useState(false);
   const [nominationsPage, setNominationsPage] = useState(0);
@@ -156,33 +165,63 @@ export default function NominationSetBuilder({
           setError(parsed.message);
           return;
         }
-        if (
-          existing &&
-          existing.ageFrom !== null &&
-          existing.ageTo !== null &&
-          (existing.ageFrom !== parsed.range.ageFrom ||
-            existing.ageTo !== parsed.range.ageTo)
-        ) {
-          setError(
-            ageRangeConflictMessage(
-              existing.name,
-              existing.ageFrom,
-              existing.ageTo,
-            ),
-          );
-          return;
-        }
         range = parsed.range;
       }
     }
 
-    const category = existing ?? draftCategory(raw, type, range);
+    const category =
+      existing && !range ? existing : draftCategory(raw, type, range);
 
     updateSelection((current) => ({
       ...current,
       [type]: [...current[type], category],
     }));
     clearInput();
+  };
+
+  const startEditingRange = (category: Category) => {
+    setEditingAgeId(category.id);
+    setEditedRange({
+      from: String(category.ageFrom ?? ''),
+      to: String(category.ageTo ?? ''),
+    });
+  };
+
+  // Межі значення зі спільного довідника змінюються одразу на сервері (вони
+  // діють в усіх конкурсах), чернетки ще не збережені — лише в наборі.
+  const saveRange = async (category: Category) => {
+    const parsed = parseAgeRange(editedRange);
+    if (!parsed.ok) {
+      setError(parsed.message);
+      return;
+    }
+
+    setSavingRange(true);
+    try {
+      const updated = isDraftCategory(category.id)
+        ? draftCategory(category.name, category.type, parsed.range)
+        : await updateCategoryAgeRange(category.id, parsed.range);
+      if (!isDraftCategory(category.id)) {
+        queryClient.setQueryData<Category[]>(queryKeys.categories(), (prev) =>
+          prev?.map((c) => (c.id === updated.id ? updated : c)),
+        );
+      }
+      updateSelection((current) => ({
+        ...current,
+        [category.type]: current[category.type].map((c) =>
+          c.id === updated.id ? updated : c,
+        ),
+      }));
+      setEditingAgeId(null);
+    } catch (err) {
+      setError(
+        err instanceof CategoryApiError
+          ? err.message
+          : AGE_RANGE_SAVE_FAILED_MESSAGE,
+      );
+    } finally {
+      setSavingRange(false);
+    }
   };
 
   const dropFromSelection = (type: CategoryType, id: string) =>
@@ -360,9 +399,47 @@ export default function NominationSetBuilder({
                   {picked.map((category) => (
                     <span className={styles.chip} key={category.id}>
                       {category.name}
-                      {category.ageFrom !== null &&
-                        category.ageTo !== null &&
-                        ` (${category.ageFrom}–${category.ageTo})`}
+                      {editingAgeId === category.id ? (
+                        <>
+                          <AgeRangeFields
+                            value={editedRange}
+                            onChange={setEditedRange}
+                            inputClassName={styles.chipAgeBound}
+                          />
+                          <button
+                            type="button"
+                            disabled={savingRange}
+                            onClick={() => void saveRange(category)}
+                          >
+                            {savingRange
+                              ? AGE_RANGE_SAVING_LABEL
+                              : AGE_RANGE_SAVE_LABEL}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={savingRange}
+                            onClick={() => setEditingAgeId(null)}
+                          >
+                            {AGE_RANGE_CANCEL_LABEL}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          {category.ageFrom !== null &&
+                            category.ageTo !== null &&
+                            ` (${category.ageFrom}–${category.ageTo})`}
+                          {type === AGE_CATEGORY_TYPE && (
+                            <button
+                              type="button"
+                              aria-label={`${AGE_RANGE_EDIT_LABEL}: ${category.name}`}
+                              title={AGE_RANGE_EDIT_LABEL}
+                              onClick={() => startEditingRange(category)}
+                            >
+                              ✎
+                            </button>
+                          )}
+                        </>
+                      )}
                       <button
                         type="button"
                         aria-label={`Прибрати ${category.name}`}
@@ -570,7 +647,8 @@ export default function NominationSetBuilder({
         submitLabel="Додати до набору"
         createCategoryValue={(name, type, range) =>
           Promise.resolve(
-            suggestions.find((s) => sameCategoryValue(s, { name, type })) ??
+            (!range &&
+              suggestions.find((s) => sameCategoryValue(s, { name, type }))) ||
               draftCategory(name, type, range),
           )
         }

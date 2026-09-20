@@ -20,26 +20,53 @@ export function ageAt(birthDate: string, referenceDate: string): number | null {
   return age;
 }
 
-// A number is filed under its oldest dancer — the same rule as the server's
-// isEligibleForAgeCategory. Null when nobody has a usable birth date.
-export function oldestAge(
+// Ages of the dancers who have a usable birth date.
+export function participantAges(
   birthDates: string[],
   referenceDate: string,
-): number | null {
-  const ages = birthDates
+): number[] {
+  return birthDates
     .map((birthDate) => ageAt(birthDate, referenceDate))
     .filter((age): age is number => age !== null);
-  return ages.length === 0 ? null : Math.max(...ages);
+}
+
+function isBounded(category: NominationAgeCategory): boolean {
+  return category.ageFrom !== null && category.ageTo !== null;
+}
+
+// A category fits a line-up only when every dancer's age is inside it — the
+// same rule as the server's isEligibleForAgeCategory.
+function fitsAllAges(ages: number[], category: NominationAgeCategory): boolean {
+  return ages.every((age) => age >= category.ageFrom! && age <= category.ageTo!);
 }
 
 // A nomination without age limits fits everyone.
-export function nominationFitsAge(
-  age: number,
+export function nominationFitsAges(
+  ages: number[],
   categories: NominationAgeCategory[],
 ): boolean {
-  const bounded = categories.filter(
-    (c) => c.ageFrom !== null && c.ageTo !== null,
-  );
+  const bounded = categories.filter(isBounded);
   if (bounded.length === 0) return true;
-  return bounded.some((c) => age >= c.ageFrom! && age <= c.ageTo!);
+  return bounded.some((c) => fitsAllAges(ages, c));
+}
+
+// Age categories that fit every dancer, each name once — ranges may overlap,
+// so several can fit and the coach picks one.
+export function ageCategoriesFittingAges(
+  ages: number[],
+  categories: NominationAgeCategory[],
+): NominationAgeCategory[] {
+  const fitting = categories
+    .filter(isBounded)
+    .filter((c) => fitsAllAges(ages, c));
+  return fitting.filter(
+    (c, index) => fitting.findIndex((other) => other.name === c.name) === index,
+  );
+}
+
+export function nominationHasAgeCategory(
+  name: string,
+  categories: NominationAgeCategory[],
+): boolean {
+  return categories.some((c) => c.name === name);
 }

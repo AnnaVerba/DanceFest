@@ -106,6 +106,16 @@ export function createCategory(
   });
 }
 
+export function updateCategoryAgeRange(
+  id: string,
+  range: AgeRange,
+): Promise<Category> {
+  return request<Category>(`/categories/${id}/age-range`, {
+    method: 'PATCH',
+    body: JSON.stringify(range),
+  });
+}
+
 export interface CreateCategoryInput {
   name: string;
   type: CategoryType;

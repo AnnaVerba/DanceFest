@@ -1,5 +1,5 @@
 import {
-  ConflictException,
+  BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,7 +9,12 @@ import { Category } from './category.model';
 import { AGE_CATEGORY_TYPE } from './category.model';
 import type { CategoryType } from './category.model';
 import { CreateCategoryDto } from './dto/create-category.dto';
-import { CATEGORY_NOT_FOUND_MESSAGE } from './categories.constants';
+import {
+  AGE_RANGE_FROM_EXCEEDS_TO_MESSAGE,
+  CATEGORY_NOT_FOUND_MESSAGE,
+  NOT_AGE_CATEGORY_MESSAGE,
+} from './categories.constants';
+import { UpdateAgeRangeDto } from './dto/update-age-range.dto';
 
 // Reference data (age categories, leagues, styles) is a small curated set;
 // the cap only stops an unbounded scan.
@@ -73,9 +78,8 @@ export class CategoriesService {
    * межі, не можна: користувач ввів «від» і «до», побачив успіх, а вікова
    * категорія так і лишилась без діапазону — і заявка потім не визначить вік.
    *
-   * Немає меж — доповнюємо. Межі є й інші — це справжній конфлікт довідника,
-   * а не дрібниця: `categories` спільна, і мовчазне перезаписування зсунуло б
-   * вікову сітку в чужих конкурсах.
+   * Межі, введені користувачем, перевизначають наявні: вікові межі мають бути
+   * редагованими, а перетин діапазонів дозволений.
    */
   private async reconcileAgeRange(
     existing: Category,
@@ -86,20 +90,13 @@ export class CategoriesService {
       return existing;
     }
 
-    const hasRange = existing.ageFrom !== null && existing.ageTo !== null;
-    if (!hasRange) {
-      existing.ageFrom = input.ageFrom;
-      existing.ageTo = input.ageTo;
-      await existing.save();
+    if (existing.ageFrom === input.ageFrom && existing.ageTo === input.ageTo) {
       return existing;
     }
 
-    if (existing.ageFrom !== input.ageFrom || existing.ageTo !== input.ageTo) {
-      throw new ConflictException(
-        `Вікова категорія «${existing.name}» уже існує з межами ` +
-          `${existing.ageFrom}–${existing.ageTo}. Змініть назву або приберіть розбіжність.`,
-      );
-    }
+    existing.ageFrom = input.ageFrom;
+    existing.ageTo = input.ageTo;
+    await existing.save();
     return existing;
   }
 
@@ -109,6 +106,21 @@ export class CategoriesService {
       created.push(await this.findOrCreate(category));
     }
     return created;
+  }
+
+  async updateAgeRange(id: string, dto: UpdateAgeRangeDto) {
+    const category = await this.findByIdOrFail(id);
+    if (category.type !== AGE_CATEGORY_TYPE) {
+      throw new BadRequestException(NOT_AGE_CATEGORY_MESSAGE);
+    }
+    if (dto.ageFrom > dto.ageTo) {
+      throw new BadRequestException(AGE_RANGE_FROM_EXCEEDS_TO_MESSAGE);
+    }
+
+    category.ageFrom = dto.ageFrom;
+    category.ageTo = dto.ageTo;
+    await category.save();
+    return this.toDto(category);
   }
 
   async findByIds(ids: string[]): Promise<Category[]> {

@@ -11,11 +11,11 @@ import type { Category, CategoryType } from '../../lib/categories';
 import AgeRangeFields from './AgeRangeFields';
 import {
   EMPTY_AGE_RANGE,
-  ageRangeConflictMessage,
   parseAgeRange,
 } from '../../lib/ageRange';
 import type { AgeRange } from '../../lib/ageRange';
 import { buildNominationLabel } from '../../lib/nominationNaming';
+import { isImprovisationProgram } from '../../lib/improvisationProgram';
 import { formatDuration, parseDuration, pluralExits } from '../../lib/duration';
 import type { ExitMode } from '../../lib/categoryTemplates';
 import { SPECIAL_LEAGUE_REQUIRED_MESSAGE } from '../../lib/nominationLeague.constants';
@@ -133,18 +133,6 @@ export default function SpecialCategoryModal({
           setError(parsed.message);
           return;
         }
-        if (
-          known &&
-          known.ageFrom !== null &&
-          known.ageTo !== null &&
-          (known.ageFrom !== parsed.range.ageFrom ||
-            known.ageTo !== parsed.range.ageTo)
-        ) {
-          setError(
-            ageRangeConflictMessage(known.name, known.ageFrom, known.ageTo),
-          );
-          return;
-        }
         range = parsed.range;
       }
     }
@@ -174,14 +162,19 @@ export default function SpecialCategoryModal({
       valuesOf(type).filter((c) => c.id !== id),
     );
 
+  const timedPrograms = useMemo(
+    () => programs.filter((p) => !isImprovisationProgram(p.name)),
+    [programs],
+  );
+
   const parsedLimits = useMemo<Record<string, number>>(() => {
     const parsed: Record<string, number> = {};
-    for (const program of programs) {
+    for (const program of timedPrograms) {
       const seconds = parseDuration(limits[program.id] ?? '');
       if (seconds !== null) parsed[program.id] = seconds;
     }
     return parsed;
-  }, [programs, limits]);
+  }, [timedPrograms, limits]);
 
   const preview = useMemo<SpecialNominationDraft[]>(() => {
     const trimmedName = specialName.trim();
@@ -250,7 +243,7 @@ export default function SpecialCategoryModal({
       setError('Некоректна ціна.');
       return;
     }
-    const badLimit = programs.find(
+    const badLimit = timedPrograms.find(
       (p) => (limits[p.id] ?? '').trim() !== '' && parseDuration(limits[p.id]) === null,
     );
     if (badLimit) {
@@ -382,7 +375,7 @@ export default function SpecialCategoryModal({
           </label>
         </fieldset>
 
-        {programs.length > 0 && (
+        {timedPrograms.length > 0 && (
           <div className={styles.limits}>
             <div className={styles.limitsHead}>
               <strong>Тривалість програм</strong>
@@ -392,7 +385,7 @@ export default function SpecialCategoryModal({
                   : 'ліміт кожного виходу окремо'}
               </span>
             </div>
-            {programs.map((program) => (
+            {timedPrograms.map((program) => (
               <div className={styles.limitRow} key={program.id}>
                 <label htmlFor={`limit-${program.id}`}>{program.name}</label>
                 <input
