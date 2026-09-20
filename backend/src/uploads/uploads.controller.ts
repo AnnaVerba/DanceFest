@@ -17,7 +17,11 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UploadsService } from './uploads.service';
-import { MAX_FILE_SIZE_BYTES, FILE_MISSING_MESSAGE } from './uploads.constants';
+import {
+  MAX_DOCUMENT_FILE_SIZE_BYTES,
+  MAX_FILE_SIZE_BYTES,
+  FILE_MISSING_MESSAGE,
+} from './uploads.constants';
 
 @ApiTags('uploads')
 @ApiBearerAuth()
@@ -49,6 +53,34 @@ export class UploadsController {
       throw new BadRequestException(FILE_MISSING_MESSAGE);
     }
     const url = await this.uploadsService.uploadImage(file);
+    return { url };
+  }
+
+  @ApiOperation({
+    summary: 'Upload a PDF document (e.g. competition regulations) to S3',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiResponse({
+    status: 201,
+    description: 'Document uploaded, public URL returned.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Missing file, wrong format, or too large.',
+  })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @Post('document')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_DOCUMENT_FILE_SIZE_BYTES },
+    }),
+  )
+  async uploadDocument(@UploadedFile() file?: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException(FILE_MISSING_MESSAGE);
+    }
+    const url = await this.uploadsService.uploadDocument(file);
     return { url };
   }
 }
