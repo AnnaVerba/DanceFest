@@ -19,6 +19,11 @@ export class CreateCompetitionDto {
   @IsUrl()
   image?: string;
 
+  @ApiPropertyOptional({ example: 'https://example.com/regulations.pdf' })
+  @IsOptional()
+  @IsUrl()
+  regulationsUrl?: string;
+
   @ApiProperty({ example: 'Зірки Танцполу 2026' })
   @IsString()
   @IsNotEmpty()
