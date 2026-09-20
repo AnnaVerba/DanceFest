@@ -1,5 +1,13 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import KebabMenu from '../KebabMenu';
+import type { Venue } from '../../../lib/venues';
+import {
+  FOREIGN_VENUE_WARNING_HINT,
+  FOREIGN_VENUE_WARNING_PREFIX,
+  MERGED_BLOCK_KEY_PREFIX,
+  VENUE_LIST_SEPARATOR,
+} from './programTable.constants';
+import type { BlockRename } from './blockRename.types';
 import type {
   CompetitionDay,
   Section,
@@ -7,8 +15,11 @@ import type {
   SectionSummary,
 } from '../../../lib/schedule';
 import { ROW_TYPE_LABELS } from '../../../lib/schedule';
+import type { NominationToMove } from './nominationToMove.types';
+import { MOVE_NOMINATION_TITLE } from './sectionPicker.constants';
 import { formatParticipantNumbers } from '../../../lib/participantNumbers';
 import { formatClock, formatDuration } from '../../../lib/duration';
+import { opensProgram, programHeading } from '../../../lib/programHeading';
 import styles from './program.module.css';
 
 interface ProgramTableProps {
@@ -17,6 +28,7 @@ interface ProgramTableProps {
   // whole day, not just the sections on the current page.
   sectionSummaries: SectionSummary[];
   days: CompetitionDay[];
+  venues: Venue[];
   view: 'tech' | 'public';
   editing: boolean;
   search: string;
@@ -35,11 +47,19 @@ interface ProgramTableProps {
   onMoveExit: (entryId: string, targetSectionId: string) => void;
   onMergeSection: (section: Section) => void;
   onUnmerge: (sectionId: string, groupKey: string) => void;
+  onMoveNomination: (nomination: NominationToMove) => void;
+  onRenameBlock: (rename: BlockRename) => void;
   onDeleteSection: (sectionId: string) => void;
 }
 
 function groupKeyOf(item: SectionItem): string {
   return item.nominationGroupKey ?? item.exit?.nomination ?? '—';
+}
+// Merged groups share one block (TASK-15); any other group is its own.
+function blockKeyOf(item: SectionItem): string {
+  return item.mergedGroupLabel
+    ? `${MERGED_BLOCK_KEY_PREFIX}${item.mergedGroupLabel}`
+    : groupKeyOf(item);
 }
 function groupLabelOf(item: SectionItem): string {
   return item.mergedGroupLabel ?? item.exit?.nomination ?? '—';
@@ -52,6 +72,7 @@ export default function ProgramTable({
   sections,
   sectionSummaries,
   days,
+  venues,
   view,
   editing,
   search,
@@ -66,6 +87,8 @@ export default function ProgramTable({
   onMoveExit,
   onMergeSection,
   onUnmerge,
+  onMoveNomination,
+  onRenameBlock,
   onDeleteSection,
 }: ProgramTableProps) {
   const tech = view === 'tech';
@@ -76,7 +99,12 @@ export default function ProgramTable({
     const day = days.find((d) => d.id === id);
     return day ? (day.label ?? day.date) : '';
   };
-  const showDayRows = new Set(sections.map((s) => s.dayId)).size > 1;
+  const venueNames = useMemo(
+    () => new Map(venues.map((venue) => [venue.id, venue.name])),
+    [venues],
+  );
+  const venueNameOf = (venueId: string | null) =>
+    venueId === null ? undefined : venueNames.get(venueId);
 
   const draft = (key: string, fallback: string) => drafts[key] ?? fallback;
   const setDraft = (key: string, value: string) =>
@@ -209,7 +237,7 @@ export default function ProgramTable({
               Прізвище Імʼя
             </th>
             <th className={styles.th} style={{ minWidth: 150 }}>
-              Тренер
+              Керівник
             </th>
             <th className={styles.th} style={{ minWidth: 130 }}>
               Студія
@@ -241,7 +269,7 @@ export default function ProgramTable({
             const blocks: Block[] = [];
             for (const item of section.items) {
               if (item.type === 'performance') {
-                const key = groupKeyOf(item);
+                const key = blockKeyOf(item);
                 const last = blocks[blocks.length - 1];
                 if (last && last.kind === 'group' && last.key === key) {
                   last.items.push(item);
@@ -260,24 +288,54 @@ export default function ProgramTable({
               }
             }
 
-            const sectionStart =
-              section.items[0]?.time ?? `${section.startTime}:00`;
+            const sectionStart = section.startsAt;
+            // An exit moves only within its own venue's program.
             const other = sectionSummaries
               .filter((s) => s.id !== section.id)
-              .map((s) => ({ id: s.id, name: s.name }));
-            const newDay =
-              showDayRows &&
-              sections[sectionIndex - 1]?.dayId !== section.dayId;
-            // Section reorder acts within a day, so the arrows must be
-            // disabled at the day's edges, not the whole list's.
-            const sameDay = sections.filter((s) => s.dayId === section.dayId);
+              .map((s) => ({ id: s.id, name: s.name, venueId: s.venueId }));
+            const targetsFor = (exitVenueId: string | null) =>
+              other.filter(
+                (t) => !exitVenueId || !t.venueId || t.venueId === exitVenueId,
+              );
+            const foreignVenues = [
+              ...new Set(
+                section.items
+                  .map((it) => it.exit?.venueId ?? null)
+                  .filter(
+                    (id): id is string =>
+                      id !== null && id !== section.venueId,
+                  ),
+              ),
+            ];
+            const mixed = section.venueId
+              ? foreignVenues.length > 0
+              : foreignVenues.length > 1;
+            const newProgram = opensProgram(
+              section,
+              sections[sectionIndex - 1],
+            );
+            // Section reorder acts within one venue's day program, so the
+            // arrows are disabled at that program's edges.
+            const sameDay = sections.filter(
+              (s) =>
+                s.dayId === section.dayId && s.venueId === section.venueId,
+            );
             const dayPos = sameDay.findIndex((s) => s.id === section.id);
+            // Column F: the category's position among this section's
+            // category blocks, independent of the search filter below.
+            let categoryNumber = 0;
 
             return (
               <Fragment key={section.id}>
-                {newDay && (
+                {newProgram && (
                   <tr className={styles.dayRow}>
-                    <td colSpan={colCount}>{dayLabel(section.dayId)}</td>
+                    <td colSpan={colCount}>
+                      {programHeading(
+                        dayLabel(section.dayId),
+                        section.venueId,
+                        venueNames,
+                      )}
+                    </td>
                   </tr>
                 )}
                 {renderServiceRow({
@@ -323,6 +381,18 @@ export default function ProgramTable({
                     </>
                   ),
                 })}
+
+                {mixed && (
+                  <tr className={styles.warnRow}>
+                    <td colSpan={colCount}>
+                      {FOREIGN_VENUE_WARNING_PREFIX}{' '}
+                      {foreignVenues
+                        .map((id) => venueNameOf(id) ?? id)
+                        .join(VENUE_LIST_SEPARATOR)}
+                      {FOREIGN_VENUE_WARNING_HINT}
+                    </td>
+                  </tr>
+                )}
 
                 {blocks.map((block, blockIndex) => {
                   if (block.kind === 'award') {
@@ -372,10 +442,26 @@ export default function ProgramTable({
                     });
                   }
                   const group = block;
+                  categoryNumber += 1;
+                  const number = categoryNumber;
                   const visible = group.items.filter(matches);
                   if (visible.length === 0) return null;
                   const isCollapsed = collapsed.has(group.key);
                   const merged = group.items[0]?.mergedGroupLabel != null;
+                  // The block's own nomination group — for move, unmerge and
+                  // rename, which the server resolves per group key.
+                  const firstKey = groupKeyOf(group.items[0]);
+                  const nominationId =
+                    group.items[0]?.exit?.nominationId ?? null;
+                  const titleKey = `n-${section.id}-${group.key}`;
+                  // A merged group can span nominations on different venues.
+                  const groupVenues = [
+                    ...new Set(
+                      group.items
+                        .map((it) => venueNameOf(it.exit?.venueId ?? null))
+                        .filter((name): name is string => name !== undefined),
+                    ),
+                  ];
                   const blockSeconds = group.items.reduce(
                     (sum, it) => sum + (it.durationSeconds ?? 0),
                     0,
@@ -385,9 +471,7 @@ export default function ProgramTable({
                     // blocks with the same group.key — index keeps them apart.
                     <Fragment key={`${group.key}-${blockIndex}`}>
                       <tr className={styles.blockRow}>
-                        <td className={styles.blockF}>
-                          {group.label.slice(0, 1)}
-                        </td>
+                        <td className={styles.blockF}>{number}</td>
                         <td className={styles.blockCell} colSpan={5}>
                           <div className={styles.blockHead}>
                             <button
@@ -397,12 +481,43 @@ export default function ProgramTable({
                             >
                               {isCollapsed ? '▸' : '▾'}
                             </button>
-                            <span className={styles.blockTitle}>
-                              {group.label}
-                            </span>
+                            {editing && (merged || nominationId) ? (
+                              <input
+                                className={styles.titleInput}
+                                value={draft(titleKey, group.label)}
+                                onChange={(e) =>
+                                  setDraft(titleKey, e.target.value)
+                                }
+                                onBlur={() => {
+                                  const label = draft(
+                                    titleKey,
+                                    group.label,
+                                  ).trim();
+                                  if (!label || label === group.label) return;
+                                  onRenameBlock({
+                                    sectionId: section.id,
+                                    groupKey: firstKey,
+                                    merged,
+                                    nominationId,
+                                    label,
+                                  });
+                                }}
+                              />
+                            ) : (
+                              <span className={styles.blockTitle}>
+                                {group.label}
+                              </span>
+                            )}
                             <span className={styles.count}>
                               {group.items.length}
                             </span>
+                            {groupVenues.length > 0 && (
+                              <span
+                                className={`${styles.badge} ${styles.badgeVenue}`}
+                              >
+                                {groupVenues.join(VENUE_LIST_SEPARATOR)}
+                              </span>
+                            )}
                             {merged && (
                               <span
                                 className={`${styles.badge} ${styles.badgeMerged}`}
@@ -424,13 +539,31 @@ export default function ProgramTable({
                             <td
                               className={`${styles.blockCell} ${styles.tdActions}`}
                             >
+                              {editing && !merged && (
+                                <button
+                                  type="button"
+                                  className={styles.iconBtnBlue}
+                                  title={MOVE_NOMINATION_TITLE}
+                                  onClick={() =>
+                                    onMoveNomination({
+                                      groupKey: firstKey,
+                                      label:
+                                        group.items[0]?.exit?.nomination ??
+                                        group.label,
+                                      dayId: section.dayId,
+                                    })
+                                  }
+                                >
+                                  ⇆
+                                </button>
+                              )}
                               {editing && merged && (
                                 <button
                                   type="button"
                                   className={styles.iconBtnBlue}
                                   title="Розʼєднати"
                                   onClick={() =>
-                                    onUnmerge(section.id, group.key)
+                                    onUnmerge(section.id, firstKey)
                                   }
                                 >
                                   ⇤⇥
@@ -491,9 +624,13 @@ export default function ProgramTable({
                                       >
                                         ↓
                                       </button>
-                                      {other.length > 0 && item.exit && (
+                                      {item.exit &&
+                                        targetsFor(item.exit.venueId).length >
+                                          0 && (
                                         <KebabMenu
-                                          items={other.map((t) => ({
+                                          items={targetsFor(
+                                            item.exit.venueId,
+                                          ).map((t) => ({
                                             label: `→ «${t.name}»`,
                                             onSelect: () =>
                                               item.exit &&

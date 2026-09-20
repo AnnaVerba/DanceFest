@@ -9,6 +9,9 @@ interface ConfirmDialogProps {
   confirmLabel: string;
   onConfirm: () => Promise<void> | void;
   onCancel: () => void;
+  // An optional milder alternative to the main action, shown between the two.
+  secondaryLabel?: string;
+  onSecondary?: () => void;
 }
 
 export default function ConfirmDialog({
@@ -18,6 +21,8 @@ export default function ConfirmDialog({
   confirmLabel,
   onConfirm,
   onCancel,
+  secondaryLabel,
+  onSecondary,
 }: ConfirmDialogProps) {
   const [pending, setPending] = useState(false);
 
@@ -43,6 +48,16 @@ export default function ConfirmDialog({
         >
           Скасувати
         </button>
+        {secondaryLabel && onSecondary && (
+          <button
+            type="button"
+            className={styles.cancel}
+            onClick={onSecondary}
+            disabled={pending}
+          >
+            {secondaryLabel}
+          </button>
+        )}
         <button
           type="button"
           className={styles.confirm}

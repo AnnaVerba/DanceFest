@@ -1,7 +1,15 @@
+# Log rotation for every container: at most 3 files of 10 MB each.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     image: postgres:16-alpine
     container_name: dansefest-db
+    logging: *default-logging
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USERNAME:-postgres}
@@ -24,6 +32,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: dansefest-redis
+    logging: *default-logging
     restart: unless-stopped
     ports:
       - '${REDIS_EXTERNAL_PORT:-6380}:6379'
@@ -38,6 +47,7 @@ services:
   backend:
     build: ./backend
     container_name: dansefest-backend
+    logging: *default-logging
     restart: unless-stopped
     depends_on:
       db:
@@ -75,6 +85,7 @@ services:
   frontend:
     build: ./frontend
     container_name: dansefest-frontend
+    logging: *default-logging
     restart: unless-stopped
     depends_on:
       - backend

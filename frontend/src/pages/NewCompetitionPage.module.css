@@ -563,6 +563,25 @@
   font-weight: 400;
 }
 
+.venueChoices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.venueChoice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.venueChoice input {
+  width: auto;
+}
+
 .spacer {
   margin-left: auto;
 }

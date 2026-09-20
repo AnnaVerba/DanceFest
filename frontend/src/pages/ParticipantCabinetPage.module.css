@@ -80,9 +80,10 @@
 
 .entryTable th,
 .entryTable td {
-  padding: 9px 22px;
+  padding: 9px 10px;
   text-align: left;
-  white-space: nowrap;
+  vertical-align: top;
+  overflow-wrap: anywhere;
   border-top: 1px solid var(--g-line);
 }
 
@@ -94,8 +95,47 @@
   color: var(--g-muted);
 }
 
-.entryTable td:nth-child(2) {
-  white-space: normal;
+.entryTable th:first-child,
+.entryTable td:first-child {
+  padding-left: 22px;
+}
+
+.entryTable th:last-child,
+.entryTable td:last-child {
+  padding-right: 22px;
+  white-space: nowrap;
+}
+
+.participantTotals {
+  padding: 10px 22px 14px;
+  border-top: 1px solid var(--g-line);
+}
+
+.participantTotalsTitle {
+  margin-bottom: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--g-muted);
+}
+
+.participantTotal,
+.grandTotal {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 3px 0;
+}
+
+.grandTotal {
+  padding: 14px 22px;
+  border-top: 1px solid var(--g-line);
+  font-weight: 800;
+}
+
+.totalRow td {
+  font-weight: 700;
 }
 
 @media (max-width: 680px) {

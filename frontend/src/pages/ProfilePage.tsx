@@ -1,8 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
 import CabinetLayout from '../components/CabinetLayout';
 import LevelUpgrade from '../components/LevelUpgrade';
 import MentorCoachField from '../components/MentorCoachField';
+import ProfileEditModal from '../components/ProfileEditModal';
 import { getSession, getToken } from '../lib/auth';
 import { ACCESS_LEVEL_LABELS, canHaveMentorCoach } from '../lib/roles';
 import { getMyProfile } from '../lib/users';
@@ -18,6 +20,8 @@ function formatBirthDate(iso: string | null): string {
 
 export default function ProfilePage() {
   const session = getSession();
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
 
   // Never served from a stale cache: the profile is who-am-I data, and a
   // change (role upgrade, mentor coach) must show up the moment it happens.
@@ -68,11 +72,34 @@ export default function ProfilePage() {
                 </div>
               ))}
             </dl>
+            <div className={styles.cardActions}>
+              <button
+                type="button"
+                className={styles.editButton}
+                onClick={() => setEditing(true)}
+              >
+                Редагувати
+              </button>
+            </div>
           </section>
+
+          {editing && (
+            <ProfileEditModal
+              profile={profile}
+              onClose={() => setEditing(false)}
+              onSaved={(saved) => {
+                queryClient.setQueryData(queryKeys.me(), saved);
+                setEditing(false);
+              }}
+            />
+          )}
 
           <LevelUpgrade session={session} />
 
-          {canHaveMentorCoach(profile.accessLevel) && <MentorCoachField />}
+          {/* Keyed by coach id so it reloads after the coach is changed. */}
+          {canHaveMentorCoach(profile.accessLevel) && (
+            <MentorCoachField key={profile.coachId ?? ''} />
+          )}
         </>
       )}
     </CabinetLayout>

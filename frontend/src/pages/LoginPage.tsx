@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -10,10 +10,8 @@ import {
 } from '../lib/auth';
 import { MIN_PASSWORD_LENGTH } from '../lib/auth.constants';
 import PhoneField from '../components/PhoneField';
+import OtpStep from '../components/OtpStep';
 import styles from './LoginPage.module.css';
-
-const OTP_LENGTH = 4;
-const RESEND_SECONDS = 60;
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -24,16 +22,6 @@ export default function LoginPage() {
 
   const [stage, setStage] = useState<'login' | 'otp'>('login');
   const [maskedPhone, setMaskedPhone] = useState('');
-  const [code, setCode] = useState('');
-  const [otpError, setOtpError] = useState<string | null>(null);
-  const [otpBusy, setOtpBusy] = useState(false);
-  const [resendIn, setResendIn] = useState(0);
-
-  useEffect(() => {
-    if (resendIn <= 0) return;
-    const timer = setInterval(() => setResendIn((s) => s - 1), 1000);
-    return () => clearInterval(timer);
-  }, [resendIn]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -44,9 +32,6 @@ export default function LoginPage() {
       if ('otpRequired' in result) {
         setMaskedPhone(result.phone);
         setStage('otp');
-        setResendIn(RESEND_SECONDS);
-        setCode('');
-        setOtpError(null);
       } else {
         saveSession(result);
         navigate('/profile', { replace: true });
@@ -62,32 +47,13 @@ export default function LoginPage() {
     }
   };
 
-  const submitOtp = async () => {
-    setOtpError(null);
-    setOtpBusy(true);
-    try {
-      const session = await verifyOtp(loginId, code, password);
-      saveSession(session);
-      navigate('/profile', { replace: true });
-    } catch (err) {
-      setOtpError(err instanceof AuthError ? err.message : 'Невірний код.');
-    } finally {
-      setOtpBusy(false);
-    }
+  const submitOtp = async (code: string) => {
+    const session = await verifyOtp(loginId, code, password);
+    saveSession(session);
+    navigate('/profile', { replace: true });
   };
 
-  const doResend = async () => {
-    setOtpError(null);
-    try {
-      const { phone } = await resendOtp(loginId);
-      setMaskedPhone(phone);
-      setResendIn(RESEND_SECONDS);
-    } catch (err) {
-      setOtpError(
-        err instanceof AuthError ? err.message : 'Спробуйте пізніше.',
-      );
-    }
-  };
+  const doResend = async () => (await resendOtp(loginId)).phone;
 
   return (
     <main className={styles.page}>
@@ -166,62 +132,13 @@ export default function LoginPage() {
         )}
 
         {stage === 'otp' && (
-          <>
-            <h1 className={styles.title}>Підтвердження</h1>
-            <p className={styles.subtitle}>Ми надіслали код на {maskedPhone}</p>
-
-            {otpError && <p className={styles.error}>{otpError}</p>}
-
-            <div className={styles.field}>
-              <label htmlFor="otp">Код із SMS</label>
-              <input
-                type="text"
-                id="otp"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={OTP_LENGTH}
-                placeholder="1111"
-                value={code}
-                onChange={(e) =>
-                  setCode(
-                    e.target.value.replace(/\D/g, '').slice(0, OTP_LENGTH),
-                  )
-                }
-              />
-            </div>
-
-            <button
-              type="button"
-              className={styles.submit}
-              disabled={otpBusy || code.length !== OTP_LENGTH}
-              onClick={submitOtp}
-            >
-              {otpBusy ? '...' : 'Підтвердити'}
-            </button>
-
-            <button
-              type="button"
-              className={styles.inlineAction}
-              disabled={resendIn > 0}
-              onClick={doResend}
-            >
-              {resendIn > 0
-                ? `Надіслати код ще раз (${resendIn})`
-                : 'Надіслати код ще раз'}
-            </button>
-
-            <button
-              type="button"
-              className={styles.inlineAction}
-              onClick={() => {
-                setStage('login');
-                setCode('');
-                setOtpError(null);
-              }}
-            >
-              ← Змінити номер
-            </button>
-          </>
+          <OtpStep
+            phone={maskedPhone}
+            backLabel="← Змінити номер"
+            onVerify={submitOtp}
+            onResend={doResend}
+            onBack={() => setStage('login')}
+          />
         )}
       </div>
     </main>

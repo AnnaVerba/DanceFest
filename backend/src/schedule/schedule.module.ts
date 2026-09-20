@@ -3,11 +3,14 @@ import { SequelizeModule } from '@nestjs/sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Entry } from '../entries/entry.model';
+import { Nomination } from '../nominations/nomination.model';
 import { CompetitionRulesModule } from '../competition-rules/competition-rules.module';
 import { CompetitionParticipantNumbersModule } from '../competition-participant-numbers/competition-participant-numbers.module';
 import { UsersModule } from '../users/users.module';
 import { ScheduleController } from './schedule.controller';
 import { ScheduleService } from './schedule.service';
+import { ProgramPublicationService } from './program-publication.service';
+import { ProgramPublication } from './program-publication.model';
 import { CompetitionDay } from './competition-day.model';
 import { Section } from './section.model';
 import { SectionItem } from './section-item.model';
@@ -18,16 +21,18 @@ import { SectionItem } from './section-item.model';
       Competition,
       CompetitionAdmin,
       Entry,
+      Nomination,
       CompetitionDay,
       Section,
       SectionItem,
+      ProgramPublication,
     ]),
     CompetitionRulesModule,
     CompetitionParticipantNumbersModule,
     UsersModule,
   ],
   controllers: [ScheduleController],
-  providers: [ScheduleService],
+  providers: [ScheduleService, ProgramPublicationService],
   exports: [ScheduleService],
 })
 export class ScheduleModule {}

@@ -16,6 +16,7 @@ import { CategoryTemplatesModule } from './category-templates/category-templates
 import { PaymentDetailsModule } from './payment-details/payment-details.module';
 import { CompetitionRulesModule } from './competition-rules/competition-rules.module';
 import { OveragesModule } from './overages/overages.module';
+import { FinanceModule } from './finance/finance.module';
 import { ScheduleModule as NestScheduleModule } from '@nestjs/schedule';
 import { ScheduleModule } from './schedule/schedule.module';
 import { AwardsModule } from './awards/awards.module';
@@ -56,6 +57,7 @@ import {
         database: config.get<string>('DB_NAME'),
         autoLoadModels: true,
         synchronize: false,
+        logging: false,
       }),
     }),
     BullModule.forRootAsync({
@@ -87,6 +89,7 @@ import {
     UploadsModule,
     CompetitionRulesModule,
     OveragesModule,
+    FinanceModule,
     ScheduleModule,
     AwardsModule,
     SchoolsModule,

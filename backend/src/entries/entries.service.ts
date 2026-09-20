@@ -3,23 +3,31 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes, Op, Transaction } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
+import { isEligibleForAgeCategory } from '../categories/age-eligibility';
+import type { AgeCategoryRange } from '../categories/resolve-age-category';
 import { NominationsService } from '../nominations/nominations.service';
 import type { NominationExit } from '../nominations/nomination-exits';
 import { UsersService } from '../users/users.service';
 import { SchoolsService } from '../schools/schools.service';
 import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
+import { ScheduleService } from '../schedule/schedule.service';
 import { ParticipantNumberLookup } from '../competition-participant-numbers/participant-number-lookup';
 import { AccessLevel, meetsLevel } from '../auth/access-level.enum';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Entry } from './entry.model';
 import { isNumberAllocationRace } from './number-allocation-race';
 import { resolveLineup } from './lineup';
+import {
+  calculateEntryAmount,
+  calculateParticipantShare,
+} from './entry-amount';
 import { Score } from './score.model';
 import { User } from '../users/user.model';
 import { CreateEntryDto } from './dto/create-entry.dto';
@@ -28,6 +36,7 @@ import type { EntryParticipant } from './entry-participant.interface';
 import { UpdateEntryExtraTimeDto } from './dto/update-entry-extra-time.dto';
 import { resolvePage } from '../common/pagination';
 import {
+  AGE_CATEGORY_MISMATCH_MESSAGE,
   NOMINATION_REQUIRED_MESSAGE,
   ENTRY_NOT_FOUND_MESSAGE,
   ENTRY_CREATE_FAILED_MESSAGE,
@@ -45,6 +54,9 @@ import {
   MAX_ENTRY_STATS_ROWS,
   NOMINATION_PROGRAM_MISMATCH_MESSAGE,
   MIN_PARTICIPANTS_PER_ENTRY,
+  ASSIGN_STUDIO_TRAINER_FORBIDDEN_MESSAGE,
+  TRAINER_NOT_A_COACH_MESSAGE,
+  PROGRAM_PLACEMENT_FAILED_MESSAGE,
 } from './entries.constants';
 import {
   COMPETITION_NOT_FOUND_MESSAGE,
@@ -57,8 +69,11 @@ interface SubmitterContext {
   participantId: string | null;
   participantIds: string[];
   participantsCount: number | null;
+  birthDates: (string | null)[];
   routineName: string | null;
+  studioId: string | null;
   studioName: string | null;
+  trainerId: string | null;
   choreographer: string | null;
 }
 
@@ -76,6 +91,8 @@ interface PreparedEntry {
 
 @Injectable()
 export class EntriesService {
+  private readonly logger = new Logger(EntriesService.name);
+
   constructor(
     @InjectModel(Competition)
     private readonly competitionModel: typeof Competition,
@@ -89,6 +106,7 @@ export class EntriesService {
     private readonly usersService: UsersService,
     private readonly schoolsService: SchoolsService,
     private readonly participantNumbersService: CompetitionParticipantNumbersService,
+    private readonly scheduleService: ScheduleService,
   ) {}
 
   async list(
@@ -102,13 +120,16 @@ export class EntriesService {
     if (!competition) {
       throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
-    // Any signed-in user may read the start list; only staff also get the
-    // payment method and the judging scores.
+    // Only staff read the full entry list; the logged-out start list lives
+    // at `listPublic`.
     const staff = await this.isCompetitionStaff(
       competition,
       requesterId,
       requesterLevel,
     );
+    if (!staff) {
+      throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);
+    }
     const { page, pageSize, limit, offset } = resolvePage(
       rawPage,
       rawPageSize,
@@ -129,8 +150,12 @@ export class EntriesService {
       [competitionId],
       personIds,
     );
+    const prices = await this.loadPrices(rows);
     return {
-      rows: rows.map((e) => this.toDto(e, numbers, staff)),
+      rows: rows.map((e) => ({
+        ...this.toDto(e, numbers),
+        amount: calculateEntryAmount(e, prices),
+      })),
       total: count,
       page,
       pageSize,
@@ -245,16 +270,34 @@ export class EntriesService {
     // All reads (validation, participant + nomination resolution) happen
     // before the transaction opens.
     const prepared = await Promise.all(
-      dtos.map((dto) => this.prepareEntry(competitionId, dto, user)),
+      dtos.map((dto) => this.prepareEntry(competition, dto, user)),
     );
     this.assertNoRepeatWithinSubmission(prepared);
 
     const created = await this.insertWithRetry(competitionId, prepared);
+    await this.placeInProgram(competitionId, created);
 
     const numbers = await this.participantNumbersService.loadLookup([
       competitionId,
     ]);
     return created.map((entry) => this.toDto(entry, numbers));
+  }
+
+  // A late entry joins its nomination's block if the program already has
+  // one. The submission itself must not fail over that — an entry the
+  // program could not take simply waits in the unassigned pool.
+  private async placeInProgram(
+    competitionId: string,
+    entries: Entry[],
+  ): Promise<void> {
+    try {
+      await this.scheduleService.appendToScheduledBlocks(competitionId, entries);
+    } catch (err) {
+      this.logger.warn(
+        `${PROGRAM_PLACEMENT_FAILED_MESSAGE} ${competitionId}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+    }
   }
 
   // One dancer performs in a nomination once. The several exits of a
@@ -405,8 +448,51 @@ export class EntriesService {
     throw new Error(ENTRY_CREATE_FAILED_MESSAGE);
   }
 
+  // Only a global admin may put dancers into an age category their age does
+  // not fit; the age is counted on the competition's start date.
+  private assertAgeEligible(
+    competition: Competition,
+    user: AuthenticatedUser,
+    birthDates: (string | null)[],
+    ageRange: AgeCategoryRange | null,
+  ): void {
+    if (user.accessLevel === AccessLevel.ADMIN) return;
+    if (!isEligibleForAgeCategory(birthDates, ageRange, competition.dateFrom)) {
+      throw new BadRequestException(AGE_CATEGORY_MISMATCH_MESSAGE);
+    }
+  }
+
+  // An edit re-checks the age only when the dancers or the nomination change;
+  // the side that did not change is read from the stored entry.
+  private async assertEditKeepsAgeEligible(
+    competition: Competition,
+    user: AuthenticatedUser,
+    entry: Entry,
+    changedBirthDates: (string | null)[] | undefined,
+    changedAgeRange: AgeCategoryRange | null | undefined,
+  ): Promise<void> {
+    if (changedBirthDates === undefined && changedAgeRange === undefined) return;
+
+    const birthDates =
+      changedBirthDates ??
+      (await this.usersService.findManyByIds(entry.participantIds ?? [])).map(
+        (person) => person.birthDate,
+      );
+    const ageRange =
+      changedAgeRange !== undefined
+        ? changedAgeRange
+        : entry.nominationId
+          ? (
+              await this.nominationsService.resolveForEntry(competition.id, {
+                nominationId: entry.nominationId,
+              })
+            ).ageRange
+          : null;
+    this.assertAgeEligible(competition, user, birthDates, ageRange);
+  }
+
   private async prepareEntry(
-    competitionId: string,
+    competition: Competition,
     dto: CreateEntryDto,
     user: AuthenticatedUser,
   ): Promise<PreparedEntry> {
@@ -414,17 +500,23 @@ export class EntriesService {
       throw new BadRequestException(NOMINATION_REQUIRED_MESSAGE);
     }
 
-    const submitter = await this.resolveSubmitter(dto, user);
+    const submitter = await this.applyStudioAndTrainer(
+      competition,
+      dto,
+      user,
+      await this.resolveSubmitter(dto, user),
+    );
     const routineName = dto.routineName?.trim() || submitter.routineName;
     if (!routineName) {
       throw new BadRequestException(ROUTINE_NAME_REQUIRED_MESSAGE);
     }
 
-    const { nomination, exits, ageCategory, league } =
-      await this.nominationsService.resolveForEntry(competitionId, {
+    const { nomination, exits, ageCategory, ageRange, league } =
+      await this.nominationsService.resolveForEntry(competition.id, {
         nominationId: dto.nominationId,
         name: dto.nomination,
       });
+    this.assertAgeEligible(competition, user, submitter.birthDates, ageRange);
 
     return {
       dto,
@@ -436,6 +528,47 @@ export class EntriesService {
       exits,
       ageCategory,
       league,
+    };
+  }
+
+  // The organizer of this competition (or an admin) may file the entry under
+  // any studio and trainer instead of the dancer's own; nobody else may.
+  // A trainer picked without a studio brings their own studio along.
+  private async applyStudioAndTrainer(
+    competition: Competition,
+    dto: CreateEntryDto,
+    user: AuthenticatedUser,
+    submitter: SubmitterContext,
+  ): Promise<SubmitterContext> {
+    if (!dto.studioId && !dto.trainerId) return submitter;
+
+    const isStaff =
+      meetsLevel(user.accessLevel, AccessLevel.ORGANIZER) &&
+      (await this.isCompetitionStaff(competition, user.id, user.accessLevel));
+    if (!isStaff) {
+      throw new ForbiddenException(ASSIGN_STUDIO_TRAINER_FORBIDDEN_MESSAGE);
+    }
+
+    const trainer = dto.trainerId
+      ? await this.usersService.findByIdOrFail(dto.trainerId)
+      : null;
+    if (trainer && !meetsLevel(trainer.accessLevel, AccessLevel.COACH)) {
+      throw new BadRequestException(TRAINER_NOT_A_COACH_MESSAGE);
+    }
+    const studioId =
+      dto.studioId ?? (trainer ? trainer.schoolId : submitter.studioId);
+    const studio = studioId
+      ? await this.schoolsService.findByIdOrFail(studioId)
+      : null;
+
+    return {
+      ...submitter,
+      studioId: studio?.id ?? null,
+      studioName: studio?.name ?? null,
+      trainerId: trainer?.id ?? submitter.trainerId,
+      choreographer: trainer
+        ? `${trainer.firstName} ${trainer.lastName}`.trim()
+        : submitter.choreographer,
     };
   }
 
@@ -461,6 +594,8 @@ export class EntriesService {
       program: exit.programName,
       participantsCount,
       lineup: resolveLineup(participantsCount ?? 1),
+      studioId: submitter.studioId,
+      trainerId: submitter.trainerId,
       studioName: dto.studioName?.trim() || submitter.studioName,
       choreographer: dto.choreographer?.trim() || submitter.choreographer,
       city: dto.city?.trim() || null,
@@ -520,7 +655,8 @@ export class EntriesService {
   }
 
   // Entries the current user is involved in — their own performances and,
-  // if they coach, every performance one of their roster dancers is in.
+  // if they coach, every performance one of their roster dancers is in, and
+  // every performance filed under them as trainer, whoever submitted it.
   async listForUser(user: AuthenticatedUser) {
     const ids = await this.ownParticipantIds(user);
 
@@ -529,6 +665,7 @@ export class EntriesService {
         [Op.or]: [
           { participantIds: { [Op.overlap]: ids } },
           { participantId: { [Op.in]: ids } },
+          { trainerId: user.id },
         ],
       },
       include: [Score],
@@ -541,18 +678,40 @@ export class EntriesService {
       where: { id: { [Op.in]: competitionIds } },
     });
     const byId = new Map(competitions.map((c) => [c.id, c]));
+    const allParticipantIds = entries.flatMap((e) => e.participantIds ?? []);
     const numbers = await this.participantNumbersService.loadLookup(
       competitionIds,
-      entries.flatMap((e) => e.participantIds ?? []),
+      allParticipantIds,
     );
+
+    const prices = await this.loadPrices(entries);
+    const seesFullCost = meetsLevel(user.accessLevel, AccessLevel.COACH);
+
+    const people = await this.usersService.findManyByIds([
+      ...new Set(allParticipantIds),
+    ]);
+    const peopleById = new Map(people.map((p) => [p.id, p]));
 
     return entries.map((entry) => {
       const competition = byId.get(entry.competitionId);
+      const participants: EntryParticipant[] = (entry.participantIds ?? [])
+        .map((id) => peopleById.get(id))
+        .filter((p): p is User => p !== undefined)
+        .map((p) => ({
+          id: p.id,
+          firstName: p.firstName,
+          lastName: p.lastName,
+        }));
       return {
         ...this.toDto(entry, numbers),
         competitionId: entry.competitionId,
         competitionName: competition?.name ?? null,
         competitionDateFrom: competition?.dateFrom ?? null,
+        // A coach pays for the whole number; a dancer sees only their part.
+        amount: seesFullCost
+          ? calculateEntryAmount(entry, prices)
+          : calculateParticipantShare(entry, prices),
+        participants,
       };
     });
   }
@@ -598,7 +757,7 @@ export class EntriesService {
     dto: UpdateEntryDto,
     user: AuthenticatedUser,
   ) {
-    await this.loadCompetitionAndAssertAccess(
+    const competition = await this.loadCompetitionAndAssertAccess(
       competitionId,
       user.id,
       user.accessLevel,
@@ -607,9 +766,12 @@ export class EntriesService {
     const changes: Partial<CreationAttributes<Entry>> = {};
     const currentIds = entry.participantIds ?? [];
     let addedIds: string[] = [];
+    let changedBirthDates: (string | null)[] | undefined;
+    let changedAgeRange: AgeCategoryRange | null | undefined;
 
     if (dto.participantIds) {
       const submitter = await this.resolveSubmitter(dto, user);
+      changedBirthDates = submitter.birthDates;
       changes.participantId = submitter.participantId;
       changes.participantIds = submitter.participantIds;
       addedIds = submitter.participantIds.filter(
@@ -629,10 +791,11 @@ export class EntriesService {
     const nominationChanged =
       dto.nominationId !== undefined && dto.nominationId !== entry.nominationId;
     if (nominationChanged) {
-      const { nomination, exits, ageCategory, league } =
+      const { nomination, exits, ageCategory, ageRange, league } =
         await this.nominationsService.resolveForEntry(competitionId, {
           nominationId: dto.nominationId,
         });
+      changedAgeRange = ageRange;
       const exit = this.exitMatchingProgram(exits, entry.program);
       nominationName = nomination.name;
       changes.nominationId = nomination.id;
@@ -641,6 +804,13 @@ export class EntriesService {
       changes.ageCategory = ageCategory;
       changes.league = league;
     }
+    await this.assertEditKeepsAgeEligible(
+      competition,
+      user,
+      entry,
+      changedBirthDates,
+      changedAgeRange,
+    );
 
     if (dto.routineName !== undefined) {
       changes.routineName = dto.routineName.trim();
@@ -737,7 +907,25 @@ export class EntriesService {
         firstName: person.firstName,
         lastName: person.lastName,
       }));
-    return { ...this.toDto(entry, numbers), participants };
+    const prices = await this.loadPrices([entry]);
+    return {
+      ...this.toDto(entry, numbers),
+      amount: calculateEntryAmount(entry, prices),
+      participants,
+    };
+  }
+
+  // Nomination price per nomination id for these entries — the input to
+  // calculateEntryAmount.
+  async loadPrices(entries: Entry[]): Promise<Map<string, number | null>> {
+    const nominationIds = [
+      ...new Set(
+        entries
+          .map((e) => e.nominationId)
+          .filter((id): id is string => id !== null),
+      ),
+    ];
+    return this.nominationsService.findPricesByIds(nominationIds);
   }
 
   // Records purchased additional on-stage time and its fee for an overrun
@@ -791,8 +979,11 @@ export class EntriesService {
         participantId: null,
         participantIds: [],
         participantsCount: null,
+        birthDates: [],
         routineName: null,
+        studioId: null,
         studioName: null,
+        trainerId: null,
         choreographer: null,
       };
     }
@@ -809,8 +1000,11 @@ export class EntriesService {
       participantId: first.id,
       participantIds: participants.map((p) => p.id),
       participantsCount: participants.length,
+      birthDates: participants.map((p) => p.birthDate),
       routineName: this.routineNameFor(participants),
+      studioId: school?.id ?? null,
       studioName: school?.name ?? null,
+      trainerId: coach?.id ?? null,
       choreographer: coach
         ? `${coach.firstName} ${coach.lastName}`.trim()
         : null,
@@ -920,13 +1114,7 @@ export class EntriesService {
     };
   }
 
-  // `includeStaffFields` off returns the start-list view any signed-in
-  // user may read: no payment method, no music link, no judging scores.
-  private toDto(
-    entry: Entry,
-    numbers: ParticipantNumberLookup,
-    includeStaffFields = true,
-  ) {
+  private toDto(entry: Entry, numbers: ParticipantNumberLookup) {
     const participantIds = entry.participantIds ?? [];
     const base = {
       id: entry.id,
@@ -946,17 +1134,15 @@ export class EntriesService {
       program: entry.program,
       participantsCount: entry.participantsCount,
       lineup: entry.lineup,
+      studioId: entry.studioId,
       studioName: entry.studioName,
+      trainerId: entry.trainerId,
       choreographer: entry.choreographer,
       city: entry.city,
       improv: entry.improv,
       musicName: entry.musicName,
       createdAt: entry.createdAt,
     };
-    if (!includeStaffFields) {
-      return base;
-    }
-
     const scores = entry.scores ?? [];
     const averageScore =
       scores.length > 0

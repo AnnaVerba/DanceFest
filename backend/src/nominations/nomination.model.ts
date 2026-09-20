@@ -63,6 +63,11 @@ export class Nomination extends Model<Nomination> {
   @Column({ type: DataType.INTEGER, allowNull: true })
   declare durationLimitSeconds: number | null;
 
+  // True once an admin sets durationLimitSeconds by hand — from then on,
+  // league duration changes must skip this nomination instead of overwriting it.
+  @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
+  declare durationOverridden: boolean;
+
   @Column({ type: DataType.JSONB, allowNull: false, defaultValue: {} })
   declare programLimits: Record<string, number>;
 

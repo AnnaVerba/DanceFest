@@ -12,6 +12,7 @@ import { formatHhMmSs, parseHhMm } from './section-time';
 export interface SectionExitView {
   entryId: string;
   number: number;
+  nominationId: string | null;
   // Per-competition participant number, one per dancer in `participantIds`
   // order; null for a dancer with no number yet or an organizer-typed entry.
   // This is the number the program shows.
@@ -27,6 +28,8 @@ export interface SectionExitView {
   participantId: string | null;
   participantIds: string[];
   musicName: string | null;
+  // The venue of the exit's nomination — sections themselves have none.
+  venueId: string | null;
 }
 
 // entry id -> its participant numbers, so buildSectionView stays a pure
@@ -55,6 +58,9 @@ export interface SectionView {
   venueId: string | null;
   name: string;
   startTime: string;
+  // When the section's first row starts, taken from the full running order
+  // so a venue filter hiding that row never shifts the section's clock.
+  startsAt: string;
   pauseSeconds: number;
   sortOrder: number;
   items: SectionItemView[];
@@ -91,6 +97,7 @@ function toExitView(
   return {
     entryId: entry.id,
     number: entry.number,
+    nominationId: entry.nominationId,
     participantNumbers,
     nomination: entry.nomination,
     routineName: entry.routineName,
@@ -103,6 +110,7 @@ function toExitView(
     participantId: entry.participantId,
     participantIds: entry.participantIds ?? [],
     musicName: entry.musicName,
+    venueId: entry.nominationRef?.venueId ?? null,
   };
 }
 
@@ -160,9 +168,11 @@ export function buildSectionView(
     competitionId: section.competitionId,
     dayId: section.dayId,
     dayDate: section.day?.date ?? null,
+    // Set from the exits' nominations when the section was built.
     venueId: section.venueId,
     name: section.name,
     startTime: section.startTime,
+    startsAt: items[0]?.time ?? formatHhMmSs(startTimeSeconds),
     pauseSeconds: section.pauseSeconds,
     sortOrder: section.sortOrder,
     items,

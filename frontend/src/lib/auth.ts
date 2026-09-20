@@ -45,6 +45,7 @@ export interface RegisterPayload {
   firstName: string;
   lastName: string;
   phone: string;
+  email: string;
   password: string;
   birthDate: string;
   role: AccessLevel;
@@ -162,15 +163,18 @@ export async function verifyOtp(
   return toSession(raw);
 }
 
-export async function resendOtp(
-  loginId: string,
+// A call that texts an SMS code and answers with the masked phone.
+async function postForCode(
+  path: string,
+  body: unknown,
+  fallbackMessage: string,
 ): Promise<{ phone: string }> {
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}/auth/otp/resend`, {
+    response = await fetch(`${API_BASE_URL}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ login: loginId }),
+      body: JSON.stringify(body),
     });
   } catch {
     throw new AuthError(CANNOT_CONNECT_TO_SERVER_MESSAGE);
@@ -179,15 +183,38 @@ export async function resendOtp(
     | (ErrorPayload & { phone: string })
     | null;
   if (!response.ok) {
-    throw new AuthError(
-      extractErrorMessage(payload, OTP_RESEND_FAILED_MESSAGE),
-    );
+    throw new AuthError(extractErrorMessage(payload, fallbackMessage));
   }
   return payload as { phone: string };
 }
 
-export async function register(payload: RegisterPayload): Promise<Session> {
-  const raw = await postAuth('/auth/register', payload, REGISTER_FAILED_MESSAGE);
+export function resendOtp(loginId: string): Promise<{ phone: string }> {
+  return postForCode(
+    '/auth/otp/resend',
+    { login: loginId },
+    OTP_RESEND_FAILED_MESSAGE,
+  );
+}
+
+// Registration step 1: the backend checks the form and texts a code.
+// Nothing is saved yet; calling it again re-sends the code.
+export function startRegistration(
+  payload: RegisterPayload,
+): Promise<{ phone: string }> {
+  return postForCode('/auth/register/start', payload, REGISTER_FAILED_MESSAGE);
+}
+
+// Registration step 2: the same form data plus the SMS code. The account
+// is created only if the code is right.
+export async function register(
+  payload: RegisterPayload,
+  code: string,
+): Promise<Session> {
+  const raw = await postAuth(
+    '/auth/register',
+    { ...payload, code },
+    REGISTER_FAILED_MESSAGE,
+  );
   return toSession(raw);
 }
 
@@ -223,9 +250,15 @@ export interface CoachSummary {
   schoolName: string | null;
 }
 
+export interface NewMentorCoach {
+  firstName: string;
+  lastName: string;
+  phone: string;
+}
+
 export type SetMentorCoachBody =
   | { coachId: string }
-  | { newCoach: { firstName: string; lastName: string; phone: string } };
+  | { newCoach: NewMentorCoach };
 
 export interface MentorCoach {
   id: string;
@@ -250,31 +283,30 @@ export async function getSelectableCoaches(
   return response.json() as Promise<CoachSummary[]>;
 }
 
+// Organizer/admin only: registers a coach who is not in the system yet.
+export async function createCoach(
+  newCoach: NewMentorCoach,
+): Promise<CoachSummary> {
+  const response = await authorizedFetch('/users/coaches', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(newCoach),
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as ErrorPayload | null;
+    throw new AuthError(
+      extractErrorMessage(payload, UNEXPECTED_SERVER_RESPONSE_MESSAGE),
+    );
+  }
+  return response.json() as Promise<CoachSummary>;
+}
+
 export async function getMyMentorCoach(): Promise<MentorCoach | null> {
   const response = await authorizedFetch('/users/me/coach');
   if (!response.ok) {
     throw new AuthError(UNEXPECTED_SERVER_RESPONSE_MESSAGE);
   }
   return response.json() as Promise<MentorCoach | null>;
-}
-
-export async function setMentorCoach(
-  body: SetMentorCoachBody,
-): Promise<{ coachId: string }> {
-  const response = await authorizedFetch('/users/me/coach', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const payload = (await response.json().catch(() => null)) as
-    | (ErrorPayload & { coachId: string })
-    | null;
-  if (!response.ok) {
-    throw new AuthError(
-      extractErrorMessage(payload, LEVEL_UPGRADE_FAILED_MESSAGE),
-    );
-  }
-  return payload as { coachId: string };
 }
 
 export function saveSession(session: Session) {

@@ -5,6 +5,8 @@ import type { OrganizerSummary } from './organizerSummary';
 import type { OrganizerOption } from './organizerOption';
 import { GENERIC_REQUEST_ERROR_MESSAGE } from './api.constants';
 import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
+import { apiRequest } from './http';
+import type { UpdateMyProfileInput } from './users.types';
 
 export interface MyProfile {
   id: string;
@@ -83,6 +85,24 @@ export async function completeProfile(
     throw new UserApiError(message, response.status);
   }
   await refreshSession();
+}
+
+// Save the user's own name, email and birth date, then refresh the stored
+// session so the name shown in the top bar is current.
+export async function updateMyProfile(
+  input: UpdateMyProfileInput,
+): Promise<MyProfile> {
+  const profile = await apiRequest<MyProfile>('/users/me', {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+  try {
+    await refreshSession();
+  } catch {
+    // The profile is already saved. A failed refresh only leaves the
+    // top-bar name stale until the session next refreshes on its own.
+  }
+  return profile;
 }
 
 export function organizerDisplayName(organizer: OrganizerSummary): string {
