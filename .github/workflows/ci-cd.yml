@@ -190,6 +190,9 @@ jobs:
           TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
           TURBOSMS_TOKEN: ${{ secrets.TURBOSMS_TOKEN }}
           TURBOSMS_SENDER: ${{ secrets.TURBOSMS_SENDER }}
+          SMS_FLY_API_URL: ${{ secrets.SMS_FLY_API_URL }}
+          SMS_FLY_API_KEY: ${{ secrets.SMS_FLY_API_KEY }}
+          SMS_FLY_FROM: ${{ secrets.SMS_FLY_FROM }}
         run: |
           # Streamed straight into the file with umask 077 — secrets never
           # touch the runner's disk and the .env is readable only by its owner.
