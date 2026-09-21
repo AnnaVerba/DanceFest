@@ -1,8 +1,7 @@
 // `participantNumber_FirstName_LastName_League_Style.mp3` — per the ticket.
 // "participantNumber" is the dancer's competition participant number (see
 // CompetitionParticipantNumbersService). A group has several dancers, so its
-// numbers are joined; an entry whose dancers have none yet falls back to the
-// entry's own number. For a solo, FirstName_LastName is the dancer's own
+// numbers are joined. For a solo, FirstName_LastName is the dancer's own
 // name; for a group there's no single dancer, so the routine name stands in.
 const UNSAFE_FILENAME_CHARS = /[\\/:*?"<>|]/g;
 const TRACK_NUMBER_SEPARATOR = '-';
@@ -35,12 +34,8 @@ export function buildTrackFileName(input: TrackFileNameInput): string {
 
 export function buildTrackNumberLabel(
   participantNumbers: (number | null)[],
-  fallbackNumber: number,
 ): string {
-  const issued = participantNumbers.filter(
-    (value): value is number => value !== null,
-  );
-  return issued.length > 0
-    ? issued.join(TRACK_NUMBER_SEPARATOR)
-    : String(fallbackNumber);
+  return participantNumbers
+    .filter((value): value is number => value !== null)
+    .join(TRACK_NUMBER_SEPARATOR);
 }

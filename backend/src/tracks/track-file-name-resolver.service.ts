@@ -48,13 +48,13 @@ export class TrackFileNameResolver {
 
   private async resolveNumberLabel(entry: Entry): Promise<string> {
     const participantIds = entry.participantIds ?? [];
-    const lookup = await this.participantNumbersService.loadLookup(
-      [entry.competitionId],
-      participantIds,
-    );
+    const lookup =
+      await this.participantNumbersService.loadLookupIssuingMissing(
+        entry.competitionId,
+        participantIds,
+      );
     return buildTrackNumberLabel(
       lookup.numbersFor(entry.competitionId, participantIds),
-      entry.number,
     );
   }
 

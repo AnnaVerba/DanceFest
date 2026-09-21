@@ -65,9 +65,11 @@ export class MusicExportProcessor extends WorkerHost {
       const tracksByEntryId = await this.loadTracks(entries.map((e) => e.id));
       const stylesByEntryId = await this.resolveStyles(entries);
       const soloNamesByEntryId = await this.resolveSoloNames(entries);
-      const numbers = await this.participantNumbersService.loadLookup([
-        exportJob.competitionId,
-      ]);
+      const numbers =
+        await this.participantNumbersService.loadLookupIssuingMissing(
+          exportJob.competitionId,
+          entries.flatMap((entry) => entry.participantIds ?? []),
+        );
 
       const missing: MissingTrack[] = [];
       const items: ExportItem[] = [];
@@ -85,7 +87,6 @@ export class MusicExportProcessor extends WorkerHost {
         const fileName = buildTrackFileName({
           numberLabel: buildTrackNumberLabel(
             numbers.numbersFor(entry.competitionId, entry.participantIds ?? []),
-            entry.number,
           ),
           soloParticipant,
           routineName: entry.routineName,
