@@ -10,6 +10,7 @@ import { CompetitionRulesModule } from '../competition-rules/competition-rules.m
 import { Nomination } from './nomination.model';
 import { NominationsController } from './nominations.controller';
 import { NominationsService } from './nominations.service';
+import { SpecialNominationGroups } from './special-nomination-groups';
 
 @Module({
   imports: [
@@ -25,7 +26,7 @@ import { NominationsService } from './nominations.service';
     ScheduleModule,
   ],
   controllers: [NominationsController],
-  providers: [NominationsService],
+  providers: [NominationsService, SpecialNominationGroups],
   exports: [NominationsService],
 })
 export class NominationsModule {}

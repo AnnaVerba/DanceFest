@@ -16,11 +16,9 @@ import { REFERENCE_STALE_TIME_MS } from '../../lib/queryClient.constants';
 import AgeRangeFields from './AgeRangeFields';
 import { PRICED_AXES, resolvePrice } from '../../lib/nominationPricing';
 import type { AxisPriceMap } from '../../lib/nominationPricing';
-import {
-  EMPTY_AGE_RANGE,
-  parseAgeRange,
-} from '../../lib/ageRange';
+import { EMPTY_AGE_RANGE, parseAgeRange } from '../../lib/ageRange';
 import type { AgeRange } from '../../lib/ageRange';
+import { useAgeRangeDraft } from '../../lib/useAgeRangeDraft';
 import type { Category, CategoryType } from '../../lib/categories';
 import type { ExitMode } from '../../lib/categoryTemplates';
 import {
@@ -33,6 +31,7 @@ import {
   signatureOf,
 } from '../../lib/nominationSet';
 import type { AxisSelection, DraftNomination } from '../../lib/nominationSet';
+import { findDraftPriceConflict } from '../../lib/specialPriceConflict';
 import {
   AGE_RANGE_CANCEL_LABEL,
   AGE_RANGE_EDIT_LABEL,
@@ -81,7 +80,6 @@ export default function NominationSetBuilder({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [inputs, setInputs] = useState<Record<string, string>>({});
-  const [ageRange, setAgeRange] = useState(EMPTY_AGE_RANGE);
   const [editingAgeId, setEditingAgeId] = useState<string | null>(null);
   const [editedRange, setEditedRange] = useState(EMPTY_AGE_RANGE);
   const [savingRange, setSavingRange] = useState(false);
@@ -100,6 +98,7 @@ export default function NominationSetBuilder({
     staleTime: REFERENCE_STALE_TIME_MS,
   });
   const suggestions = categoriesQuery.data ?? EMPTY_CATEGORIES;
+  const age = useAgeRangeDraft(suggestions);
 
   useEffect(() => {
     if (!categoriesQuery.isError) return;
@@ -143,7 +142,7 @@ export default function NominationSetBuilder({
 
     const clearInput = () => {
       setInputs((prev) => ({ ...prev, [type]: '' }));
-      if (type === AGE_CATEGORY_TYPE) setAgeRange(EMPTY_AGE_RANGE);
+      if (type === AGE_CATEGORY_TYPE) age.reset();
     };
     const candidate = { name: raw, type };
 
@@ -161,9 +160,14 @@ export default function NominationSetBuilder({
     // BUG-03.
     let range: AgeRange | undefined;
     if (type === AGE_CATEGORY_TYPE) {
-      const rangeEntered = ageRange.from.trim() !== '' || ageRange.to.trim() !== '';
+      // Підставлене з довідника й не редаговане — це не введені межі:
+      // інакше вибір наявної категорії щоразу створював би чернетку замість
+      // неї самої, і ✎ на чіпі правив би лише набір, а не спільний довідник.
+      const rangeEntered =
+        !age.isFromReference &&
+        (age.draft.from.trim() !== '' || age.draft.to.trim() !== '');
       if (!existing || rangeEntered) {
-        const parsed = parseAgeRange(ageRange);
+        const parsed = parseAgeRange(age.draft);
         if (!parsed.ok) {
           setError(parsed.message);
           return;
@@ -332,13 +336,16 @@ export default function NominationSetBuilder({
     else setNotice(message);
   };
 
-  const addSpecial = (drafts: SpecialNominationDraft[]) => {
+  const addSpecial = (drafts: SpecialNominationDraft[]): Promise<string | null> => {
+    const priceConflict = findDraftPriceConflict(nominations, drafts);
+    if (priceConflict) return Promise.resolve(priceConflict);
+
     const known = new Set(nominations.map((n) => n.signature));
     const fresh = drafts.filter((d) => !known.has(d.signature));
 
     if (fresh.length === 0) {
       onNotice?.('Ці номінації вже є в наборі');
-      return;
+      return Promise.resolve(null);
     }
     onNotice?.(
       fresh.length < drafts.length
@@ -358,6 +365,7 @@ export default function NominationSetBuilder({
         exitMode: d.exitMode,
       })),
     ]);
+    return Promise.resolve(null);
   };
 
   const patchNomination = (signature: string, patch: Partial<DraftNomination>) =>
@@ -468,9 +476,11 @@ export default function NominationSetBuilder({
                   placeholder="Нове значення"
                   aria-label={`Значення категорії «${CATEGORY_TYPE_LABELS[type]}»`}
                   value={inputs[type] ?? ''}
-                  onChange={(e) =>
-                    setInputs((prev) => ({ ...prev, [type]: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setInputs((prev) => ({ ...prev, [type]: value }));
+                    if (type === AGE_CATEGORY_TYPE) age.setName(value);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -480,9 +490,11 @@ export default function NominationSetBuilder({
                 />
                 {type === AGE_CATEGORY_TYPE && (
                   <AgeRangeFields
-                    value={ageRange}
-                    onChange={setAgeRange}
+                    value={age.draft}
+                    onChange={age.setDraft}
                     inputClassName={styles.ageBound}
+                    hint={age.hint ?? undefined}
+                    hintClassName={styles.ageHint}
                   />
                 )}
                 <datalist id={`suggestions-${type}`}>

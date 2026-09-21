@@ -22,7 +22,9 @@ import {
   PARTICIPANT_SEARCH_MIN_CHARS,
 } from '../lib/participants.constants';
 import { getSchool } from '../lib/schools';
-import { entryCostForDancers, formatEntryAmount } from '../lib/entryAmount';
+import { formatEntryAmount } from '../lib/entryAmount';
+import { useEntriesQuote } from '../lib/useEntriesQuote';
+import { SPECIAL_PAID_ONCE_LABEL } from '../lib/entriesQuote.constants';
 import {
   createCoach,
   getMyMentorCoach,
@@ -55,6 +57,7 @@ interface NominationRow {
   key: string;
   nominationId: string;
   improv: boolean;
+  isSpecial: boolean;
   label: string;
   price: number | null;
 }
@@ -419,6 +422,7 @@ export default function ApplyPage() {
         key: n.id,
         nominationId: n.id,
         improv: false,
+        isSpecial: false,
         label: n.name,
         price: n.price,
       });
@@ -427,6 +431,7 @@ export default function ApplyPage() {
           key: `${n.id}:improv`,
           nominationId: n.id,
           improv: true,
+          isSpecial: false,
           label: `${n.name} · Імпровізація`,
           price: n.price,
         });
@@ -448,6 +453,7 @@ export default function ApplyPage() {
         key: n.id,
         nominationId: n.id,
         improv: false,
+        isSpecial: true,
         label: n.name,
         price: n.price,
       })),
@@ -460,10 +466,17 @@ export default function ApplyPage() {
   );
 
   const selectedRows = allRows.filter((r) => selectedKeys.includes(r.key));
-  const total = selectedRows.reduce(
-    (sum, r) => sum + (entryCostForDancers(r.price, pickedCount) ?? 0),
-    0,
+  const quote = useEntriesQuote(
+    id,
+    effectiveParticipantIds,
+    selectedRows.map((r) => r.nominationId),
   );
+  const quoteAmountByKey = new Map(
+    quote.status === 'ready'
+      ? selectedRows.map((r, index) => [r.key, quote.amounts[index]])
+      : [],
+  );
+  const total = quote.status === 'ready' ? quote.total : null;
 
   // Which required field to highlight red — mirrors the checks in
   // handleSubmit, so the invalid one stays marked until it's actually fixed.
@@ -1183,7 +1196,12 @@ export default function ApplyPage() {
                       </span>
                       <span className={styles.nomLabel}>{row.label}</span>
                       <span className={styles.nomPrice}>
-                        {formatEntryAmount(row.price)}
+                        {on &&
+                        row.price !== null &&
+                        row.price > 0 &&
+                        quoteAmountByKey.get(row.key) === 0
+                          ? SPECIAL_PAID_ONCE_LABEL
+                          : formatEntryAmount(row.price)}
                       </span>
                     </button>
                   );

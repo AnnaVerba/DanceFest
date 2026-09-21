@@ -34,6 +34,9 @@ export const NUMBER_ALLOCATION_UNIQUE_INDEXES: readonly string[] = [
 // still bounded.
 export const MAX_MY_ENTRIES = 1000;
 
+// A group number's dancers in one quote request.
+export const MAX_QUOTE_PARTICIPANTS = 200;
+
 // An entry typed in by hand without dancers still puts one person on stage.
 export const MIN_PARTICIPANTS_PER_ENTRY = 1;
 

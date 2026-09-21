@@ -27,6 +27,7 @@ import { CreateEntryDto } from './dto/create-entry.dto';
 import { BulkCreateEntriesDto } from './dto/bulk-create-entries.dto';
 import { UpdateEntryDto } from './dto/update-entry.dto';
 import { UpdateEntryExtraTimeDto } from './dto/update-entry-extra-time.dto';
+import { QuoteEntriesDto } from './dto/quote-entries.dto';
 
 @ApiTags('entries')
 @Controller('competitions/:competitionId/entries')
@@ -180,6 +181,37 @@ export class EntriesController {
     @Body() dto: BulkCreateEntriesDto,
   ) {
     return this.entriesService.createMany(competitionId, dto.entries, user);
+  }
+
+  @ApiOperation({
+    summary: 'Price nominations for dancers before submitting',
+    description:
+      'Applies the pay-once rule for special nominations sharing a name, ' +
+      "counting the dancers' existing entries in this competition.",
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Amounts per requested nomination.',
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Validation failed, or a nomination is not in this competition.',
+  })
+  @ApiResponse({ status: 403, description: 'A dancer is not yours.' })
+  @ApiResponse({
+    status: 404,
+    description: 'No competition exists with the given id.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('quote')
+  quote(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: QuoteEntriesDto,
+  ) {
+    return this.entriesService.quote(competitionId, dto, user);
   }
 
   @ApiOperation({ summary: 'Remove an entry from a competition' })

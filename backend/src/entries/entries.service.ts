@@ -24,16 +24,17 @@ import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Entry } from './entry.model';
 import { isNumberAllocationRace } from './number-allocation-race';
 import { resolveLineup } from './lineup';
-import {
-  calculateEntryAmount,
-  calculateParticipantShare,
-} from './entry-amount';
+import { roundMoney } from './entry-amount';
+import type { EntryCharge } from './pricing/entry-charge';
+import { EntryChargeService } from './pricing/entry-charge.service';
 import { Score } from './score.model';
 import { User } from '../users/user.model';
 import { CreateEntryDto } from './dto/create-entry.dto';
 import { UpdateEntryDto } from './dto/update-entry.dto';
 import type { EntryParticipant } from './entry-participant.interface';
 import { UpdateEntryExtraTimeDto } from './dto/update-entry-extra-time.dto';
+import { QuoteEntriesDto } from './dto/quote-entries.dto';
+import type { EntriesQuote } from './entries-quote.interface';
 import { resolvePage } from '../common/pagination';
 import { isImprovisationEntry } from '../tracks/is-improvisation-entry';
 import {
@@ -108,6 +109,7 @@ export class EntriesService {
     private readonly schoolsService: SchoolsService,
     private readonly participantNumbersService: CompetitionParticipantNumbersService,
     private readonly scheduleService: ScheduleService,
+    private readonly entryChargeService: EntryChargeService,
   ) {}
 
   async list(
@@ -151,11 +153,11 @@ export class EntriesService {
       [competitionId],
       personIds,
     );
-    const prices = await this.loadPrices(rows);
+    const charges = await this.entryChargeService.withDancerHistory(rows);
     return {
       rows: rows.map((e) => ({
         ...this.toDto(e, numbers),
-        amount: calculateEntryAmount(e, prices),
+        amount: (charges.get(e.id) as EntryCharge).amount,
       })),
       total: count,
       page,
@@ -685,7 +687,7 @@ export class EntriesService {
       allParticipantIds,
     );
 
-    const prices = await this.loadPrices(entries);
+    const charges = await this.entryChargeService.withDancerHistory(entries);
     const seesFullCost = meetsLevel(user.accessLevel, AccessLevel.COACH);
 
     const people = await this.usersService.findManyByIds([
@@ -710,8 +712,8 @@ export class EntriesService {
         competitionDateFrom: competition?.dateFrom ?? null,
         // A coach pays for the whole number; a dancer sees only their part.
         amount: seesFullCost
-          ? calculateEntryAmount(entry, prices)
-          : calculateParticipantShare(entry, prices),
+          ? (charges.get(entry.id) as EntryCharge).amount
+          : (charges.get(entry.id) as EntryCharge).shareOf(user.id),
         participants,
       };
     });
@@ -908,25 +910,45 @@ export class EntriesService {
         firstName: person.firstName,
         lastName: person.lastName,
       }));
-    const prices = await this.loadPrices([entry]);
+    const charges = await this.entryChargeService.withDancerHistory([entry]);
     return {
       ...this.toDto(entry, numbers),
-      amount: calculateEntryAmount(entry, prices),
+      amount: (charges.get(entry.id) as EntryCharge).amount,
       participants,
     };
   }
 
-  // Nomination price per nomination id for these entries — the input to
-  // calculateEntryAmount.
-  async loadPrices(entries: Entry[]): Promise<Map<string, number | null>> {
-    const nominationIds = [
-      ...new Set(
-        entries
-          .map((e) => e.nominationId)
-          .filter((id): id is string => id !== null),
-      ),
-    ];
-    return this.nominationsService.findPricesByIds(nominationIds);
+  // What the apply form shows before submit: the pay-once rule applied to
+  // the dancers' saved entries plus the rows about to be sent.
+  async quote(
+    competitionId: string,
+    dto: QuoteEntriesDto,
+    user: AuthenticatedUser,
+  ): Promise<EntriesQuote> {
+    const competition = await this.competitionModel.findByPk(competitionId);
+    if (!competition) {
+      throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
+    }
+    const staff = await this.isCompetitionStaff(
+      competition,
+      user.id,
+      user.accessLevel,
+    );
+    if (!staff) {
+      const own = new Set(await this.ownParticipantIds(user));
+      if (dto.participantIds.some((id) => !own.has(id))) {
+        throw new ForbiddenException(NOT_OWN_PARTICIPANT_MESSAGE);
+      }
+    }
+    const amounts = await this.entryChargeService.quote(
+      competitionId,
+      dto.participantIds,
+      dto.nominationIds,
+    );
+    return {
+      amounts,
+      total: amounts.reduce((sum, amount) => roundMoney(sum + amount), 0),
+    };
   }
 
   // Records purchased additional on-stage time and its fee for an overrun

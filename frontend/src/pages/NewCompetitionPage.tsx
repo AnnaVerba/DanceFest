@@ -593,6 +593,7 @@ export default function NewCompetitionPage() {
           allowsImprovisation: n.allowsImprovisation,
           categoryIds: n.categoryIds,
           isSpecial: n.isSpecial,
+          specialName: n.specialName,
           exitMode: n.exitMode,
         }));
         try {

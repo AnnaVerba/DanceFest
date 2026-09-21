@@ -1,12 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Entry } from '../entries/entry.model';
-import { EntriesService } from '../entries/entries.service';
-import {
-  calculateEntryAmount,
-  calculateParticipantShare,
-  roundMoney,
-} from '../entries/entry-amount';
+import { EntryChargeService } from '../entries/pricing/entry-charge.service';
+import type { EntryCharge } from '../entries/pricing/entry-charge';
+import { roundMoney } from '../entries/entry-amount';
 import { CompetitionsService } from '../competitions/competitions.service';
 import { UsersService } from '../users/users.service';
 import type { AccessLevel } from '../auth/access-level.enum';
@@ -27,7 +24,7 @@ import type { PricedEntry } from './priced-entry.interface';
 export class FinanceService {
   constructor(
     @InjectModel(Entry) private readonly entryModel: typeof Entry,
-    private readonly entriesService: EntriesService,
+    private readonly entryChargeService: EntryChargeService,
     private readonly competitionsService: CompetitionsService,
     private readonly usersService: UsersService,
   ) {}
@@ -105,12 +102,11 @@ export class FinanceService {
         ['id', 'ASC'],
       ],
     });
-    const prices = await this.entriesService.loadPrices(entries);
-    return entries.map((entry) => ({
-      entry,
-      amount: calculateEntryAmount(entry, prices),
-      participantShare: calculateParticipantShare(entry, prices),
-    }));
+    const charges = await this.entryChargeService.forCompleteScope(entries);
+    return entries.map((entry) => {
+      const charge = charges.get(entry.id) as EntryCharge;
+      return { entry, amount: charge.amount, charge };
+    });
   }
 
   private async aggregate(
@@ -144,8 +140,7 @@ export class FinanceService {
     return groups.toRows();
   }
 
-  // Every dancer in a number is charged their own share of it, so the
-  // dancer rows add up to the total.
+  // Every dancer is charged their own share of the number (see EntryCharge).
   private async addParticipants(
     groups: FinanceGroupAccumulator,
     priced: PricedEntry[],
@@ -157,16 +152,16 @@ export class FinanceService {
       people.map((p) => [p.id, `${p.lastName} ${p.firstName}`.trim()]),
     );
 
-    for (const { entry, participantShare } of priced) {
+    for (const { entry, amount, charge } of priced) {
       const participantIds = entry.participantIds ?? [];
       if (participantIds.length === 0) {
         // Added by hand without dancers — the routine name is all we have.
-        groups.add(entry.routineName, entry.routineName, participantShare);
+        groups.add(entry.routineName, entry.routineName, amount);
       }
       for (const id of participantIds) {
         // A deleted user no longer owes anything — no row for them.
         const name = nameById.get(id);
-        if (name !== undefined) groups.add(id, name, participantShare);
+        if (name !== undefined) groups.add(id, name, charge.shareOf(id));
       }
     }
   }

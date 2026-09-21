@@ -1,6 +1,8 @@
 import { Link, useLocation } from 'react-router-dom';
 import { clearSession, getSession } from '../lib/auth';
 import { ACCESS_LEVEL_LABELS } from '../lib/roles';
+import ProjectLogo from './ProjectLogo';
+import { PROJECT_LOGO_LABEL } from './ProjectLogo.constants';
 import { HOME_PATH } from './PublicTopBar.constants';
 import styles from './PublicTopBar.module.css';
 
@@ -22,67 +24,63 @@ export default function PublicTopBar() {
         overlay ? `${styles.topbar} ${styles.topbarOverlay}` : styles.topbar
       }
     >
-      <Link to="/" className={styles.brand}>
-        <svg
-          className={styles.brandIcon}
-          width="22"
-          height="22"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M12 2l2.4 7.2H22l-6 4.4 2.3 7.1L12 16.3l-6.3 4.4 2.3-7.1-6-4.4h7.6z" />
-        </svg>
-        <span className={styles.brandName}>Конкурси Сходу</span>
-      </Link>
-
-      {session ? (
-        <div className={styles.userArea}>
-          <Link to="/profile" className={styles.profileBtn} title="Мій профіль">
-            <svg
-              className={styles.profileIcon}
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-            <span className={styles.profileText}>
-              <span className={styles.userName}>
-                {session.profile.firstName}
-              </span>
-              <span className={styles.userRole}>
-                {ACCESS_LEVEL_LABELS[session.profile.accessLevel]}
-              </span>
-            </span>
-          </Link>
-          <button
-            type="button"
-            className={styles.loginBtn}
-            onClick={handleLogout}
-          >
-            Вийти
-          </button>
-        </div>
-      ) : (
-        <Link
-          to="/login"
-          className={`${styles.loginBtn} ${styles.loginPrimary}`}
-        >
-          Увійти
+      {/* A signed-in user carries the logo at the head of the nav rail
+          (AppShell), so the bar only brands the rail-less public pages. */}
+      {!session && (
+        <Link to="/" className={styles.brand} aria-label={PROJECT_LOGO_LABEL}>
+          <ProjectLogo className={styles.brandLogo} />
         </Link>
       )}
+
+      <div className={styles.actions}>
+        {session ? (
+          <>
+            <Link
+              to="/profile"
+              className={styles.profileBtn}
+              title="Мій профіль"
+            >
+              <svg
+                className={styles.profileIcon}
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              <span className={styles.profileText}>
+                <span className={styles.userName}>
+                  {session.profile.firstName}
+                </span>
+                <span className={styles.userRole}>
+                  {ACCESS_LEVEL_LABELS[session.profile.accessLevel]}
+                </span>
+              </span>
+            </Link>
+            <button
+              type="button"
+              className={styles.loginBtn}
+              onClick={handleLogout}
+            >
+              Вийти
+            </button>
+          </>
+        ) : (
+          <Link
+            to="/login"
+            className={`${styles.loginBtn} ${styles.loginPrimary}`}
+          >
+            Увійти
+          </Link>
+        )}
+      </div>
     </header>
   );
 }

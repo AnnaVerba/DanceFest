@@ -13,6 +13,8 @@ import { Score } from './score.model';
 import { EntriesController } from './entries.controller';
 import { MyEntriesController } from './my-entries.controller';
 import { EntriesService } from './entries.service';
+import { EntryChargeCalculator } from './pricing/entry-charge-calculator';
+import { EntryChargeService } from './pricing/entry-charge.service';
 
 @Module({
   imports: [
@@ -30,7 +32,7 @@ import { EntriesService } from './entries.service';
     ScheduleModule,
   ],
   controllers: [EntriesController, MyEntriesController],
-  providers: [EntriesService],
-  exports: [EntriesService],
+  providers: [EntriesService, EntryChargeCalculator, EntryChargeService],
+  exports: [EntriesService, EntryChargeService],
 })
 export class EntriesModule {}

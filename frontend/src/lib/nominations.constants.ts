@@ -7,6 +7,9 @@ export const MAX_NOMINATIONS_PER_BULK_REQUEST = 2000;
 export const LIST_QUERY_SEPARATOR = ',';
 export const NOMINATIONS_PAGE_SIZE = 50;
 
+// Must match SPECIAL_PRICE_CONFLICT in backend/src/nominations/nomination-error-codes.ts.
+export const SPECIAL_PRICE_CONFLICT_CODE = 'SPECIAL_PRICE_CONFLICT';
+
 // Shown in an empty duration field (no league timing, nothing set by hand) —
 // a sample value like «2:30» there reads as a real duration.
 export const DURATION_UNSET_PLACEHOLDER = '—';
