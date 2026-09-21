@@ -12,6 +12,10 @@ export const TRACK_MIME_EXTENSIONS: Record<string, string> = {
 
 export const MAX_TRACK_SIZE_BYTES = 20 * 1024 * 1024;
 
+// Same stem the frontend uses (improvisationProgram.constants.ts): a special
+// category's improvisation program is flagged only by its name.
+export const IMPROVISATION_PROGRAM_NAME_STEM = 'імпровіз';
+
 export const ENTRY_TRACKS_KEY_PREFIX = 'entry-tracks';
 
 export const TRACK_FILE_MISSING_MESSAGE = 'Файл не передано.';

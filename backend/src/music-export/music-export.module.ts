@@ -7,6 +7,7 @@ import { Category } from '../categories/category.model';
 import { User } from '../users/user.model';
 import { Track } from '../tracks/track.model';
 import { CompetitionsModule } from '../competitions/competitions.module';
+import { CompetitionParticipantNumbersModule } from '../competition-participant-numbers/competition-participant-numbers.module';
 import { UploadsModule } from '../uploads/uploads.module';
 import { ExportJob } from './export-job.model';
 import { MusicExportController } from './music-export.controller';
@@ -29,6 +30,7 @@ import { MUSIC_EXPORT_QUEUE_NAME } from './music-export.constants';
     BullModule.registerQueue({ name: MUSIC_EXPORT_QUEUE_NAME }),
     CompetitionsModule,
     UploadsModule,
+    CompetitionParticipantNumbersModule,
   ],
   controllers: [MusicExportController, JobsController],
   providers: [

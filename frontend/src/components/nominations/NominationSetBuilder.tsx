@@ -63,6 +63,8 @@ interface NominationSetBuilderProps {
   // Категорії, створені лише в модалці спецкатегорії, не потрапляють у
   // selection — цей колбек несе їх межі туди, де їх шукає resolveDraftCategories.
   onCategoryCreated?: (category: Category) => void;
+  // У шаблонах категорій статус імпровізації не задається — колонку ховаємо.
+  hideImprovisation?: boolean;
 }
 
 export default function NominationSetBuilder({
@@ -73,6 +75,7 @@ export default function NominationSetBuilder({
   onNotice,
   seedCategoryIds,
   onCategoryCreated,
+  hideImprovisation = false,
 }: NominationSetBuilderProps) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -537,7 +540,9 @@ export default function NominationSetBuilder({
                 <tr>
                   <th>Назва</th>
                   <th className={styles.colPrice}>Ціна, грн</th>
-                  <th className={styles.colImprov}>Імпровізація</th>
+                  {!hideImprovisation && (
+                    <th className={styles.colImprov}>Імпровізація</th>
+                  )}
                   <th className={styles.colRemove} aria-label="Прибрати" />
                 </tr>
               </thead>
@@ -585,18 +590,20 @@ export default function NominationSetBuilder({
                         }
                       />
                     </td>
-                    <td className={styles.improvCell}>
-                      <input
-                        type="checkbox"
-                        aria-label={`Дозволити імпровізацію в «${nomination.name}»`}
-                        checked={nomination.allowsImprovisation}
-                        onChange={(e) =>
-                          patchNomination(nomination.signature, {
-                            allowsImprovisation: e.target.checked,
-                          })
-                        }
-                      />
-                    </td>
+                    {!hideImprovisation && (
+                      <td className={styles.improvCell}>
+                        <input
+                          type="checkbox"
+                          aria-label={`Дозволити імпровізацію в «${nomination.name}»`}
+                          checked={nomination.allowsImprovisation}
+                          onChange={(e) =>
+                            patchNomination(nomination.signature, {
+                              allowsImprovisation: e.target.checked,
+                            })
+                          }
+                        />
+                      </td>
+                    )}
                     <td>
                       <button
                         type="button"

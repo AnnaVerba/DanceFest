@@ -6,6 +6,10 @@ export const JSON_BODY_SIZE_LIMIT = '10mb';
 const MS_PER_SECOND = 1000;
 const SECONDS_PER_MINUTE = 60;
 
+// Number of reverse proxies in front of the app. A numeric hop count (not
+// `true`) keeps clients from spoofing X-Forwarded-For to dodge the rate limit.
+export const TRUSTED_PROXY_HOPS = 1;
+
 // Global per-IP cap (req.ip honours X-Forwarded-For via 'trust proxy').
 export const RATE_LIMIT_WINDOW_MS = SECONDS_PER_MINUTE * MS_PER_SECOND;
 export const RATE_LIMIT_MAX_REQUESTS = 300;
