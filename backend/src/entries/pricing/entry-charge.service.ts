@@ -35,11 +35,16 @@ export class EntryChargeService {
     const participantIds = [
       ...new Set(entries.flatMap((e) => e.participantIds ?? [])),
     ];
+    // The pay-once group key is competition-scoped (see specialGroupKey), so
+    // a dancer's entries in other competitions can never change these
+    // charges — loading them would only cost I/O.
+    const competitionIds = [...new Set(entries.map((e) => e.competitionId))];
     const history =
       participantIds.length === 0
         ? []
         : await this.entryModel.findAll({
             where: {
+              competitionId: { [Op.in]: competitionIds },
               participantIds: { [Op.overlap]: participantIds },
               id: { [Op.notIn]: entries.map((e) => e.id) },
             },

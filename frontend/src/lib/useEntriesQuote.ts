@@ -43,5 +43,15 @@ export function useEntriesQuote(
 
   // A result only counts for the exact selection it was requested for, so a
   // stale quote is never mapped onto a changed selection.
-  return stored?.key === requestKey ? stored.state : IDLE;
+  if (stored?.key === requestKey) return stored.state;
+  // Mirrors the effect's own guard: without all three there is no request in
+  // flight, so this is a genuine idle, not a pending one.
+  if (!competitionId || !participantsKey || !nominationsKey) return IDLE;
+  // Same selection change that made the stored result stale has started a
+  // new request — carry only its total over, so the sum keeps showing the
+  // last known figure instead of blanking out on every tick.
+  return {
+    status: 'loading',
+    total: stored?.state.status === 'ready' ? stored.state.total : null,
+  };
 }

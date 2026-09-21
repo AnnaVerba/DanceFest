@@ -1,4 +1,4 @@
-import type { QueryInterface } from 'sequelize';
+import type { QueryInterface, Transaction } from 'sequelize';
 import { DataTypes, QueryTypes } from 'sequelize';
 
 // Спецномінації одного змагання з однаковою назвою («Корона») платяться
@@ -41,6 +41,7 @@ const groupKey = (competitionId: string, name: string): string =>
 
 async function loadSpecialNominations(
   queryInterface: QueryInterface,
+  transaction: Transaction,
 ): Promise<SpecialNominationRow[]> {
   return queryInterface.sequelize.query<SpecialNominationRow>(
     `SELECT id, "competitionId", "templateId", name, price, "specialName",
@@ -48,12 +49,13 @@ async function loadSpecialNominations(
        FROM nominations
       WHERE "isSpecial" = true
       ORDER BY "createdAt" ASC, id ASC`,
-    { type: QueryTypes.SELECT },
+    { type: QueryTypes.SELECT, transaction },
   );
 }
 
 async function loadTemplateSpecialNames(
   queryInterface: QueryInterface,
+  transaction: Transaction,
 ): Promise<Map<string, string>> {
   const rows = await queryInterface.sequelize.query<TemplateSpecialRow>(
     `SELECT "templateId", "categoryIds"::text[] AS "categoryIds", "specialName"
@@ -61,7 +63,7 @@ async function loadTemplateSpecialNames(
       WHERE "isSpecial" = true
         AND "specialName" IS NOT NULL
         AND btrim("specialName") <> ''`,
-    { type: QueryTypes.SELECT },
+    { type: QueryTypes.SELECT, transaction },
   );
   return new Map(
     rows.map((r) => [templateKey(r.templateId, r.categoryIds), r.specialName]),
@@ -70,9 +72,13 @@ async function loadTemplateSpecialNames(
 
 async function backfillSpecialNames(
   queryInterface: QueryInterface,
+  transaction: Transaction,
 ): Promise<void> {
-  const rows = await loadSpecialNominations(queryInterface);
-  const templateNames = await loadTemplateSpecialNames(queryInterface);
+  const rows = await loadSpecialNominations(queryInterface, transaction);
+  const templateNames = await loadTemplateSpecialNames(
+    queryInterface,
+    transaction,
+  );
 
   // First spelling met in a competition wins for every case/space variant.
   const spelling = new Map<string, string>();
@@ -102,7 +108,7 @@ async function backfillSpecialNames(
   for (const [name, ids] of idsByName) {
     await queryInterface.sequelize.query(
       `UPDATE nominations SET "specialName" = :name WHERE id IN (:ids)`,
-      { replacements: { name, ids } },
+      { replacements: { name, ids }, transaction },
     );
   }
   if (fallbackLog.length > 0) {
@@ -112,10 +118,13 @@ async function backfillSpecialNames(
   }
 }
 
-async function alignGroupPrices(queryInterface: QueryInterface): Promise<void> {
-  const rows = (await loadSpecialNominations(queryInterface)).filter(
-    (r) => r.specialName,
-  );
+async function alignGroupPrices(
+  queryInterface: QueryInterface,
+  transaction: Transaction,
+): Promise<void> {
+  const rows = (
+    await loadSpecialNominations(queryInterface, transaction)
+  ).filter((r) => r.specialName);
   const groups = new Map<string, SpecialNominationRow[]>();
   for (const row of rows) {
     const key = groupKey(row.competitionId, row.specialName as string);
@@ -135,7 +144,10 @@ async function alignGroupPrices(queryInterface: QueryInterface): Promise<void> {
 
     await queryInterface.sequelize.query(
       `UPDATE nominations SET price = :price WHERE id IN (:ids)`,
-      { replacements: { price: highest, ids: stale.map((m) => m.id) } },
+      {
+        replacements: { price: highest, ids: stale.map((m) => m.id) },
+        transaction,
+      },
     );
     console.log(
       `${LOG_PREFIX} ціну групи ${key} вирівняно до ${highest}: ${stale
@@ -165,8 +177,15 @@ module.exports = {
       });
     }
 
-    await backfillSpecialNames(queryInterface);
-    await alignGroupPrices(queryInterface);
+    // Migrations here are not wrapped in a transaction (see
+    // utils/table-exists.ts), and these two steps must not be told apart: a
+    // failure partway through price alignment would otherwise leave some
+    // groups repriced and the rest untouched, with no way to tell which.
+    // The DDL above stays outside — its own guards already make it re-runnable.
+    await queryInterface.sequelize.transaction(async (transaction) => {
+      await backfillSpecialNames(queryInterface, transaction);
+      await alignGroupPrices(queryInterface, transaction);
+    });
   },
 
   down: async (queryInterface: QueryInterface) => {
