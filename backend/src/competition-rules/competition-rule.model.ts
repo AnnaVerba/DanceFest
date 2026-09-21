@@ -34,6 +34,11 @@ export class CompetitionRule extends Model<CompetitionRule> {
   @Column({ type: DataType.JSONB, allowNull: false, defaultValue: {} })
   declare leagueLimits: Record<string, number>;
 
+  // On-stage limit in seconds per lineup, keyed by the lineup label
+  // ("Дуо", "Тріо", "Група"). Independent of the league and outranks it.
+  @Column({ type: DataType.JSONB, allowNull: false, defaultValue: {} })
+  declare lineupLimits: Record<string, number>;
+
   @Column({
     type: DataType.ENUM(...TIME_SOURCES),
     allowNull: false,

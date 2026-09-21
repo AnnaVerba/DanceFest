@@ -3,7 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getRules, patchRules } from '../../../lib/competitionRules';
 import type { RulesPatch } from '../../../lib/competitionRules';
 import { getNominations } from '../../../lib/nominations';
-import { getSections } from '../../../lib/schedule';
+import { LINEUP_LIMIT_LABELS } from '../../../lib/lineupLimits.constants';
+import { refreshProgram } from '../../../lib/programCache';
+import { getSections, recalculateSchedule } from '../../../lib/schedule';
 import { parseDuration } from '../../../lib/duration';
 import { queryKeys } from '../../../lib/queryKeys';
 import styles from './program.module.css';
@@ -16,7 +18,7 @@ interface ScheduleSettingsProps {
 }
 
 const RECALC_HINT =
-  'Зміна паузи чи лімітів не перерахує вже сформовані відділення — відкрийте вкладку «Програма», режим «Редагувати» → «Перерахувати розклад».';
+  'Після збереження розклад уже сформованих відділень перераховується автоматично за новими паузами й лімітами.';
 
 function readSeconds(raw: string): number | null {
   const trimmed = raw.trim();
@@ -34,6 +36,8 @@ export default function ScheduleSettings({
   const queryClient = useQueryClient();
   const [pause, setPause] = useState('');
   const [limits, setLimits] = useState<Record<string, string>>({});
+  const [lineupLimits, setLineupLimits] = useState<Record<string, string>>({});
+  const [improvSeconds, setImprovSeconds] = useState('');
 
   const rulesQuery = useQuery({
     queryKey: queryKeys.rules(competitionId),
@@ -79,6 +83,12 @@ export default function ScheduleSettings({
         Object.entries(rules.leagueLimits).map(([k, v]) => [k, String(v)]),
       ),
     );
+    setLineupLimits(
+      Object.fromEntries(
+        Object.entries(rules.lineupLimits).map(([k, v]) => [k, String(v)]),
+      ),
+    );
+    setImprovSeconds(String(rules.improvIndividualSeconds));
   }
 
   const patchRulesMutation = useMutation({
@@ -113,11 +123,27 @@ export default function ScheduleSettings({
       const seconds = readSeconds(raw);
       if (seconds !== null && seconds > 0) nextLimits[league] = seconds;
     }
+    const nextLineupLimits: Record<string, number> = {};
+    for (const [lineup, raw] of Object.entries(lineupLimits)) {
+      const seconds = readSeconds(raw);
+      if (seconds !== null && seconds > 0) nextLineupLimits[lineup] = seconds;
+    }
+    const nextImprovSeconds = readSeconds(improvSeconds);
+    if (nextImprovSeconds === null || nextImprovSeconds <= 0) {
+      onError('Імпровізація: вкажіть, скільки секунд припадає на учасника.');
+      return;
+    }
     try {
       await patchRulesMutation.mutateAsync({
         pauseSeconds: nextPause,
         leagueLimits: nextLimits,
+        lineupLimits: nextLineupLimits,
+        improvIndividualSeconds: nextImprovSeconds,
       });
+      if (hasSections) {
+        await recalculateSchedule(competitionId);
+        await refreshProgram(queryClient, competitionId);
+      }
       onSaved('Налаштування таймінгів збережено.');
     } catch {
       onError('Не вдалося зберегти налаштування.');
@@ -172,6 +198,47 @@ export default function ScheduleSettings({
               ))}
             </div>
           )}
+        </div>
+
+        <div>
+          <label className={styles.fieldLabel}>
+            Тривалість групових номерів — за складом, незалежно від ліги (
+            <code>2:30</code> або <code>150</code>)
+          </label>
+          <div className={styles.chips}>
+            {LINEUP_LIMIT_LABELS.map((lineup) => (
+              <div key={lineup} className={styles.chip}>
+                <span className={styles.chipName}>{lineup}</span>
+                <input
+                  className={styles.chipInput}
+                  value={lineupLimits[lineup] ?? ''}
+                  placeholder="—"
+                  disabled={!canManage}
+                  onChange={(e) =>
+                    setLineupLimits((prev) => ({
+                      ...prev,
+                      [lineup]: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.fieldRow}>
+          <div>
+            <label className={styles.fieldLabel} htmlFor="settingsImprovSeconds">
+              Імпровізація — секунд на учасника
+            </label>
+            <input
+              id="settingsImprovSeconds"
+              className={styles.numInput}
+              value={improvSeconds}
+              onChange={(e) => setImprovSeconds(e.target.value)}
+              disabled={!canManage}
+            />
+          </div>
         </div>
 
         {hasSections && <div className={styles.divider} />}

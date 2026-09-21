@@ -31,6 +31,7 @@ import {
   DURATION_LIMIT_TARGET_REQUIRED_MESSAGE,
   NOMINATION_LIMIT_ALREADY_SET_MESSAGE,
   AXIS_LIMIT_ALREADY_SET_MESSAGE,
+  LINEUP_LIMIT_LABELS,
 } from './competition-rules.constants';
 import { NOMINATION_NOT_FOUND_MESSAGE } from '../nominations/nominations.constants';
 import {
@@ -53,6 +54,17 @@ function sanitizeLeagueLimits(
     }
   }
   return clean;
+}
+
+// Only the lineups that carry their own limit survive.
+function sanitizeLineupLimits(
+  raw: Record<string, unknown>,
+): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(sanitizeLeagueLimits(raw)).filter(([lineup]) =>
+      LINEUP_LIMIT_LABELS.includes(lineup),
+    ),
+  );
 }
 
 const AXIS_PRIORITY: CategoryType[] = [
@@ -112,6 +124,9 @@ export class CompetitionRulesService {
     const previousLeagueLimits = rules.leagueLimits;
     if (dto.leagueLimits !== undefined) {
       dto.leagueLimits = sanitizeLeagueLimits(dto.leagueLimits);
+    }
+    if (dto.lineupLimits !== undefined) {
+      dto.lineupLimits = sanitizeLineupLimits(dto.lineupLimits);
     }
     const updated = await rules.update(dto);
     if (dto.leagueLimits !== undefined) {
@@ -321,6 +336,14 @@ export class CompetitionRulesService {
     if (entry.nominationId) {
       const manual = await this.manualLimitOf(entry.nominationId, limitCache);
       if (manual !== null) return manual;
+    }
+
+    // A duo / trio / group runs for its lineup's limit whatever the league.
+    const lineupLimit = entry.lineup
+      ? rules.lineupLimits?.[entry.lineup]
+      : undefined;
+    if (typeof lineupLimit === 'number' && lineupLimit > 0) {
+      return lineupLimit;
     }
 
     // leagueLimits keys are stored trimmed (see sanitizeLeagueLimits).

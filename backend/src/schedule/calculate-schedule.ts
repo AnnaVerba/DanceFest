@@ -8,7 +8,7 @@ export interface ScheduleItemInput {
   // carry 0.
   durationSeconds: number;
   nominationGroupKey: string | null;
-  isGroupImprov: boolean;
+  isImprovExit: boolean;
 }
 
 export interface CalculateScheduleInput {
@@ -43,9 +43,9 @@ export function calculateSchedule(
 
     const next = input.items[index + 1];
     const nextIsSameImprovGroup =
-      item.isGroupImprov &&
+      item.isImprovExit &&
       next !== undefined &&
-      next.isGroupImprov &&
+      next.isImprovExit &&
       next.nominationGroupKey === item.nominationGroupKey;
     if (!nextIsSameImprovGroup) {
       cursor += input.pauseSeconds;

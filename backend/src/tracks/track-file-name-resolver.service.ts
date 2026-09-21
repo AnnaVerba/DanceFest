@@ -53,9 +53,7 @@ export class TrackFileNameResolver {
         entry.competitionId,
         participantIds,
       );
-    return buildTrackNumberLabel(
-      lookup.numbersFor(entry.competitionId, participantIds),
-    );
+    return buildTrackNumberLabel(lookup.numbersForEntry(entry));
   }
 
   // Style is a Category (type='style') reached via the entry's nomination —

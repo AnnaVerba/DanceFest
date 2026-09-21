@@ -32,6 +32,16 @@ export class UpdateCompetitionRuleDto {
   leagueLimits?: Record<string, number>;
 
   @ApiPropertyOptional({
+    example: { Дуо: 150, Тріо: 180, Група: 240 },
+    description:
+      'On-stage limit in seconds per lineup (Дуо / Тріо / Група), independent ' +
+      'of the league. Other keys and non-positive values are dropped by the service.',
+  })
+  @IsOptional()
+  @IsObject()
+  lineupLimits?: Record<string, number>;
+
+  @ApiPropertyOptional({
     example: 'limit',
     enum: TIME_SOURCES,
     description:

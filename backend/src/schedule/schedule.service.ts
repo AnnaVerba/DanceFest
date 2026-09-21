@@ -40,7 +40,6 @@ import { performanceDuration } from './performance-duration';
 import { eachDateInclusive } from './date-range';
 import {
   buildSectionView,
-  isGroupImprov,
   type ParticipantNumbersByEntry,
   type SectionSummaryView,
   type SectionView,
@@ -250,10 +249,7 @@ export class ScheduleService {
     for (const item of items) {
       const entry = item.entry;
       if (!entry) continue;
-      byEntry.set(
-        entry.id,
-        lookup.numbersFor(competitionId, entry.participantIds ?? []),
-      );
+      byEntry.set(entry.id, lookup.numbersForEntry(entry));
     }
     return byEntry;
   }
@@ -1579,7 +1575,7 @@ export class ScheduleService {
     return performanceDuration(
       {
         improv: entry.improv,
-        isGroupImprov: isGroupImprov(entry),
+        participantsCount: entry.participantsCount,
         limitSeconds,
       },
       rules,
