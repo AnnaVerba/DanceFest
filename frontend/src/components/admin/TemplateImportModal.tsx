@@ -131,7 +131,8 @@ export default function TemplateImportModal({
               ))}
             </select>
             <p className={styles.hint}>
-              Ціни номінацій після копіювання задайте в списку.
+              Номінації, які вже є в конкурсі, пропускаються. Ціни номінацій
+              після копіювання задайте в списку.
             </p>
           </div>
           {error && <p className={styles.error}>{error}</p>}
