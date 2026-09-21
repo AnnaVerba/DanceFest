@@ -13,7 +13,17 @@ import {
 import NominationSetBuilder from '../components/nominations/NominationSetBuilder';
 import AllMedalLeaguesField from '../components/nominations/AllMedalLeaguesField';
 import { resolveDraftCategories, savedSignatureOf } from '../lib/nominationSet';
-import type { AxisSelection, DraftNomination } from '../lib/nominationSet';
+import type {
+  AxisSelection,
+  DraftNomination,
+  ResolvedDraftCategories,
+} from '../lib/nominationSet';
+import {
+  findInvalidAxisPriceMessage,
+  toAxisPriceMap,
+  toCategoryPriceInputs,
+} from '../lib/templateCategoryPrices';
+import type { AxisPriceMap } from '../lib/nominationPricing';
 import { CategoryApiError, getCategories, LEAGUE_CATEGORY_TYPE } from '../lib/categories';
 import type { Category } from '../lib/categories';
 import { queryKeys } from '../lib/queryKeys';
@@ -49,6 +59,11 @@ export default function CategoryTemplateFormPage() {
   const [axes, setAxes] = useState<AxisSelection | null>(
     restoredDraft?.axes ?? null,
   );
+  // Ціни за значеннями осей «Склад» і «Ліга» — джерело ціни кожної звичайної
+  // номінації шаблону.
+  const [axisPrices, setAxisPrices] = useState<AxisPriceMap>(
+    restoredDraft?.axisPrices ?? {},
+  );
   // Категорії зі спецмодалки, відсутні в axes — потрібні resolveDraftCategories,
   // щоб не загубити rangeFrom/rangeTo нової вікової категорії при збереженні.
   const [extraCategories, setExtraCategories] = useState<Category[]>(
@@ -82,11 +97,12 @@ export default function CategoryTemplateFormPage() {
         setDescription(detail.description ?? '');
         setIsPublic(detail.isPublic);
         setAllMedalLeagues(detail.allMedalLeagues ?? []);
+        setAxisPrices(toAxisPriceMap(detail.categoryPrices ?? []));
         setNominations(
           detail.nominations.map((n) => ({
             signature: savedSignatureOf(n),
             name: n.name,
-            price: '',
+            price: n.price === null ? '' : String(n.price),
             allowsImprovisation: n.allowsImprovisation,
             categoryIds: n.categoryIds,
             isSpecial: n.isSpecial,
@@ -128,6 +144,7 @@ export default function CategoryTemplateFormPage() {
       isPublic,
       nominations,
       axes,
+      axisPrices,
       extraCategories,
       allMedalLeagues,
     });
@@ -138,6 +155,7 @@ export default function CategoryTemplateFormPage() {
     isPublic,
     nominations,
     axes,
+    axisPrices,
     extraCategories,
     allMedalLeagues,
   ]);
@@ -194,6 +212,16 @@ export default function CategoryTemplateFormPage() {
       return;
     }
 
+    const knownCategories = [
+      ...Object.values(axes ?? {}).flat(),
+      ...extraCategories,
+    ];
+    const badAxisPrice = findInvalidAxisPriceMessage(axisPrices, knownCategories);
+    if (badAxisPrice) {
+      setSubmitError(badAxisPrice);
+      return;
+    }
+
     const withBadPrice = nominations.find(
       (n) => n.price.trim() !== '' && !(Number(n.price) >= 0),
     );
@@ -204,10 +232,7 @@ export default function CategoryTemplateFormPage() {
 
     setSubmitting(true);
     try {
-      const resolved = await resolveDraftCategories(
-        nominations,
-        [...Object.values(axes ?? {}).flat(), ...extraCategories],
-      );
+      const resolved = await resolveDraftCategories(nominations, knownCategories);
       await save(resolved);
     } catch (err) {
       setSubmitError(
@@ -220,7 +245,7 @@ export default function CategoryTemplateFormPage() {
     }
   };
 
-  const save = async (nominations: DraftNomination[]) => {
+  const save = async ({ nominations, idByDraftId }: ResolvedDraftCategories) => {
     const payload = {
       name: name.trim(),
       description: description.trim() || undefined,
@@ -230,8 +255,10 @@ export default function CategoryTemplateFormPage() {
       allMedalLeagues: leagueCategoriesFailed
         ? allMedalLeagues
         : allMedalLeagues.filter((name) => leagueNames.includes(name)),
+      categoryPrices: toCategoryPriceInputs(axisPrices, idByDraftId),
       nominations: nominations.map((n, index) => ({
         name: n.name.trim(),
+        price: n.price.trim() === '' ? undefined : Number(n.price),
         allowsImprovisation: n.allowsImprovisation,
         categoryIds: n.categoryIds,
         isSpecial: n.isSpecial,
@@ -350,6 +377,8 @@ export default function CategoryTemplateFormPage() {
                 onChange={setNominations}
                 selection={axes}
                 onSelectionChange={setAxes}
+                axisPrices={axisPrices}
+                onAxisPricesChange={setAxisPrices}
                 onNotice={showToast}
                 hideImprovisation
                 seedCategoryIds={seedCategoryIds}

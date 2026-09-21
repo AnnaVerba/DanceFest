@@ -51,6 +51,8 @@ export const queryKeys = {
   nominationsScope: (competitionId: string) => ['nominations', competitionId] as const,
   nominationsPage: (competitionId: string, query: NominationPageQuery) =>
     ['nominations', competitionId, 'page', query] as const,
+  nominationAxisPrices: (competitionId: string) =>
+    ['nominations', competitionId, 'axis-prices'] as const,
   venueSummary: (competitionId: string, groupBy: VenueSummaryGroupBy) =>
     ['nominations', competitionId, 'venue-summary', groupBy] as const,
 

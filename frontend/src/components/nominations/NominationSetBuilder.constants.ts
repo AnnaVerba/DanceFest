@@ -12,3 +12,10 @@ export const AGE_RANGE_SAVE_LABEL = 'Зберегти';
 export const AGE_RANGE_CANCEL_LABEL = 'Скасувати';
 export const AGE_RANGE_SAVING_LABEL = 'Зберігаю...';
 export const AGE_RANGE_SAVE_FAILED_MESSAGE = 'Не вдалося змінити межі віку.';
+
+export const AXIS_PRICES_BUTTON_LABEL = 'Ціни за складом і лігою';
+export const AXIS_PRICES_COUNT_SEPARATOR = ' · ';
+export const AXIS_PRICES_DONE_LABEL = 'Готово';
+
+// Плейсхолдер порожньої ціни, коли підставити з осей нічого.
+export const NO_PRICE_PLACEHOLDER = '—';

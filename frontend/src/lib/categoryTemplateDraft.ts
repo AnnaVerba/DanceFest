@@ -1,5 +1,6 @@
 import type { Category } from './categories';
 import type { AxisSelection, DraftNomination } from './nominationSet';
+import type { AxisPriceMap } from './nominationPricing';
 
 // Only for the "new template" form — an edit already has a saved copy on
 // the server, so there is nothing to recover there.
@@ -11,6 +12,7 @@ export interface CategoryTemplateDraft {
   isPublic: boolean;
   nominations: DraftNomination[];
   axes: AxisSelection | null;
+  axisPrices: AxisPriceMap;
   extraCategories: Category[];
   allMedalLeagues: string[];
 }

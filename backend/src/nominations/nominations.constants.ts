@@ -28,3 +28,13 @@ export const SPECIAL_PRICE_CONFLICT_NAME_PLACEHOLDER = '{name}';
 export const SPECIAL_PRICE_CONFLICT_PRICE_PLACEHOLDER = '{price}';
 export const SPECIAL_PRICE_CONFLICT_MESSAGE_TEMPLATE =
   'Для «{name}» уже задано ціну {price} грн. Вкажіть таку саму ціну або змініть її для всіх номінацій із цією назвою в наявній номінації.';
+
+// Ціни за складом і лігою, задані руками для одного конкурсу.
+export const MIN_AXIS_PRICE = 0;
+export const MAX_AXIS_PRICES_PER_REQUEST = 200;
+export const AXIS_PRICE_WRONG_AXIS_MESSAGE =
+  'Ціну можна задати лише за складом або лігою';
+export const AXIS_PRICE_DUPLICATE_MESSAGE =
+  'Для одного значення вказано дві різні ціни';
+export const AXIS_PRICE_NOT_IN_COMPETITION_MESSAGE =
+  'Це значення не використовує жодна номінація конкурсу';

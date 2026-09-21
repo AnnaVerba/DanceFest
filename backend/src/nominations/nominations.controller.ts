@@ -25,6 +25,7 @@ import { CreateNominationDto } from './dto/create-nomination.dto';
 import { BulkCreateNominationsDto } from './dto/bulk-create-nominations.dto';
 import { BulkSetImprovisationDto } from './dto/bulk-set-improvisation.dto';
 import { BulkAssignVenueDto } from './dto/bulk-assign-venue.dto';
+import { BulkSetAxisPricesDto } from './dto/bulk-set-axis-prices.dto';
 import { UpdateNominationDto } from './dto/update-nomination.dto';
 
 @ApiTags('nominations')
@@ -250,6 +251,76 @@ export class NominationsController {
     @Body() dto: BulkAssignVenueDto,
   ) {
     return this.nominationsService.bulkAssignVenue(
+      competitionId,
+      admin.id,
+      admin.accessLevel,
+      dto,
+    );
+  }
+
+  @ApiOperation({
+    summary: "Prices of the competition's lineup and league values",
+    description:
+      'One row per lineup/league value used by the nominations of this competition. ' +
+      '`price` is what those nominations cost now, or null when they cost different ' +
+      'amounts. Special nominations are left out — they are priced per shared name.',
+  })
+  @ApiResponse({ status: 200, description: 'Rows returned.' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'The caller has no access to this competition.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'No competition exists with the given id.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get('axis-prices')
+  axisPrices(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() admin: AuthenticatedAdmin,
+  ) {
+    return this.nominationsService.axisPrices(
+      competitionId,
+      admin.id,
+      admin.accessLevel,
+    );
+  }
+
+  @ApiOperation({
+    summary: 'Price the nominations of this competition by lineup and league',
+    description:
+      'Applies to this competition only — the template the nominations came from keeps ' +
+      'its own prices. Lineup outranks league, so a duo in a league that also has a ' +
+      'price costs what the duo costs. Values left out of the body are not touched.',
+  })
+  @ApiResponse({ status: 200, description: '{ updated }: how many prices changed.' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Validation failed, a value is not a lineup or league, two prices were given for ' +
+      'one value, or no nomination of this competition uses it.',
+  })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'The caller has no access to this competition.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'No competition exists with the given id.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Patch('bulk-price')
+  bulkSetAxisPrices(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() admin: AuthenticatedAdmin,
+    @Body() dto: BulkSetAxisPricesDto,
+  ) {
+    return this.nominationsService.bulkSetAxisPrices(
       competitionId,
       admin.id,
       admin.accessLevel,

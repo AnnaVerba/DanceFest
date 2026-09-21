@@ -15,14 +15,46 @@ export function axisPriceKey(type: CategoryType, categoryId: string): string {
   return `${type}${AXIS_PRICE_KEY_SEPARATOR}${categoryId}`;
 }
 
+export interface AxisPriceEntry {
+  type: CategoryType;
+  categoryId: string;
+  price: string;
+}
+
+// Розбирає мапу назад у пари «категорія → ціна». Порожнє поле пропускається:
+// воно означає «ціни немає», а не нуль. Некоректні значення лишаються — їх
+// знаходить isValidAxisPrice, бо мовчки викинута ціна і є те, чого не можна.
+export function axisPriceEntries(prices: AxisPriceMap): AxisPriceEntry[] {
+  const entries: AxisPriceEntry[] = [];
+
+  for (const [key, raw] of Object.entries(prices)) {
+    const price = raw?.trim();
+    if (!price) continue;
+
+    const separator = key.indexOf(AXIS_PRICE_KEY_SEPARATOR);
+    if (separator === -1) continue;
+    entries.push({
+      type: key.slice(0, separator) as CategoryType,
+      categoryId: key.slice(separator + 1),
+      price,
+    });
+  }
+  return entries;
+}
+
 /**
  * Ціна номінації за її складом осей: **склад завжди перебиває лігу**. Дует у
  * лізі Debut коштує як дует, а не як Debut — інакше організатор мусив би
  * виправляти руками кожну парну номінацію.
  *
- * Ціни живуть у конкурсі, не в категорії: `categories` — спільний довідник, і
- * ціна на рядку «Дуо» стала б ціною дуету в усіх організаторів одразу.
+ * Ціни не живуть у категорії: `categories` — спільний довідник без власника,
+ * і ціна на рядку «Дуо» стала б ціною дуету в усіх організаторів одразу. Вони
+ * належать шаблону (template_category_prices) або конкурсу.
  */
+export function isValidAxisPrice(price: string): boolean {
+  return Number(price) >= 0;
+}
+
 export function resolvePrice(
   categories: Category[],
   prices: AxisPriceMap,

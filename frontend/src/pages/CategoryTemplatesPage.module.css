@@ -245,10 +245,31 @@
   gap: 6px;
 }
 
+.nomList li {
+  display: flex;
+  align-items: baseline;
+}
+
 .nomList li::before {
   content: '·';
   color: var(--muted);
   margin-right: 6px;
+}
+
+.nomName {
+  flex: 1;
+}
+
+/* Ціна номінації шаблону — притиснута праворуч, щоб колонка читалась згори вниз. */
+.nomPrice {
+  flex: none;
+  margin-left: 12px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.nomPrice[data-empty='true'] {
+  color: var(--muted);
 }
 
 .tplActions {

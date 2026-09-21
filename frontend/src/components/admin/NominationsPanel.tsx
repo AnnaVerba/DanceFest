@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import ConfirmDialog from './ConfirmDialog';
 import TemplateImportModal from './TemplateImportModal';
+import NominationAxisPrices from './NominationAxisPrices';
 import SpecialCategoryModal from '../nominations/SpecialCategoryModal';
 import type { SpecialNominationDraft } from '../nominations/SpecialCategoryModal';
 import type { SpecialSubmitResult } from '../nominations/specialSubmitResult.types';
@@ -484,6 +485,12 @@ export default function NominationsPanel({
           >
             + Додати спеціальну категорію
           </button>
+
+          <NominationAxisPrices
+            competitionId={competitionId}
+            categories={categories}
+            onNotice={onError}
+          />
         </>
       )}
 

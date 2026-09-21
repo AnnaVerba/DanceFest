@@ -5,6 +5,9 @@ import { MAX_NOMINATIONS_PER_BULK_REQUEST } from './nominations.constants';
 
 import type { ExitMode } from './categoryTemplates';
 import type {
+  AxisPriceInput,
+  AxisPriceRow,
+  AxisPriceUpdateResult,
   NominationPageQuery,
   NominationUpdateInput,
   VenueSummaryGroupBy,
@@ -175,6 +178,23 @@ export function getVenueSummary(
 ): Promise<VenueSummaryRow[]> {
   return request<VenueSummaryRow[]>(
     `/competitions/${competitionId}/nominations/venue-summary?groupBy=${groupBy}`,
+  );
+}
+
+// Ціни за складом і лігою в межах одного конкурсу — шаблон вони не чіпають.
+export function getAxisPrices(competitionId: string): Promise<AxisPriceRow[]> {
+  return request<AxisPriceRow[]>(
+    `/competitions/${competitionId}/nominations/axis-prices`,
+  );
+}
+
+export function setAxisPricesBulk(
+  competitionId: string,
+  prices: AxisPriceInput[],
+): Promise<AxisPriceUpdateResult> {
+  return request<AxisPriceUpdateResult>(
+    `/competitions/${competitionId}/nominations/bulk-price`,
+    { method: 'PATCH', body: JSON.stringify({ prices }) },
   );
 }
 

@@ -9,8 +9,12 @@ import {
 } from '../lib/categoryTemplates';
 import { pluralNominations } from '../lib/nominationSet';
 import { queryKeys } from '../lib/queryKeys';
+import { ENTRY_AMOUNT_CURRENCY } from '../lib/entryAmount.constants';
 import { REFERENCE_STALE_TIME_MS } from '../lib/queryClient.constants';
-import { TEMPLATE_NOMINATIONS_PAGE_SIZE } from './CategoryTemplateDetailPage.constants';
+import {
+  NO_TEMPLATE_PRICE_LABEL,
+  TEMPLATE_NOMINATIONS_PAGE_SIZE,
+} from './CategoryTemplateDetailPage.constants';
 import styles from './CategoryTemplatesPage.module.css';
 
 export default function CategoryTemplateDetailPage() {
@@ -94,8 +98,18 @@ export default function CategoryTemplateDetailPage() {
               <ul className={styles.nomList}>
                 {nominations.rows.map((nomination) => (
                   <li key={nomination.id}>
-                    {nomination.name}
-                    {nomination.allowsImprovisation && ' · імпровізація'}
+                    <span className={styles.nomName}>
+                      {nomination.name}
+                      {nomination.allowsImprovisation && ' · імпровізація'}
+                    </span>
+                    <span
+                      className={styles.nomPrice}
+                      data-empty={nomination.effectivePrice === null}
+                    >
+                      {nomination.effectivePrice === null
+                        ? NO_TEMPLATE_PRICE_LABEL
+                        : `${nomination.effectivePrice} ${ENTRY_AMOUNT_CURRENCY}`}
+                    </span>
                   </li>
                 ))}
               </ul>

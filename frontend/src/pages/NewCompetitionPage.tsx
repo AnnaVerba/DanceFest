@@ -16,6 +16,11 @@ import { createNominationsBulk, NominationsBulkPartialFailureError } from '../li
 import type { NominationInput } from '../lib/nominations';
 import NominationSetBuilder from '../components/nominations/NominationSetBuilder';
 import {
+  findInvalidAxisPriceMessage,
+  toCategoryPriceInputs,
+} from '../lib/templateCategoryPrices';
+import type { AxisPriceMap } from '../lib/nominationPricing';
+import {
   CategoryApiError,
   LEAGUE_CATEGORY_TYPE,
   getCategories,
@@ -171,6 +176,9 @@ export default function NewCompetitionPage() {
   const [templateName, setTemplateName] = useState('');
   const [nominations, setNominations] = useState<DraftNomination[]>([]);
   const [axes, setAxes] = useState<AxisSelection | null>(null);
+  // Ціни за складом і лігою. У власному наборі вони їдуть у новий шаблон —
+  // саме з них виводиться ціна кожної його номінації.
+  const [axisPrices, setAxisPrices] = useState<AxisPriceMap>({});
   // Категорії зі спецмодалки, відсутні в axes — потрібні resolveDraftCategories,
   // щоб не загубити rangeFrom/rangeTo нової вікової категорії при збереженні.
   const [extraCategories, setExtraCategories] = useState<Category[]>([]);
@@ -230,7 +238,9 @@ export default function NewCompetitionPage() {
         selectedTemplateQuery.data.nominations.map((n) => ({
           signature: savedSignatureOf(n),
           name: n.name,
-          price: '',
+          // Чинна ціна шаблону — стартова ціна номінації конкурсу; далі її
+          // правлять тут, у конкурсі.
+          price: n.effectivePrice === null ? '' : String(n.effectivePrice),
           allowsImprovisation: n.allowsImprovisation,
           categoryIds: n.categoryIds,
           isSpecial: n.isSpecial,
@@ -442,6 +452,11 @@ export default function NewCompetitionPage() {
       if (nominations.length === 0) {
         return 'Складіть набір номінацій або оберіть готовий шаблон.';
       }
+      const badAxisPrice = findInvalidAxisPriceMessage(axisPrices, [
+        ...Object.values(axes ?? {}).flat(),
+        ...extraCategories,
+      ]);
+      if (badAxisPrice) return badAxisPrice;
     }
     if (nominations.length === 0) return COMPETITION_NOMINATIONS_REQUIRED_MESSAGE;
     if (leagueCategoriesQuery.isError) return LEAGUES_LOAD_FAILED_MESSAGE;
@@ -508,19 +523,28 @@ export default function NewCompetitionPage() {
 
     setSubmitting(true);
     try {
-      const saved =
+      const knownCategories = [
+        ...Object.values(axes ?? {}).flat(),
+        ...extraCategories,
+      ];
+      const resolved =
         nominationSource === 'custom'
-          ? await resolveDraftCategories(
-              nominations,
-              [...Object.values(axes ?? {}).flat(), ...extraCategories],
-            )
-          : nominations;
+          ? await resolveDraftCategories(nominations, knownCategories)
+          : { nominations, idByDraftId: new Map<string, string>() };
+      const saved = resolved.nominations;
 
       if (nominationSource === 'custom') {
         await createCategoryTemplate({
           name: templateName.trim(),
+          categoryPrices: toCategoryPriceInputs(
+            axisPrices,
+            resolved.idByDraftId,
+          ),
           nominations: saved.map((n, index) => ({
             name: n.name.trim(),
+            // Та сама ціна, що піде в номінації конкурсу нижче: шаблон і
+            // конкурс створюються з одного набору.
+            price: n.price.trim() === '' ? undefined : Number(n.price),
             allowsImprovisation: n.allowsImprovisation,
             categoryIds: n.categoryIds,
             isSpecial: n.isSpecial,
@@ -1323,6 +1347,8 @@ export default function NewCompetitionPage() {
                     onChange={setNominations}
                     selection={axes}
                     onSelectionChange={setAxes}
+                    axisPrices={axisPrices}
+                    onAxisPricesChange={setAxisPrices}
                     onCategoryCreated={(category) =>
                       setExtraCategories((prev) =>
                         prev.some((c) => c.id === category.id) ? prev : [...prev, category],

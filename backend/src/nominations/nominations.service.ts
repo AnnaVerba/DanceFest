@@ -18,6 +18,7 @@ import {
 } from '../categories/category.model';
 import type { CategoryType } from '../categories/category.model';
 import type { AgeCategoryRange } from '../categories/resolve-age-category';
+import { PRICED_AXES, isPricedAxis } from '../categories/priced-axes';
 import { Venue } from '../venues/venue.model';
 import { Entry } from '../entries/entry.model';
 import { ScheduleService } from '../schedule/schedule.service';
@@ -32,9 +33,16 @@ import { UpdateNominationDto } from './dto/update-nomination.dto';
 import { BulkCreateNominationsDto } from './dto/bulk-create-nominations.dto';
 import { BulkSetImprovisationDto } from './dto/bulk-set-improvisation.dto';
 import { BulkAssignVenueDto } from './dto/bulk-assign-venue.dto';
+import { BulkSetAxisPricesDto } from './dto/bulk-set-axis-prices.dto';
 import { NominationBulkSelectorDto } from './dto/nomination-bulk-selector.dto';
 import { NominationBulkFilterDto } from './dto/nomination-bulk-filter.dto';
-import type { NominationPageQuery, VenueSummaryRow } from './nominations.types';
+import type {
+  AxisPriceRow,
+  AxisPriceUpdateResult,
+  NominationPageQuery,
+  VenueSummaryRow,
+} from './nominations.types';
+import { AxisPriceTable } from './axis-price-table';
 import {
   DEFAULT_NOMINATIONS_PAGE_SIZE,
   LIST_QUERY_SEPARATOR,
@@ -42,6 +50,9 @@ import {
   UNASSIGNED_VENUE_QUERY_VALUE,
 } from './nominations.constants';
 import {
+  AXIS_PRICE_DUPLICATE_MESSAGE,
+  AXIS_PRICE_NOT_IN_COMPETITION_MESSAGE,
+  AXIS_PRICE_WRONG_AXIS_MESSAGE,
   NOMINATION_LEAGUE_REQUIRED_MESSAGE,
   NOMINATION_NOT_FOUND_MESSAGE,
   NOMINATION_NOT_IN_COMPETITION_MESSAGE,
@@ -551,6 +562,152 @@ export class NominationsService {
     if (!venue) {
       throw new BadRequestException(VENUE_NOT_IN_COMPETITION_MESSAGE);
     }
+  }
+
+  // Значення складу й ліги, що трапляються в номінаціях цього конкурсу, з
+  // ціною, яку вони там мають. Панель номінацій показує їх як поля цін.
+  async axisPrices(
+    competitionId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+  ): Promise<AxisPriceRow[]> {
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
+
+    const [categories, nominations] = await Promise.all([
+      this.categoryModel.findAll({
+        where: { type: { [Op.in]: PRICED_AXES } },
+        order: [
+          ['sortOrder', 'ASC'],
+          ['name', 'ASC'],
+        ],
+      }),
+      this.pricedNominations(competitionId),
+    ]);
+
+    const rows = new Map<string, AxisPriceRow>(
+      categories.map((c) => [
+        c.id,
+        {
+          categoryId: c.id,
+          type: c.type,
+          name: c.name,
+          nominationCount: 0,
+          price: null,
+        },
+      ]),
+    );
+    // Значення, номінації якого коштують по-різному: ціни в нього немає, і
+    // поле лишиться порожнім, поки організатор не задасть одну на всіх.
+    const mixed = new Set<string>();
+
+    for (const nomination of nominations) {
+      const price = nomination.price === null ? null : Number(nomination.price);
+      for (const categoryId of nomination.categoryIds) {
+        const row = rows.get(categoryId);
+        if (!row) continue;
+
+        if (!mixed.has(categoryId)) {
+          if (row.nominationCount === 0) row.price = price;
+          else if (row.price !== price) {
+            mixed.add(categoryId);
+            row.price = null;
+          }
+        }
+        row.nominationCount += 1;
+      }
+    }
+    return [...rows.values()].filter((row) => row.nominationCount > 0);
+  }
+
+  /**
+   * Ставить ціни на значеннях складу й ліги в межах одного конкурсу. Шаблон,
+   * з якого скопійовано номінації, лишається недоторканим: тут правиться
+   * тільки `nominations.price` цього конкурсу.
+   */
+  async bulkSetAxisPrices(
+    competitionId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+    dto: BulkSetAxisPricesDto,
+  ): Promise<AxisPriceUpdateResult> {
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
+
+    const priceByCategoryId = new Map<string, number>();
+    for (const { categoryId, price } of dto.prices) {
+      const known = priceByCategoryId.get(categoryId);
+      if (known !== undefined && known !== price) {
+        throw new BadRequestException(AXIS_PRICE_DUPLICATE_MESSAGE);
+      }
+      priceByCategoryId.set(categoryId, price);
+    }
+
+    const categoryIds = [...priceByCategoryId.keys()];
+    const categories = await this.categoryModel.findAll({
+      where: { id: { [Op.in]: categoryIds } },
+    });
+    if (categories.some((category) => !isPricedAxis(category.type))) {
+      throw new BadRequestException(AXIS_PRICE_WRONG_AXIS_MESSAGE);
+    }
+
+    const nominations = await this.pricedNominations(competitionId);
+    const used = new Set(nominations.flatMap((n) => n.categoryIds));
+    if (categoryIds.some((categoryId) => !used.has(categoryId))) {
+      throw new BadRequestException(AXIS_PRICE_NOT_IN_COMPETITION_MESSAGE);
+    }
+
+    const table = new AxisPriceTable(
+      categories.map((category) => ({
+        categoryId: category.id,
+        type: category.type,
+        price: priceByCategoryId.get(category.id) as number,
+      })),
+    );
+
+    const idsByPrice = new Map<number, string[]>();
+    for (const nomination of nominations) {
+      const price = table.priceFor(nomination.categoryIds);
+      if (price === null) continue;
+      if (nomination.price !== null && Number(nomination.price) === price) {
+        continue;
+      }
+      const ids = idsByPrice.get(price);
+      if (ids) ids.push(nomination.id);
+      else idsByPrice.set(price, [nomination.id]);
+    }
+
+    await this.nominationModel.sequelize!.transaction(async (transaction) => {
+      // Один UPDATE на кожну ціну, а не на кожну номінацію.
+      for (const [price, ids] of idsByPrice) {
+        await this.nominationModel.update(
+          { price },
+          { where: { id: { [Op.in]: ids } }, transaction },
+        );
+      }
+    });
+
+    return {
+      updated: [...idsByPrice.values()].reduce(
+        (total, ids) => total + ids.length,
+        0,
+      ),
+    };
+  }
+
+  // Номінації, ціну яких виводять осі. Спеціальні сюди не входять: їхня ціна
+  // спільна для всієї групи з однаковою назвою й задається окремо.
+  private pricedNominations(competitionId: string): Promise<Nomination[]> {
+    return this.nominationModel.findAll({
+      where: { competitionId, isSpecial: false },
+      attributes: ['id', 'categoryIds', 'price'],
+    });
   }
 
   async remove(
