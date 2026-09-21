@@ -19,6 +19,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { MinLevelGuard } from '../auth/min-level.guard';
+import { MinLevel } from '../auth/min-level.decorator';
+import { AccessLevel } from '../auth/access-level.enum';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedAdmin } from '../auth/current-user.decorator';
 import { CategoryTemplatesService } from './category-templates.service';
@@ -136,6 +139,12 @@ export class CategoryTemplatesController {
     description: 'Validation failed for one or more fields.',
   })
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Only organizers and admins can create templates.',
+  })
+  @UseGuards(JwtAuthGuard, MinLevelGuard)
+  @MinLevel(AccessLevel.ORGANIZER)
   @Post()
   create(
     @CurrentUser() admin: AuthenticatedAdmin,
@@ -177,7 +186,13 @@ export class CategoryTemplatesController {
     description: 'The copy name matches the source name.',
   })
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Only organizers and admins can fork templates.',
+  })
   @ApiResponse({ status: 404, description: 'Template not found.' })
+  @UseGuards(JwtAuthGuard, MinLevelGuard)
+  @MinLevel(AccessLevel.ORGANIZER)
   @Post(':id/fork')
   fork(
     @Param('id') id: string,

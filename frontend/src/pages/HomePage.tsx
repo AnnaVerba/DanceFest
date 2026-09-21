@@ -21,6 +21,7 @@ import type { HomeStatusFilterId } from '../lib/homeContests';
 import {
   ALL_YEARS_LABEL,
   CATALOG_SUBTITLE,
+  CATALOG_TITLE,
   CREATE_COMPETITION_LABEL,
   EMPTY_LABEL,
   FIRST_PAGE,
@@ -150,7 +151,8 @@ export default function HomePage() {
         )}
 
         <header className={styles.hero}>
-          <ProjectLogo className={styles.railLogo} />
+          <h1 className={styles.visuallyHiddenTitle}>{CATALOG_TITLE}</h1>
+          <ProjectLogo className={styles.heroLogo} />
        <br/>
           <p className={styles.pageSubtitle}>{CATALOG_SUBTITLE}</p>
         </header>

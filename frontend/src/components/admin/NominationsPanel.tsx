@@ -5,6 +5,7 @@ import ConfirmDialog from './ConfirmDialog';
 import TemplateImportModal from './TemplateImportModal';
 import SpecialCategoryModal from '../nominations/SpecialCategoryModal';
 import type { SpecialNominationDraft } from '../nominations/SpecialCategoryModal';
+import type { SpecialSubmitResult } from '../nominations/specialSubmitResult.types';
 import { serverPriceConflictMessage } from '../../lib/specialPriceConflict';
 import NominationFilterBar from './nominationSelection/NominationFilterBar';
 import NominationBulkBar from './nominationSelection/NominationBulkBar';
@@ -203,7 +204,7 @@ export default function NominationsPanel({
 
   const handleAddSpecial = async (
     drafts: SpecialNominationDraft[],
-  ): Promise<string | null> => {
+  ): Promise<SpecialSubmitResult> => {
     try {
       await createNominationsBulkMutation.mutateAsync(
         drafts.map((d) => ({
@@ -217,12 +218,14 @@ export default function NominationsPanel({
           programLimits: d.programLimits,
         })),
       );
-      return null;
+      return { status: 'created' };
     } catch (err) {
       const priceConflict = serverPriceConflictMessage(err);
-      if (priceConflict) return priceConflict;
+      if (priceConflict) {
+        return { status: 'priceConflict', message: priceConflict };
+      }
       onError('Не вдалося створити спеціальну категорію. Спробуйте ще раз.');
-      return null;
+      return { status: 'failed' };
     }
   };
 

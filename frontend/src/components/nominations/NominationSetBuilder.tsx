@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import SpecialCategoryModal from './SpecialCategoryModal';
 import type { SpecialNominationDraft } from './SpecialCategoryModal';
+import type { SpecialSubmitResult } from './specialSubmitResult.types';
 import AxisPriceInputs from './AxisPriceInputs';
 import {
   AGE_CATEGORY_TYPE,
@@ -363,16 +364,20 @@ export default function NominationSetBuilder({
     else setNotice(message);
   };
 
-  const addSpecial = (drafts: SpecialNominationDraft[]): Promise<string | null> => {
+  const addSpecial = (
+    drafts: SpecialNominationDraft[],
+  ): Promise<SpecialSubmitResult> => {
     const priceConflict = findDraftPriceConflict(nominations, drafts);
-    if (priceConflict) return Promise.resolve(priceConflict);
+    if (priceConflict) {
+      return Promise.resolve({ status: 'priceConflict', message: priceConflict });
+    }
 
     const known = new Set(nominations.map((n) => n.signature));
     const fresh = drafts.filter((d) => !known.has(d.signature));
 
     if (fresh.length === 0) {
       onNotice?.('Ці номінації вже є в наборі');
-      return Promise.resolve(null);
+      return Promise.resolve({ status: 'created' });
     }
     onNotice?.(
       fresh.length < drafts.length
@@ -392,7 +397,7 @@ export default function NominationSetBuilder({
         exitMode: d.exitMode,
       })),
     ]);
-    return Promise.resolve(null);
+    return Promise.resolve({ status: 'created' });
   };
 
   const patchNomination = (signature: string, patch: Partial<DraftNomination>) =>

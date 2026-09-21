@@ -12,6 +12,12 @@ import { QueryTypes } from 'sequelize';
 // один в один, зокрема «Група» від ТРЬОХ, а не від чотирьох. Поставити
 // сюди 4 означало б мовчки відібрати групові номінації в трійок — це
 // окреме рішення, а не побічний ефект перейменування.
+const TABLE = 'categories';
+const AGE_FROM_COLUMN = 'ageFrom';
+const AGE_TO_COLUMN = 'ageTo';
+const RANGE_FROM_COLUMN = 'rangeFrom';
+const RANGE_TO_COLUMN = 'rangeTo';
+
 const LINEUP_BACKFILL: { prefixes: string[]; from: number; to: number | null }[] =
   [
     { prefixes: ['соло'], from: 1, to: 1 },
@@ -22,8 +28,20 @@ const LINEUP_BACKFILL: { prefixes: string[]; from: number; to: number | null }[]
 
 module.exports = {
   up: async (queryInterface: QueryInterface) => {
-    await queryInterface.renameColumn('categories', 'ageFrom', 'rangeFrom');
-    await queryInterface.renameColumn('categories', 'ageTo', 'rangeTo');
+    // Міграції тут не в транзакції (див. utils/table-exists.ts): якщо
+    // попередня спроба впала на бекфілі, перейменування вже застосоване —
+    // повтор має його пропустити, а не впасти на неіснуючій колонці.
+    const table = await queryInterface.describeTable(TABLE);
+    if (table[AGE_FROM_COLUMN]) {
+      await queryInterface.renameColumn(
+        TABLE,
+        AGE_FROM_COLUMN,
+        RANGE_FROM_COLUMN,
+      );
+    }
+    if (table[AGE_TO_COLUMN]) {
+      await queryInterface.renameColumn(TABLE, AGE_TO_COLUMN, RANGE_TO_COLUMN);
+    }
 
     for (const { prefixes, from, to } of LINEUP_BACKFILL) {
       await queryInterface.sequelize.query(
@@ -31,7 +49,7 @@ module.exports = {
             SET "rangeFrom" = :from, "rangeTo" = :to
           WHERE "type" = 'lineup'
             AND "rangeFrom" IS NULL
-            AND ${prefixes.map((_, i) => `lower(btrim(name)) LIKE :p${i}`).join(' OR ')}`,
+            AND (${prefixes.map((_, i) => `lower(btrim(name)) LIKE :p${i}`).join(' OR ')})`,
         {
           replacements: {
             from,
@@ -52,7 +70,11 @@ module.exports = {
     await queryInterface.sequelize.query(
       `UPDATE categories SET "rangeFrom" = NULL, "rangeTo" = NULL WHERE "type" = 'lineup'`,
     );
-    await queryInterface.renameColumn('categories', 'rangeFrom', 'ageFrom');
-    await queryInterface.renameColumn('categories', 'rangeTo', 'ageTo');
+    await queryInterface.renameColumn(
+      TABLE,
+      RANGE_FROM_COLUMN,
+      AGE_FROM_COLUMN,
+    );
+    await queryInterface.renameColumn(TABLE, RANGE_TO_COLUMN, AGE_TO_COLUMN);
   },
 };

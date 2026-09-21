@@ -292,6 +292,10 @@ export default function NewCompetitionPage() {
   const handleBannerPick = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Cleared before the upload is awaited, so picking the same file again
+    // after a failure still fires `change` — the input only reports a value
+    // that differs from the one it holds.
+    e.target.value = '';
 
     setBannerName(file.name);
     setBannerUrl(null);
@@ -313,6 +317,8 @@ export default function NewCompetitionPage() {
   const handleRegulationsPick = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Same reason as handleBannerPick above.
+    e.target.value = '';
 
     setRegulationsName(file.name);
     setRegulationsUrl(null);
@@ -1591,7 +1597,7 @@ export default function NewCompetitionPage() {
               type="button"
               className={`${styles.btn} ${styles.btnPrimary}`}
               onClick={handlePrimaryAction}
-              disabled={submitting}
+              disabled={submitting || bannerUploading || regulationsUploading}
             >
               {submitting
                 ? 'Створення...'

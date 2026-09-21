@@ -168,6 +168,10 @@ export default function CompetitionEditPage() {
   const handleBannerPick = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Cleared before the upload is awaited, so picking the same file again
+    // after a failure still fires `change` — the input only reports a value
+    // that differs from the one it holds.
+    e.target.value = '';
 
     setBannerError(null);
     setBannerUploading(true);
@@ -186,6 +190,8 @@ export default function CompetitionEditPage() {
   const handleRegulationsPick = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Same reason as handleBannerPick above.
+    e.target.value = '';
 
     setRegulationsError(null);
     setRegulationsUploading(true);
@@ -206,6 +212,10 @@ export default function CompetitionEditPage() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!id) return;
+    // Saving now would persist the banner/regulations URL the form still
+    // holds and silently drop the file being uploaded — it only reaches the
+    // form when uploadImage/uploadDocument resolves.
+    if (bannerUploading || regulationsUploading) return;
 
     const errors: ContactFieldErrors = {};
     if (form.organizers.length === 0) {
@@ -601,7 +611,11 @@ export default function CompetitionEditPage() {
                 <Link to={`/competitions/${id}`} className={styles.btnSecondary}>
                   Скасувати
                 </Link>
-                <button type="submit" className={styles.btnPrimary} disabled={submitting}>
+                <button
+                  type="submit"
+                  className={styles.btnPrimary}
+                  disabled={submitting || bannerUploading || regulationsUploading}
+                >
                   {submitting ? 'Збереження...' : 'Зберегти зміни'}
                 </button>
               </div>

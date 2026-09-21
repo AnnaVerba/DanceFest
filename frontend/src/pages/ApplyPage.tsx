@@ -7,11 +7,14 @@ import type { Competition } from '../lib/competitions';
 import { getNominations } from '../lib/nominations';
 import type { Nomination, NominationCategoryRange } from '../lib/nominations';
 import { fitsCount } from '../lib/categoryRange';
+import { exitsAreAllImprovisation } from '../lib/improvisationProgram';
+import { nominationRowKey } from '../lib/nominationRowKey';
 import {
   EntryApiError,
   createEntriesBulk,
   uploadEntryTrack,
 } from '../lib/entries';
+import type { Entry } from '../lib/entries';
 import {
   ParticipantApiError,
   createParticipant,
@@ -58,6 +61,10 @@ interface NominationRow {
   key: string;
   nominationId: string;
   improv: boolean;
+  // The entries this row creates take no track: either the row itself is
+  // the nomination's improvisation, or every exit is an improvisation
+  // program. Display only — `improv` is what the entry is created with.
+  takesNoTrack: boolean;
   isSpecial: boolean;
   label: string;
   price: number | null;
@@ -428,18 +435,20 @@ export default function ApplyPage() {
         continue;
       }
       rows.push({
-        key: n.id,
+        key: nominationRowKey(n.id, false),
         nominationId: n.id,
         improv: false,
+        takesNoTrack: exitsAreAllImprovisation(n.exits),
         isSpecial: false,
         label: n.name,
         price: n.price,
       });
       if (n.allowsImprovisation) {
         rows.push({
-          key: `${n.id}:improv`,
+          key: nominationRowKey(n.id, true),
           nominationId: n.id,
           improv: true,
+          takesNoTrack: true,
           isSpecial: false,
           label: `${n.name} · Імпровізація`,
           price: n.price,
@@ -459,9 +468,10 @@ export default function ApplyPage() {
   const specialRows: NominationRow[] = useMemo(
     () =>
       specials.map((n) => ({
-        key: n.id,
+        key: nominationRowKey(n.id, false),
         nominationId: n.id,
         improv: false,
+        takesNoTrack: exitsAreAllImprovisation(n.exits),
         isSpecial: true,
         label: n.name,
         price: n.price,
@@ -485,7 +495,8 @@ export default function ApplyPage() {
       ? selectedRows.map((r, index) => [r.key, quote.amounts[index]])
       : [],
   );
-  const total = quote.status === 'ready' ? quote.total : null;
+  const total =
+    quote.status === 'ready' || quote.status === 'loading' ? quote.total : null;
 
   // Which required field to highlight red — mirrors the checks in
   // handleSubmit, so the invalid one stays marked until it's actually fixed.
@@ -683,12 +694,32 @@ export default function ApplyPage() {
       // program; otherwise they joined the unassigned pool.
       void refreshProgram(queryClient, id);
 
+      // The server creates one entry per exit, so a per-program nomination
+      // comes back as several entries for a single row and the two lists do
+      // not line up by index. Each entry names the row it came from.
+      const createdByRowKey = new Map<string, Entry[]>();
+      for (const entry of created) {
+        if (!entry.nominationId) continue;
+        const key = nominationRowKey(entry.nominationId, entry.improv ?? false);
+        const group = createdByRowKey.get(key);
+        if (group) group.push(entry);
+        else createdByRowKey.set(key, [entry]);
+      }
+
       // Entries exist now, so their ids are stable — upload each picked
-      // file for real instead of just remembering its name.
+      // file for real instead of just remembering its name. One picked file
+      // covers every exit of its row; the improvisation exits of a mixed
+      // nomination take no track and would refuse the upload.
       const uploads = await Promise.allSettled(
-        rows.map((r, i) => {
+        rows.map((r) => {
           const file = musicFileByKey[r.key];
-          return file ? uploadEntryTrack(created[i].id, file) : null;
+          if (!file) return null;
+          const targets = (createdByRowKey.get(r.key) ?? []).filter(
+            (entry) => !entry.trackNotNeeded,
+          );
+          return Promise.all(
+            targets.map((entry) => uploadEntryTrack(entry.id, file)),
+          );
         }),
       );
       const failedCount = uploads.filter((u) => u.status === 'rejected').length;
@@ -1326,7 +1357,7 @@ export default function ApplyPage() {
               <label className={styles.label}>Музика для виступів</label>
               <div className={styles.musicList}>
                 {selectedRows.map((row) =>
-                  row.improv ? (
+                  row.takesNoTrack ? (
                     <div key={row.key} className={styles.musicRow}>
                       <span className={styles.musicLabel}>{row.label}</span>
                       <span className={styles.hint}>
