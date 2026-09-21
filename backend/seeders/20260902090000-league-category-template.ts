@@ -15,9 +15,9 @@ const LEAGUES: { name: string }[] = [
   { name: 'Професійна ліга' },
 ];
 
-const AGE_GROUPS: { name: string; ageFrom: number; ageTo: number }[] = [
-  { name: 'Діти', ageFrom: 0, ageTo: 12 },
-  { name: 'Дорослі', ageFrom: 13, ageTo: 99 },
+const AGE_GROUPS: { name: string; rangeFrom: number; rangeTo: number }[] = [
+  { name: 'Діти', rangeFrom: 0, rangeTo: 12 },
+  { name: 'Дорослі', rangeFrom: 13, rangeTo: 99 },
 ];
 
 const SEPARATOR = ' · ';
@@ -62,15 +62,15 @@ async function seed(
 
   for (const age of AGE_GROUPS) {
     await queryInterface.sequelize.query(
-      `INSERT INTO categories (id, name, "type", "ageFrom", "ageTo", "createdAt", "updatedAt")
-         VALUES (:id, :name, 'age', :ageFrom, :ageTo, :now, :now)
+      `INSERT INTO categories (id, name, "type", "rangeFrom", "rangeTo", "createdAt", "updatedAt")
+         VALUES (:id, :name, 'age', :rangeFrom, :rangeTo, :now, :now)
          ON CONFLICT DO NOTHING`,
       {
         replacements: {
           id: randomUUID(),
           name: age.name,
-          ageFrom: age.ageFrom,
-          ageTo: age.ageTo,
+          rangeFrom: age.rangeFrom,
+          rangeTo: age.rangeTo,
           now,
         },
         transaction,

@@ -8,17 +8,26 @@ import {
   CATEGORY_TYPES,
   CATEGORY_TYPE_LABELS,
   CategoryApiError,
+  LINEUP_CATEGORY_TYPE,
   getCategories,
   updateCategoryAgeRange,
 } from '../../lib/categories';
 import { queryKeys } from '../../lib/queryKeys';
 import { REFERENCE_STALE_TIME_MS } from '../../lib/queryClient.constants';
 import AgeRangeFields from './AgeRangeFields';
+import LineupSizeFields from './LineupSizeFields';
 import { PRICED_AXES, resolvePrice } from '../../lib/nominationPricing';
 import type { AxisPriceMap } from '../../lib/nominationPricing';
-import { EMPTY_AGE_RANGE, parseAgeRange } from '../../lib/ageRange';
-import type { AgeRange } from '../../lib/ageRange';
-import { useAgeRangeDraft } from '../../lib/useAgeRangeDraft';
+import { parseAgeRange } from '../../lib/ageRange';
+import {
+  EMPTY_CATEGORY_RANGE,
+  formatCategoryRange,
+  parseLineupSize,
+} from '../../lib/categoryRange';
+import type { CategoryRange } from '../../lib/categoryRange';
+import { LINEUP_SIZE_UNBOUNDED_LABEL } from '../../lib/categoryRange.constants';
+import { useCategoryRangeDraft } from '../../lib/useCategoryRangeDraft';
+import type { CategoryRangeDraftController } from '../../lib/useCategoryRangeDraft.types';
 import type { Category, CategoryType } from '../../lib/categories';
 import type { ExitMode } from '../../lib/categoryTemplates';
 import {
@@ -81,7 +90,7 @@ export default function NominationSetBuilder({
   const [notice, setNotice] = useState<string | null>(null);
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [editingAgeId, setEditingAgeId] = useState<string | null>(null);
-  const [editedRange, setEditedRange] = useState(EMPTY_AGE_RANGE);
+  const [editedRange, setEditedRange] = useState(EMPTY_CATEGORY_RANGE);
   const [savingRange, setSavingRange] = useState(false);
   const [axisPrices, setAxisPrices] = useState<AxisPriceMap>({});
   const [specialOpen, setSpecialOpen] = useState(false);
@@ -98,7 +107,18 @@ export default function NominationSetBuilder({
     staleTime: REFERENCE_STALE_TIME_MS,
   });
   const suggestions = categoriesQuery.data ?? EMPTY_CATEGORIES;
-  const age = useAgeRangeDraft(suggestions);
+  const age = useCategoryRangeDraft(suggestions, AGE_CATEGORY_TYPE);
+  const lineup = useCategoryRangeDraft(suggestions, LINEUP_CATEGORY_TYPE);
+
+  // Дві осі несуть числові межі, решта — ні. Контролер на кожну окремо: поля
+  // обох показуються одночасно й перетирали б одне одного.
+  const rangeDraftFor = (
+    type: CategoryType,
+  ): CategoryRangeDraftController | null => {
+    if (type === AGE_CATEGORY_TYPE) return age;
+    if (type === LINEUP_CATEGORY_TYPE) return lineup;
+    return null;
+  };
 
   useEffect(() => {
     if (!categoriesQuery.isError) return;
@@ -142,7 +162,7 @@ export default function NominationSetBuilder({
 
     const clearInput = () => {
       setInputs((prev) => ({ ...prev, [type]: '' }));
-      if (type === AGE_CATEGORY_TYPE) age.reset();
+      rangeDraftFor(type)?.reset();
     };
     const candidate = { name: raw, type };
 
@@ -154,20 +174,26 @@ export default function NominationSetBuilder({
     const existing = suggestions.find((s) => sameCategoryValue(s, candidate));
 
     // Довідник спільний за назвою: якщо значення з такою назвою вже є,
-    // порожні поля «від»/«до» означають «використати наявне», а заповнені —
-    // намір користувача або підтвердити, або перевизначити його межі. Тихо
-    // відкидати введене й підставляти чуже — саме той сценарій, що ламав
-    // BUG-03.
-    let range: AgeRange | undefined;
-    if (type === AGE_CATEGORY_TYPE) {
-      // Підставлене з довідника й не редаговане — це не введені межі:
-      // інакше вибір наявної категорії щоразу створював би чернетку замість
-      // неї самої, і ✎ на чіпі правив би лише набір, а не спільний довідник.
+    // порожні поля меж означають «використати наявне», а заповнені — намір
+    // користувача або підтвердити, або перевизначити їх. Тихо відкидати
+    // введене й підставляти чуже — саме той сценарій, що ламав BUG-03.
+    //
+    // Підставлене з довідника й не редаговане — це не введені межі: інакше
+    // вибір наявного значення щоразу створював би чернетку замість нього
+    // самого, і ✎ на чіпі правив би лише набір, а не спільний довідник.
+    let range: CategoryRange | undefined;
+    const draft = rangeDraftFor(type);
+    if (draft) {
       const rangeEntered =
-        !age.isFromReference &&
-        (age.draft.from.trim() !== '' || age.draft.to.trim() !== '');
-      if (!existing || rangeEntered) {
-        const parsed = parseAgeRange(age.draft);
+        !draft.isFromReference &&
+        (draft.draft.from.trim() !== '' || draft.draft.to.trim() !== '');
+      // Кількість людей обов'язкова для нового складу: без неї він не знає,
+      // скільком танцюристам відповідає, і заявка його не підбере.
+      if (!existing || rangeEntered || draft.draft.unbounded) {
+        const parsed =
+          type === AGE_CATEGORY_TYPE
+            ? parseAgeRange(draft.draft)
+            : parseLineupSize(draft.draft);
         if (!parsed.ok) {
           setError(parsed.message);
           return;
@@ -189,8 +215,9 @@ export default function NominationSetBuilder({
   const startEditingRange = (category: Category) => {
     setEditingAgeId(category.id);
     setEditedRange({
-      from: String(category.ageFrom ?? ''),
-      to: String(category.ageTo ?? ''),
+      from: String(category.rangeFrom ?? ''),
+      to: String(category.rangeTo ?? ''),
+      unbounded: category.rangeFrom !== null && category.rangeTo === null,
     });
   };
 
@@ -436,9 +463,11 @@ export default function NominationSetBuilder({
                         </>
                       ) : (
                         <>
-                          {category.ageFrom !== null &&
-                            category.ageTo !== null &&
-                            ` (${category.ageFrom}–${category.ageTo})`}
+                          {formatCategoryRange(
+                            category.rangeFrom,
+                            category.rangeTo,
+                            LINEUP_SIZE_UNBOUNDED_LABEL,
+                          ) && ` (${formatCategoryRange(category.rangeFrom, category.rangeTo, LINEUP_SIZE_UNBOUNDED_LABEL)})`}
                           {type === AGE_CATEGORY_TYPE && (
                             <button
                               type="button"
@@ -479,7 +508,7 @@ export default function NominationSetBuilder({
                   onChange={(e) => {
                     const value = e.target.value;
                     setInputs((prev) => ({ ...prev, [type]: value }));
-                    if (type === AGE_CATEGORY_TYPE) age.setName(value);
+                    rangeDraftFor(type)?.setName(value);
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -495,6 +524,16 @@ export default function NominationSetBuilder({
                     inputClassName={styles.ageBound}
                     hint={age.hint ?? undefined}
                     hintClassName={styles.ageHint}
+                  />
+                )}
+                {type === LINEUP_CATEGORY_TYPE && (
+                  <LineupSizeFields
+                    value={lineup.draft}
+                    onChange={lineup.setDraft}
+                    inputClassName={styles.ageBound}
+                    hint={lineup.hint ?? undefined}
+                    hintClassName={styles.ageHint}
+                    unboundedClassName={styles.unbounded}
                   />
                 )}
                 <datalist id={`suggestions-${type}`}>

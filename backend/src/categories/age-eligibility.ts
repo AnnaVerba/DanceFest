@@ -12,15 +12,15 @@ export function isEligibleForAgeCategory(
   category: AgeCategoryRange | null,
   referenceDate: string,
 ): boolean {
-  if (!category || category.ageFrom === null || category.ageTo === null) {
+  if (!category || category.rangeFrom === null || category.rangeTo === null) {
     return true;
   }
-  const { ageFrom, ageTo } = category;
+  const { rangeFrom, rangeTo } = category;
 
   return birthDates
     .filter((date): date is string => date !== null)
     .every((date) => {
       const age = fullYearsAt(date, referenceDate);
-      return age >= ageFrom && age <= ageTo;
+      return age >= rangeFrom && age <= rangeTo;
     });
 }

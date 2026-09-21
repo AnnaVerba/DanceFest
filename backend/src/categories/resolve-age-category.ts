@@ -6,20 +6,20 @@ export const NO_AGE_CATEGORY_MESSAGE =
 export interface AgeCategoryRange {
   id: string;
   name: string;
-  ageFrom: number | null;
-  ageTo: number | null;
+  rangeFrom: number | null;
+  rangeTo: number | null;
 }
 
 // Значення з обома заповненими межами — лише вони беруть участь у підборі.
 interface BoundedAgeCategory extends AgeCategoryRange {
-  ageFrom: number;
-  ageTo: number;
+  rangeFrom: number;
+  rangeTo: number;
 }
 
 function isBounded<T extends AgeCategoryRange>(
   category: T,
 ): category is T & BoundedAgeCategory {
-  return category.ageFrom !== null && category.ageTo !== null;
+  return category.rangeFrom !== null && category.rangeTo !== null;
 }
 
 const DATE_ONLY_LENGTH = 10;
@@ -73,7 +73,7 @@ export function resolveAgeCategory<T extends AgeCategoryRange>(
   return (
     ageCategories
       .filter(isBounded)
-      .find((category) => age >= category.ageFrom && age <= category.ageTo) ??
+      .find((category) => age >= category.rangeFrom && age <= category.rangeTo) ??
     null
   );
 }

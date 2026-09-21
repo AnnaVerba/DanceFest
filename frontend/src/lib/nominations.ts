@@ -28,10 +28,13 @@ export interface NominationExit {
   durationLimitSeconds: number | null;
 }
 
-export interface NominationAgeCategory {
+// Іменований числовий діапазон значення осі: для віку це межі віку, для
+// складу — кількість людей у номері. rangeTo = null означає «без верхньої
+// межі», обидві null — межі не задані.
+export interface NominationCategoryRange {
   name: string;
-  ageFrom: number | null;
-  ageTo: number | null;
+  rangeFrom: number | null;
+  rangeTo: number | null;
 }
 
 export interface Nomination {
@@ -50,8 +53,8 @@ export interface Nomination {
   programLimits: Record<string, number>;
   programs: NominationProgram[];
   leagues: string[];
-  lineups: string[];
-  ageCategories: NominationAgeCategory[];
+  lineups: NominationCategoryRange[];
+  ageCategories: NominationCategoryRange[];
   exits: NominationExit[];
   createdAt: string;
 }

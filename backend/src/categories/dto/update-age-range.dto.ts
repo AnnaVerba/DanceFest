@@ -6,10 +6,10 @@ export class UpdateAgeRangeDto {
   @ApiProperty({ example: 12 })
   @IsInt()
   @Min(MIN_PARTICIPANT_AGE)
-  ageFrom: number;
+  rangeFrom: number;
 
   @ApiProperty({ example: 15 })
   @IsInt()
   @Min(MIN_PARTICIPANT_AGE)
-  ageTo: number;
+  rangeTo: number;
 }

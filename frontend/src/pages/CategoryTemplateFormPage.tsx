@@ -50,7 +50,7 @@ export default function CategoryTemplateFormPage() {
     restoredDraft?.axes ?? null,
   );
   // Категорії зі спецмодалки, відсутні в axes — потрібні resolveDraftCategories,
-  // щоб не загубити ageFrom/ageTo нової вікової категорії при збереженні.
+  // щоб не загубити rangeFrom/rangeTo нової вікової категорії при збереженні.
   const [extraCategories, setExtraCategories] = useState<Category[]>(
     restoredDraft?.extraCategories ?? [],
   );
