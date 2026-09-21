@@ -211,7 +211,7 @@ export default function ParticipantCabinetPage() {
                   {ENTRY_PARTICIPANT_TOTALS_LABEL}
                 </div>
                 {sumAmountsByParticipant(group.entries).map((row) => (
-                  <div key={row.participant} className={styles.participantTotal}>
+                  <div key={row.key} className={styles.participantTotal}>
                     <span>{row.participant}</span>
                     <span>{formatEntryAmount(row.amount)}</span>
                   </div>

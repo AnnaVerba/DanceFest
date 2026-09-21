@@ -7,6 +7,7 @@ import { withPageParams } from './pagination';
 import type { Paged } from './pagination';
 import type { EntryStats } from './entryStats.types';
 import type { EntriesQuote, EntriesQuoteInput } from './entriesQuote.types';
+import type { EntryParticipantAmount } from './entryAmount.types';
 import type {
   EntryDetails,
   EntryParticipant,
@@ -156,6 +157,7 @@ export interface MyEntry extends Entry {
   competitionDateFrom: string | null;
   amount: number;
   participants: EntryParticipant[];
+  participantAmounts: EntryParticipantAmount[];
 }
 
 export function getMyEntries(): Promise<MyEntry[]> {

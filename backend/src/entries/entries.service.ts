@@ -32,6 +32,7 @@ import { User } from '../users/user.model';
 import { CreateEntryDto } from './dto/create-entry.dto';
 import { UpdateEntryDto } from './dto/update-entry.dto';
 import type { EntryParticipant } from './entry-participant.interface';
+import type { ParticipantAmount } from './participant-amount.interface';
 import { UpdateEntryExtraTimeDto } from './dto/update-entry-extra-time.dto';
 import { QuoteEntriesDto } from './dto/quote-entries.dto';
 import type { EntriesQuote } from './entries-quote.interface';
@@ -705,18 +706,38 @@ export class EntriesService {
           firstName: p.firstName,
           lastName: p.lastName,
         }));
+      const charge = charges.get(entry.id) as EntryCharge;
       return {
         ...this.toDto(entry, numbers),
         competitionId: entry.competitionId,
         competitionName: competition?.name ?? null,
         competitionDateFrom: competition?.dateFrom ?? null,
         // A coach pays for the whole number; a dancer sees only their part.
-        amount: seesFullCost
-          ? (charges.get(entry.id) as EntryCharge).amount
-          : (charges.get(entry.id) as EntryCharge).shareOf(user.id),
+        amount: seesFullCost ? charge.amount : charge.shareOf(user.id),
         participants,
+        participantAmounts: this.sharesPerParticipant(
+          participants,
+          charge,
+          user,
+          seesFullCost,
+        ),
       };
     });
+  }
+
+  // Each dancer's own part of one number, so «сума по учасниках» can charge a
+  // group number to everyone who danced it instead of listing the group as a
+  // performer of its own. A dancer who may not see the full cost only gets
+  // their own part.
+  private sharesPerParticipant(
+    participants: EntryParticipant[],
+    charge: EntryCharge,
+    user: AuthenticatedUser,
+    seesFullCost: boolean,
+  ): ParticipantAmount[] {
+    return participants
+      .filter((p) => seesFullCost || p.id === user.id)
+      .map((p) => ({ participantId: p.id, amount: charge.shareOf(p.id) }));
   }
 
   async remove(
