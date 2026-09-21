@@ -1,3 +1,4 @@
+import type { CategoryRangeDraft } from './categoryRange';
 import {
   AGE_RANGE_REQUIRED_MESSAGE,
   AGE_RANGE_MUST_BE_INTEGERS_MESSAGE,
@@ -5,17 +6,10 @@ import {
   AGE_RANGE_FROM_EXCEEDS_TO_MESSAGE,
 } from './ageRange.constants';
 
-export interface AgeRangeDraft {
-  from: string;
-  to: string;
-}
-
 export interface AgeRange {
-  ageFrom: number;
-  ageTo: number;
+  rangeFrom: number;
+  rangeTo: number;
 }
-
-export const EMPTY_AGE_RANGE: AgeRangeDraft = { from: '', to: '' };
 
 export const MIN_AGE_BOUND = 0;
 
@@ -28,23 +22,23 @@ export type AgeRangeResult =
  * категорія учасника за датою народження. Перевірка спільна для майстра
  * номінацій і модалки спецкатегорії — розходитись їм не можна.
  */
-export function parseAgeRange(draft: AgeRangeDraft): AgeRangeResult {
+export function parseAgeRange(draft: CategoryRangeDraft): AgeRangeResult {
   if (draft.from.trim() === '' || draft.to.trim() === '') {
     return { ok: false, message: AGE_RANGE_REQUIRED_MESSAGE };
   }
 
-  const ageFrom = Number(draft.from);
-  const ageTo = Number(draft.to);
+  const rangeFrom = Number(draft.from);
+  const rangeTo = Number(draft.to);
 
-  if (!Number.isInteger(ageFrom) || !Number.isInteger(ageTo)) {
+  if (!Number.isInteger(rangeFrom) || !Number.isInteger(rangeTo)) {
     return { ok: false, message: AGE_RANGE_MUST_BE_INTEGERS_MESSAGE };
   }
-  if (ageFrom < MIN_AGE_BOUND || ageTo < MIN_AGE_BOUND) {
+  if (rangeFrom < MIN_AGE_BOUND || rangeTo < MIN_AGE_BOUND) {
     return { ok: false, message: AGE_RANGE_MUST_NOT_BE_NEGATIVE_MESSAGE };
   }
-  if (ageFrom > ageTo) {
+  if (rangeFrom > rangeTo) {
     return { ok: false, message: AGE_RANGE_FROM_EXCEEDS_TO_MESSAGE };
   }
 
-  return { ok: true, range: { ageFrom, ageTo } };
+  return { ok: true, range: { rangeFrom, rangeTo } };
 }

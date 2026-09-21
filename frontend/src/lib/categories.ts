@@ -1,5 +1,6 @@
 import { authorizedFetch } from './auth';
 import type { AgeRange } from './ageRange';
+import type { CategoryRange } from './categoryRange';
 import { GENERIC_REQUEST_ERROR_MESSAGE } from './api.constants';
 import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
 
@@ -19,6 +20,16 @@ export const AGE_CATEGORY_TYPE: CategoryType = 'age';
 // Вісь, значення якої — ліги (Дебют, Перші кроки, Професійна ліга).
 export const LEAGUE_CATEGORY_TYPE: CategoryType = 'level';
 
+// Вісь складу: Соло, Дуо, Тріо, Група. Її значення несуть кількість людей
+// у номері — ту саму числову пару, що вік несе для вікової осі.
+export const LINEUP_CATEGORY_TYPE: CategoryType = 'lineup';
+
+// Осі, значення яких мають числові межі.
+export const RANGED_CATEGORY_TYPES: CategoryType[] = [
+  AGE_CATEGORY_TYPE,
+  LINEUP_CATEGORY_TYPE,
+];
+
 export const CATEGORY_TYPE_LABELS: Record<CategoryType, string> = {
   lineup: 'Склад',
   age: 'Вік',
@@ -30,8 +41,8 @@ export interface Category {
   id: string;
   name: string;
   type: CategoryType;
-  ageFrom: number | null;
-  ageTo: number | null;
+  rangeFrom: number | null;
+  rangeTo: number | null;
   sortOrder: number;
   createdAt: string;
 }
@@ -93,15 +104,15 @@ export function getCategories(type?: CategoryType): Promise<Category[]> {
 export function createCategory(
   name: string,
   type: CategoryType,
-  range?: AgeRange,
+  range?: CategoryRange,
 ): Promise<Category> {
   return request<Category>('/categories', {
     method: 'POST',
     body: JSON.stringify({
       name: name.trim(),
       type,
-      ageFrom: range?.ageFrom,
-      ageTo: range?.ageTo,
+      rangeFrom: range?.rangeFrom,
+      rangeTo: range?.rangeTo,
     }),
   });
 }
@@ -119,8 +130,8 @@ export function updateCategoryAgeRange(
 export interface CreateCategoryInput {
   name: string;
   type: CategoryType;
-  ageFrom?: number;
-  ageTo?: number;
+  rangeFrom?: number;
+  rangeTo?: number;
 }
 
 export function createCategoriesBulk(
@@ -132,8 +143,8 @@ export function createCategoriesBulk(
       categories: categories.map((c) => ({
         name: c.name.trim(),
         type: c.type,
-        ageFrom: c.ageFrom,
-        ageTo: c.ageTo,
+        rangeFrom: c.rangeFrom,
+        rangeTo: c.rangeTo,
       })),
     }),
   });

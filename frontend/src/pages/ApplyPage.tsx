@@ -5,7 +5,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { getApplyEligibility, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { getNominations } from '../lib/nominations';
-import type { Nomination, NominationAgeCategory } from '../lib/nominations';
+import type { Nomination, NominationCategoryRange } from '../lib/nominations';
+import { fitsCount } from '../lib/categoryRange';
 import {
   EntryApiError,
   createEntriesBulk,
@@ -90,7 +91,7 @@ function lineupLabel(count: number): string {
 
 // Does a nomination's line-up category fit the number of picked dancers?
 // Соло — 1, Дует/Дуо — 2, Тріо — 3, Група/Формейшн — 3+.
-function lineupMatches(categoryName: string, count: number): boolean {
+function lineupNameMatches(categoryName: string, count: number): boolean {
   const name = categoryName.trim().toLowerCase();
   if (name.startsWith('соло')) return count === 1;
   if (name.startsWith('дует') || name.startsWith('дуо')) return count === 2;
@@ -106,14 +107,22 @@ function lineupMatches(categoryName: string, count: number): boolean {
   return true; // unrecognised line-up label — keep the nomination visible
 }
 
+// Кількість людей із довідника головніша за назву: саме її задає організатор
+// у конструкторі. Розбір назви лишається запасним варіантом для складів, яким
+// кількість ще не проставили.
+function lineupMatches(lineup: NominationCategoryRange, count: number): boolean {
+  if (lineup.rangeFrom !== null) return fitsCount(lineup, count);
+  return lineupNameMatches(lineup.name, count);
+}
+
 function matchAgeCategory(
   age: number,
-  categories: NominationAgeCategory[],
+  categories: NominationCategoryRange[],
 ): string | null {
   const hit = categories.find((c) => {
-    if (c.ageFrom === null && c.ageTo === null) return false;
-    const from = c.ageFrom ?? Number.NEGATIVE_INFINITY;
-    const to = c.ageTo ?? Number.POSITIVE_INFINITY;
+    if (c.rangeFrom === null && c.rangeTo === null) return false;
+    const from = c.rangeFrom ?? Number.NEGATIVE_INFINITY;
+    const to = c.rangeTo ?? Number.POSITIVE_INFINITY;
     return age >= from && age <= to;
   });
   return hit ? hit.name : null;
@@ -1065,7 +1074,7 @@ export default function ApplyPage() {
                       )}
                       {ageCategoryOptions.map((c) => (
                         <option key={c.name} value={c.name}>
-                          {c.name} ({c.ageFrom}–{c.ageTo})
+                          {c.name} ({c.rangeFrom}–{c.rangeTo})
                         </option>
                       ))}
                     </select>

@@ -11,7 +11,7 @@ import type { Category, CategoryType } from '../../lib/categories';
 import AgeRangeFields from './AgeRangeFields';
 import { parseAgeRange } from '../../lib/ageRange';
 import type { AgeRange } from '../../lib/ageRange';
-import { useAgeRangeDraft } from '../../lib/useAgeRangeDraft';
+import { useCategoryRangeDraft } from '../../lib/useCategoryRangeDraft';
 import { buildNominationLabel } from '../../lib/nominationNaming';
 import { isImprovisationProgram } from '../../lib/improvisationProgram';
 import { formatDuration, parseDuration, pluralExits } from '../../lib/duration';
@@ -79,7 +79,7 @@ export default function SpecialCategoryModal({
   const [price, setPrice] = useState('');
   const [limits, setLimits] = useState<Record<string, string>>({});
   const [inputs, setInputs] = useState<Record<string, string>>({});
-  const age = useAgeRangeDraft(categories);
+  const age = useCategoryRangeDraft(categories, AGE_CATEGORY_TYPE);
   const [addingType, setAddingType] = useState<CategoryType | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [priceError, setPriceError] = useState<string | null>(null);
@@ -295,9 +295,9 @@ export default function SpecialCategoryModal({
             {current.map((category) => (
               <span className={styles.chip} key={category.id}>
                 {category.name}
-                {category.ageFrom !== null &&
-                  category.ageTo !== null &&
-                  ` (${category.ageFrom}–${category.ageTo})`}
+                {category.rangeFrom !== null &&
+                  category.rangeTo !== null &&
+                  ` (${category.rangeFrom}–${category.rangeTo})`}
                 <button
                   type="button"
                   aria-label={`Прибрати ${category.name}`}

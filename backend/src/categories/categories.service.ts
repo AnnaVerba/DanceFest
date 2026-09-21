@@ -6,13 +6,20 @@ import {
 import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes, Op, col, fn, where } from 'sequelize';
 import { Category } from './category.model';
-import { AGE_CATEGORY_TYPE } from './category.model';
+import {
+  AGE_CATEGORY_TYPE,
+  LINEUP_CATEGORY_TYPE,
+  MIN_LINEUP_SIZE,
+  RANGED_CATEGORY_TYPES,
+} from './category.model';
 import type { CategoryType } from './category.model';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import {
   AGE_RANGE_FROM_EXCEEDS_TO_MESSAGE,
   CATEGORY_NOT_FOUND_MESSAGE,
+  LINEUP_SIZE_TOO_SMALL_MESSAGE,
   NOT_AGE_CATEGORY_MESSAGE,
+  RANGE_FROM_EXCEEDS_TO_MESSAGE,
 } from './categories.constants';
 import { UpdateAgeRangeDto } from './dto/update-age-range.dto';
 
@@ -50,6 +57,7 @@ export class CategoriesService {
 
   async findOrCreate(input: CreateCategoryDto) {
     const trimmed = input.name.trim();
+    this.assertRangeIsSane(input);
 
     const existing = await this.categoryModel.findOne({
       where: {
@@ -61,13 +69,13 @@ export class CategoriesService {
       },
     });
     if (existing)
-      return this.toDto(await this.reconcileAgeRange(existing, input));
+      return this.toDto(await this.reconcileRange(existing, input));
 
     const created = await this.categoryModel.create({
       name: trimmed,
       type: input.type,
-      ageFrom: input.ageFrom ?? null,
-      ageTo: input.ageTo ?? null,
+      rangeFrom: input.rangeFrom ?? null,
+      rangeTo: input.rangeTo ?? null,
       sortOrder: input.sortOrder ?? DEFAULT_CATEGORY_SORT_ORDER,
     } as CreationAttributes<Category>);
     return this.toDto(created);
@@ -81,23 +89,55 @@ export class CategoriesService {
    * Межі, введені користувачем, перевизначають наявні: вікові межі мають бути
    * редагованими, а перетин діапазонів дозволений.
    */
-  private async reconcileAgeRange(
+  /**
+   * Межі значення осі приходять разом із назвою. Порожні — довідник лишається
+   * як є; задані — записуються, бо користувач бачив поля й свідомо їх заповнив.
+   *
+   * Для віку потрібні обидві межі: без верхньої вікова категорія нічого не
+   * визначає. Для складу верхня може бути null — це «і більше».
+   */
+  private async reconcileRange(
     existing: Category,
     input: CreateCategoryDto,
   ): Promise<Category> {
-    if (input.type !== AGE_CATEGORY_TYPE) return existing;
-    if (input.ageFrom === undefined || input.ageTo === undefined) {
+    if (!RANGED_CATEGORY_TYPES.includes(input.type)) return existing;
+    if (input.rangeFrom === undefined) return existing;
+    if (input.type === AGE_CATEGORY_TYPE && input.rangeTo === undefined) {
       return existing;
     }
 
-    if (existing.ageFrom === input.ageFrom && existing.ageTo === input.ageTo) {
+    const rangeTo = input.rangeTo ?? null;
+    if (existing.rangeFrom === input.rangeFrom && existing.rangeTo === rangeTo) {
       return existing;
     }
 
-    existing.ageFrom = input.ageFrom;
-    existing.ageTo = input.ageTo;
+    existing.rangeFrom = input.rangeFrom;
+    existing.rangeTo = rangeTo;
     await existing.save();
     return existing;
+  }
+
+  /**
+   * Пара колонок спільна для двох осей, а пороги в них різні, тож DTO
+   * перевіряє лише спільний мінімум — точніший поріг відомий тут, де є тип.
+   */
+  private assertRangeIsSane(input: CreateCategoryDto): void {
+    if (!RANGED_CATEGORY_TYPES.includes(input.type)) return;
+    if (input.rangeFrom === undefined) return;
+
+    if (
+      input.type === LINEUP_CATEGORY_TYPE &&
+      input.rangeFrom < MIN_LINEUP_SIZE
+    ) {
+      throw new BadRequestException(LINEUP_SIZE_TOO_SMALL_MESSAGE);
+    }
+    if (
+      input.rangeTo !== undefined &&
+      input.rangeTo !== null &&
+      input.rangeFrom > input.rangeTo
+    ) {
+      throw new BadRequestException(RANGE_FROM_EXCEEDS_TO_MESSAGE);
+    }
   }
 
   async findOrCreateMany(input: CreateCategoryDto[]) {
@@ -113,12 +153,12 @@ export class CategoriesService {
     if (category.type !== AGE_CATEGORY_TYPE) {
       throw new BadRequestException(NOT_AGE_CATEGORY_MESSAGE);
     }
-    if (dto.ageFrom > dto.ageTo) {
+    if (dto.rangeFrom > dto.rangeTo) {
       throw new BadRequestException(AGE_RANGE_FROM_EXCEEDS_TO_MESSAGE);
     }
 
-    category.ageFrom = dto.ageFrom;
-    category.ageTo = dto.ageTo;
+    category.rangeFrom = dto.rangeFrom;
+    category.rangeTo = dto.rangeTo;
     await category.save();
     return this.toDto(category);
   }
@@ -157,8 +197,8 @@ export class CategoriesService {
       id: category.id,
       name: category.name,
       type: category.type,
-      ageFrom: category.ageFrom,
-      ageTo: category.ageTo,
+      rangeFrom: category.rangeFrom,
+      rangeTo: category.rangeTo,
       sortOrder: category.sortOrder,
       createdAt: category.createdAt,
     };

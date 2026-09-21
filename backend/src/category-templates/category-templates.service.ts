@@ -417,8 +417,8 @@ export class CategoryTemplatesService {
         .map((c) => ({
           id: c.id,
           label: c.name,
-          ageFrom: c.ageFrom,
-          ageTo: c.ageTo,
+          rangeFrom: c.rangeFrom,
+          rangeTo: c.rangeTo,
         })),
     })).filter((criterion) => criterion.values.length > 0);
   }

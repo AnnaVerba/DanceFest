@@ -890,10 +890,10 @@ export class NominationsService {
         (c) => c.name,
       ),
       lineups: this.categoriesFor(nomination, categories, 'lineup').map(
-        (c) => c.name,
+        (c) => ({ name: c.name, rangeFrom: c.rangeFrom, rangeTo: c.rangeTo }),
       ),
       ageCategories: this.categoriesFor(nomination, categories, 'age').map(
-        (c) => ({ name: c.name, ageFrom: c.ageFrom, ageTo: c.ageTo }),
+        (c) => ({ name: c.name, rangeFrom: c.rangeFrom, rangeTo: c.rangeTo }),
       ),
       exits: this.exitsOf(nomination, categories),
       createdAt: nomination.createdAt,

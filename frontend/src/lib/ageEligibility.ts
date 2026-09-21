@@ -1,4 +1,4 @@
-import type { NominationAgeCategory } from './nominations';
+import type { NominationCategoryRange } from './nominations';
 
 // Mirrors the server's fullYearsAt: both dates are date-only, so they are
 // compared in UTC to keep a birthday from shifting by a day.
@@ -30,20 +30,20 @@ export function participantAges(
     .filter((age): age is number => age !== null);
 }
 
-function isBounded(category: NominationAgeCategory): boolean {
-  return category.ageFrom !== null && category.ageTo !== null;
+function isBounded(category: NominationCategoryRange): boolean {
+  return category.rangeFrom !== null && category.rangeTo !== null;
 }
 
 // A category fits a line-up only when every dancer's age is inside it — the
 // same rule as the server's isEligibleForAgeCategory.
-function fitsAllAges(ages: number[], category: NominationAgeCategory): boolean {
-  return ages.every((age) => age >= category.ageFrom! && age <= category.ageTo!);
+function fitsAllAges(ages: number[], category: NominationCategoryRange): boolean {
+  return ages.every((age) => age >= category.rangeFrom! && age <= category.rangeTo!);
 }
 
 // A nomination without age limits fits everyone.
 export function nominationFitsAges(
   ages: number[],
-  categories: NominationAgeCategory[],
+  categories: NominationCategoryRange[],
 ): boolean {
   const bounded = categories.filter(isBounded);
   if (bounded.length === 0) return true;
@@ -54,8 +54,8 @@ export function nominationFitsAges(
 // so several can fit and the coach picks one.
 export function ageCategoriesFittingAges(
   ages: number[],
-  categories: NominationAgeCategory[],
-): NominationAgeCategory[] {
+  categories: NominationCategoryRange[],
+): NominationCategoryRange[] {
   const fitting = categories
     .filter(isBounded)
     .filter((c) => fitsAllAges(ages, c));
@@ -66,7 +66,7 @@ export function ageCategoriesFittingAges(
 
 export function nominationHasAgeCategory(
   name: string,
-  categories: NominationAgeCategory[],
+  categories: NominationCategoryRange[],
 ): boolean {
   return categories.some((c) => c.name === name);
 }

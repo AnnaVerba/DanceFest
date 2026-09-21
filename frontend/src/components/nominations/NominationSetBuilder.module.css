@@ -352,3 +352,14 @@
   font-size: 13px;
   color: var(--g-muted);
 }
+
+/* «і більше» — прапорець у тому ж рядку, що й межі складу. */
+.unbounded {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-size: 13px;
+  color: var(--g-muted);
+  white-space: nowrap;
+}

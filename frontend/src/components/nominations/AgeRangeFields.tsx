@@ -1,9 +1,9 @@
 import { MIN_AGE_BOUND } from '../../lib/ageRange';
-import type { AgeRangeDraft } from '../../lib/ageRange';
+import type { CategoryRangeDraft } from '../../lib/categoryRange';
 
 interface AgeRangeFieldsProps {
-  value: AgeRangeDraft;
-  onChange: (next: AgeRangeDraft) => void;
+  value: CategoryRangeDraft;
+  onChange: (next: CategoryRangeDraft) => void;
   // Клас приходить ззовні: майстер і модалка мають власні CSS-модулі, а поля
   // мусять лишатись вузькими в обох.
   inputClassName?: string;
