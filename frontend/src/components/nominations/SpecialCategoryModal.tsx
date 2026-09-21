@@ -9,12 +9,9 @@ import {
 } from '../../lib/categories';
 import type { Category, CategoryType } from '../../lib/categories';
 import AgeRangeFields from './AgeRangeFields';
-import {
-  EMPTY_AGE_RANGE,
-  ageRangeConflictMessage,
-  parseAgeRange,
-} from '../../lib/ageRange';
+import { ageRangeConflictMessage, parseAgeRange } from '../../lib/ageRange';
 import type { AgeRange } from '../../lib/ageRange';
+import { useAgeRangeDraft } from '../../lib/useAgeRangeDraft';
 import { buildNominationLabel } from '../../lib/nominationNaming';
 import { formatDuration, parseDuration, pluralExits } from '../../lib/duration';
 import type { ExitMode } from '../../lib/categoryTemplates';
@@ -40,7 +37,10 @@ interface SpecialCategoryModalProps {
   categories: Category[];
   onClose: () => void;
   onCategoryCreated: (category: Category) => void;
-  onSubmit: (nominations: SpecialNominationDraft[]) => void;
+  // Resolves to null when the drafts were accepted, or to a Ukrainian
+  // message about the price that keeps the modal open and is shown above
+  // the price field.
+  onSubmit: (nominations: SpecialNominationDraft[]) => Promise<string | null>;
   submitLabel?: string;
   createCategoryValue?: (
     name: string,
@@ -78,9 +78,11 @@ export default function SpecialCategoryModal({
   const [price, setPrice] = useState('');
   const [limits, setLimits] = useState<Record<string, string>>({});
   const [inputs, setInputs] = useState<Record<string, string>>({});
-  const [ageRange, setAgeRange] = useState(EMPTY_AGE_RANGE);
+  const age = useAgeRangeDraft(categories);
   const [addingType, setAddingType] = useState<CategoryType | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [priceError, setPriceError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const reset = () => {
     setSpecialName('');
@@ -90,8 +92,9 @@ export default function SpecialCategoryModal({
     setPrice('');
     setLimits({});
     setInputs({});
-    setAgeRange(EMPTY_AGE_RANGE);
+    age.reset();
     setError(null);
+    setPriceError(null);
   };
 
   const close = () => {
@@ -114,6 +117,7 @@ export default function SpecialCategoryModal({
     const current = valuesOf(type);
     if (current.some((c) => c.name.trim().toLowerCase() === raw.toLowerCase())) {
       setInputs((prev) => ({ ...prev, [type]: '' }));
+      if (type === AGE_CATEGORY_TYPE) age.reset();
       return;
     }
 
@@ -126,9 +130,10 @@ export default function SpecialCategoryModal({
       const known = categories.find(
         (c) => c.type === type && c.name.trim().toLowerCase() === raw.toLowerCase(),
       );
-      const rangeEntered = ageRange.from.trim() !== '' || ageRange.to.trim() !== '';
+      const rangeEntered =
+        age.draft.from.trim() !== '' || age.draft.to.trim() !== '';
       if (!known || rangeEntered) {
-        const parsed = parseAgeRange(ageRange);
+        const parsed = parseAgeRange(age.draft);
         if (!parsed.ok) {
           setError(parsed.message);
           return;
@@ -156,7 +161,7 @@ export default function SpecialCategoryModal({
       setValuesOf(type, [...current, category]);
       onCategoryCreated(category);
       setInputs((prev) => ({ ...prev, [type]: '' }));
-      if (type === AGE_CATEGORY_TYPE) setAgeRange(EMPTY_AGE_RANGE);
+      if (type === AGE_CATEGORY_TYPE) age.reset();
     } catch (err) {
       setError(
         err instanceof CategoryApiError
@@ -233,7 +238,8 @@ export default function SpecialCategoryModal({
     0,
   );
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (submitting) return;
     if (!specialName.trim()) {
       setError('Вкажіть назву спеціальної категорії.');
       return;
@@ -259,9 +265,20 @@ export default function SpecialCategoryModal({
       );
       return;
     }
-    onSubmit(preview);
-    reset();
-    onClose();
+    setError(null);
+    setPriceError(null);
+    setSubmitting(true);
+    try {
+      const conflict = await onSubmit(preview);
+      if (conflict) {
+        setPriceError(conflict);
+        return;
+      }
+      reset();
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const renderPicker = (type: CategoryType, hint: string) => {
@@ -301,7 +318,11 @@ export default function SpecialCategoryModal({
             placeholder="Нове значення"
             aria-label={`Значення «${CATEGORY_TYPE_LABELS[type]}»`}
             value={inputs[type] ?? ''}
-            onChange={(e) => setInputs((prev) => ({ ...prev, [type]: e.target.value }))}
+            onChange={(e) => {
+              const value = e.target.value;
+              setInputs((prev) => ({ ...prev, [type]: value }));
+              if (type === AGE_CATEGORY_TYPE) age.setName(value);
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
@@ -311,9 +332,11 @@ export default function SpecialCategoryModal({
           />
           {type === AGE_CATEGORY_TYPE && (
             <AgeRangeFields
-              value={ageRange}
-              onChange={setAgeRange}
+              value={age.draft}
+              onChange={age.setDraft}
               inputClassName={styles.ageBound}
+              hint={age.hint ?? undefined}
+              hintClassName={styles.ageHint}
             />
           )}
           <datalist id={`special-suggestions-${type}`}>
@@ -348,7 +371,10 @@ export default function SpecialCategoryModal({
             type="text"
             placeholder="Корона Шехеризади"
             value={specialName}
-            onChange={(e) => setSpecialName(e.target.value)}
+            onChange={(e) => {
+              setSpecialName(e.target.value);
+              setPriceError(null);
+            }}
           />
         </div>
 
@@ -424,6 +450,11 @@ export default function SpecialCategoryModal({
 
         <div className={styles.field}>
           <label htmlFor="special-price">Ціна, грн</label>
+          {priceError && (
+            <p className={styles.error} id="special-price-error" role="alert">
+              {priceError}
+            </p>
+          )}
           <input
             id="special-price"
             type="number"
@@ -431,7 +462,12 @@ export default function SpecialCategoryModal({
             step="10"
             placeholder="—"
             value={price}
-            onChange={(e) => setPrice(e.target.value)}
+            aria-invalid={priceError !== null}
+            aria-describedby={priceError ? 'special-price-error' : undefined}
+            onChange={(e) => {
+              setPrice(e.target.value);
+              setPriceError(null);
+            }}
           />
         </div>
 
@@ -479,8 +515,8 @@ export default function SpecialCategoryModal({
           <button
             type="button"
             className={styles.btnPrimary}
-            onClick={handleSubmit}
-            disabled={preview.length === 0}
+            onClick={() => void handleSubmit()}
+            disabled={preview.length === 0 || submitting}
           >
             {submitLabel}
           </button>

@@ -7,3 +7,6 @@ export const AGE_RANGE_FROM_EXCEEDS_TO_MESSAGE =
   'Нижня межа віку більша за верхню.';
 export const AGE_RANGE_CONFLICT_MESSAGE_SUFFIX =
   'Змініть назву або приберіть розбіжність.';
+export const AGE_RANGE_FROM_REFERENCE_HINT = 'межі з довідника';
+export const AGE_RANGE_REFERENCE_EMPTY_HINT =
+  'У довіднику ця вікова категорія без меж — вкажіть їх, і вони збережуться.';

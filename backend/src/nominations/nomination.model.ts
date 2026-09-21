@@ -34,6 +34,11 @@ export class Nomination extends Model<Nomination> {
   @Column({ type: DataType.UUID, allowNull: true })
   declare templateId: string | null;
 
+  // Голе ім'я спецномінації без ліги, віку й програми — за ним усі «корони»
+  // змагання мають одну ціну й оплачуються один раз.
+  @Column({ type: DataType.STRING, allowNull: true })
+  declare specialName: string | null;
+
   @Column({ type: DataType.STRING, allowNull: false })
   declare name: string;
 

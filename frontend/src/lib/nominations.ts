@@ -43,6 +43,7 @@ export interface Nomination {
   allowsImprovisation: boolean;
   categoryIds: string[];
   isSpecial: boolean;
+  specialName: string | null;
   exitMode: ExitMode;
   durationLimitSeconds: number | null;
   durationOverridden: boolean;
@@ -64,6 +65,7 @@ export interface NominationInput {
   allowsImprovisation?: boolean;
   categoryIds?: string[];
   isSpecial?: boolean;
+  specialName?: string;
   exitMode?: ExitMode;
   durationLimitSeconds?: number;
   programLimits?: Record<string, number>;
@@ -71,9 +73,11 @@ export interface NominationInput {
 
 export class NominationApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  code: string | null;
+  constructor(message: string, status: number, code: string | null = null) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -88,8 +92,9 @@ export class NominationsBulkPartialFailureError extends NominationApiError {
     status: number,
     created: Nomination[],
     unsaved: NominationInput[],
+    code: string | null = null,
   ) {
-    super(message, status);
+    super(message, status, code);
     this.created = created;
     this.unsaved = unsaved;
   }
@@ -97,6 +102,7 @@ export class NominationsBulkPartialFailureError extends NominationApiError {
 
 interface ErrorPayload {
   message?: string | string[];
+  code?: string;
 }
 
 function extractMessage(payload: ErrorPayload | null, fallback: string): string {
@@ -128,6 +134,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new NominationApiError(
       extractMessage(payload, GENERIC_REQUEST_ERROR_MESSAGE),
       response.status,
+      payload?.code ?? null,
     );
   }
 
@@ -227,6 +234,7 @@ export async function createNominationsBulk(
         err instanceof NominationApiError ? err.status : 0,
         created,
         nominations.slice(start),
+        err instanceof NominationApiError ? err.code : null,
       );
     }
   }

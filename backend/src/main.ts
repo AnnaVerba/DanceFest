@@ -18,7 +18,7 @@ async function bootstrap() {
   });
   app.useBodyParser('json', { limit: JSON_BODY_SIZE_LIMIT });
   // Behind a reverse proxy in prod, so req.ip reads X-Forwarded-For.
-  app.set('trust proxy', true);
+  app.set('trust proxy', false);
   app.use(
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call
     rateLimit({

@@ -421,3 +421,10 @@
   left: -14px;
   color: var(--g-subtle);
 }
+
+/* Підказка про підтягнуті межі — окремим рядком, щоб не звужувати поля. */
+.ageHint {
+  flex: 1 0 100%;
+  font-size: 13px;
+  color: var(--g-muted);
+}

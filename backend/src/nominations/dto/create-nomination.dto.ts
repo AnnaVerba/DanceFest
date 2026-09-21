@@ -9,8 +9,14 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Min,
+  ValidateIf,
 } from 'class-validator';
+import {
+  SPECIAL_NAME_NON_BLANK_PATTERN,
+  SPECIAL_NAME_REQUIRED_MESSAGE,
+} from '../nominations.constants';
 import { EXIT_MODES } from '../nomination-exits';
 import { IsProgramLimits } from './is-program-limits.validator';
 import type { ExitMode } from '../nomination-exits';
@@ -62,6 +68,24 @@ export class CreateNominationDto {
   @IsOptional()
   @IsBoolean()
   isSpecial?: boolean;
+
+  @ApiPropertyOptional({
+    example: 'Корона',
+    description:
+      'The bare name of a special category, without league/age/program. Required when isSpecial. ' +
+      'Special nominations sharing a name share one price and are paid once per dancer.',
+  })
+  @ValidateIf(
+    (o: CreateNominationDto) =>
+      o.isSpecial === true ||
+      (o.specialName !== undefined && o.specialName !== null),
+  )
+  @IsString()
+  @IsNotEmpty()
+  @Matches(SPECIAL_NAME_NON_BLANK_PATTERN, {
+    message: SPECIAL_NAME_REQUIRED_MESSAGE,
+  })
+  specialName?: string;
 
   @ApiPropertyOptional({
     example: 'single',

@@ -6,6 +6,7 @@ import { publicRequest } from './http';
 import { withPageParams } from './pagination';
 import type { Paged } from './pagination';
 import type { EntryStats } from './entryStats.types';
+import type { EntriesQuote, EntriesQuoteInput } from './entriesQuote.types';
 import type {
   EntryDetails,
   EntryParticipant,
@@ -266,6 +267,18 @@ export function createEntriesBulk(
   return request<Entry[]>(`/competitions/${competitionId}/entries/bulk`, {
     method: 'POST',
     body: JSON.stringify({ entries: inputs }),
+  });
+}
+
+// What each selected nomination costs these dancers, counting what they
+// already registered for — the pay-once rule lives only on the server.
+export function getEntriesQuote(
+  competitionId: string,
+  input: EntriesQuoteInput,
+): Promise<EntriesQuote> {
+  return request<EntriesQuote>(`/competitions/${competitionId}/entries/quote`, {
+    method: 'POST',
+    body: JSON.stringify(input),
   });
 }
 

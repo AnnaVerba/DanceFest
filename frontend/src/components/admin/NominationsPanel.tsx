@@ -5,6 +5,7 @@ import ConfirmDialog from './ConfirmDialog';
 import TemplateImportModal from './TemplateImportModal';
 import SpecialCategoryModal from '../nominations/SpecialCategoryModal';
 import type { SpecialNominationDraft } from '../nominations/SpecialCategoryModal';
+import { serverPriceConflictMessage } from '../../lib/specialPriceConflict';
 import NominationFilterBar from './nominationSelection/NominationFilterBar';
 import NominationBulkBar from './nominationSelection/NominationBulkBar';
 import NominationPager from './nominationSelection/NominationPager';
@@ -13,6 +14,7 @@ import { useNominationsPage } from './nominationSelection/useNominationsPage';
 import {
   NOTHING_FOUND_MESSAGE,
   SELECT_NOMINATION_ARIA_PREFIX,
+  SPECIAL_PRICE_SHARED_HINT,
 } from './nominationSelection/nominationFilters.constants';
 import { LEAGUE_CATEGORY_TYPE, getCategories } from '../../lib/categories';
 import type { Category } from '../../lib/categories';
@@ -199,7 +201,9 @@ export default function NominationsPanel({
     }
   };
 
-  const handleAddSpecial = async (drafts: SpecialNominationDraft[]) => {
+  const handleAddSpecial = async (
+    drafts: SpecialNominationDraft[],
+  ): Promise<string | null> => {
     try {
       await createNominationsBulkMutation.mutateAsync(
         drafts.map((d) => ({
@@ -208,12 +212,17 @@ export default function NominationsPanel({
           allowsImprovisation: d.allowsImprovisation,
           categoryIds: d.categoryIds,
           isSpecial: d.isSpecial,
+          specialName: d.specialName,
           exitMode: d.exitMode,
           programLimits: d.programLimits,
         })),
       );
-    } catch {
+      return null;
+    } catch (err) {
+      const priceConflict = serverPriceConflictMessage(err);
+      if (priceConflict) return priceConflict;
       onError('Не вдалося створити спеціальну категорію. Спробуйте ще раз.');
+      return null;
     }
   };
 
@@ -333,6 +342,12 @@ export default function NominationsPanel({
           {nomination.isSpecial && exits.length === 1 && nomination.programs.length > 1 && (
             <div className={styles.rowHint}>
               Програми підряд: {nomination.programs.map((p) => p.name).join(', ')}
+            </div>
+          )}
+
+          {nomination.isSpecial && nomination.specialName && (
+            <div className={styles.rowHint}>
+              {SPECIAL_PRICE_SHARED_HINT} «{nomination.specialName}»
             </div>
           )}
         </div>
@@ -560,7 +575,7 @@ export default function NominationsPanel({
             data?.some((c) => c.id === category.id) ? data : [...(data ?? []), category],
           );
         }}
-        onSubmit={(drafts) => void handleAddSpecial(drafts)}
+        onSubmit={handleAddSpecial}
       />
 
       <ConfirmDialog
