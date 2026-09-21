@@ -38,7 +38,17 @@ import { refreshProgram } from '../lib/programCache';
 import MentorCoachPicker from '../components/MentorCoachPicker';
 import SchoolPicker from '../components/SchoolPicker';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
-import { nominationFitsAge, oldestAge } from '../lib/ageEligibility';
+import {
+  ageCategoriesFittingAges,
+  nominationFitsAges,
+  nominationHasAgeCategory,
+  participantAges,
+} from '../lib/ageEligibility';
+import {
+  AGE_CATEGORY_PLACEHOLDER,
+  NO_COMMON_AGE_CATEGORY_HINT,
+  NO_NOMINATIONS_FOR_AGE_MESSAGE,
+} from '../lib/applyAge.constants';
 import styles from './ApplyPage.module.css';
 
 type PayMethod = 'cash' | 'card';
@@ -157,6 +167,7 @@ export default function ApplyPage() {
     useState<SetMentorCoachBody | null>(null);
   const [trainerPickerKey, setTrainerPickerKey] = useState(0);
   const [league, setLeague] = useState('');
+  const [pickedAgeCategory, setPickedAgeCategory] = useState('');
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [city, setCity] = useState('');
@@ -359,14 +370,33 @@ export default function ApplyPage() {
 
   const pickedCount = selfParticipant ? 1 : selectedParticipants.length;
 
-  // Counted on the competition's start date, on the oldest picked dancer —
-  // the same rule the server enforces on submit.
-  const participantAge = competition
-    ? oldestAge(
-        activeParticipants.map((p) => p.birthDate),
-        competition.dateFrom,
-      )
-    : null;
+  // Counted on the competition's start date; a category is offered only when
+  // every picked dancer fits it — the same rule the server enforces on submit.
+  const ages = useMemo(
+    () =>
+      competition
+        ? participantAges(
+            activeParticipants.map((p) => p.birthDate),
+            competition.dateFrom,
+          )
+        : [],
+    [competition, activeParticipants],
+  );
+  const participantAge = ages.length === 1 ? ages[0] : null;
+
+  const ageCategoryOptions = useMemo(
+    () => ageCategoriesFittingAges(ages, ageCategories),
+    [ages, ageCategories],
+  );
+
+  // A single fitting category needs no choice; with several (overlapping
+  // ranges) the coach's pick is used, and a pick that stopped fitting is ignored.
+  const chosenAgeCategory =
+    ageCategoryOptions.length === 1
+      ? ageCategoryOptions[0].name
+      : ageCategoryOptions.some((c) => c.name === pickedAgeCategory)
+        ? pickedAgeCategory
+        : '';
 
   const styleRows: NominationRow[] = useMemo(() => {
     const rows: NominationRow[] = [];
@@ -381,8 +411,10 @@ export default function ApplyPage() {
         n.lineups.length === 0 ||
         n.lineups.some((l) => lineupMatches(l, pickedCount));
       const matchesAge =
-        participantAge === null ||
-        nominationFitsAge(participantAge, n.ageCategories);
+        ages.length === 0 ||
+        (chosenAgeCategory
+          ? nominationHasAgeCategory(chosenAgeCategory, n.ageCategories)
+          : nominationFitsAges(ages, n.ageCategories));
       if (!matchesStyle || !matchesLeague || !matchesLineup || !matchesAge) {
         continue;
       }
@@ -406,7 +438,14 @@ export default function ApplyPage() {
       }
     }
     return rows;
-  }, [nonSpecial, selectedStyles, league, pickedCount, participantAge]);
+  }, [
+    nonSpecial,
+    selectedStyles,
+    league,
+    pickedCount,
+    ages,
+    chosenAgeCategory,
+  ]);
 
   const specialRows: NominationRow[] = useMemo(
     () =>
@@ -551,6 +590,7 @@ export default function ApplyPage() {
     setParticipantQuery('');
     setSearchResults([]);
     setLeague('');
+    setPickedAgeCategory('');
     setSelectedStyles([]);
     setSelectedKeys([]);
     setCity('');
@@ -1011,7 +1051,32 @@ export default function ApplyPage() {
                 </div>
                 <div>
                   <label className={styles.label}>Вік / вікова категорія</label>
-                  <div className={styles.readonlyBox}>{ageLabel}</div>
+                  {ageCategoryOptions.length > 0 ? (
+                    <select
+                      className={styles.select}
+                      value={chosenAgeCategory}
+                      onChange={(e) => {
+                        setPickedAgeCategory(e.target.value);
+                        setSubmitError(null);
+                      }}
+                    >
+                      {ageCategoryOptions.length > 1 && (
+                        <option value="">{AGE_CATEGORY_PLACEHOLDER}</option>
+                      )}
+                      {ageCategoryOptions.map((c) => (
+                        <option key={c.name} value={c.name}>
+                          {c.name} ({c.ageFrom}–{c.ageTo})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className={styles.readonlyBox}>{ageLabel}</div>
+                  )}
+                  {ages.length > 0 &&
+                    ageCategories.length > 0 &&
+                    ageCategoryOptions.length === 0 && (
+                      <p className={styles.hint}>{NO_COMMON_AGE_CATEGORY_HINT}</p>
+                    )}
                 </div>
               </div>
             )}
@@ -1071,9 +1136,9 @@ export default function ApplyPage() {
               <label className={styles.label}>Номінації за обраними стилями</label>
               {styleRows.length === 0 ? (
                 <p className={styles.hint}>
-                  {participantAge === null
+                  {ages.length === 0
                     ? 'Немає номінацій для цього поєднання ліги та стилів.'
-                    : `Немає номінацій для цього поєднання ліги та стилів у віковій категорії учасника (${participantAge} р.).`}
+                    : NO_NOMINATIONS_FOR_AGE_MESSAGE}
                 </p>
               ) : (
                 <div

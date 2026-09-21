@@ -8,9 +8,8 @@ export interface FinanceGroupRow {
   amount: number;
 }
 
-// The top of the organizer's «Фінанси» tab. Trainer and studio rows each
-// add up to `total`; dancer rows do not, since every dancer in a group
-// number is shown that number's full cost.
+// The top of the organizer's «Фінанси» tab. Trainer, studio and dancer rows
+// each add up to `total`.
 export interface FinanceSummary {
   entriesCount: number;
   total: number;

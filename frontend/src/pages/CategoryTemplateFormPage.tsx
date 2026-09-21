@@ -351,6 +351,7 @@ export default function CategoryTemplateFormPage() {
                 selection={axes}
                 onSelectionChange={setAxes}
                 onNotice={showToast}
+                hideImprovisation
                 seedCategoryIds={seedCategoryIds}
                 onCategoryCreated={(category) =>
                   setExtraCategories((prev) =>

@@ -103,5 +103,12 @@ export function useAgeRangeDraft(categories: Category[]): AgeRangeDraftControlle
 
   const hint = useMemo(() => HINTS[state.source] ?? null, [state.source]);
 
-  return { ...state, hint, setName, setDraft, reset };
+  return {
+    ...state,
+    hint,
+    isFromReference: state.source === AGE_RANGE_SOURCE_REFERENCE,
+    setName,
+    setDraft,
+    reset,
+  };
 }

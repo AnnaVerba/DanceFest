@@ -56,38 +56,6 @@ export function fullYearsAt(birthDate: string, referenceDate: string): number {
   return age;
 }
 
-export interface AgeRangeOverlap {
-  first: BoundedAgeCategory;
-  second: BoundedAgeCategory;
-}
-
-/**
- * Перетин діапазонів робить автовизначення категорії неоднозначним: дитина
- * 12 років підпадає і під 9–12, і під 12–15, а вибір першого збігу тоді
- * залежить від порядку рядків.
- *
- * Перевіряється набір, обраний для одного конкурсу, а не вся таблиця:
- * `categories` — спільний довідник, і різні конкурси мають право на різні
- * вікові сітки.
- */
-export function findAgeRangeOverlaps(
-  ageCategories: AgeCategoryRange[],
-): AgeRangeOverlap[] {
-  const ranges = ageCategories.filter(isBounded);
-
-  const overlaps: AgeRangeOverlap[] = [];
-  for (let i = 0; i < ranges.length; i++) {
-    for (let j = i + 1; j < ranges.length; j++) {
-      const first = ranges[i];
-      const second = ranges[j];
-      if (first.ageFrom <= second.ageTo && second.ageFrom <= first.ageTo) {
-        overlaps.push({ first, second });
-      }
-    }
-  }
-  return overlaps;
-}
-
 /**
  * Вікова категорія рахується на **дату початку конкурсу**, а не на «сьогодні»:
  * інакше та сама дитина потрапляла б у різні категорії залежно від того, коли

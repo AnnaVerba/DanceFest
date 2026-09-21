@@ -18,6 +18,9 @@ export interface AgeRangeDraftState {
 export interface AgeRangeDraftController extends AgeRangeDraftState {
   // Пояснення під полями або null, коли пояснювати нічого.
   hint: string | null;
+  // Межі підставив довідник і користувач їх не редагував. Для виклику це
+  // означає «меж не вводили»: значення довідника підтверджувати нічим.
+  isFromReference: boolean;
   setName: (name: string) => void;
   setDraft: (next: AgeRangeDraft) => void;
   reset: () => void;

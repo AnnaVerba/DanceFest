@@ -36,6 +36,7 @@ import { UpdateEntryExtraTimeDto } from './dto/update-entry-extra-time.dto';
 import { QuoteEntriesDto } from './dto/quote-entries.dto';
 import type { EntriesQuote } from './entries-quote.interface';
 import { resolvePage } from '../common/pagination';
+import { isImprovisationEntry } from '../tracks/is-improvisation-entry';
 import {
   AGE_CATEGORY_MISMATCH_MESSAGE,
   NOMINATION_REQUIRED_MESSAGE,
@@ -1162,6 +1163,7 @@ export class EntriesService {
       choreographer: entry.choreographer,
       city: entry.city,
       improv: entry.improv,
+      trackNotNeeded: isImprovisationEntry(entry),
       musicName: entry.musicName,
       createdAt: entry.createdAt,
     };
