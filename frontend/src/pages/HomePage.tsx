@@ -21,7 +21,6 @@ import type { HomeStatusFilterId } from '../lib/homeContests';
 import {
   ALL_YEARS_LABEL,
   CATALOG_SUBTITLE,
-  CATALOG_TITLE,
   CREATE_COMPETITION_LABEL,
   EMPTY_LABEL,
   FIRST_PAGE,
@@ -41,6 +40,7 @@ import CompetitionBannerPlaceholder from '../components/home/CompetitionBannerPl
 import { queryKeys } from '../lib/queryKeys';
 import { PUBLIC_COMPETITIONS_STALE_TIME_MS } from '../lib/queryClient.constants';
 import styles from './HomePage.module.css';
+import ProjectLogo from "../components/ProjectLogo.tsx";
 
 const STATUS_PILL_CLASS: Record<CompetitionStatus, string> = {
   [COMPETITION_STATUS.PLANNED]: styles.statusPlanned,
@@ -150,7 +150,8 @@ export default function HomePage() {
         )}
 
         <header className={styles.hero}>
-          <h1 className={styles.pageTitle}>{CATALOG_TITLE}</h1>
+          <ProjectLogo className={styles.railLogo} />
+       <br/>
           <p className={styles.pageSubtitle}>{CATALOG_SUBTITLE}</p>
         </header>
 

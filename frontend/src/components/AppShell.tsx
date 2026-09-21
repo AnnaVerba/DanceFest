@@ -1,4 +1,4 @@
-import { Link, Outlet } from 'react-router-dom';
+import {Link, Outlet} from 'react-router-dom';
 import PublicTopBar from './PublicTopBar';
 import CabinetSidebar from './CabinetSidebar';
 import ProjectLogo from './ProjectLogo';

@@ -1,8 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { clearSession, getSession } from '../lib/auth';
 import { ACCESS_LEVEL_LABELS } from '../lib/roles';
-import ProjectLogo from './ProjectLogo';
-import { PROJECT_LOGO_LABEL } from './ProjectLogo.constants';
 import { HOME_PATH } from './PublicTopBar.constants';
 import styles from './PublicTopBar.module.css';
 
@@ -26,11 +24,7 @@ export default function PublicTopBar() {
     >
       {/* A signed-in user carries the logo at the head of the nav rail
           (AppShell), so the bar only brands the rail-less public pages. */}
-      {!session && (
-        <Link to="/" className={styles.brand} aria-label={PROJECT_LOGO_LABEL}>
-          <ProjectLogo className={styles.brandLogo} />
-        </Link>
-      )}
+
 
       <div className={styles.actions}>
         {session ? (
