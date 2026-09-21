@@ -5,12 +5,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import { getApplyEligibility, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
 import { getNominations } from '../lib/nominations';
-import type { Nomination, NominationAgeCategory } from '../lib/nominations';
+import type { Nomination, NominationCategoryRange } from '../lib/nominations';
+import { fitsCount } from '../lib/categoryRange';
+import { exitsAreAllImprovisation } from '../lib/improvisationProgram';
+import { nominationRowKey } from '../lib/nominationRowKey';
 import {
   EntryApiError,
   createEntriesBulk,
   uploadEntryTrack,
 } from '../lib/entries';
+import type { Entry } from '../lib/entries';
 import {
   ParticipantApiError,
   createParticipant,
@@ -22,7 +26,9 @@ import {
   PARTICIPANT_SEARCH_MIN_CHARS,
 } from '../lib/participants.constants';
 import { getSchool } from '../lib/schools';
-import { entryCostForDancers, formatEntryAmount } from '../lib/entryAmount';
+import { formatEntryAmount } from '../lib/entryAmount';
+import { useEntriesQuote } from '../lib/useEntriesQuote';
+import { SPECIAL_PAID_ONCE_LABEL } from '../lib/entriesQuote.constants';
 import {
   createCoach,
   getMyMentorCoach,
@@ -36,7 +42,17 @@ import { refreshProgram } from '../lib/programCache';
 import MentorCoachPicker from '../components/MentorCoachPicker';
 import SchoolPicker from '../components/SchoolPicker';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
-import { nominationFitsAge, oldestAge } from '../lib/ageEligibility';
+import {
+  ageCategoriesFittingAges,
+  nominationFitsAges,
+  nominationHasAgeCategory,
+  participantAges,
+} from '../lib/ageEligibility';
+import {
+  AGE_CATEGORY_PLACEHOLDER,
+  NO_COMMON_AGE_CATEGORY_HINT,
+  NO_NOMINATIONS_FOR_AGE_MESSAGE,
+} from '../lib/applyAge.constants';
 import styles from './ApplyPage.module.css';
 
 type PayMethod = 'cash' | 'card';
@@ -45,6 +61,11 @@ interface NominationRow {
   key: string;
   nominationId: string;
   improv: boolean;
+  // The entries this row creates take no track: either the row itself is
+  // the nomination's improvisation, or every exit is an improvisation
+  // program. Display only — `improv` is what the entry is created with.
+  takesNoTrack: boolean;
+  isSpecial: boolean;
   label: string;
   price: number | null;
 }
@@ -77,7 +98,7 @@ function lineupLabel(count: number): string {
 
 // Does a nomination's line-up category fit the number of picked dancers?
 // Соло — 1, Дует/Дуо — 2, Тріо — 3, Група/Формейшн — 3+.
-function lineupMatches(categoryName: string, count: number): boolean {
+function lineupNameMatches(categoryName: string, count: number): boolean {
   const name = categoryName.trim().toLowerCase();
   if (name.startsWith('соло')) return count === 1;
   if (name.startsWith('дует') || name.startsWith('дуо')) return count === 2;
@@ -93,14 +114,22 @@ function lineupMatches(categoryName: string, count: number): boolean {
   return true; // unrecognised line-up label — keep the nomination visible
 }
 
+// Кількість людей із довідника головніша за назву: саме її задає організатор
+// у конструкторі. Розбір назви лишається запасним варіантом для складів, яким
+// кількість ще не проставили.
+function lineupMatches(lineup: NominationCategoryRange, count: number): boolean {
+  if (lineup.rangeFrom !== null) return fitsCount(lineup, count);
+  return lineupNameMatches(lineup.name, count);
+}
+
 function matchAgeCategory(
   age: number,
-  categories: NominationAgeCategory[],
+  categories: NominationCategoryRange[],
 ): string | null {
   const hit = categories.find((c) => {
-    if (c.ageFrom === null && c.ageTo === null) return false;
-    const from = c.ageFrom ?? Number.NEGATIVE_INFINITY;
-    const to = c.ageTo ?? Number.POSITIVE_INFINITY;
+    if (c.rangeFrom === null && c.rangeTo === null) return false;
+    const from = c.rangeFrom ?? Number.NEGATIVE_INFINITY;
+    const to = c.rangeTo ?? Number.POSITIVE_INFINITY;
     return age >= from && age <= to;
   });
   return hit ? hit.name : null;
@@ -154,6 +183,7 @@ export default function ApplyPage() {
     useState<SetMentorCoachBody | null>(null);
   const [trainerPickerKey, setTrainerPickerKey] = useState(0);
   const [league, setLeague] = useState('');
+  const [pickedAgeCategory, setPickedAgeCategory] = useState('');
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [city, setCity] = useState('');
@@ -356,14 +386,33 @@ export default function ApplyPage() {
 
   const pickedCount = selfParticipant ? 1 : selectedParticipants.length;
 
-  // Counted on the competition's start date, on the oldest picked dancer —
-  // the same rule the server enforces on submit.
-  const participantAge = competition
-    ? oldestAge(
-        activeParticipants.map((p) => p.birthDate),
-        competition.dateFrom,
-      )
-    : null;
+  // Counted on the competition's start date; a category is offered only when
+  // every picked dancer fits it — the same rule the server enforces on submit.
+  const ages = useMemo(
+    () =>
+      competition
+        ? participantAges(
+            activeParticipants.map((p) => p.birthDate),
+            competition.dateFrom,
+          )
+        : [],
+    [competition, activeParticipants],
+  );
+  const participantAge = ages.length === 1 ? ages[0] : null;
+
+  const ageCategoryOptions = useMemo(
+    () => ageCategoriesFittingAges(ages, ageCategories),
+    [ages, ageCategories],
+  );
+
+  // A single fitting category needs no choice; with several (overlapping
+  // ranges) the coach's pick is used, and a pick that stopped fitting is ignored.
+  const chosenAgeCategory =
+    ageCategoryOptions.length === 1
+      ? ageCategoryOptions[0].name
+      : ageCategoryOptions.some((c) => c.name === pickedAgeCategory)
+        ? pickedAgeCategory
+        : '';
 
   const styleRows: NominationRow[] = useMemo(() => {
     const rows: NominationRow[] = [];
@@ -378,37 +427,52 @@ export default function ApplyPage() {
         n.lineups.length === 0 ||
         n.lineups.some((l) => lineupMatches(l, pickedCount));
       const matchesAge =
-        participantAge === null ||
-        nominationFitsAge(participantAge, n.ageCategories);
+        ages.length === 0 ||
+        (chosenAgeCategory
+          ? nominationHasAgeCategory(chosenAgeCategory, n.ageCategories)
+          : nominationFitsAges(ages, n.ageCategories));
       if (!matchesStyle || !matchesLeague || !matchesLineup || !matchesAge) {
         continue;
       }
       rows.push({
-        key: n.id,
+        key: nominationRowKey(n.id, false),
         nominationId: n.id,
         improv: false,
+        takesNoTrack: exitsAreAllImprovisation(n.exits),
+        isSpecial: false,
         label: n.name,
         price: n.price,
       });
       if (n.allowsImprovisation) {
         rows.push({
-          key: `${n.id}:improv`,
+          key: nominationRowKey(n.id, true),
           nominationId: n.id,
           improv: true,
+          takesNoTrack: true,
+          isSpecial: false,
           label: `${n.name} · Імпровізація`,
           price: n.price,
         });
       }
     }
     return rows;
-  }, [nonSpecial, selectedStyles, league, pickedCount, participantAge]);
+  }, [
+    nonSpecial,
+    selectedStyles,
+    league,
+    pickedCount,
+    ages,
+    chosenAgeCategory,
+  ]);
 
   const specialRows: NominationRow[] = useMemo(
     () =>
       specials.map((n) => ({
-        key: n.id,
+        key: nominationRowKey(n.id, false),
         nominationId: n.id,
         improv: false,
+        takesNoTrack: exitsAreAllImprovisation(n.exits),
+        isSpecial: true,
         label: n.name,
         price: n.price,
       })),
@@ -421,10 +485,18 @@ export default function ApplyPage() {
   );
 
   const selectedRows = allRows.filter((r) => selectedKeys.includes(r.key));
-  const total = selectedRows.reduce(
-    (sum, r) => sum + (entryCostForDancers(r.price, pickedCount) ?? 0),
-    0,
+  const quote = useEntriesQuote(
+    id,
+    effectiveParticipantIds,
+    selectedRows.map((r) => r.nominationId),
   );
+  const quoteAmountByKey = new Map(
+    quote.status === 'ready'
+      ? selectedRows.map((r, index) => [r.key, quote.amounts[index]])
+      : [],
+  );
+  const total =
+    quote.status === 'ready' || quote.status === 'loading' ? quote.total : null;
 
   // Which required field to highlight red — mirrors the checks in
   // handleSubmit, so the invalid one stays marked until it's actually fixed.
@@ -538,6 +610,7 @@ export default function ApplyPage() {
     setParticipantQuery('');
     setSearchResults([]);
     setLeague('');
+    setPickedAgeCategory('');
     setSelectedStyles([]);
     setSelectedKeys([]);
     setCity('');
@@ -621,12 +694,32 @@ export default function ApplyPage() {
       // program; otherwise they joined the unassigned pool.
       void refreshProgram(queryClient, id);
 
+      // The server creates one entry per exit, so a per-program nomination
+      // comes back as several entries for a single row and the two lists do
+      // not line up by index. Each entry names the row it came from.
+      const createdByRowKey = new Map<string, Entry[]>();
+      for (const entry of created) {
+        if (!entry.nominationId) continue;
+        const key = nominationRowKey(entry.nominationId, entry.improv ?? false);
+        const group = createdByRowKey.get(key);
+        if (group) group.push(entry);
+        else createdByRowKey.set(key, [entry]);
+      }
+
       // Entries exist now, so their ids are stable — upload each picked
-      // file for real instead of just remembering its name.
+      // file for real instead of just remembering its name. One picked file
+      // covers every exit of its row; the improvisation exits of a mixed
+      // nomination take no track and would refuse the upload.
       const uploads = await Promise.allSettled(
-        rows.map((r, i) => {
+        rows.map((r) => {
           const file = musicFileByKey[r.key];
-          return file ? uploadEntryTrack(created[i].id, file) : null;
+          if (!file) return null;
+          const targets = (createdByRowKey.get(r.key) ?? []).filter(
+            (entry) => !entry.trackNotNeeded,
+          );
+          return Promise.all(
+            targets.map((entry) => uploadEntryTrack(entry.id, file)),
+          );
         }),
       );
       const failedCount = uploads.filter((u) => u.status === 'rejected').length;
@@ -998,7 +1091,32 @@ export default function ApplyPage() {
                 </div>
                 <div>
                   <label className={styles.label}>Вік / вікова категорія</label>
-                  <div className={styles.readonlyBox}>{ageLabel}</div>
+                  {ageCategoryOptions.length > 0 ? (
+                    <select
+                      className={styles.select}
+                      value={chosenAgeCategory}
+                      onChange={(e) => {
+                        setPickedAgeCategory(e.target.value);
+                        setSubmitError(null);
+                      }}
+                    >
+                      {ageCategoryOptions.length > 1 && (
+                        <option value="">{AGE_CATEGORY_PLACEHOLDER}</option>
+                      )}
+                      {ageCategoryOptions.map((c) => (
+                        <option key={c.name} value={c.name}>
+                          {c.name} ({c.rangeFrom}–{c.rangeTo})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className={styles.readonlyBox}>{ageLabel}</div>
+                  )}
+                  {ages.length > 0 &&
+                    ageCategories.length > 0 &&
+                    ageCategoryOptions.length === 0 && (
+                      <p className={styles.hint}>{NO_COMMON_AGE_CATEGORY_HINT}</p>
+                    )}
                 </div>
               </div>
             )}
@@ -1058,9 +1176,9 @@ export default function ApplyPage() {
               <label className={styles.label}>Номінації за обраними стилями</label>
               {styleRows.length === 0 ? (
                 <p className={styles.hint}>
-                  {participantAge === null
+                  {ages.length === 0
                     ? 'Немає номінацій для цього поєднання ліги та стилів.'
-                    : `Немає номінацій для цього поєднання ліги та стилів у віковій категорії учасника (${participantAge} р.).`}
+                    : NO_NOMINATIONS_FOR_AGE_MESSAGE}
                 </p>
               ) : (
                 <div
@@ -1118,7 +1236,12 @@ export default function ApplyPage() {
                       </span>
                       <span className={styles.nomLabel}>{row.label}</span>
                       <span className={styles.nomPrice}>
-                        {formatEntryAmount(row.price)}
+                        {on &&
+                        row.price !== null &&
+                        row.price > 0 &&
+                        quoteAmountByKey.get(row.key) === 0
+                          ? SPECIAL_PAID_ONCE_LABEL
+                          : formatEntryAmount(row.price)}
                       </span>
                     </button>
                   );
@@ -1234,7 +1357,7 @@ export default function ApplyPage() {
               <label className={styles.label}>Музика для виступів</label>
               <div className={styles.musicList}>
                 {selectedRows.map((row) =>
-                  row.improv ? (
+                  row.takesNoTrack ? (
                     <div key={row.key} className={styles.musicRow}>
                       <span className={styles.musicLabel}>{row.label}</span>
                       <span className={styles.hint}>

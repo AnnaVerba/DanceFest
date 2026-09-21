@@ -19,6 +19,7 @@ export interface CompetitionOwner {
 export interface Competition {
   id: string;
   image: string | null;
+  regulationsUrl: string | null;
   name: string;
   description: string;
   location: string;
@@ -117,6 +118,7 @@ export async function getCompetition(id: string): Promise<Competition> {
 
 export interface CompetitionInput {
   image?: string;
+  regulationsUrl?: string;
   name: string;
   description: string;
   location: string;

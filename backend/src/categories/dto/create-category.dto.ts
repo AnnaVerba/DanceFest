@@ -11,8 +11,9 @@ import {
 import {
   AGE_CATEGORY_TYPE,
   CATEGORY_TYPES,
-  MIN_PARTICIPANT_AGE,
+  MIN_RANGE_BOUND,
   MIN_SORT_ORDER,
+  RANGED_CATEGORY_TYPES,
 } from '../category.model';
 import type { CategoryType } from '../category.model';
 
@@ -26,25 +27,34 @@ export class CreateCategoryDto {
   @IsIn(CATEGORY_TYPES)
   type: CategoryType;
 
-  // Обов'язкові саме для вікової осі: без меж категорія не бере участі в
-  // автовизначенні, і заявка мовчки не знаходить вік учасника.
+  // Обов'язкова для осей із межами: вікова категорія без них не бере участі
+  // в автовизначенні, а склад без них не знає, скільком людям відповідає.
   @ApiPropertyOptional({
     example: 12,
-    description: 'Required when type is age.',
+    description: 'Required when type is age or lineup.',
   })
-  @ValidateIf((dto: CreateCategoryDto) => dto.type === AGE_CATEGORY_TYPE)
+  @ValidateIf((dto: CreateCategoryDto) =>
+    RANGED_CATEGORY_TYPES.includes(dto.type),
+  )
   @IsInt()
-  @Min(MIN_PARTICIPANT_AGE)
-  ageFrom?: number;
+  @Min(MIN_RANGE_BOUND)
+  rangeFrom?: number;
 
+  // Для віку обов'язкова. Для складу null означає «без верхньої межі»
+  // (Група — троє й більше), тож перевіряється лише коли значення задане.
   @ApiPropertyOptional({
     example: 15,
-    description: 'Required when type is age.',
+    description:
+      'Required when type is age. For lineup, null means no upper bound.',
   })
-  @ValidateIf((dto: CreateCategoryDto) => dto.type === AGE_CATEGORY_TYPE)
+  @ValidateIf(
+    (dto: CreateCategoryDto) =>
+      dto.type === AGE_CATEGORY_TYPE ||
+      (dto.rangeTo !== null && dto.rangeTo !== undefined),
+  )
   @IsInt()
-  @Min(MIN_PARTICIPANT_AGE)
-  ageTo?: number;
+  @Min(MIN_RANGE_BOUND)
+  rangeTo?: number | null;
 
   @ApiPropertyOptional({ example: 0 })
   @IsOptional()

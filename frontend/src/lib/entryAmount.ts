@@ -1,10 +1,13 @@
 import {
   ENTRY_AMOUNT_CURRENCY,
   ENTRY_AMOUNT_EMPTY_PLACEHOLDER,
-  ENTRY_MIN_DANCERS,
+  KOPIYKAS_PER_HRYVNIA,
 } from './entryAmount.constants';
 import type { ParticipantAmount, PricedEntry } from './entryAmount.types';
-import { formatParticipants } from './entryParticipants';
+import {
+  formatParticipantName,
+  formatParticipants,
+} from './entryParticipants';
 
 // "700 грн" for a set price, a dash when there is none (an unpriced
 // nomination, or an entry not yet linked to one).
@@ -20,24 +23,51 @@ export function sumEntryAmounts(amounts: (number | null)[]): number {
   return amounts.reduce((sum: number, amount) => sum + (amount ?? 0), 0);
 }
 
-// One total per performer (a group counts as one performer), so a group
-// entry's price is never counted once per dancer.
+// One total per dancer: every number they danced adds their own part of it,
+// so a group number is charged to each of its dancers instead of standing as
+// a performer of its own. An entry that names no dancers keeps the whole
+// amount under its performer label.
 export function sumAmountsByParticipant(
   entries: PricedEntry[],
 ): ParticipantAmount[] {
-  const totals = new Map<string, number>();
+  const kopiykasByKey = new Map<string, ParticipantAmount>();
   for (const entry of entries) {
-    const participant = formatParticipants(entry.participants);
-    totals.set(participant, (totals.get(participant) ?? 0) + entry.amount);
+    if (entry.participantAmounts.length === 0) {
+      const label = formatParticipants(entry.participants);
+      addTo(kopiykasByKey, label, label, entry.amount);
+      continue;
+    }
+    const byId = new Map(entry.participants.map((p) => [p.id, p]));
+    for (const share of entry.participantAmounts) {
+      const participant = byId.get(share.participantId);
+      if (participant === undefined) continue;
+      addTo(
+        kopiykasByKey,
+        share.participantId,
+        formatParticipantName(participant),
+        share.amount,
+      );
+    }
   }
-  return [...totals].map(([participant, amount]) => ({ participant, amount }));
+  return [...kopiykasByKey.values()].map((row) => ({
+    ...row,
+    amount: row.amount / KOPIYKAS_PER_HRYVNIA,
+  }));
 }
 
-// Nomination prices are per person (TASK-20): a trio at 500 costs 1500.
-// Mirrors the server's calculateEntryAmount, before any «Доплати» fee.
-export function entryCostForDancers(
-  price: number | null,
-  dancers: number,
-): number | null {
-  return price === null ? null : price * Math.max(dancers, ENTRY_MIN_DANCERS);
+// Rows carry kopiykas while they accumulate — `toKopiykas` is a unit change,
+// not a rounding: every amount it reads is already kopiyka-granular.
+function addTo(
+  rows: Map<string, ParticipantAmount>,
+  key: string,
+  participant: string,
+  amount: number,
+): void {
+  const row = rows.get(key) ?? { key, participant, amount: 0 };
+  row.amount += toKopiykas(amount);
+  rows.set(key, row);
+}
+
+function toKopiykas(hryvnia: number): number {
+  return Math.round(hryvnia * KOPIYKAS_PER_HRYVNIA);
 }

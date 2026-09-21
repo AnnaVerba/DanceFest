@@ -19,5 +19,6 @@ export const SELECTED_COUNT_LABEL = 'Обрано:';
 export const CLEAR_SELECTION_LABEL = 'Зняти вибір';
 export const SELECT_NOMINATION_ARIA_PREFIX = 'Обрати номінацію';
 export const NOTHING_FOUND_MESSAGE = 'Нічого не знайдено за обраними фільтрами.';
+export const SPECIAL_PRICE_SHARED_HINT = 'Ціна діє для всіх спеціальних номінацій';
 
 export const PAGER_ARIA_LABEL = 'Сторінки номінацій';

@@ -25,9 +25,9 @@ const ALL_MEDAL_LEAGUES = [DEBUT_LEAGUE, FIRST_STEPS_LEAGUE];
 
 const LINEUPS = ['Соло', 'Дует', 'Тріо', 'Група'];
 
-const AGE_GROUPS: { name: string; ageFrom: number; ageTo: number }[] = [
-  { name: 'Діти', ageFrom: 0, ageTo: 12 },
-  { name: 'Дорослі', ageFrom: 13, ageTo: 99 },
+const AGE_GROUPS: { name: string; rangeFrom: number; rangeTo: number }[] = [
+  { name: 'Діти', rangeFrom: 0, rangeTo: 12 },
+  { name: 'Дорослі', rangeFrom: 13, rangeTo: 99 },
 ];
 
 interface CategoryRow {
@@ -63,11 +63,11 @@ async function ensureCategory(
   queryInterface: QueryInterface,
   transaction: Transaction,
   now: Date,
-  category: { name: string; type: string; ageFrom?: number; ageTo?: number },
+  category: { name: string; type: string; rangeFrom?: number; rangeTo?: number },
 ): Promise<void> {
   await queryInterface.sequelize.query(
-    `INSERT INTO categories (id, name, "type", "ageFrom", "ageTo", "createdAt", "updatedAt")
-       SELECT :id, :name, '${category.type}', :ageFrom, :ageTo, :now, :now
+    `INSERT INTO categories (id, name, "type", "rangeFrom", "rangeTo", "createdAt", "updatedAt")
+       SELECT :id, :name, '${category.type}', :rangeFrom, :rangeTo, :now, :now
         WHERE NOT EXISTS (
           SELECT 1 FROM categories
            WHERE lower(btrim(name)) = lower(btrim(:name))
@@ -77,8 +77,8 @@ async function ensureCategory(
       replacements: {
         id: randomUUID(),
         name: category.name,
-        ageFrom: category.ageFrom ?? null,
-        ageTo: category.ageTo ?? null,
+        rangeFrom: category.rangeFrom ?? null,
+        rangeTo: category.rangeTo ?? null,
         now,
       },
       transaction,
@@ -107,8 +107,8 @@ async function seed(
     await ensureCategory(queryInterface, transaction, now, {
       name: age.name,
       type: AGE_TYPE,
-      ageFrom: age.ageFrom,
-      ageTo: age.ageTo,
+      rangeFrom: age.rangeFrom,
+      rangeTo: age.rangeTo,
     });
   }
 

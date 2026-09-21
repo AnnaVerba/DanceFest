@@ -42,7 +42,15 @@ import {
   getCategoryTemplates,
 } from '../lib/categoryTemplates';
 import { upsertPaymentDetails } from '../lib/paymentDetails';
-import { UploadApiError, uploadImage } from '../lib/uploads';
+import { UploadApiError, uploadDocument, uploadImage } from '../lib/uploads';
+import { PDF_ACCEPT } from '../lib/uploads.constants';
+import {
+  REGULATIONS_HINT,
+  REGULATIONS_LABEL,
+  REGULATIONS_REPLACE_LABEL,
+  REGULATIONS_UPLOAD_LABEL,
+  REGULATIONS_UPLOADING_LABEL,
+} from '../lib/competitionRegulations.constants';
 import { isValidEmail, isValidPhone } from '../lib/validation';
 import { queryKeys } from '../lib/queryKeys';
 import { REFERENCE_STALE_TIME_MS } from '../lib/queryClient.constants';
@@ -55,7 +63,7 @@ const STEP_LABELS = [
   'Судді',
   'Категорії',
   'Майданчики',
-  'Розподіл',
+
 ] as const;
 const TOTAL_STEPS = STEP_LABELS.length;
 const JUDGES_STEP = 4;
@@ -119,6 +127,7 @@ export default function NewCompetitionPage() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const regulationsInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState(1);
 
@@ -135,6 +144,10 @@ export default function NewCompetitionPage() {
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [bannerUploading, setBannerUploading] = useState(false);
   const [bannerError, setBannerError] = useState<string | null>(null);
+  const [regulationsName, setRegulationsName] = useState<string | null>(null);
+  const [regulationsUrl, setRegulationsUrl] = useState<string | null>(null);
+  const [regulationsUploading, setRegulationsUploading] = useState(false);
+  const [regulationsError, setRegulationsError] = useState<string | null>(null);
 
   const [contactNumber, setContactNumber] = useState('');
   const [contactEmail, setContactEmail] = useState('');
@@ -159,7 +172,7 @@ export default function NewCompetitionPage() {
   const [nominations, setNominations] = useState<DraftNomination[]>([]);
   const [axes, setAxes] = useState<AxisSelection | null>(null);
   // Категорії зі спецмодалки, відсутні в axes — потрібні resolveDraftCategories,
-  // щоб не загубити ageFrom/ageTo нової вікової категорії при збереженні.
+  // щоб не загубити rangeFrom/rangeTo нової вікової категорії при збереженні.
   const [extraCategories, setExtraCategories] = useState<Category[]>([]);
 
   const [organizerQuery, setOrganizerQuery] = useState('');
@@ -279,6 +292,10 @@ export default function NewCompetitionPage() {
   const handleBannerPick = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Cleared before the upload is awaited, so picking the same file again
+    // after a failure still fires `change` — the input only reports a value
+    // that differs from the one it holds.
+    e.target.value = '';
 
     setBannerName(file.name);
     setBannerUrl(null);
@@ -294,6 +311,31 @@ export default function NewCompetitionPage() {
       setBannerName(null);
     } finally {
       setBannerUploading(false);
+    }
+  };
+
+  const handleRegulationsPick = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Same reason as handleBannerPick above.
+    e.target.value = '';
+
+    setRegulationsName(file.name);
+    setRegulationsUrl(null);
+    setRegulationsError(null);
+    setRegulationsUploading(true);
+    try {
+      const url = await uploadDocument(file);
+      setRegulationsUrl(url);
+    } catch (err) {
+      setRegulationsError(
+        err instanceof UploadApiError
+          ? err.message
+          : 'Не вдалося завантажити положення.',
+      );
+      setRegulationsName(null);
+    } finally {
+      setRegulationsUploading(false);
     }
   };
 
@@ -496,6 +538,7 @@ export default function NewCompetitionPage() {
 
       const competition = await createCompetition({
         image: bannerUrl ?? undefined,
+        regulationsUrl: regulationsUrl ?? undefined,
         name: name.trim(),
         description: description.trim(),
         location: location.trim(),
@@ -556,6 +599,7 @@ export default function NewCompetitionPage() {
           allowsImprovisation: n.allowsImprovisation,
           categoryIds: n.categoryIds,
           isSpecial: n.isSpecial,
+          specialName: n.specialName,
           exitMode: n.exitMode,
         }));
         try {
@@ -808,6 +852,47 @@ export default function NewCompetitionPage() {
                   style={{ display: 'none' }}
                 />
                 {bannerError && <p className={styles.fieldError}>{bannerError}</p>}
+              </div>
+              <div className={styles.field}>
+                <label htmlFor="w-regulations">{REGULATIONS_LABEL}</label>
+                <button
+                  id="w-regulations"
+                  type="button"
+                  className={styles.dropzone}
+                  onClick={() => regulationsInputRef.current?.click()}
+                  disabled={regulationsUploading}
+                >
+                  <svg
+                    width="26"
+                    height="26"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    aria-hidden="true"
+                  >
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <path d="M14 2v6h6" />
+                  </svg>
+                  {regulationsUploading
+                    ? REGULATIONS_UPLOADING_LABEL
+                    : (regulationsName ??
+                      (regulationsUrl
+                        ? REGULATIONS_REPLACE_LABEL
+                        : REGULATIONS_UPLOAD_LABEL))}
+                </button>
+                <input
+                  ref={regulationsInputRef}
+                  type="file"
+                  accept={PDF_ACCEPT}
+                  onChange={(e) => void handleRegulationsPick(e)}
+                  style={{ display: 'none' }}
+                />
+                {regulationsError ? (
+                  <p className={styles.fieldError}>{regulationsError}</p>
+                ) : (
+                  <p className={styles.hint}>{REGULATIONS_HINT}</p>
+                )}
               </div>
               <div className={styles.field}>
                 <label htmlFor="w-name">
@@ -1512,7 +1597,7 @@ export default function NewCompetitionPage() {
               type="button"
               className={`${styles.btn} ${styles.btnPrimary}`}
               onClick={handlePrimaryAction}
-              disabled={submitting}
+              disabled={submitting || bannerUploading || regulationsUploading}
             >
               {submitting
                 ? 'Створення...'

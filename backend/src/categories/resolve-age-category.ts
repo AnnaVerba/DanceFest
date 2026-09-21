@@ -6,20 +6,20 @@ export const NO_AGE_CATEGORY_MESSAGE =
 export interface AgeCategoryRange {
   id: string;
   name: string;
-  ageFrom: number | null;
-  ageTo: number | null;
+  rangeFrom: number | null;
+  rangeTo: number | null;
 }
 
 // Значення з обома заповненими межами — лише вони беруть участь у підборі.
 interface BoundedAgeCategory extends AgeCategoryRange {
-  ageFrom: number;
-  ageTo: number;
+  rangeFrom: number;
+  rangeTo: number;
 }
 
 function isBounded<T extends AgeCategoryRange>(
   category: T,
 ): category is T & BoundedAgeCategory {
-  return category.ageFrom !== null && category.ageTo !== null;
+  return category.rangeFrom !== null && category.rangeTo !== null;
 }
 
 const DATE_ONLY_LENGTH = 10;
@@ -56,38 +56,6 @@ export function fullYearsAt(birthDate: string, referenceDate: string): number {
   return age;
 }
 
-export interface AgeRangeOverlap {
-  first: BoundedAgeCategory;
-  second: BoundedAgeCategory;
-}
-
-/**
- * Перетин діапазонів робить автовизначення категорії неоднозначним: дитина
- * 12 років підпадає і під 9–12, і під 12–15, а вибір першого збігу тоді
- * залежить від порядку рядків.
- *
- * Перевіряється набір, обраний для одного конкурсу, а не вся таблиця:
- * `categories` — спільний довідник, і різні конкурси мають право на різні
- * вікові сітки.
- */
-export function findAgeRangeOverlaps(
-  ageCategories: AgeCategoryRange[],
-): AgeRangeOverlap[] {
-  const ranges = ageCategories.filter(isBounded);
-
-  const overlaps: AgeRangeOverlap[] = [];
-  for (let i = 0; i < ranges.length; i++) {
-    for (let j = i + 1; j < ranges.length; j++) {
-      const first = ranges[i];
-      const second = ranges[j];
-      if (first.ageFrom <= second.ageTo && second.ageFrom <= first.ageTo) {
-        overlaps.push({ first, second });
-      }
-    }
-  }
-  return overlaps;
-}
-
 /**
  * Вікова категорія рахується на **дату початку конкурсу**, а не на «сьогодні»:
  * інакше та сама дитина потрапляла б у різні категорії залежно від того, коли
@@ -105,7 +73,7 @@ export function resolveAgeCategory<T extends AgeCategoryRange>(
   return (
     ageCategories
       .filter(isBounded)
-      .find((category) => age >= category.ageFrom && age <= category.ageTo) ??
+      .find((category) => age >= category.rangeFrom && age <= category.rangeTo) ??
     null
   );
 }

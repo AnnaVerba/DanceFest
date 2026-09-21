@@ -2,24 +2,33 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import SpecialCategoryModal from './SpecialCategoryModal';
 import type { SpecialNominationDraft } from './SpecialCategoryModal';
+import type { SpecialSubmitResult } from './specialSubmitResult.types';
 import AxisPriceInputs from './AxisPriceInputs';
 import {
   AGE_CATEGORY_TYPE,
   CATEGORY_TYPES,
   CATEGORY_TYPE_LABELS,
+  CategoryApiError,
+  LINEUP_CATEGORY_TYPE,
   getCategories,
+  updateCategoryAgeRange,
 } from '../../lib/categories';
 import { queryKeys } from '../../lib/queryKeys';
 import { REFERENCE_STALE_TIME_MS } from '../../lib/queryClient.constants';
 import AgeRangeFields from './AgeRangeFields';
+import LineupSizeFields from './LineupSizeFields';
 import { PRICED_AXES, resolvePrice } from '../../lib/nominationPricing';
 import type { AxisPriceMap } from '../../lib/nominationPricing';
+import { parseAgeRange } from '../../lib/ageRange';
 import {
-  EMPTY_AGE_RANGE,
-  ageRangeConflictMessage,
-  parseAgeRange,
-} from '../../lib/ageRange';
-import type { AgeRange } from '../../lib/ageRange';
+  EMPTY_CATEGORY_RANGE,
+  formatCategoryRange,
+  parseLineupSize,
+} from '../../lib/categoryRange';
+import type { CategoryRange } from '../../lib/categoryRange';
+import { LINEUP_SIZE_UNBOUNDED_LABEL } from '../../lib/categoryRange.constants';
+import { useCategoryRangeDraft } from '../../lib/useCategoryRangeDraft';
+import type { CategoryRangeDraftController } from '../../lib/useCategoryRangeDraft.types';
 import type { Category, CategoryType } from '../../lib/categories';
 import type { ExitMode } from '../../lib/categoryTemplates';
 import {
@@ -32,7 +41,13 @@ import {
   signatureOf,
 } from '../../lib/nominationSet';
 import type { AxisSelection, DraftNomination } from '../../lib/nominationSet';
+import { findDraftPriceConflict } from '../../lib/specialPriceConflict';
 import {
+  AGE_RANGE_CANCEL_LABEL,
+  AGE_RANGE_EDIT_LABEL,
+  AGE_RANGE_SAVE_FAILED_MESSAGE,
+  AGE_RANGE_SAVE_LABEL,
+  AGE_RANGE_SAVING_LABEL,
   CATEGORY_VALUE_NAME_REQUIRED_MESSAGE,
   NOMINATIONS_TABLE_PAGE_SIZE,
   REMOVE_AXIS_VALUE_DROP_LABEL,
@@ -57,6 +72,8 @@ interface NominationSetBuilderProps {
   // Категорії, створені лише в модалці спецкатегорії, не потрапляють у
   // selection — цей колбек несе їх межі туди, де їх шукає resolveDraftCategories.
   onCategoryCreated?: (category: Category) => void;
+  // У шаблонах категорій статус імпровізації не задається — колонку ховаємо.
+  hideImprovisation?: boolean;
 }
 
 export default function NominationSetBuilder({
@@ -67,12 +84,15 @@ export default function NominationSetBuilder({
   onNotice,
   seedCategoryIds,
   onCategoryCreated,
+  hideImprovisation = false,
 }: NominationSetBuilderProps) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [inputs, setInputs] = useState<Record<string, string>>({});
-  const [ageRange, setAgeRange] = useState(EMPTY_AGE_RANGE);
+  const [editingAgeId, setEditingAgeId] = useState<string | null>(null);
+  const [editedRange, setEditedRange] = useState(EMPTY_CATEGORY_RANGE);
+  const [savingRange, setSavingRange] = useState(false);
   const [axisPrices, setAxisPrices] = useState<AxisPriceMap>({});
   const [specialOpen, setSpecialOpen] = useState(false);
   const [nominationsPage, setNominationsPage] = useState(0);
@@ -88,6 +108,18 @@ export default function NominationSetBuilder({
     staleTime: REFERENCE_STALE_TIME_MS,
   });
   const suggestions = categoriesQuery.data ?? EMPTY_CATEGORIES;
+  const age = useCategoryRangeDraft(suggestions, AGE_CATEGORY_TYPE);
+  const lineup = useCategoryRangeDraft(suggestions, LINEUP_CATEGORY_TYPE);
+
+  // Дві осі несуть числові межі, решта — ні. Контролер на кожну окремо: поля
+  // обох показуються одночасно й перетирали б одне одного.
+  const rangeDraftFor = (
+    type: CategoryType,
+  ): CategoryRangeDraftController | null => {
+    if (type === AGE_CATEGORY_TYPE) return age;
+    if (type === LINEUP_CATEGORY_TYPE) return lineup;
+    return null;
+  };
 
   useEffect(() => {
     if (!categoriesQuery.isError) return;
@@ -131,7 +163,7 @@ export default function NominationSetBuilder({
 
     const clearInput = () => {
       setInputs((prev) => ({ ...prev, [type]: '' }));
-      if (type === AGE_CATEGORY_TYPE) setAgeRange(EMPTY_AGE_RANGE);
+      rangeDraftFor(type)?.reset();
     };
     const candidate = { name: raw, type };
 
@@ -143,46 +175,88 @@ export default function NominationSetBuilder({
     const existing = suggestions.find((s) => sameCategoryValue(s, candidate));
 
     // Довідник спільний за назвою: якщо значення з такою назвою вже є,
-    // порожні поля «від»/«до» означають «використати наявне», а заповнені —
-    // намір користувача або підтвердити, або перевизначити його межі. Тихо
-    // відкидати введене й підставляти чуже — саме той сценарій, що ламав
-    // BUG-03.
-    let range: AgeRange | undefined;
-    if (type === AGE_CATEGORY_TYPE) {
-      const rangeEntered = ageRange.from.trim() !== '' || ageRange.to.trim() !== '';
-      if (!existing || rangeEntered) {
-        const parsed = parseAgeRange(ageRange);
+    // порожні поля меж означають «використати наявне», а заповнені — намір
+    // користувача або підтвердити, або перевизначити їх. Тихо відкидати
+    // введене й підставляти чуже — саме той сценарій, що ламав BUG-03.
+    //
+    // Підставлене з довідника й не редаговане — це не введені межі: інакше
+    // вибір наявного значення щоразу створював би чернетку замість нього
+    // самого, і ✎ на чіпі правив би лише набір, а не спільний довідник.
+    let range: CategoryRange | undefined;
+    const draft = rangeDraftFor(type);
+    if (draft) {
+      const rangeEntered =
+        !draft.isFromReference &&
+        (draft.draft.from.trim() !== '' || draft.draft.to.trim() !== '');
+      // Кількість людей обов'язкова для нового складу: без неї він не знає,
+      // скільком танцюристам відповідає, і заявка його не підбере.
+      if (!existing || rangeEntered || draft.draft.unbounded) {
+        const parsed =
+          type === AGE_CATEGORY_TYPE
+            ? parseAgeRange(draft.draft)
+            : parseLineupSize(draft.draft);
         if (!parsed.ok) {
           setError(parsed.message);
-          return;
-        }
-        if (
-          existing &&
-          existing.ageFrom !== null &&
-          existing.ageTo !== null &&
-          (existing.ageFrom !== parsed.range.ageFrom ||
-            existing.ageTo !== parsed.range.ageTo)
-        ) {
-          setError(
-            ageRangeConflictMessage(
-              existing.name,
-              existing.ageFrom,
-              existing.ageTo,
-            ),
-          );
           return;
         }
         range = parsed.range;
       }
     }
 
-    const category = existing ?? draftCategory(raw, type, range);
+    const category =
+      existing && !range ? existing : draftCategory(raw, type, range);
 
     updateSelection((current) => ({
       ...current,
       [type]: [...current[type], category],
     }));
     clearInput();
+  };
+
+  const startEditingRange = (category: Category) => {
+    setEditingAgeId(category.id);
+    setEditedRange({
+      from: String(category.rangeFrom ?? ''),
+      to: String(category.rangeTo ?? ''),
+      unbounded: category.rangeFrom !== null && category.rangeTo === null,
+    });
+  };
+
+  // Межі значення зі спільного довідника змінюються одразу на сервері (вони
+  // діють в усіх конкурсах), чернетки ще не збережені — лише в наборі.
+  const saveRange = async (category: Category) => {
+    const parsed = parseAgeRange(editedRange);
+    if (!parsed.ok) {
+      setError(parsed.message);
+      return;
+    }
+
+    setSavingRange(true);
+    try {
+      const updated = isDraftCategory(category.id)
+        ? draftCategory(category.name, category.type, parsed.range)
+        : await updateCategoryAgeRange(category.id, parsed.range);
+      if (!isDraftCategory(category.id)) {
+        queryClient.setQueryData<Category[]>(queryKeys.categories(), (prev) =>
+          prev?.map((c) => (c.id === updated.id ? updated : c)),
+        );
+      }
+      updateSelection((current) => ({
+        ...current,
+        [category.type]: current[category.type].map((c) =>
+          c.id === updated.id ? updated : c,
+        ),
+      }));
+      setEditingAgeId(null);
+    } catch (err) {
+      setError(
+        err instanceof CategoryApiError
+          ? err.message
+          : AGE_RANGE_SAVE_FAILED_MESSAGE,
+      );
+    } finally {
+      setSavingRange(false);
+    }
   };
 
   const dropFromSelection = (type: CategoryType, id: string) =>
@@ -290,13 +364,20 @@ export default function NominationSetBuilder({
     else setNotice(message);
   };
 
-  const addSpecial = (drafts: SpecialNominationDraft[]) => {
+  const addSpecial = (
+    drafts: SpecialNominationDraft[],
+  ): Promise<SpecialSubmitResult> => {
+    const priceConflict = findDraftPriceConflict(nominations, drafts);
+    if (priceConflict) {
+      return Promise.resolve({ status: 'priceConflict', message: priceConflict });
+    }
+
     const known = new Set(nominations.map((n) => n.signature));
     const fresh = drafts.filter((d) => !known.has(d.signature));
 
     if (fresh.length === 0) {
       onNotice?.('Ці номінації вже є в наборі');
-      return;
+      return Promise.resolve({ status: 'created' });
     }
     onNotice?.(
       fresh.length < drafts.length
@@ -316,6 +397,7 @@ export default function NominationSetBuilder({
         exitMode: d.exitMode,
       })),
     ]);
+    return Promise.resolve({ status: 'created' });
   };
 
   const patchNomination = (signature: string, patch: Partial<DraftNomination>) =>
@@ -360,9 +442,49 @@ export default function NominationSetBuilder({
                   {picked.map((category) => (
                     <span className={styles.chip} key={category.id}>
                       {category.name}
-                      {category.ageFrom !== null &&
-                        category.ageTo !== null &&
-                        ` (${category.ageFrom}–${category.ageTo})`}
+                      {editingAgeId === category.id ? (
+                        <>
+                          <AgeRangeFields
+                            value={editedRange}
+                            onChange={setEditedRange}
+                            inputClassName={styles.chipAgeBound}
+                          />
+                          <button
+                            type="button"
+                            disabled={savingRange}
+                            onClick={() => void saveRange(category)}
+                          >
+                            {savingRange
+                              ? AGE_RANGE_SAVING_LABEL
+                              : AGE_RANGE_SAVE_LABEL}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={savingRange}
+                            onClick={() => setEditingAgeId(null)}
+                          >
+                            {AGE_RANGE_CANCEL_LABEL}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          {formatCategoryRange(
+                            category.rangeFrom,
+                            category.rangeTo,
+                            LINEUP_SIZE_UNBOUNDED_LABEL,
+                          ) && ` (${formatCategoryRange(category.rangeFrom, category.rangeTo, LINEUP_SIZE_UNBOUNDED_LABEL)})`}
+                          {type === AGE_CATEGORY_TYPE && (
+                            <button
+                              type="button"
+                              aria-label={`${AGE_RANGE_EDIT_LABEL}: ${category.name}`}
+                              title={AGE_RANGE_EDIT_LABEL}
+                              onClick={() => startEditingRange(category)}
+                            >
+                              ✎
+                            </button>
+                          )}
+                        </>
+                      )}
                       <button
                         type="button"
                         aria-label={`Прибрати ${category.name}`}
@@ -388,9 +510,11 @@ export default function NominationSetBuilder({
                   placeholder="Нове значення"
                   aria-label={`Значення категорії «${CATEGORY_TYPE_LABELS[type]}»`}
                   value={inputs[type] ?? ''}
-                  onChange={(e) =>
-                    setInputs((prev) => ({ ...prev, [type]: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setInputs((prev) => ({ ...prev, [type]: value }));
+                    rangeDraftFor(type)?.setName(value);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -400,9 +524,21 @@ export default function NominationSetBuilder({
                 />
                 {type === AGE_CATEGORY_TYPE && (
                   <AgeRangeFields
-                    value={ageRange}
-                    onChange={setAgeRange}
+                    value={age.draft}
+                    onChange={age.setDraft}
                     inputClassName={styles.ageBound}
+                    hint={age.hint ?? undefined}
+                    hintClassName={styles.ageHint}
+                  />
+                )}
+                {type === LINEUP_CATEGORY_TYPE && (
+                  <LineupSizeFields
+                    value={lineup.draft}
+                    onChange={lineup.setDraft}
+                    inputClassName={styles.ageBound}
+                    hint={lineup.hint ?? undefined}
+                    hintClassName={styles.ageHint}
+                    unboundedClassName={styles.unbounded}
                   />
                 )}
                 <datalist id={`suggestions-${type}`}>
@@ -460,7 +596,9 @@ export default function NominationSetBuilder({
                 <tr>
                   <th>Назва</th>
                   <th className={styles.colPrice}>Ціна, грн</th>
-                  <th className={styles.colImprov}>Імпровізація</th>
+                  {!hideImprovisation && (
+                    <th className={styles.colImprov}>Імпровізація</th>
+                  )}
                   <th className={styles.colRemove} aria-label="Прибрати" />
                 </tr>
               </thead>
@@ -508,18 +646,20 @@ export default function NominationSetBuilder({
                         }
                       />
                     </td>
-                    <td className={styles.improvCell}>
-                      <input
-                        type="checkbox"
-                        aria-label={`Дозволити імпровізацію в «${nomination.name}»`}
-                        checked={nomination.allowsImprovisation}
-                        onChange={(e) =>
-                          patchNomination(nomination.signature, {
-                            allowsImprovisation: e.target.checked,
-                          })
-                        }
-                      />
-                    </td>
+                    {!hideImprovisation && (
+                      <td className={styles.improvCell}>
+                        <input
+                          type="checkbox"
+                          aria-label={`Дозволити імпровізацію в «${nomination.name}»`}
+                          checked={nomination.allowsImprovisation}
+                          onChange={(e) =>
+                            patchNomination(nomination.signature, {
+                              allowsImprovisation: e.target.checked,
+                            })
+                          }
+                        />
+                      </td>
+                    )}
                     <td>
                       <button
                         type="button"
@@ -570,7 +710,8 @@ export default function NominationSetBuilder({
         submitLabel="Додати до набору"
         createCategoryValue={(name, type, range) =>
           Promise.resolve(
-            suggestions.find((s) => sameCategoryValue(s, { name, type })) ??
+            (!range &&
+              suggestions.find((s) => sameCategoryValue(s, { name, type }))) ||
               draftCategory(name, type, range),
           )
         }

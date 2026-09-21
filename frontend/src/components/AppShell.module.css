@@ -3,22 +3,37 @@
 }
 
 /* Pinned to the left edge and running the viewport's full height, so it meets
-   the transparent top bar instead of starting below it. The links still begin
-   under the bar, clear of the logo. Fixed width and position — it never
-   shifts or resizes between pages. */
+   the transparent top bar instead of starting below it. The logo heads the
+   rail inside the bar's band — the bar itself is transparent and carries only
+   the account controls on the right, so nothing collides. Fixed width and
+   position — it never shifts or resizes between pages. */
 .rail {
   position: fixed;
   top: 0;
   left: 0;
   bottom: 0;
   width: var(--cabinet-rail-w);
-  padding: calc(var(--topbar-h) + 24px) 16px 24px;
+  padding: 18px 16px 24px;
   overflow-y: auto;
   background: var(--g-chrome-bg);
   backdrop-filter: blur(12px);
   border-right: 1px solid var(--g-line);
   box-sizing: border-box;
   z-index: 10;
+}
+
+/* The margin keeps the first nav link below the top bar's band. */
+.railBrand {
+  display: block;
+  margin: 0 0 24px 6px;
+  color: var(--g-ink);
+}
+
+/* Flat outlines filled with currentColor, so the mark flips with the theme. */
+.railLogo {
+  display: block;
+  height: 34px;
+  width: auto;
 }
 
 .body {
@@ -35,6 +50,11 @@
     border-right: 0;
     border-bottom: 1px solid var(--g-line);
     overflow: visible;
+  }
+
+  /* The rail drops below the bar here, so the logo needs no clearance. */
+  .railBrand {
+    margin: 0 0 10px;
   }
 
   .body {

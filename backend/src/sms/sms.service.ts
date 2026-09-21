@@ -10,6 +10,7 @@ import {
   SMS_PROVIDER_TURBOSMS,
   SMS_PROVIDER_TWILIO,
 } from './sms.constants';
+import { SmsFlyProvider } from './fly.provider';
 
 @Injectable()
 export class SmsService {
@@ -17,6 +18,7 @@ export class SmsService {
     private readonly config: ConfigService,
     private readonly dev: DevSmsProvider,
     private readonly twilio: TwilioSmsProvider,
+    private readonly fly:SmsFlyProvider,
     private readonly turbosms: TurboSmsProvider,
   ) {}
 
@@ -34,6 +36,8 @@ export class SmsService {
         return this.twilio;
       case SMS_PROVIDER_TURBOSMS:
         return this.turbosms;
+      case 'fly':
+        return  this.fly;
       default:
         return this.dev;
     }

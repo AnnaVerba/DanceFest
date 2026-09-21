@@ -125,6 +125,12 @@
   padding: 0 2px;
 }
 
+.chip input.chipAgeBound {
+  width: 56px;
+  padding: 3px 6px;
+  font-size: 13px;
+}
+
 .chip button:hover {
   opacity: 1;
 }
@@ -338,4 +344,22 @@
   gap: 12px;
   margin-top: 12px;
   font-size: 14px;
+}
+
+/* Підказка про підтягнуті межі — окремим рядком, щоб не звужувати поля. */
+.ageHint {
+  flex: 1 0 100%;
+  font-size: 13px;
+  color: var(--g-muted);
+}
+
+/* «і більше» — прапорець у тому ж рядку, що й межі складу. */
+.unbounded {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-size: 13px;
+  color: var(--g-muted);
+  white-space: nowrap;
 }

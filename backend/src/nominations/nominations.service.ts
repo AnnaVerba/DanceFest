@@ -48,8 +48,12 @@ import {
   NOMINATION_BULK_SELECTOR_REQUIRED_MESSAGE,
   NO_NOMINATIONS_MATCHED_MESSAGE,
   SOME_NOMINATIONS_NOT_IN_COMPETITION_MESSAGE,
+  SPECIAL_NAME_REQUIRED_MESSAGE,
   VENUE_NOT_IN_COMPETITION_MESSAGE,
 } from './nominations.constants';
+import { normalizeSpecialName, specialGroupKey } from './special-name';
+import { SpecialNominationGroups } from './special-nomination-groups';
+import type { NominationPricing } from './nomination-pricing.interface';
 import {
   COMPETITION_NOT_FOUND_MESSAGE,
   NO_COMPETITION_ACCESS_MESSAGE,
@@ -82,6 +86,7 @@ export class NominationsService {
     private readonly entryModel: typeof Entry,
     private readonly competitionRulesService: CompetitionRulesService,
     private readonly scheduleService: ScheduleService,
+    private readonly specialGroups: SpecialNominationGroups,
   ) {}
 
   // `q` turns this into a name typeahead (a festival can have 500+
@@ -118,7 +123,24 @@ export class NominationsService {
     const attributes = this.toAttributes(competitionId, dto);
     await this.applyAutoDuration(competitionId, dto, attributes);
 
-    const nomination = await this.nominationModel.create(attributes);
+    const nomination = await this.nominationModel.sequelize!.transaction(
+      async (transaction) => {
+        const explicit = await this.specialGroups.assign(
+          competitionId,
+          [attributes],
+          transaction,
+        );
+        const created = await this.nominationModel.create(attributes, {
+          transaction,
+        });
+        await this.specialGroups.alignExplicit(
+          competitionId,
+          explicit,
+          transaction,
+        );
+        return created;
+      },
+    );
 
     return this.toDto(nomination, await this.loadCategories([nomination]));
   }
@@ -146,8 +168,24 @@ export class NominationsService {
       }),
     );
     const created = await this.nominationModel.sequelize!.transaction(
-      (transaction) =>
-        bulkCreateChunked(this.nominationModel, attributesList, transaction),
+      async (transaction) => {
+        const explicit = await this.specialGroups.assign(
+          competitionId,
+          attributesList,
+          transaction,
+        );
+        const rows = await bulkCreateChunked(
+          this.nominationModel,
+          attributesList,
+          transaction,
+        );
+        await this.specialGroups.alignExplicit(
+          competitionId,
+          explicit,
+          transaction,
+        );
+        return rows;
+      },
     );
 
     const categories = await this.loadCategories(created);
@@ -195,6 +233,16 @@ export class NominationsService {
     }
     if (dto.categoryIds !== undefined) nomination.categoryIds = dto.categoryIds;
     if (dto.isSpecial !== undefined) nomination.isSpecial = dto.isSpecial;
+    let specialNameChanged = false;
+    if (dto.specialName !== undefined && dto.specialName !== null) {
+      nomination.specialName = normalizeSpecialName(dto.specialName);
+      specialNameChanged = true;
+    }
+    if (!nomination.isSpecial) {
+      nomination.specialName = null;
+    } else if (!nomination.specialName) {
+      throw new BadRequestException(SPECIAL_NAME_REQUIRED_MESSAGE);
+    }
     if (dto.exitMode !== undefined) nomination.exitMode = dto.exitMode;
     if (dto.durationLimitSeconds !== undefined) {
       nomination.durationLimitSeconds = dto.durationLimitSeconds ?? null;
@@ -210,7 +258,36 @@ export class NominationsService {
       nomination.programLimits = dto.programLimits;
     }
 
-    await nomination.save();
+    await nomination.sequelize!.transaction(async (transaction) => {
+      if (nomination.isSpecial && specialNameChanged) {
+        const canonical = await this.specialGroups.canonicalNames(
+          competitionId,
+          [nomination.specialName as string],
+          transaction,
+        );
+        nomination.specialName = canonical.get(
+          nomination.specialName as string,
+        ) as string;
+        const groupPrice =
+          dto.price === undefined
+            ? await this.specialGroups.findGroupPrice(
+                competitionId,
+                nomination.specialName,
+                transaction,
+              )
+            : null;
+        if (groupPrice !== null) nomination.price = groupPrice;
+      }
+      await nomination.save({ transaction });
+      if (nomination.isSpecial && dto.price !== undefined) {
+        await this.specialGroups.alignPrice(
+          competitionId,
+          nomination.specialName as string,
+          nomination.price,
+          transaction,
+        );
+      }
+    });
     // Entries keep a copy of the nomination's name, which the program,
     // start list and results print — a rename must reach them (TASK-15).
     if (renamed) {
@@ -519,16 +596,28 @@ export class NominationsService {
     };
   }
 
-  // Nomination price per id — what an entry against that nomination costs
-  // (BUG-28's "Мої заявки" total, same field TASK-20 reads elsewhere).
-  async findPricesByIds(ids: string[]): Promise<Map<string, number | null>> {
+  // Price and pay-once group of each nomination — what an entry against it
+  // costs (see EntryChargeCalculator).
+  async findPricingByIds(
+    ids: string[],
+  ): Promise<Map<string, NominationPricing>> {
     if (ids.length === 0) return new Map();
     const nominations = await this.nominationModel.findAll({
       where: { id: { [Op.in]: ids } },
-      attributes: ['id', 'price'],
+      attributes: ['id', 'competitionId', 'price', 'isSpecial', 'specialName'],
     });
     return new Map(
-      nominations.map((n) => [n.id, n.price === null ? null : Number(n.price)]),
+      nominations.map((n) => [
+        n.id,
+        {
+          competitionId: n.competitionId,
+          price: n.price === null ? null : Number(n.price),
+          specialGroupKey:
+            n.isSpecial && n.specialName
+              ? specialGroupKey(n.competitionId, n.specialName)
+              : null,
+        },
+      ]),
     );
   }
 
@@ -544,6 +633,7 @@ export class NominationsService {
       allowsImprovisation: dto.allowsImprovisation ?? false,
       categoryIds: dto.categoryIds ?? [],
       isSpecial: dto.isSpecial ?? false,
+      specialName: dto.isSpecial ? (dto.specialName ?? null) : null,
       exitMode: dto.exitMode ?? DEFAULT_EXIT_MODE,
       durationLimitSeconds: dto.durationLimitSeconds ?? null,
       programLimits: dto.programLimits ?? {},
@@ -790,6 +880,7 @@ export class NominationsService {
       allowsImprovisation: nomination.allowsImprovisation,
       categoryIds: nomination.categoryIds,
       isSpecial: nomination.isSpecial,
+      specialName: nomination.specialName,
       exitMode: nomination.exitMode,
       durationLimitSeconds: nomination.durationLimitSeconds,
       durationOverridden: nomination.durationOverridden,
@@ -799,10 +890,10 @@ export class NominationsService {
         (c) => c.name,
       ),
       lineups: this.categoriesFor(nomination, categories, 'lineup').map(
-        (c) => c.name,
+        (c) => ({ name: c.name, rangeFrom: c.rangeFrom, rangeTo: c.rangeTo }),
       ),
       ageCategories: this.categoriesFor(nomination, categories, 'age').map(
-        (c) => ({ name: c.name, ageFrom: c.ageFrom, ageTo: c.ageTo }),
+        (c) => ({ name: c.name, rangeFrom: c.rangeFrom, rangeTo: c.rangeTo }),
       ),
       exits: this.exitsOf(nomination, categories),
       createdAt: nomination.createdAt,

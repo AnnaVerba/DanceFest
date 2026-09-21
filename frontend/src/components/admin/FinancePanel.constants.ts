@@ -13,8 +13,6 @@ export const FINANCE_COLUMN_COUNT = 3;
 export const FINANCE_PAGE_SIZE = 20;
 export const FINANCE_SEARCH_DEBOUNCE_MS = 300;
 
-// Studios and trainers first: they add up to the total. Dancers last —
-// each is shown their number's full cost, so their sums do not.
 export const FINANCE_SECTIONS: FinanceSectionConfig[] = [
   {
     group: 'studios',
@@ -33,8 +31,5 @@ export const FINANCE_SECTIONS: FinanceSectionConfig[] = [
     title: 'Учасники',
     nameLabel: 'Учасник',
     searchPlaceholder: 'Пошук учасника...',
-    note:
-      'Для групового номера кожному учаснику показано повну вартість номера, ' +
-      'тому суми учасників не складаються в загальну.',
   },
 ];

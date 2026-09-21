@@ -9,6 +9,7 @@ import {
   RATE_LIMIT_MAX_REQUESTS,
   RATE_LIMIT_MESSAGE,
   RATE_LIMIT_WINDOW_MS,
+  TRUSTED_PROXY_HOPS,
 } from './main.constants';
 import { DEFAULT_FRONTEND_URL } from './team/team.constants';
 
@@ -18,8 +19,9 @@ async function bootstrap() {
   });
   app.useBodyParser('json', { limit: JSON_BODY_SIZE_LIMIT });
   // Behind a reverse proxy in prod, so req.ip reads X-Forwarded-For.
-  app.set('trust proxy', true);
+  app.set('trust proxy', TRUSTED_PROXY_HOPS);
   app.use(
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
     rateLimit({
       windowMs: RATE_LIMIT_WINDOW_MS,
       limit: RATE_LIMIT_MAX_REQUESTS,

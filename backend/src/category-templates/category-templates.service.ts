@@ -10,17 +10,14 @@ import { CreationAttributes, Op } from 'sequelize';
 import { User } from '../users/user.model';
 import { AccessLevel } from '../auth/access-level.enum';
 import { CategoriesService } from '../categories/categories.service';
-import { AGE_CATEGORY_TYPE } from '../categories/category.model';
 import type { Category } from '../categories/category.model';
 import {
   CATEGORY_TYPE_LABELS,
   CRITERIA_ORDER,
 } from '../categories/category-type-labels';
-import { findAgeRangeOverlaps } from '../categories/resolve-age-category';
 import { Nomination } from '../nominations/nomination.model';
 import { DEFAULT_EXIT_MODE } from '../nominations/nomination-exits';
 import {
-  AGE_RANGES_OVERLAP_MESSAGE,
   TEMPLATE_IN_USE,
   TEMPLATE_IN_USE_MESSAGE,
 } from './template-error-codes';
@@ -220,7 +217,6 @@ export class CategoryTemplatesService {
 
   async create(requesterId: string, dto: CreateCategoryTemplateDto) {
     await this.assertCategoriesExist(dto.nominations);
-    await this.assertAgeRangesDoNotOverlap(dto.nominations);
 
     const template = await this.templateModel.create({
       name: dto.name.trim(),
@@ -263,7 +259,6 @@ export class CategoryTemplatesService {
         throw new BadRequestException(TEMPLATE_CANNOT_BE_EMPTY_MESSAGE);
       }
       await this.assertCategoriesExist(dto.nominations);
-      await this.assertAgeRangesDoNotOverlap(dto.nominations);
       await this.replaceNominations(templateId, dto.nominations);
     }
 
@@ -303,15 +298,6 @@ export class CategoryTemplatesService {
         ['createdAt', 'ASC'],
       ],
     });
-
-    // Копія проходить ту саму перевірку, що й ручне збереження: шаблони,
-    // створені до появи перевірки, інакше форкали б перетин далі.
-    await this.assertAgeRangesDoNotOverlap(
-      sourceNominations.map((n) => ({
-        name: n.name,
-        categoryIds: n.categoryIds,
-      })),
-    );
 
     if (sourceNominations.length > 0) {
       const records = sourceNominations.map((n, index) => ({
@@ -405,30 +391,6 @@ export class CategoryTemplatesService {
     });
   }
 
-  /**
-   * Перетин діапазонів робить автовизначення вікової категорії неоднозначним:
-   * дитина 12 років підпадає і під 9–12, і під 12–15, а переможе та, що
-   * трапиться першою. Тому шаблон із перетином не зберігається взагалі.
-   */
-  private async assertAgeRangesDoNotOverlap(
-    nominations: TemplateNominationDto[],
-  ): Promise<void> {
-    const ids = [...new Set(nominations.flatMap((n) => n.categoryIds ?? []))];
-    const categories = await this.categoriesService.findByIds(ids);
-    const ageValues = categories.filter((c) => c.type === AGE_CATEGORY_TYPE);
-
-    const overlaps = findAgeRangeOverlaps(ageValues);
-    if (overlaps.length > 0) {
-      const pairs = overlaps.map(
-        ({ first, second }) =>
-          `«${first.name}» (${first.ageFrom}–${first.ageTo}) і «${second.name}» (${second.ageFrom}–${second.ageTo})`,
-      );
-      throw new BadRequestException(
-        `${AGE_RANGES_OVERLAP_MESSAGE}: ${pairs.join('; ')}`,
-      );
-    }
-  }
-
   private async loadCategoriesOf(
     nominations: TemplateNomination[],
   ): Promise<Category[]> {
@@ -455,8 +417,8 @@ export class CategoryTemplatesService {
         .map((c) => ({
           id: c.id,
           label: c.name,
-          ageFrom: c.ageFrom,
-          ageTo: c.ageTo,
+          rangeFrom: c.rangeFrom,
+          rangeTo: c.rangeTo,
         })),
     })).filter((criterion) => criterion.values.length > 0);
   }

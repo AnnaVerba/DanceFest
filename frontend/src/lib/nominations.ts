@@ -28,10 +28,13 @@ export interface NominationExit {
   durationLimitSeconds: number | null;
 }
 
-export interface NominationAgeCategory {
+// Іменований числовий діапазон значення осі: для віку це межі віку, для
+// складу — кількість людей у номері. rangeTo = null означає «без верхньої
+// межі», обидві null — межі не задані.
+export interface NominationCategoryRange {
   name: string;
-  ageFrom: number | null;
-  ageTo: number | null;
+  rangeFrom: number | null;
+  rangeTo: number | null;
 }
 
 export interface Nomination {
@@ -43,14 +46,15 @@ export interface Nomination {
   allowsImprovisation: boolean;
   categoryIds: string[];
   isSpecial: boolean;
+  specialName: string | null;
   exitMode: ExitMode;
   durationLimitSeconds: number | null;
   durationOverridden: boolean;
   programLimits: Record<string, number>;
   programs: NominationProgram[];
   leagues: string[];
-  lineups: string[];
-  ageCategories: NominationAgeCategory[];
+  lineups: NominationCategoryRange[];
+  ageCategories: NominationCategoryRange[];
   exits: NominationExit[];
   createdAt: string;
 }
@@ -64,6 +68,7 @@ export interface NominationInput {
   allowsImprovisation?: boolean;
   categoryIds?: string[];
   isSpecial?: boolean;
+  specialName?: string;
   exitMode?: ExitMode;
   durationLimitSeconds?: number;
   programLimits?: Record<string, number>;
@@ -71,9 +76,11 @@ export interface NominationInput {
 
 export class NominationApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  code: string | null;
+  constructor(message: string, status: number, code: string | null = null) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -88,8 +95,9 @@ export class NominationsBulkPartialFailureError extends NominationApiError {
     status: number,
     created: Nomination[],
     unsaved: NominationInput[],
+    code: string | null = null,
   ) {
-    super(message, status);
+    super(message, status, code);
     this.created = created;
     this.unsaved = unsaved;
   }
@@ -97,6 +105,7 @@ export class NominationsBulkPartialFailureError extends NominationApiError {
 
 interface ErrorPayload {
   message?: string | string[];
+  code?: string;
 }
 
 function extractMessage(payload: ErrorPayload | null, fallback: string): string {
@@ -128,6 +137,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new NominationApiError(
       extractMessage(payload, GENERIC_REQUEST_ERROR_MESSAGE),
       response.status,
+      payload?.code ?? null,
     );
   }
 
@@ -227,6 +237,7 @@ export async function createNominationsBulk(
         err instanceof NominationApiError ? err.status : 0,
         created,
         nominations.slice(start),
+        err instanceof NominationApiError ? err.code : null,
       );
     }
   }
