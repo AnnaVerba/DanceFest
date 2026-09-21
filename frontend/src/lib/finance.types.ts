@@ -11,8 +11,7 @@ export interface FinanceGroupRow {
   amount: number;
 }
 
-// Trainer and studio rows each add up to `total`; dancer rows do not —
-// every dancer in a group number is shown that number's full cost.
+// Trainer, studio and dancer rows each add up to `total`.
 export interface FinanceSummary {
   entriesCount: number;
   total: number;

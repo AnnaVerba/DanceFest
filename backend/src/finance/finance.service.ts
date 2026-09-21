@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Entry } from '../entries/entry.model';
 import { EntriesService } from '../entries/entries.service';
-import { calculateEntryAmount, roundMoney } from '../entries/entry-amount';
+import {
+  calculateEntryAmount,
+  calculateParticipantShare,
+  roundMoney,
+} from '../entries/entry-amount';
 import { CompetitionsService } from '../competitions/competitions.service';
 import { UsersService } from '../users/users.service';
 import type { AccessLevel } from '../auth/access-level.enum';
@@ -105,6 +109,7 @@ export class FinanceService {
     return entries.map((entry) => ({
       entry,
       amount: calculateEntryAmount(entry, prices),
+      participantShare: calculateParticipantShare(entry, prices),
     }));
   }
 
@@ -139,7 +144,8 @@ export class FinanceService {
     return groups.toRows();
   }
 
-  // Every dancer in a number is charged that number's full cost.
+  // Every dancer in a number is charged their own share of it, so the
+  // dancer rows add up to the total.
   private async addParticipants(
     groups: FinanceGroupAccumulator,
     priced: PricedEntry[],
@@ -151,16 +157,16 @@ export class FinanceService {
       people.map((p) => [p.id, `${p.lastName} ${p.firstName}`.trim()]),
     );
 
-    for (const { entry, amount } of priced) {
+    for (const { entry, participantShare } of priced) {
       const participantIds = entry.participantIds ?? [];
       if (participantIds.length === 0) {
         // Added by hand without dancers — the routine name is all we have.
-        groups.add(entry.routineName, entry.routineName, amount);
+        groups.add(entry.routineName, entry.routineName, participantShare);
       }
       for (const id of participantIds) {
         // A deleted user no longer owes anything — no row for them.
         const name = nameById.get(id);
-        if (name !== undefined) groups.add(id, name, amount);
+        if (name !== undefined) groups.add(id, name, participantShare);
       }
     }
   }
