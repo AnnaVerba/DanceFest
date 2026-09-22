@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createParticipant, getParticipants } from '../lib/participants';
+import {
+  createParticipant,
+  getParticipants,
+  removeParticipant,
+} from '../lib/participants';
 import type { NewParticipant, Participant } from '../lib/participants';
 import PhoneField from './PhoneField';
 import { isValidBirthDate, isValidName, isValidPhone } from '../lib/validation';
@@ -32,6 +36,8 @@ export default function CoachRoster() {
   const [draft, setDraft] = useState<NewParticipant>(EMPTY_DRAFT);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   const participantsQuery = useQuery({
     queryKey: queryKeys.participants(),
@@ -79,6 +85,23 @@ export default function CoachRoster() {
     }
   };
 
+  const remove = async (id: string) => {
+    setRemovingId(id);
+    setRemoveError(null);
+    try {
+      await removeParticipant(id);
+      queryClient.setQueryData<Participant[]>(queryKeys.participants(), (prev) =>
+        (prev ?? []).filter((p) => p.id !== id),
+      );
+    } catch (err) {
+      setRemoveError(
+        err instanceof Error ? err.message : 'Не вдалося відмінити учасника.',
+      );
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
   return (
     <section className={styles.card}>
       <div className={styles.head}>
@@ -95,6 +118,7 @@ export default function CoachRoster() {
       </div>
 
       {loadError && <p className={styles.error}>{loadError}</p>}
+      {removeError && <p className={styles.error}>{removeError}</p>}
 
       {participants && participants.length === 0 && !adding && (
         <p className={styles.empty}>Ви ще не додали жодного учасника.</p>
@@ -116,6 +140,14 @@ export default function CoachRoster() {
               >
                 {p.hasPassword ? 'Зареєстрований' : 'Очікує входу'}
               </span>
+              <button
+                type="button"
+                className={styles.removeBtn}
+                disabled={removingId === p.id}
+                onClick={() => remove(p.id)}
+              >
+                {removingId === p.id ? '…' : 'Видалити учасника'}
+              </button>
             </li>
           ))}
         </ul>

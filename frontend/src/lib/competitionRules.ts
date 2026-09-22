@@ -11,6 +11,7 @@ export interface CompetitionRules {
   competitionId: string;
   pauseSeconds: number;
   leagueLimits: Record<string, number>;
+  lineupLimits: Record<string, number>;
   timeSource: TimeSource;
   surchargesEnabled: boolean;
   coachPercent: number;
@@ -23,6 +24,7 @@ export interface CompetitionRules {
 export interface RulesPatch {
   pauseSeconds?: number;
   leagueLimits?: Record<string, number>;
+  lineupLimits?: Record<string, number>;
   timeSource?: TimeSource;
   surchargesEnabled?: boolean;
   coachPercent?: number;

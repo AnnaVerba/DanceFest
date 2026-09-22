@@ -88,3 +88,9 @@ export function createParticipant(input: NewParticipant): Promise<Participant> {
     }),
   });
 }
+
+export function removeParticipant(id: string): Promise<{ id: string }> {
+  return request<{ id: string }>(`/users/participants/${id}`, {
+    method: 'DELETE',
+  });
+}

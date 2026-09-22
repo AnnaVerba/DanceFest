@@ -16,3 +16,8 @@ export function resolveLineup(participantCount: number): string {
   if (participantCount === DUO_SIZE) return LINEUP_LABELS.DUO;
   return LINEUP_LABELS.SOLO;
 }
+
+// Every lineup but Соло is a group performance and carries its own number.
+export function isGroupLineup(lineup: string | null): boolean {
+  return lineup !== null && lineup !== LINEUP_LABELS.SOLO;
+}
