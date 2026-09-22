@@ -24,6 +24,10 @@ export const LEAGUE_CATEGORY_TYPE: CategoryType = 'level';
 // у номері — ту саму числову пару, що вік несе для вікової осі.
 export const LINEUP_CATEGORY_TYPE: CategoryType = 'lineup';
 
+// Вісь програм: Естрада, Хіп-хоп, Народний. Її значення — те, що заявка
+// називає стилем.
+export const STYLE_CATEGORY_TYPE: CategoryType = 'style';
+
 // Осі, значення яких мають числові межі.
 export const RANGED_CATEGORY_TYPES: CategoryType[] = [
   AGE_CATEGORY_TYPE,

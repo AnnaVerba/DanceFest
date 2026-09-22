@@ -17,6 +17,7 @@ import { isImprovisationProgram } from '../../lib/improvisationProgram';
 import { formatDuration, parseDuration, pluralExits } from '../../lib/duration';
 import type { ExitMode } from '../../lib/categoryTemplates';
 import { SPECIAL_LEAGUE_REQUIRED_MESSAGE } from '../../lib/nominationLeague.constants';
+import type { SpecialSubmitResult } from './specialSubmitResult.types';
 import styles from './SpecialCategoryModal.module.css';
 
 export interface SpecialNominationDraft {
@@ -38,10 +39,11 @@ interface SpecialCategoryModalProps {
   categories: Category[];
   onClose: () => void;
   onCategoryCreated: (category: Category) => void;
-  // Resolves to null when the drafts were accepted, or to a Ukrainian
-  // message about the price that keeps the modal open and is shown above
-  // the price field.
-  onSubmit: (nominations: SpecialNominationDraft[]) => Promise<string | null>;
+  // Only a `created` result resets and closes the modal — see
+  // SpecialSubmitResult for why a failure has to be told apart from success.
+  onSubmit: (
+    nominations: SpecialNominationDraft[],
+  ) => Promise<SpecialSubmitResult>;
   submitLabel?: string;
   createCategoryValue?: (
     name: string,
@@ -267,11 +269,14 @@ export default function SpecialCategoryModal({
     setPriceError(null);
     setSubmitting(true);
     try {
-      const conflict = await onSubmit(preview);
-      if (conflict) {
-        setPriceError(conflict);
+      const result = await onSubmit(preview);
+      if (result.status === 'priceConflict') {
+        setPriceError(result.message);
         return;
       }
+      // The caller has already reported the failure; keep the draft so the
+      // user can retry instead of filling the whole form in again.
+      if (result.status === 'failed') return;
       reset();
       onClose();
     } finally {

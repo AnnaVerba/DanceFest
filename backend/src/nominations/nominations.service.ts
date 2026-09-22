@@ -6,18 +6,23 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { AccessLevel } from '../auth/access-level.enum';
-import { CreationAttributes, Op } from 'sequelize';
-import type { WhereOptions } from 'sequelize';
+import { CreationAttributes, Op, QueryTypes, literal } from 'sequelize';
+import type { Transaction, WhereOptions } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { isUUID } from 'class-validator';
 import {
   AGE_CATEGORY_TYPE,
+  CATEGORY_TYPES,
   Category,
   LEAGUE_CATEGORY_TYPE,
+  LINEUP_CATEGORY_TYPE,
+  MIN_PARTICIPANT_AGE,
 } from '../categories/category.model';
 import type { CategoryType } from '../categories/category.model';
 import type { AgeCategoryRange } from '../categories/resolve-age-category';
+import { ageCategoriesFittingAges } from '../categories/resolve-age-category';
+import { PRICED_AXES, isPricedAxis } from '../categories/priced-axes';
 import { Venue } from '../venues/venue.model';
 import { Entry } from '../entries/entry.model';
 import { ScheduleService } from '../schedule/schedule.service';
@@ -25,6 +30,7 @@ import { CompetitionRulesService } from '../competition-rules/competition-rules.
 import { CompetitionRule } from '../competition-rules/competition-rule.model';
 import { resolveLeagueDurationSeconds } from '../competition-rules/resolve-league-duration';
 import { Nomination } from './nomination.model';
+import { NominationCategory } from './nomination-category.model';
 import { planNominationExits, DEFAULT_EXIT_MODE } from './nomination-exits';
 import type { NominationExit, NominationProgram } from './nomination-exits';
 import { CreateNominationDto } from './dto/create-nomination.dto';
@@ -32,9 +38,18 @@ import { UpdateNominationDto } from './dto/update-nomination.dto';
 import { BulkCreateNominationsDto } from './dto/bulk-create-nominations.dto';
 import { BulkSetImprovisationDto } from './dto/bulk-set-improvisation.dto';
 import { BulkAssignVenueDto } from './dto/bulk-assign-venue.dto';
+import { BulkSetAxisPricesDto } from './dto/bulk-set-axis-prices.dto';
 import { NominationBulkSelectorDto } from './dto/nomination-bulk-selector.dto';
 import { NominationBulkFilterDto } from './dto/nomination-bulk-filter.dto';
-import type { NominationPageQuery, VenueSummaryRow } from './nominations.types';
+import type {
+  AxisPriceRow,
+  AxisPriceUpdateResult,
+  NominationAxes,
+  NominationEntryQuery,
+  NominationPageQuery,
+  VenueSummaryRow,
+} from './nominations.types';
+import { AxisPriceTable } from './axis-price-table';
 import {
   DEFAULT_NOMINATIONS_PAGE_SIZE,
   LIST_QUERY_SEPARATOR,
@@ -42,10 +57,14 @@ import {
   UNASSIGNED_VENUE_QUERY_VALUE,
 } from './nominations.constants';
 import {
+  AXIS_PRICE_DUPLICATE_MESSAGE,
+  AXIS_PRICE_NOT_IN_COMPETITION_MESSAGE,
+  AXIS_PRICE_WRONG_AXIS_MESSAGE,
   NOMINATION_LEAGUE_REQUIRED_MESSAGE,
   NOMINATION_NOT_FOUND_MESSAGE,
   NOMINATION_NOT_IN_COMPETITION_MESSAGE,
   NOMINATION_BULK_SELECTOR_REQUIRED_MESSAGE,
+  NOMINATION_ENTRY_FILTER_REQUIRED_MESSAGE,
   NO_NOMINATIONS_MATCHED_MESSAGE,
   SOME_NOMINATIONS_NOT_IN_COMPETITION_MESSAGE,
   SPECIAL_NAME_REQUIRED_MESSAGE,
@@ -61,9 +80,6 @@ import {
 import { TYPEAHEAD_LIMIT, resolvePage } from '../common/pagination';
 import { bulkCreateChunked } from '../common/bulk-insert';
 
-// A very generous ceiling for a single competition's nomination list.
-const MAX_NOMINATIONS = 2000;
-
 const VENUE_SUMMARY_GROUP_TYPES: CategoryType[] = [
   LEAGUE_CATEGORY_TYPE,
   AGE_CATEGORY_TYPE,
@@ -78,6 +94,8 @@ export class NominationsService {
     private readonly competitionAdminModel: typeof CompetitionAdmin,
     @InjectModel(Nomination)
     private readonly nominationModel: typeof Nomination,
+    @InjectModel(NominationCategory)
+    private readonly nominationCategoryModel: typeof NominationCategory,
     @InjectModel(Category)
     private readonly categoryModel: typeof Category,
     @InjectModel(Venue)
@@ -90,7 +108,13 @@ export class NominationsService {
   ) {}
 
   // `q` turns this into a name typeahead (a festival can have 500+
-  // nominations); without it, the whole list is returned but sanity-capped.
+  // nominations) — лише там ліміт доречний, бо підказка й не обіцяє повноти.
+  //
+  // Без `q` повертається ВЕСЬ список і ніколи не обрізається. Стеля тут
+  // коштувала вікових категорій: сторінка подачі збирає з цієї відповіді
+  // випадні списки віку, ліги та стилю, і все, що не влізло, зникало з них
+  // мовчки — відповідь виглядала повною. Обсяг обмежений одним конкурсом,
+  // а кому потрібні сторінки, той бере `/nominations/paged`.
   async listPublic(competitionId: string, rawQuery?: string) {
     await this.assertCompetitionExists(competitionId);
     const q = rawQuery?.trim();
@@ -99,11 +123,207 @@ export class NominationsService {
         ? { competitionId, name: { [Op.iLike]: `%${q}%` } }
         : { competitionId },
       order: [['createdAt', 'ASC']],
-      limit: q ? TYPEAHEAD_LIMIT : MAX_NOMINATIONS,
+      limit: q ? TYPEAHEAD_LIMIT : undefined,
     });
 
     const categories = await this.loadCategories(nominations);
     return nominations.map((n) => this.toDto(n, categories));
+  }
+
+  /**
+   * Осі конкурсу: значення категорій, які реально зустрічаються в його
+   * звичайних номінаціях, по одному списку на вісь.
+   *
+   * Форма заявки будує з цього випадні списки ліги, віку та стилю, а
+   * налаштування розкладу — перелік ліг. Тягнути заради десятка назв усі
+   * номінації конкурсу (їх буває шість тисяч) не треба, а обрізати вибірку
+   * лімітом — тим паче: саме так вікова категорія, яка є і в базі, і в
+   * номінації, зникала зі списку при подачі.
+   */
+  async listAxes(competitionId: string): Promise<NominationAxes> {
+    await this.assertCompetitionExists(competitionId);
+    const categories = await this.loadCompetitionCategories(competitionId);
+
+    const axes = CATEGORY_TYPES.reduce((acc, type) => {
+      acc[type] = [];
+      return acc;
+    }, {} as NominationAxes);
+
+    for (const category of categories) {
+      axes[category.type].push({
+        id: category.id,
+        name: category.name,
+        rangeFrom: category.rangeFrom,
+        rangeTo: category.rangeTo,
+      });
+    }
+    return axes;
+  }
+
+  /**
+   * Спеціальні номінації конкурсу. Осей вони не мають, під фільтри заявки не
+   * підпадають і показуються всі одразу — тож ліміту тут бути не може.
+   */
+  async listSpecials(competitionId: string) {
+    await this.assertCompetitionExists(competitionId);
+    const nominations = await this.nominationModel.findAll({
+      where: { competitionId, isSpecial: true },
+      order: [
+        ['createdAt', 'ASC'],
+        ['id', 'ASC'],
+      ],
+    });
+    const categories = await this.loadCategories(nominations);
+    return nominations.map((n) => this.toDto(n, categories));
+  }
+
+  /**
+   * Номінації під конкретну заявку: ліга та склад мусять збігатися, стиль —
+   * будь-який з обраних, вік — підходити кожному учаснику номера.
+   *
+   * Без жодного фільтра вибірка дорівнює всьому конкурсу, тож вона
+   * відхиляється: форма заявки завжди знає хоча б стиль, а тихо віддати
+   * шість тисяч рядків (або обрізати їх) — те, від чого ми тут і йдемо.
+   */
+  async listForEntry(competitionId: string, query: NominationEntryQuery) {
+    await this.assertCompetitionExists(competitionId);
+
+    // Ліга й обрана вікова категорія — точний збіг: номінація без них
+    // заявнику не підходить (саме так це працювало на клієнті).
+    const exact = [query.league, query.ageCategory].filter(
+      (id): id is string => typeof id === 'string' && isUUID(id),
+    );
+    const styleIds = this.parseIdList(query.styles);
+    const lineupIds = this.parseIdList(query.lineups);
+    if (exact.length === 0 && styleIds.length === 0 && lineupIds.length === 0) {
+      throw new BadRequestException(NOMINATION_ENTRY_FILTER_REQUIRED_MESSAGE);
+    }
+
+    const categories = await this.loadCompetitionCategories(competitionId);
+    const conditions: Record<string, unknown>[] = [
+      { competitionId, isSpecial: false },
+    ];
+    if (exact.length > 0) {
+      conditions.push(this.withAllCategories(exact));
+    }
+    // Стиль — навпаки: номінація без стилю не є номінацією жодного з
+    // обраних, тож сюди «осі немає» не поширюється.
+    if (styleIds.length > 0) {
+      conditions.push(this.withAnyCategory(styleIds));
+    }
+    if (lineupIds.length > 0) {
+      conditions.push(
+        this.axisOrMissingCondition(
+          this.axisIdsOf(categories, LINEUP_CATEGORY_TYPE),
+          lineupIds,
+        ),
+      );
+    }
+    const ages = this.parseAges(query.ages);
+    if (ages.length > 0) {
+      conditions.push(this.ageCondition(categories, ages));
+    }
+
+    const nominations = await this.nominationModel.findAll({
+      where: { [Op.and]: conditions } as WhereOptions<Nomination>,
+      order: [
+        ['createdAt', 'ASC'],
+        ['id', 'ASC'],
+      ],
+    });
+    const rowCategories = await this.loadCategories(nominations);
+    return nominations.map((n) => this.toDto(n, rowCategories));
+  }
+
+  /**
+   * Номінація проходить за віком, коли її вікова категорія вміщує кожного
+   * учасника номера. Категорії без обох меж у підборі не беруть участі —
+   * порівнювати з ними нема чого.
+   */
+  private ageCondition(
+    categories: Category[],
+    ages: number[],
+  ): Record<string, unknown> {
+    const bounded = categories
+      .filter((category) => category.type === AGE_CATEGORY_TYPE)
+      .filter(
+        (category) => category.rangeFrom !== null && category.rangeTo !== null,
+      );
+    const fitting = ageCategoriesFittingAges(ages, bounded);
+    return this.axisOrMissingCondition(
+      bounded.map((category) => category.id),
+      fitting.map((category) => category.id),
+    );
+  }
+
+  /**
+   * Вісь звужує вибірку лише там, де вона взагалі є: номінація без жодного
+   * значення цієї осі нею не обмежена, і ховати її від заявника не можна —
+   * інакше зникають номінації, у яких вік чи склад просто не проставлений.
+   */
+  private axisOrMissingCondition(
+    axisIds: string[],
+    matchingIds: string[],
+  ): Record<string, unknown> {
+    if (axisIds.length === 0) return {};
+
+    const withoutAxis = this.withoutAnyCategory(axisIds);
+    if (matchingIds.length === 0) return withoutAxis;
+
+    return {
+      [Op.or]: [this.withAnyCategory(matchingIds), withoutAxis],
+    };
+  }
+
+  private axisIdsOf(categories: Category[], type: CategoryType): string[] {
+    return categories
+      .filter((category) => category.type === type)
+      .map((category) => category.id);
+  }
+
+  /**
+   * Категорії, використані звичайними номінаціями конкурсу. DISTINCT робить
+   * Postgres: витягати тисячі масивів у пам'ять заради десятка унікальних
+   * id — саме те, чого ці ендпойнти позбуваються.
+   */
+  private async loadCompetitionCategories(
+    competitionId: string,
+  ): Promise<Category[]> {
+    const rows = await this.nominationModel.sequelize!.query<{ id: string }>(
+      `SELECT DISTINCT link."categoryId" AS id
+         FROM nomination_categories link
+         JOIN nominations n ON n.id = link."nominationId"
+        WHERE n."competitionId" = :competitionId
+          AND n."isSpecial" = false`,
+      { replacements: { competitionId }, type: QueryTypes.SELECT },
+    );
+    const ids = rows.map((row) => row.id);
+    if (ids.length === 0) return [];
+
+    return this.categoryModel.findAll({
+      where: { id: { [Op.in]: ids } },
+      order: [
+        ['sortOrder', 'ASC'],
+        ['rangeFrom', 'ASC NULLS LAST'],
+        ['name', 'ASC'],
+      ],
+    });
+  }
+
+  private parseIdList(raw?: string): string[] {
+    return (raw ?? '')
+      .split(LIST_QUERY_SEPARATOR)
+      .map((value) => value.trim())
+      .filter((value) => isUUID(value));
+  }
+
+  // Вік приходить порахованим на дату початку конкурсу; усе, що не ціле
+  // невід'ємне число, віком не є й фільтр не звужує.
+  private parseAges(raw?: string): number[] {
+    return (raw ?? '')
+      .split(LIST_QUERY_SEPARATOR)
+      .map((value) => Number.parseInt(value.trim(), 10))
+      .filter((age) => Number.isInteger(age) && age >= MIN_PARTICIPANT_AGE);
   }
 
   async create(
@@ -133,6 +353,10 @@ export class NominationsService {
         const created = await this.nominationModel.create(attributes, {
           transaction,
         });
+        await this.saveCategoryLinks(
+          [{ nominationId: created.id, categoryIds: dto.categoryIds ?? [] }],
+          transaction,
+        );
         await this.specialGroups.alignExplicit(
           competitionId,
           explicit,
@@ -181,6 +405,13 @@ export class NominationsService {
         const rows = await bulkCreateChunked(
           this.nominationModel,
           attributesList,
+          transaction,
+        );
+        await this.saveCategoryLinks(
+          rows.map((row, index) => ({
+            nominationId: row.id,
+            categoryIds: dto.nominations[index].categoryIds ?? [],
+          })),
           transaction,
         );
         await this.specialGroups.alignExplicit(
@@ -253,7 +484,7 @@ export class NominationsService {
     if (dto.allowsImprovisation !== undefined) {
       nomination.allowsImprovisation = dto.allowsImprovisation;
     }
-    if (dto.categoryIds !== undefined) nomination.categoryIds = dto.categoryIds;
+    const categoryIdsChanged = dto.categoryIds !== undefined;
     if (dto.isSpecial !== undefined) nomination.isSpecial = dto.isSpecial;
     let specialNameChanged = false;
     if (dto.specialName !== undefined && dto.specialName !== null) {
@@ -301,6 +532,25 @@ export class NominationsService {
         if (groupPrice !== null) nomination.price = groupPrice;
       }
       await nomination.save({ transaction });
+      if (categoryIdsChanged) {
+        await this.nominationCategoryModel.destroy({
+          where: { nominationId: nomination.id },
+          transaction,
+        });
+        await this.saveCategoryLinks(
+          [
+            {
+              nominationId: nomination.id,
+              categoryIds: dto.categoryIds as string[],
+            },
+          ],
+          transaction,
+        );
+        nomination.categories = await this.categoryModel.findAll({
+          where: { id: { [Op.in]: dto.categoryIds as string[] } },
+          transaction,
+        });
+      }
       if (nomination.isSpecial && dto.price !== undefined) {
         await this.specialGroups.alignPrice(
           competitionId,
@@ -461,7 +711,7 @@ export class NominationsService {
   ): WhereOptions<Nomination> {
     const where: Record<string, unknown> = { competitionId };
     if (filter?.categoryIds?.length) {
-      where.categoryIds = { [Op.contains]: filter.categoryIds };
+      Object.assign(where, this.withAllCategories(filter.categoryIds));
     }
     const q = filter?.q?.trim();
     if (q) {
@@ -531,7 +781,9 @@ export class NominationsService {
       VENUE_SUMMARY_GROUP_TYPES.find((t) => t === rawGroupBy) ??
       LEAGUE_CATEGORY_TYPE;
 
-    const [categories, nominations] = await Promise.all([
+    // Рахує Postgres: тягнути всі номінації конкурсу в пам'ять заради двох
+    // лічильників — саме те, від чого ми тут ідемо.
+    const [categories, counts] = await Promise.all([
       this.categoryModel.findAll({
         where: { type },
         order: [
@@ -539,27 +791,34 @@ export class NominationsService {
           ['name', 'ASC'],
         ],
       }),
-      this.nominationModel.findAll({
-        where: { competitionId },
-        attributes: ['categoryIds', 'venueId'],
-      }),
+      this.nominationModel.sequelize!.query<{
+        categoryId: string;
+        total: string;
+        unassigned: string;
+      }>(
+        `SELECT link."categoryId" AS "categoryId",
+                count(*) AS total,
+                count(*) FILTER (WHERE n."venueId" IS NULL) AS unassigned
+           FROM nomination_categories link
+           JOIN nominations n ON n.id = link."nominationId"
+          WHERE n."competitionId" = :competitionId
+          GROUP BY link."categoryId"`,
+        { replacements: { competitionId }, type: QueryTypes.SELECT },
+      ),
     ]);
 
-    const rows = new Map<string, VenueSummaryRow>(
-      categories.map((c) => [
-        c.id,
-        { categoryId: c.id, name: c.name, total: 0, unassigned: 0 },
-      ]),
-    );
-    for (const nomination of nominations) {
-      for (const id of nomination.categoryIds) {
-        const row = rows.get(id);
-        if (!row) continue;
-        row.total += 1;
-        if (nomination.venueId === null) row.unassigned += 1;
-      }
-    }
-    return [...rows.values()].filter((row) => row.total > 0);
+    const byCategory = new Map(counts.map((row) => [row.categoryId, row]));
+    return categories
+      .map((category) => {
+        const counted = byCategory.get(category.id);
+        return {
+          categoryId: category.id,
+          name: category.name,
+          total: Number(counted?.total ?? 0),
+          unassigned: Number(counted?.unassigned ?? 0),
+        };
+      })
+      .filter((row) => row.total > 0);
   }
 
   private async assertVenueInCompetition(
@@ -573,6 +832,156 @@ export class NominationsService {
     if (!venue) {
       throw new BadRequestException(VENUE_NOT_IN_COMPETITION_MESSAGE);
     }
+  }
+
+  // Значення складу й ліги, що трапляються в номінаціях цього конкурсу, з
+  // ціною, яку вони там мають. Панель номінацій показує їх як поля цін.
+  async axisPrices(
+    competitionId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+  ): Promise<AxisPriceRow[]> {
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
+
+    const [categories, nominations] = await Promise.all([
+      this.categoryModel.findAll({
+        where: { type: { [Op.in]: PRICED_AXES } },
+        order: [
+          ['sortOrder', 'ASC'],
+          ['name', 'ASC'],
+        ],
+      }),
+      this.pricedNominations(competitionId),
+    ]);
+
+    const rows = new Map<string, AxisPriceRow>(
+      categories.map((c) => [
+        c.id,
+        {
+          categoryId: c.id,
+          type: c.type,
+          name: c.name,
+          nominationCount: 0,
+          price: null,
+        },
+      ]),
+    );
+    // Значення, номінації якого коштують по-різному: ціни в нього немає, і
+    // поле лишиться порожнім, поки організатор не задасть одну на всіх.
+    const mixed = new Set<string>();
+
+    for (const nomination of nominations) {
+      const price = nomination.price === null ? null : Number(nomination.price);
+      for (const categoryId of nomination.categoryIds) {
+        const row = rows.get(categoryId);
+        if (!row) continue;
+
+        if (!mixed.has(categoryId)) {
+          if (row.nominationCount === 0) row.price = price;
+          else if (row.price !== price) {
+            mixed.add(categoryId);
+            row.price = null;
+          }
+        }
+        row.nominationCount += 1;
+      }
+    }
+    return [...rows.values()].filter((row) => row.nominationCount > 0);
+  }
+
+  /**
+   * Ставить ціни на значеннях складу й ліги в межах одного конкурсу. Шаблон,
+   * з якого скопійовано номінації, лишається недоторканим: тут правиться
+   * тільки `nominations.price` цього конкурсу.
+   */
+  async bulkSetAxisPrices(
+    competitionId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+    dto: BulkSetAxisPricesDto,
+  ): Promise<AxisPriceUpdateResult> {
+    await this.loadCompetitionAndAssertAccess(
+      competitionId,
+      requesterId,
+      requesterLevel,
+    );
+
+    const priceByCategoryId = new Map<string, number>();
+    for (const { categoryId, price } of dto.prices) {
+      const known = priceByCategoryId.get(categoryId);
+      if (known !== undefined && known !== price) {
+        throw new BadRequestException(AXIS_PRICE_DUPLICATE_MESSAGE);
+      }
+      priceByCategoryId.set(categoryId, price);
+    }
+
+    const categoryIds = [...priceByCategoryId.keys()];
+    const categories = await this.categoryModel.findAll({
+      where: { id: { [Op.in]: categoryIds } },
+    });
+    if (categories.some((category) => !isPricedAxis(category.type))) {
+      throw new BadRequestException(AXIS_PRICE_WRONG_AXIS_MESSAGE);
+    }
+
+    const nominations = await this.pricedNominations(competitionId);
+    const used = new Set(nominations.flatMap((n) => n.categoryIds));
+    if (categoryIds.some((categoryId) => !used.has(categoryId))) {
+      throw new BadRequestException(AXIS_PRICE_NOT_IN_COMPETITION_MESSAGE);
+    }
+
+    const table = new AxisPriceTable(
+      categories.map((category) => ({
+        categoryId: category.id,
+        type: category.type,
+        price: priceByCategoryId.get(category.id) as number,
+      })),
+    );
+
+    const idsByPrice = new Map<number, string[]>();
+    for (const nomination of nominations) {
+      const price = table.priceFor(nomination.categoryIds);
+      if (price === null) continue;
+      if (nomination.price !== null && Number(nomination.price) === price) {
+        continue;
+      }
+      const ids = idsByPrice.get(price);
+      if (ids) ids.push(nomination.id);
+      else idsByPrice.set(price, [nomination.id]);
+    }
+
+    await this.nominationModel.sequelize!.transaction(async (transaction) => {
+      // Один UPDATE на кожну ціну, а не на кожну номінацію.
+      for (const [price, ids] of idsByPrice) {
+        await this.nominationModel.update(
+          { price },
+          { where: { id: { [Op.in]: ids } }, transaction },
+        );
+      }
+    });
+
+    return {
+      updated: [...idsByPrice.values()].reduce(
+        (total, ids) => total + ids.length,
+        0,
+      ),
+    };
+  }
+
+  // Номінації, ціну яких виводять осі. Спеціальні сюди не входять: їхня ціна
+  // спільна для всієї групи з однаковою назвою й задається окремо.
+  private async pricedNominations(
+    competitionId: string,
+  ): Promise<Nomination[]> {
+    const nominations = await this.nominationModel.findAll({
+      where: { competitionId, isSpecial: false },
+      attributes: ['id', 'price'],
+    });
+    await this.loadCategories(nominations);
+    return nominations;
   }
 
   async remove(
@@ -653,7 +1062,6 @@ export class NominationsService {
       name: dto.name.trim(),
       price: dto.price ?? null,
       allowsImprovisation: dto.allowsImprovisation ?? false,
-      categoryIds: dto.categoryIds ?? [],
       isSpecial: dto.isSpecial ?? false,
       specialName: dto.isSpecial ? (dto.specialName ?? null) : null,
       exitMode: dto.exitMode ?? DEFAULT_EXIT_MODE,
@@ -792,16 +1200,104 @@ export class NominationsService {
     }
   }
 
+  /**
+   * Категорії переданих номінацій — і водночас єдине місце, де осі
+   * потрапляють у самі рядки. Поки цього не сталося, `nomination.categoryIds`
+   * кидає: краще гучно, ніж мовчазний порожній масив.
+   */
   private async loadCategories(
     nominations: Nomination[],
   ): Promise<Map<string, Category>> {
-    const ids = [...new Set(nominations.flatMap((n) => n.categoryIds ?? []))];
-    if (ids.length === 0) return new Map();
+    if (nominations.length === 0) return new Map();
 
-    const categories = await this.categoryModel.findAll({
-      where: { id: { [Op.in]: ids } },
+    const links = await this.nominationCategoryModel.findAll({
+      where: { nominationId: { [Op.in]: nominations.map((n) => n.id) } },
     });
-    return new Map(categories.map((c) => [c.id, c]));
+    const ids = [...new Set(links.map((link) => link.categoryId))];
+    const categories =
+      ids.length === 0
+        ? []
+        : await this.categoryModel.findAll({ where: { id: { [Op.in]: ids } } });
+
+    const byId = new Map(categories.map((c) => [c.id, c]));
+    const byNomination = new Map<string, Category[]>();
+    for (const link of links) {
+      const category = byId.get(link.categoryId);
+      if (!category) continue;
+      const bucket = byNomination.get(link.nominationId);
+      if (bucket) bucket.push(category);
+      else byNomination.set(link.nominationId, [category]);
+    }
+    for (const nomination of nominations) {
+      nomination.categories = byNomination.get(nomination.id) ?? [];
+    }
+    return byId;
+  }
+
+  /**
+   * Осі щойно створених номінацій. Порядок `attributes` і `rows` збігається,
+   * тож id беруться попарно.
+   */
+  private async saveCategoryLinks(
+    links: { nominationId: string; categoryIds: string[] }[],
+    transaction: Transaction,
+  ): Promise<void> {
+    const rows = links.flatMap(({ nominationId, categoryIds }) =>
+      [...new Set(categoryIds)].map((categoryId) => ({
+        nominationId,
+        categoryId,
+      })),
+    );
+    if (rows.length === 0) return;
+    await bulkCreateChunked(
+      this.nominationCategoryModel,
+      rows as CreationAttributes<NominationCategory>[],
+      transaction,
+    );
+  }
+
+  /**
+   * Номінації конкурсу, що несуть УСІ перелічені осі (те, що раніше робив
+   * `@>` по масиву). Підзапит іде по індексу `nomination_categories`.
+   */
+  private withAllCategories(ids: string[]): Record<string, unknown> {
+    const list = this.uuidList(ids);
+    if (list.length === 0) return {};
+    return {
+      id: {
+        [Op.in]: literal(
+          `(SELECT "nominationId" FROM nomination_categories
+              WHERE "categoryId" IN (${list.join(', ')})
+              GROUP BY "nominationId"
+             HAVING COUNT(DISTINCT "categoryId") = ${list.length})`,
+        ),
+      },
+    };
+  }
+
+  /** Номінації, що несуть ХОЧА Б ОДНУ з осей (колишній `&&`). */
+  private withAnyCategory(ids: string[]): Record<string, unknown> {
+    const list = this.uuidList(ids);
+    if (list.length === 0) return {};
+    return { id: { [Op.in]: literal(this.linkSubquery(list)) } };
+  }
+
+  /** Номінації, що не несуть жодної з осей. */
+  private withoutAnyCategory(ids: string[]): Record<string, unknown> {
+    const list = this.uuidList(ids);
+    if (list.length === 0) return {};
+    return { id: { [Op.notIn]: literal(this.linkSubquery(list)) } };
+  }
+
+  private linkSubquery(quotedIds: string[]): string {
+    return `(SELECT "nominationId" FROM nomination_categories
+               WHERE "categoryId" IN (${quotedIds.join(', ')}))`;
+  }
+
+  // Підзапит збирається рядком, тож у нього потрапляють лише значення, що є
+  // валідними uuid — усе інше відкидається, а не екранується.
+  private uuidList(ids: string[]): string[] {
+    return [...new Set(ids)].filter((id) => isUUID(id)).map((id) => `'${id}'`);
   }
 
   private categoriesFor(
@@ -847,6 +1343,7 @@ export class NominationsService {
     if (!nomination) {
       throw new BadRequestException(NOMINATION_NOT_IN_COMPETITION_MESSAGE);
     }
+    await this.loadCategories([nomination]);
     return nomination;
   }
 
@@ -860,6 +1357,7 @@ export class NominationsService {
     if (!nomination) {
       throw new NotFoundException(NOMINATION_NOT_FOUND_MESSAGE);
     }
+    await this.loadCategories([nomination]);
     return nomination;
   }
 

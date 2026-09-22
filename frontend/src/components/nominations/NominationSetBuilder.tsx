@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import SpecialCategoryModal from './SpecialCategoryModal';
 import type { SpecialNominationDraft } from './SpecialCategoryModal';
-import AxisPriceInputs from './AxisPriceInputs';
+import type { SpecialSubmitResult } from './specialSubmitResult.types';
+import AxisPricesModal from './AxisPricesModal';
 import {
   AGE_CATEGORY_TYPE,
   CATEGORY_TYPES,
@@ -16,7 +17,11 @@ import { queryKeys } from '../../lib/queryKeys';
 import { REFERENCE_STALE_TIME_MS } from '../../lib/queryClient.constants';
 import AgeRangeFields from './AgeRangeFields';
 import LineupSizeFields from './LineupSizeFields';
-import { PRICED_AXES, resolvePrice } from '../../lib/nominationPricing';
+import {
+  PRICED_AXES,
+  axisPriceEntries,
+  resolvePrice,
+} from '../../lib/nominationPricing';
 import type { AxisPriceMap } from '../../lib/nominationPricing';
 import { parseAgeRange } from '../../lib/ageRange';
 import {
@@ -47,7 +52,11 @@ import {
   AGE_RANGE_SAVE_FAILED_MESSAGE,
   AGE_RANGE_SAVE_LABEL,
   AGE_RANGE_SAVING_LABEL,
+  AXIS_PRICES_BUTTON_LABEL,
+  AXIS_PRICES_COUNT_SEPARATOR,
+  AXIS_PRICES_DONE_LABEL,
   CATEGORY_VALUE_NAME_REQUIRED_MESSAGE,
+  NO_PRICE_PLACEHOLDER,
   NOMINATIONS_TABLE_PAGE_SIZE,
   REMOVE_AXIS_VALUE_DROP_LABEL,
   REMOVE_AXIS_VALUE_KEEP_LABEL,
@@ -66,6 +75,10 @@ interface NominationSetBuilderProps {
   onChange: (next: DraftNomination[]) => void;
   selection: AxisSelection | null;
   onSelectionChange: (next: AxisSelection) => void;
+  // Ціни за значеннями цінових осей. Стан тримає сторінка: у шаблоні він
+  // зберігається в базу, тож мусить пережити цей компонент.
+  axisPrices: AxisPriceMap;
+  onAxisPricesChange: (next: AxisPriceMap) => void;
   onNotice?: (message: string) => void;
   seedCategoryIds?: string[];
   // Категорії, створені лише в модалці спецкатегорії, не потрапляють у
@@ -80,6 +93,8 @@ export default function NominationSetBuilder({
   onChange,
   selection: picked,
   onSelectionChange,
+  axisPrices,
+  onAxisPricesChange,
   onNotice,
   seedCategoryIds,
   onCategoryCreated,
@@ -92,8 +107,8 @@ export default function NominationSetBuilder({
   const [editingAgeId, setEditingAgeId] = useState<string | null>(null);
   const [editedRange, setEditedRange] = useState(EMPTY_CATEGORY_RANGE);
   const [savingRange, setSavingRange] = useState(false);
-  const [axisPrices, setAxisPrices] = useState<AxisPriceMap>({});
   const [specialOpen, setSpecialOpen] = useState(false);
+  const [axisPricesOpen, setAxisPricesOpen] = useState(false);
   const [nominationsPage, setNominationsPage] = useState(0);
   const [pendingRemoval, setPendingRemoval] = useState<PendingAxisRemoval | null>(
     null,
@@ -140,6 +155,28 @@ export default function NominationSetBuilder({
 
   const selection = picked ?? seededSelection;
 
+  // Довідник плюс обрані осі: щойно додані значення живуть лише в selection.
+  const categoryById = useMemo(() => {
+    const map = new Map<string, Category>();
+    for (const category of suggestions) map.set(category.id, category);
+    for (const values of Object.values(selection)) {
+      for (const category of values) map.set(category.id, category);
+    }
+    return map;
+  }, [suggestions, selection]);
+
+  // Ціна, яка діятиме, якщо рядок лишити порожнім. Спецкатегорія осей не має:
+  // її ціна належить групі за назвою.
+  const axisFallbackPrice = (nomination: DraftNomination): string =>
+    nomination.isSpecial
+      ? ''
+      : resolvePrice(
+          nomination.categoryIds
+            .map((id) => categoryById.get(id))
+            .filter((category): category is Category => category !== undefined),
+          axisPrices,
+        );
+
   const updateSelection = (next: (current: AxisSelection) => AxisSelection) => {
     setError(null);
     onSelectionChange(next(selection));
@@ -152,6 +189,17 @@ export default function NominationSetBuilder({
     if (active.length === 0) return 0;
     return active.reduce((acc, values) => acc * values.length, 1);
   }, [selection]);
+
+  // Значення осей, на яких задається ціна: те, що показує модалка цін.
+  const pricedCategories = useMemo(
+    () => PRICED_AXES.flatMap((type) => selection[type]),
+    [selection],
+  );
+
+  const axisPricesCount = useMemo(
+    () => axisPriceEntries(axisPrices).length,
+    [axisPrices],
+  );
 
   const addValue = (type: CategoryType) => {
     const raw = (inputs[type] ?? '').trim();
@@ -335,10 +383,10 @@ export default function NominationSetBuilder({
 
       if (existing) {
         duplicates += 1;
-        // Ціна з осей перебиває збережену: інакше правка «Дуо — 700» не
-        // доїхала б до вже згенерованих рядків. Порожня ціна нічого не чіпає,
-        // тож ручне значення переживає перегенерацію.
-        if (price) bySignature.set(signature, { ...existing, price });
+        // Ціна вже наявної номінації не чіпається: вона і є точна ціна, а ціни
+        // осей — лише підстановка для щойно доданих рядків. Інакше повторна
+        // генерація (зокрема партіями, в обхід ліміту комбінацій) переписувала б
+        // те, що організатор виставив руками.
         continue;
       }
 
@@ -363,16 +411,20 @@ export default function NominationSetBuilder({
     else setNotice(message);
   };
 
-  const addSpecial = (drafts: SpecialNominationDraft[]): Promise<string | null> => {
+  const addSpecial = (
+    drafts: SpecialNominationDraft[],
+  ): Promise<SpecialSubmitResult> => {
     const priceConflict = findDraftPriceConflict(nominations, drafts);
-    if (priceConflict) return Promise.resolve(priceConflict);
+    if (priceConflict) {
+      return Promise.resolve({ status: 'priceConflict', message: priceConflict });
+    }
 
     const known = new Set(nominations.map((n) => n.signature));
     const fresh = drafts.filter((d) => !known.has(d.signature));
 
     if (fresh.length === 0) {
       onNotice?.('Ці номінації вже є в наборі');
-      return Promise.resolve(null);
+      return Promise.resolve({ status: 'created' });
     }
     onNotice?.(
       fresh.length < drafts.length
@@ -392,7 +444,7 @@ export default function NominationSetBuilder({
         exitMode: d.exitMode,
       })),
     ]);
-    return Promise.resolve(null);
+    return Promise.resolve({ status: 'created' });
   };
 
   const patchNomination = (signature: string, patch: Partial<DraftNomination>) =>
@@ -491,13 +543,6 @@ export default function NominationSetBuilder({
                   ))}
                 </div>
               )}
-              {PRICED_AXES.includes(type) && picked.length > 0 && (
-                <AxisPriceInputs
-                  categories={picked}
-                  prices={axisPrices}
-                  onChange={setAxisPrices}
-                />
-              )}
               <div className={styles.axisAdd}>
                 <input
                   type="text"
@@ -564,6 +609,17 @@ export default function NominationSetBuilder({
           >
             Додати спеціальну категорію
           </button>
+          {pricedCategories.length > 0 && (
+            <button
+              type="button"
+              className={`${styles.btn} ${styles.btnSm}`}
+              onClick={() => setAxisPricesOpen(true)}
+            >
+              {AXIS_PRICES_BUTTON_LABEL}
+              {axisPricesCount > 0 &&
+                `${AXIS_PRICES_COUNT_SEPARATOR}${axisPricesCount}`}
+            </button>
+          )}
           {plannedCount > 0 && (
             <span className={styles.hint}>
               буде {plannedCount} {pluralNominations(plannedCount)}
@@ -631,7 +687,9 @@ export default function NominationSetBuilder({
                         type="number"
                         min="0"
                         step="10"
-                        placeholder="—"
+                        placeholder={
+                          axisFallbackPrice(nomination) || NO_PRICE_PLACEHOLDER
+                        }
                         aria-label={`Ціна номінації «${nomination.name}»`}
                         value={nomination.price}
                         onChange={(e) =>
@@ -698,6 +756,19 @@ export default function NominationSetBuilder({
           </div>
         )}
       </section>
+
+      {axisPricesOpen && (
+        <AxisPricesModal
+          categories={pricedCategories}
+          prices={axisPrices}
+          submitLabel={AXIS_PRICES_DONE_LABEL}
+          onClose={() => setAxisPricesOpen(false)}
+          onSubmit={(next) => {
+            onAxisPricesChange(next);
+            setAxisPricesOpen(false);
+          }}
+        />
+      )}
 
       <SpecialCategoryModal
         open={specialOpen}

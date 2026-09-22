@@ -1,5 +1,6 @@
 import {
   BelongsTo,
+  BelongsToMany,
   Column,
   DataType,
   ForeignKey,
@@ -7,6 +8,9 @@ import {
   Table,
 } from 'sequelize-typescript';
 import { CategoryTemplate } from './category-template.model';
+import { Category } from '../categories/category.model';
+import { TemplateNominationCategory } from './template-nomination-category.model';
+import { CATEGORIES_NOT_LOADED_MESSAGE } from '../nominations/nominations.constants';
 import { EXIT_MODES, DEFAULT_EXIT_MODE } from '../nominations/nomination-exits';
 import type { ExitMode } from '../nominations/nomination-exits';
 
@@ -26,15 +30,28 @@ export class TemplateNomination extends Model<TemplateNomination> {
   @Column({ type: DataType.STRING, allowNull: false })
   declare name: string;
 
+  // Точна ціна номінації — саме вона їде в конкурс. TemplateCategoryPrice
+  // лише допомагає її заповнити при генерації; істина тут.
+  @Column({ type: DataType.DECIMAL(10, 2), allowNull: true })
+  declare price: number | null;
+
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   declare allowsImprovisation: boolean;
 
-  @Column({
-    type: DataType.ARRAY(DataType.UUID),
-    allowNull: false,
-    defaultValue: [],
-  })
-  declare categoryIds: string[];
+  @BelongsToMany(() => Category, () => TemplateNominationCategory)
+  declare categories: Category[];
+
+  /**
+   * Осі номінації шаблону. Читаються зі зв'язку, тож рядок без завантажених категорій
+   * про свої осі нічого не знає — і тоді кидаємо. Порожній масив тут був би
+   * тихою підміною: фільтр вирішив би, що обмежень немає.
+   */
+  get categoryIds(): string[] {
+    if (this.categories === undefined) {
+      throw new Error(CATEGORIES_NOT_LOADED_MESSAGE);
+    }
+    return this.categories.map((category) => category.id);
+  }
 
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   declare isSpecial: boolean;

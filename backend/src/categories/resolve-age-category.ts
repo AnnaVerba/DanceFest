@@ -57,6 +57,25 @@ export function fullYearsAt(birthDate: string, referenceDate: string): number {
 }
 
 /**
+ * Вікові категорії, що підходять УСІМ переданим вікам одразу: у межі мусить
+ * потрапляти кожен учасник номера, бо номер виступає в одній категорії.
+ *
+ * Порожній список віків не звужує нічого — перевіряти нема чого.
+ */
+export function ageCategoriesFittingAges<T extends AgeCategoryRange>(
+  ages: number[],
+  categories: T[],
+): T[] {
+  return categories
+    .filter(isBounded)
+    .filter((category) =>
+      ages.every(
+        (age) => age >= category.rangeFrom && age <= category.rangeTo,
+      ),
+    );
+}
+
+/**
  * Вікова категорія рахується на **дату початку конкурсу**, а не на «сьогодні»:
  * інакше та сама дитина потрапляла б у різні категорії залежно від того, коли
  * подали заявку.

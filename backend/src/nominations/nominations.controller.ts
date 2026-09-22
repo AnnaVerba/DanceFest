@@ -25,6 +25,7 @@ import { CreateNominationDto } from './dto/create-nomination.dto';
 import { BulkCreateNominationsDto } from './dto/bulk-create-nominations.dto';
 import { BulkSetImprovisationDto } from './dto/bulk-set-improvisation.dto';
 import { BulkAssignVenueDto } from './dto/bulk-assign-venue.dto';
+import { BulkSetAxisPricesDto } from './dto/bulk-set-axis-prices.dto';
 import { UpdateNominationDto } from './dto/update-nomination.dto';
 
 @ApiTags('nominations')
@@ -48,6 +49,74 @@ export class NominationsController {
     @Query('q') q?: string,
   ) {
     return this.nominationsService.listPublic(competitionId, q);
+  }
+
+  @ApiOperation({
+    summary: "The axes used by a competition's nominations",
+    description:
+      'Public — the entry form builds its league / age / style pickers from this instead of ' +
+      'downloading every nomination. One list per axis, each value with its numeric bounds; ' +
+      'special nominations carry no axes and are listed separately.',
+  })
+  @ApiResponse({ status: 200, description: 'Axis values returned.' })
+  @ApiResponse({
+    status: 404,
+    description: 'No competition exists with the given id.',
+  })
+  @Get('axes')
+  listAxes(@Param('competitionId') competitionId: string) {
+    return this.nominationsService.listAxes(competitionId);
+  }
+
+  @ApiOperation({
+    summary: "A competition's special nominations",
+    description:
+      'Public — special nominations have no axes, are never filtered and are always shown in ' +
+      'full on the entry form.',
+  })
+  @ApiResponse({ status: 200, description: 'Special nominations returned.' })
+  @ApiResponse({
+    status: 404,
+    description: 'No competition exists with the given id.',
+  })
+  @Get('specials')
+  listSpecials(@Param('competitionId') competitionId: string) {
+    return this.nominationsService.listSpecials(competitionId);
+  }
+
+  @ApiOperation({
+    summary: 'Nominations a given entry can be made in',
+    description:
+      'Public — what the entry form lists once the dancers and their categories are picked. ' +
+      '`league` and `ageCategory` are single category ids the nomination must carry. `styles` ' +
+      'and `lineups` are comma-separated: any one of them matches, and for `lineups` a ' +
+      'nomination with no line-up axis passes too. `ages` is the comma-separated age of every ' +
+      'dancer, used instead of `ageCategory` while more than one category still fits: a ' +
+      'nomination passes when its age category fits them all, or when it has none. ' +
+      'At least one filter is required.',
+  })
+  @ApiResponse({ status: 200, description: 'Matching nominations returned.' })
+  @ApiResponse({ status: 400, description: 'No category filter was given.' })
+  @ApiResponse({
+    status: 404,
+    description: 'No competition exists with the given id.',
+  })
+  @Get('for-entry')
+  listForEntry(
+    @Param('competitionId') competitionId: string,
+    @Query('league') league?: string,
+    @Query('ageCategory') ageCategory?: string,
+    @Query('styles') styles?: string,
+    @Query('lineups') lineups?: string,
+    @Query('ages') ages?: string,
+  ) {
+    return this.nominationsService.listForEntry(competitionId, {
+      league,
+      ageCategory,
+      styles,
+      lineups,
+      ages,
+    });
   }
 
   @ApiOperation({
@@ -250,6 +319,76 @@ export class NominationsController {
     @Body() dto: BulkAssignVenueDto,
   ) {
     return this.nominationsService.bulkAssignVenue(
+      competitionId,
+      admin.id,
+      admin.accessLevel,
+      dto,
+    );
+  }
+
+  @ApiOperation({
+    summary: "Prices of the competition's lineup and league values",
+    description:
+      'One row per lineup/league value used by the nominations of this competition. ' +
+      '`price` is what those nominations cost now, or null when they cost different ' +
+      'amounts. Special nominations are left out — they are priced per shared name.',
+  })
+  @ApiResponse({ status: 200, description: 'Rows returned.' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'The caller has no access to this competition.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'No competition exists with the given id.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get('axis-prices')
+  axisPrices(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() admin: AuthenticatedAdmin,
+  ) {
+    return this.nominationsService.axisPrices(
+      competitionId,
+      admin.id,
+      admin.accessLevel,
+    );
+  }
+
+  @ApiOperation({
+    summary: 'Price the nominations of this competition by lineup and league',
+    description:
+      'Applies to this competition only — the template the nominations came from keeps ' +
+      'its own prices. Lineup outranks league, so a duo in a league that also has a ' +
+      'price costs what the duo costs. Values left out of the body are not touched.',
+  })
+  @ApiResponse({ status: 200, description: '{ updated }: how many prices changed.' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Validation failed, a value is not a lineup or league, two prices were given for ' +
+      'one value, or no nomination of this competition uses it.',
+  })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'The caller has no access to this competition.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'No competition exists with the given id.',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Patch('bulk-price')
+  bulkSetAxisPrices(
+    @Param('competitionId') competitionId: string,
+    @CurrentUser() admin: AuthenticatedAdmin,
+    @Body() dto: BulkSetAxisPricesDto,
+  ) {
+    return this.nominationsService.bulkSetAxisPrices(
       competitionId,
       admin.id,
       admin.accessLevel,

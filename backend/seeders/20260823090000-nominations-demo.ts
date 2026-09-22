@@ -213,15 +213,22 @@ async function seed(
 
   for (const nomination of nominations) {
     await queryInterface.sequelize.query(
-      `INSERT INTO nominations
-           (id, "competitionId", name, price, "allowsImprovisation", "categoryIds",
-            "isSpecial", "exitMode", "durationLimitSeconds", "programLimits",
-            "createdAt", "updatedAt")
-         VALUES (:id, :competitionId, :name, :price, :allowsImprovisation,
-                 CAST(ARRAY[:categoryIds] AS uuid[]), :isSpecial,
-                 CAST(:exitMode AS "enum_nominations_exitMode"),
-                 :durationLimitSeconds, CAST(:programLimits AS jsonb),
-                 :createdAt, :updatedAt)`,
+      `WITH created AS (
+           INSERT INTO nominations
+             (id, "competitionId", name, price, "allowsImprovisation",
+              "isSpecial", "exitMode", "durationLimitSeconds", "programLimits",
+              "createdAt", "updatedAt")
+           VALUES (:id, :competitionId, :name, :price, :allowsImprovisation,
+                   :isSpecial,
+                   CAST(:exitMode AS "enum_nominations_exitMode"),
+                   :durationLimitSeconds, CAST(:programLimits AS jsonb),
+                   :createdAt, :updatedAt)
+           RETURNING id
+         )
+         INSERT INTO nomination_categories
+           (id, "nominationId", "categoryId", "createdAt", "updatedAt")
+         SELECT gen_random_uuid(), created.id, axis, :createdAt, :updatedAt
+           FROM created, unnest(CAST(ARRAY[:categoryIds] AS uuid[])) AS axis`,
       { replacements: { ...nomination }, transaction },
     );
   }

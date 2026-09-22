@@ -5,6 +5,11 @@ import { MAX_NOMINATIONS_PER_BULK_REQUEST } from './nominations.constants';
 
 import type { ExitMode } from './categoryTemplates';
 import type {
+  AxisPriceInput,
+  AxisPriceRow,
+  AxisPriceUpdateResult,
+  NominationAxes,
+  NominationEntryFilter,
   NominationPageQuery,
   NominationUpdateInput,
   VenueSummaryGroupBy,
@@ -154,6 +159,46 @@ export function getNominations(
   );
 }
 
+// Осі конкурсу замість усіх його номінацій: випадні списки форми заявки
+// будуються з десятка значень, а не з шести тисяч рядків.
+export function getNominationAxes(
+  competitionId: string,
+): Promise<NominationAxes> {
+  return request<NominationAxes>(`/competitions/${competitionId}/nominations/axes`);
+}
+
+// Спецномінації показуються всі й без фільтрів, тож їдуть окремо.
+export function getSpecialNominations(
+  competitionId: string,
+): Promise<Nomination[]> {
+  return request<Nomination[]>(
+    `/competitions/${competitionId}/nominations/specials`,
+  );
+}
+
+// Номінації під конкретний вибір заявника. Сервер сам перевіряє, що вікова
+// категорія номінації підходить кожному учаснику номера.
+export function getNominationsForEntry(
+  competitionId: string,
+  filter: NominationEntryFilter,
+): Promise<Nomination[]> {
+  const params = new URLSearchParams();
+  if (filter.league) params.set('league', filter.league);
+  if (filter.ageCategory) params.set('ageCategory', filter.ageCategory);
+  if (filter.styles.length > 0) {
+    params.set('styles', filter.styles.join(LIST_QUERY_SEPARATOR));
+  }
+  if (filter.lineups.length > 0) {
+    params.set('lineups', filter.lineups.join(LIST_QUERY_SEPARATOR));
+  }
+  if (filter.ages.length > 0) {
+    params.set('ages', filter.ages.join(LIST_QUERY_SEPARATOR));
+  }
+  return request<Nomination[]>(
+    `/competitions/${competitionId}/nominations/for-entry?${params.toString()}`,
+  );
+}
+
 export function getNominationsPage(
   competitionId: string,
   query: NominationPageQuery,
@@ -175,6 +220,23 @@ export function getVenueSummary(
 ): Promise<VenueSummaryRow[]> {
   return request<VenueSummaryRow[]>(
     `/competitions/${competitionId}/nominations/venue-summary?groupBy=${groupBy}`,
+  );
+}
+
+// Ціни за складом і лігою в межах одного конкурсу — шаблон вони не чіпають.
+export function getAxisPrices(competitionId: string): Promise<AxisPriceRow[]> {
+  return request<AxisPriceRow[]>(
+    `/competitions/${competitionId}/nominations/axis-prices`,
+  );
+}
+
+export function setAxisPricesBulk(
+  competitionId: string,
+  prices: AxisPriceInput[],
+): Promise<AxisPriceUpdateResult> {
+  return request<AxisPriceUpdateResult>(
+    `/competitions/${competitionId}/nominations/bulk-price`,
+    { method: 'PATCH', body: JSON.stringify({ prices }) },
   );
 }
 

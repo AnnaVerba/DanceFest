@@ -7,6 +7,9 @@ interface AxisPriceInputsProps {
   // Already filtered to the priced axes (lineup, level) and deduplicated.
   categories: Category[];
   prices: AxisPriceMap;
+  // Підпис під полем: скільки номінацій зачіпає це значення і чи однакова
+  // в них ціна. Ключ — id значення осі.
+  notes?: Record<string, string>;
   onChange: (next: AxisPriceMap) => void;
 }
 
@@ -16,6 +19,7 @@ interface AxisPriceInputsProps {
 export default function AxisPriceInputs({
   categories,
   prices,
+  notes,
   onChange,
 }: AxisPriceInputsProps) {
   if (categories.length === 0) return null;
@@ -38,6 +42,9 @@ export default function AxisPriceInputs({
               })
             }
           />
+          {notes?.[category.id] && (
+            <small className={styles.note}>{notes[category.id]}</small>
+          )}
         </label>
       ))}
     </div>

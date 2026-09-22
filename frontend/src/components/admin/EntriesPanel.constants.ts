@@ -15,10 +15,11 @@ export const ACTIONS_COLUMN_COUNT = 1;
 // `amount` to staff only).
 export const AMOUNT_COLUMN_COUNT = 1;
 
-export type SortKey = 'number' | 'name' | 'score';
+export type SortKey = 'number' | 'name' | 'score' | 'newest';
 
 export const SORT_LABELS: Record<SortKey, string> = {
   number: 'Сортувати за №',
   name: 'За назвою',
   score: 'За балом',
+  newest: 'Спочатку новіші',
 };

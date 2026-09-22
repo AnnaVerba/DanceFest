@@ -11,6 +11,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { TemplateNominationDto } from './template-nomination.dto';
+import { TemplateCategoryPriceDto } from './template-category-price.dto';
 import { MAX_TEMPLATE_NOMINATIONS } from '../category-templates.constants';
 
 export class CreateCategoryTemplateDto {
@@ -41,6 +42,17 @@ export class CreateCategoryTemplateDto {
   @IsArray()
   @IsString({ each: true })
   allMedalLeagues?: string[];
+
+  @ApiPropertyOptional({
+    type: [TemplateCategoryPriceDto],
+    description:
+      'Prices per value of a priced axis (lineup, level). Every nomination price is derived from these.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TemplateCategoryPriceDto)
+  categoryPrices?: TemplateCategoryPriceDto[];
 
   @ApiProperty({ type: [TemplateNominationDto] })
   @IsArray()

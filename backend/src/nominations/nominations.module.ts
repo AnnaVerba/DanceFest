@@ -8,6 +8,7 @@ import { Category } from '../categories/category.model';
 import { Venue } from '../venues/venue.model';
 import { CompetitionRulesModule } from '../competition-rules/competition-rules.module';
 import { Nomination } from './nomination.model';
+import { NominationCategory } from './nomination-category.model';
 import { NominationsController } from './nominations.controller';
 import { NominationsService } from './nominations.service';
 import { SpecialNominationGroups } from './special-nomination-groups';
@@ -18,6 +19,7 @@ import { SpecialNominationGroups } from './special-nomination-groups';
       Competition,
       CompetitionAdmin,
       Nomination,
+      NominationCategory,
       Category,
       Venue,
       Entry,

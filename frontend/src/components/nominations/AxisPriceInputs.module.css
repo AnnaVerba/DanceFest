@@ -17,3 +17,9 @@
 .axisPrice input {
   width: 96px;
 }
+
+.note {
+  color: var(--g-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}

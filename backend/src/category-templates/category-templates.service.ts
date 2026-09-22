@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes, Op } from 'sequelize';
+import type { Transaction } from 'sequelize';
 import { User } from '../users/user.model';
 import { AccessLevel } from '../auth/access-level.enum';
 import { CategoriesService } from '../categories/categories.service';
@@ -23,10 +24,13 @@ import {
 } from './template-error-codes';
 import { CategoryTemplate } from './category-template.model';
 import { TemplateNomination } from './template-nomination.model';
+import { TemplateNominationCategory } from './template-nomination-category.model';
+import { TemplateCategoryPrice } from './template-category-price.model';
 import { CreateCategoryTemplateDto } from './dto/create-category-template.dto';
 import { UpdateCategoryTemplateDto } from './dto/update-category-template.dto';
 import { ForkCategoryTemplateDto } from './dto/fork-category-template.dto';
 import { TemplateNominationDto } from './dto/template-nomination.dto';
+import { TemplateCategoryPriceDto } from './dto/template-category-price.dto';
 import {
   TEMPLATE_NOT_FOUND_MESSAGE,
   TEMPLATE_EDIT_AUTHOR_ONLY_MESSAGE,
@@ -34,12 +38,19 @@ import {
   TEMPLATE_CANNOT_BE_EMPTY_MESSAGE,
   FORK_NAME_MUST_DIFFER_MESSAGE,
   UNKNOWN_CATEGORIES_MESSAGE_PREFIX,
+  UNKNOWN_PRICED_CATEGORIES_MESSAGE_PREFIX,
+  DUPLICATE_CATEGORY_PRICE_MESSAGE,
+  PRICED_AXIS_REQUIRED_MESSAGE,
   DEFAULT_TEMPLATE_NOMINATIONS_PAGE_SIZE,
   MAX_TEMPLATE_NOMINATIONS_PAGE_SIZE,
 } from './category-templates.constants';
 import { resolvePage } from '../common/pagination';
 import { bulkCreateChunked } from '../common/bulk-insert';
 import { normalizeLeagueNames } from './normalize-league-names';
+import { isPricedAxis } from '../categories/priced-axes';
+import { resolveAxisPrice } from './resolve-axis-price';
+import { priceMapOf } from './category-price-map';
+import { specialGroupPrice, specialGroupPrices } from './special-group-prices';
 
 const AUTHOR_INCLUDE = [
   { model: User, as: 'author', attributes: ['id', 'firstName', 'lastName'] },
@@ -55,6 +66,10 @@ export class CategoryTemplatesService {
     private readonly templateModel: typeof CategoryTemplate,
     @InjectModel(TemplateNomination)
     private readonly nominationModel: typeof TemplateNomination,
+    @InjectModel(TemplateNominationCategory)
+    private readonly nominationCategoryModel: typeof TemplateNominationCategory,
+    @InjectModel(TemplateCategoryPrice)
+    private readonly categoryPriceModel: typeof TemplateCategoryPrice,
     @InjectModel(Nomination)
     private readonly contestNominationModel: typeof Nomination,
     private readonly categoriesService: CategoriesService,
@@ -185,8 +200,11 @@ export class CategoryTemplatesService {
       offset,
     });
 
+    const prices = priceMapOf(await this.loadCategoryPrices(templateId));
+    const categoryById = this.categoryMapOf(await this.loadCategoriesOf(rows));
+
     return {
-      rows: rows.map((n) => this.nominationToDto(n)),
+      rows: rows.map((n) => this.nominationToDto(n, categoryById, prices)),
       total: count,
       page,
       pageSize,
@@ -204,19 +222,32 @@ export class CategoryTemplatesService {
       ],
     });
 
-    const categories = await this.loadCategoriesOf(nominations);
+    const categoryPrices = await this.loadCategoryPrices(templateId);
+    // Ціна може стояти на осі, якої вже немає в жодній номінації, тому її
+    // категорії довантажуються разом із категоріями номінацій.
+    const categories = await this.loadCategoriesOf(
+      nominations,
+      categoryPrices.map((p) => p.categoryId),
+    );
+
+    const prices = priceMapOf(categoryPrices);
+    const categoryById = this.categoryMapOf(categories);
 
     return {
       ...this.toDto(template),
       nominationsCount: nominations.length,
       criteria: this.buildCriteria(nominations, categories),
       specials: this.buildSpecials(nominations),
-      nominations: nominations.map((n) => this.nominationToDto(n)),
+      categoryPrices: this.categoryPricesToDto(categoryPrices, categories),
+      nominations: nominations.map((n) =>
+        this.nominationToDto(n, categoryById, prices),
+      ),
     };
   }
 
   async create(requesterId: string, dto: CreateCategoryTemplateDto) {
     await this.assertCategoriesExist(dto.nominations);
+    await this.assertPricedCategories(dto.categoryPrices);
 
     const template = await this.templateModel.create({
       name: dto.name.trim(),
@@ -227,6 +258,7 @@ export class CategoryTemplatesService {
       forkedFromId: null,
     } as CreationAttributes<CategoryTemplate>);
 
+    await this.replaceCategoryPrices(template.id, dto.categoryPrices ?? []);
     await this.replaceNominations(template.id, dto.nominations);
     return this.toDetailDto(await this.loadWithAuthor(template.id));
   }
@@ -243,6 +275,11 @@ export class CategoryTemplatesService {
     if (template.authorId !== requesterId) {
       throw new ForbiddenException(TEMPLATE_EDIT_AUTHOR_ONLY_MESSAGE);
     }
+    // Перевірка до першого запису: інакше відхилений апдейт лишав би вже
+    // збережені назву й ціни поруч зі старим набором номінацій.
+    if (dto.nominations && dto.nominations.length === 0) {
+      throw new BadRequestException(TEMPLATE_CANNOT_BE_EMPTY_MESSAGE);
+    }
 
     if (dto.name !== undefined) template.name = dto.name.trim();
     if (dto.description !== undefined) {
@@ -254,10 +291,14 @@ export class CategoryTemplatesService {
     }
     await template.save();
 
+    if (dto.categoryPrices !== undefined) {
+      await this.assertPricedCategories(dto.categoryPrices);
+      await this.replaceCategoryPrices(templateId, dto.categoryPrices);
+    }
+
+    // Зміна цін осей навмисно не чіпає вже збережені номінації: вісь — лише
+    // помічник заповнення, ціна номінації належить самій номінації.
     if (dto.nominations) {
-      if (dto.nominations.length === 0) {
-        throw new BadRequestException(TEMPLATE_CANNOT_BE_EMPTY_MESSAGE);
-      }
       await this.assertCategoriesExist(dto.nominations);
       await this.replaceNominations(templateId, dto.nominations);
     }
@@ -299,20 +340,45 @@ export class CategoryTemplatesService {
       ],
     });
 
+    const sourcePrices = await this.loadCategoryPrices(source.id);
+    if (sourcePrices.length > 0) {
+      const priceRecords = sourcePrices.map((p) => ({
+        templateId: copy.id,
+        categoryId: p.categoryId,
+        price: Number(p.price),
+      })) as CreationAttributes<TemplateCategoryPrice>[];
+      await this.categoryPriceModel.sequelize!.transaction((transaction) =>
+        bulkCreateChunked(this.categoryPriceModel, priceRecords, transaction),
+      );
+    }
+
     if (sourceNominations.length > 0) {
+      // Осі копії беруться з оригіналу, тож вони мусять бути завантажені.
+      await this.loadCategoriesOf(sourceNominations);
       const records = sourceNominations.map((n, index) => ({
         templateId: copy.id,
         name: n.name,
+        price: n.price === null ? null : Number(n.price),
         allowsImprovisation: n.allowsImprovisation,
-        categoryIds: n.categoryIds,
         isSpecial: n.isSpecial,
         specialName: n.specialName,
         exitMode: n.exitMode,
         sortOrder: n.sortOrder ?? index,
       })) as CreationAttributes<TemplateNomination>[];
-      await this.nominationModel.sequelize!.transaction((transaction) =>
-        bulkCreateChunked(this.nominationModel, records, transaction),
-      );
+      await this.nominationModel.sequelize!.transaction(async (transaction) => {
+        const rows = await bulkCreateChunked(
+          this.nominationModel,
+          records,
+          transaction,
+        );
+        await this.saveCategoryLinks(
+          rows.map((row, index) => ({
+            templateNominationId: row.id,
+            categoryIds: sourceNominations[index].categoryIds,
+          })),
+          transaction,
+        );
+      });
     }
 
     return this.toDetailDto(await this.loadWithAuthor(copy.id));
@@ -372,11 +438,17 @@ export class CategoryTemplatesService {
     templateId: string,
     nominations: TemplateNominationDto[],
   ): Promise<void> {
+    const groupPrices = specialGroupPrices(nominations);
+
     const records = nominations.map((n, index) => ({
       templateId,
       name: n.name.trim(),
+      // Ціна приходить із рядка. Для спецкатегорії порожня ціна успадковує
+      // ціну своєї групи — вона одна на назву.
+      price: n.isSpecial
+        ? (n.price ?? specialGroupPrice(groupPrices, n.specialName))
+        : (n.price ?? null),
       allowsImprovisation: n.allowsImprovisation ?? false,
-      categoryIds: n.categoryIds ?? [],
       isSpecial: n.isSpecial ?? false,
       specialName: n.specialName?.trim() || null,
       exitMode: n.exitMode ?? DEFAULT_EXIT_MODE,
@@ -386,16 +458,108 @@ export class CategoryTemplatesService {
     // Chunked inserts issue several INSERT statements instead of one, so the
     // destroy + recreate needs an explicit transaction to still be atomic.
     await this.nominationModel.sequelize!.transaction(async (transaction) => {
+      // Рядки зв'язку зникають разом із номінаціями (ON DELETE CASCADE).
       await this.nominationModel.destroy({ where: { templateId }, transaction });
-      await bulkCreateChunked(this.nominationModel, records, transaction);
+      const rows = await bulkCreateChunked(
+        this.nominationModel,
+        records,
+        transaction,
+      );
+      await this.saveCategoryLinks(
+        rows.map((row, index) => ({
+          templateNominationId: row.id,
+          categoryIds: nominations[index].categoryIds ?? [],
+        })),
+        transaction,
+      );
     });
   }
 
+  private async replaceCategoryPrices(
+    templateId: string,
+    prices: TemplateCategoryPriceDto[],
+  ): Promise<void> {
+    const records = prices.map((p) => ({
+      templateId,
+      categoryId: p.categoryId,
+      price: p.price,
+    })) as CreationAttributes<TemplateCategoryPrice>[];
+
+    await this.categoryPriceModel.sequelize!.transaction(
+      async (transaction) => {
+        await this.categoryPriceModel.destroy({
+          where: { templateId },
+          transaction,
+        });
+        await bulkCreateChunked(this.categoryPriceModel, records, transaction);
+      },
+    );
+  }
+
+  private loadCategoryPrices(
+    templateId: string,
+  ): Promise<TemplateCategoryPrice[]> {
+    return this.categoryPriceModel.findAll({ where: { templateId } });
+  }
+
+  private categoryMapOf(categories: Category[]): Map<string, Category> {
+    return new Map(categories.map((category) => [category.id, category]));
+  }
+
+  /**
+   * Категорії номінацій шаблону — і водночас єдине місце, де осі потрапляють
+   * у самі рядки. Поки цього не сталося, `n.categoryIds` кидає: порожній
+   * масив мовчки означав би «осей немає».
+   */
   private async loadCategoriesOf(
     nominations: TemplateNomination[],
+    extraIds: string[] = [],
   ): Promise<Category[]> {
-    const ids = [...new Set(nominations.flatMap((n) => n.categoryIds ?? []))];
-    return this.categoriesService.findByIds(ids);
+    const links =
+      nominations.length === 0
+        ? []
+        : await this.nominationCategoryModel.findAll({
+            where: {
+              templateNominationId: { [Op.in]: nominations.map((n) => n.id) },
+            },
+          });
+    const ids = [
+      ...new Set([...links.map((link) => link.categoryId), ...extraIds]),
+    ];
+    const categories = await this.categoriesService.findByIds(ids);
+
+    const byId = this.categoryMapOf(categories);
+    const byNomination = new Map<string, Category[]>();
+    for (const link of links) {
+      const category = byId.get(link.categoryId);
+      if (!category) continue;
+      const bucket = byNomination.get(link.templateNominationId);
+      if (bucket) bucket.push(category);
+      else byNomination.set(link.templateNominationId, [category]);
+    }
+    for (const nomination of nominations) {
+      nomination.categories = byNomination.get(nomination.id) ?? [];
+    }
+    return categories;
+  }
+
+  /** Осі щойно створених номінацій шаблону: порядок рядків і вхідних збігається. */
+  private async saveCategoryLinks(
+    links: { templateNominationId: string; categoryIds: string[] }[],
+    transaction: Transaction,
+  ): Promise<void> {
+    const rows = links.flatMap(({ templateNominationId, categoryIds }) =>
+      [...new Set(categoryIds)].map((categoryId) => ({
+        templateNominationId,
+        categoryId,
+      })),
+    );
+    if (rows.length === 0) return;
+    await bulkCreateChunked(
+      this.nominationCategoryModel,
+      rows as CreationAttributes<TemplateNominationCategory>[],
+      transaction,
+    );
   }
 
   /**
@@ -448,6 +612,53 @@ export class CategoryTemplatesService {
     }
   }
 
+  /**
+   * Ціну можна повісити лише на значення цінової осі: ціна на «Хіп-хоп» або
+   * на вікову категорію нікуди не читається, тож мовчки зникла б.
+   */
+  private async assertPricedCategories(
+    prices: TemplateCategoryPriceDto[] | undefined,
+  ): Promise<void> {
+    if (!prices || prices.length === 0) return;
+
+    const ids = prices.map((p) => p.categoryId);
+    if (new Set(ids).size !== ids.length) {
+      throw new BadRequestException(DUPLICATE_CATEGORY_PRICE_MESSAGE);
+    }
+
+    const categories = await this.categoriesService.findByIds(ids);
+    const found = new Set(categories.map((c) => c.id));
+    const missing = ids.filter((id) => !found.has(id));
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `${UNKNOWN_PRICED_CATEGORIES_MESSAGE_PREFIX}: ${missing.join(', ')}`,
+      );
+    }
+
+    const wrongAxis = categories.filter((c) => !isPricedAxis(c.type));
+    if (wrongAxis.length > 0) {
+      throw new BadRequestException(
+        `${PRICED_AXIS_REQUIRED_MESSAGE}: ${wrongAxis.map((c) => c.name).join(', ')}`,
+      );
+    }
+  }
+
+  private categoryPricesToDto(
+    prices: TemplateCategoryPrice[],
+    categories: Category[],
+  ) {
+    const typeById = new Map(categories.map((c) => [c.id, c.type]));
+    return prices
+      .filter((p) => typeById.has(p.categoryId))
+      .map((p) => ({
+        categoryId: p.categoryId,
+        // Вісь потрібна клієнту, щоб зібрати ту саму мапу «вісь:категорія →
+        // ціна», якою він малює поля цін.
+        type: typeById.get(p.categoryId) as Category['type'],
+        price: Number(p.price),
+      }));
+  }
+
   private toDto(template: CategoryTemplate) {
     return {
       id: template.id,
@@ -466,10 +677,23 @@ export class CategoryTemplatesService {
     };
   }
 
-  private nominationToDto(nomination: TemplateNomination) {
+  private nominationToDto(
+    nomination: TemplateNomination,
+    categoryById: Map<string, Category>,
+    prices: Map<string, number>,
+  ) {
+    const price = nomination.price === null ? null : Number(nomination.price);
     return {
       id: nomination.id,
       name: nomination.name,
+      price,
+      // Ціна, що діє: власна ціна рядка, а якщо її не виставили — ціна складу
+      // або ліги. Спецкатегорія осей не має: її ціна належить групі за назвою,
+      // і підстановка за складом розвела б членів однієї групи.
+      effectivePrice: nomination.isSpecial
+        ? price
+        : (price ??
+          resolveAxisPrice(nomination.categoryIds ?? [], categoryById, prices)),
       allowsImprovisation: nomination.allowsImprovisation,
       categoryIds: nomination.categoryIds,
       isSpecial: nomination.isSpecial,
