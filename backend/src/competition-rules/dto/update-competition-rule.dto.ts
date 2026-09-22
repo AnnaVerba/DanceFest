@@ -34,8 +34,9 @@ export class UpdateCompetitionRuleDto {
   @ApiPropertyOptional({
     example: { Дуо: 150, Тріо: 180, Група: 240 },
     description:
-      'On-stage limit in seconds per lineup (Дуо / Тріо / Група), independent ' +
-      'of the league. Other keys and non-positive values are dropped by the service.',
+      'On-stage limit in seconds keyed by lineup name. Outranks leagueLimits ' +
+      "when an entry's lineup and league both have a configured limit. " +
+      'Non-positive or non-numeric values are dropped by the service.',
   })
   @IsOptional()
   @IsObject()

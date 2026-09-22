@@ -36,7 +36,6 @@ import {
   DURATION_LIMIT_TARGET_REQUIRED_MESSAGE,
   NOMINATION_LIMIT_ALREADY_SET_MESSAGE,
   AXIS_LIMIT_ALREADY_SET_MESSAGE,
-  LINEUP_LIMIT_LABELS,
 } from './competition-rules.constants';
 import { NOMINATION_NOT_FOUND_MESSAGE } from '../nominations/nominations.constants';
 import {
@@ -46,30 +45,18 @@ import {
 
 export const DEFAULT_DURATION_LIMIT_SECONDS = 180;
 
-// Keep only "league name -> positive whole number of seconds" pairs; the DTO
-// only guarantees the value is an object.
-function sanitizeLeagueLimits(
-  raw: Record<string, unknown>,
-): Record<string, number> {
+// Keep only "axis value name -> positive whole number of seconds" pairs; the
+// DTO only guarantees the value is an object. Shared by leagueLimits
+// (level axis) and lineupLimits (lineup axis) — both are the same shape.
+function sanitizeLimits(raw: Record<string, unknown>): Record<string, number> {
   const clean: Record<string, number> = {};
-  for (const [league, value] of Object.entries(raw)) {
+  for (const [name, value] of Object.entries(raw)) {
     const seconds = Number(value);
     if (Number.isInteger(seconds) && seconds > 0) {
-      clean[league.trim()] = seconds;
+      clean[name.trim()] = seconds;
     }
   }
   return clean;
-}
-
-// Only the lineups that carry their own limit survive.
-function sanitizeLineupLimits(
-  raw: Record<string, unknown>,
-): Record<string, number> {
-  return Object.fromEntries(
-    Object.entries(sanitizeLeagueLimits(raw)).filter(([lineup]) =>
-      LINEUP_LIMIT_LABELS.includes(lineup),
-    ),
-  );
 }
 
 const AXIS_PRIORITY: CategoryType[] = [
@@ -128,10 +115,10 @@ export class CompetitionRulesService {
     const rules = await this.getRules(competitionId);
     const previousLeagueLimits = rules.leagueLimits;
     if (dto.leagueLimits !== undefined) {
-      dto.leagueLimits = sanitizeLeagueLimits(dto.leagueLimits);
+      dto.leagueLimits = sanitizeLimits(dto.leagueLimits);
     }
     if (dto.lineupLimits !== undefined) {
-      dto.lineupLimits = sanitizeLineupLimits(dto.lineupLimits);
+      dto.lineupLimits = sanitizeLimits(dto.lineupLimits);
     }
     const updated = await rules.update(dto);
     if (dto.leagueLimits !== undefined) {
@@ -337,8 +324,9 @@ export class CompetitionRulesService {
   }
 
   // Priority for an entry's effective on-stage time limit: the nomination's
-  // duration set by hand (TASK-07) → league limit (the simple per-league
-  // knob on CompetitionRule) → per-nomination/axis duration_limits →
+  // duration set by hand (TASK-07) → lineup limit → league limit (the
+  // simple per-lineup/per-league knobs on CompetitionRule, lineup winning
+  // when both are set) → per-nomination/axis duration_limits →
   // DEFAULT_DURATION_LIMIT_SECONDS. `limitCache` lets a caller resolving
   // many entries in one pass — e.g. a whole competition's overage list —
   // skip repeat lookups for the same nomination.
@@ -352,15 +340,15 @@ export class CompetitionRulesService {
       if (manual !== null) return manual;
     }
 
-    // A duo / trio / group runs for its lineup's limit whatever the league.
-    const lineupLimit = entry.lineup
-      ? rules.lineupLimits?.[entry.lineup]
-      : undefined;
+    // lineupLimits outranks leagueLimits: a lineup value (Дуо, Тріо…) set
+    // by the organizer wins over the league whatever it says.
+    const lineupKey = entry.lineup?.trim();
+    const lineupLimit = lineupKey ? rules.lineupLimits?.[lineupKey] : undefined;
     if (typeof lineupLimit === 'number' && lineupLimit > 0) {
       return lineupLimit;
     }
 
-    // leagueLimits keys are stored trimmed (see sanitizeLeagueLimits).
+    // leagueLimits/lineupLimits keys are stored trimmed (see sanitizeLimits).
     const leagueKey = entry.league?.trim();
     const leagueLimit = leagueKey ? rules.leagueLimits?.[leagueKey] : undefined;
     if (typeof leagueLimit === 'number' && leagueLimit > 0) {

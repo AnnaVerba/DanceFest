@@ -1,3 +1,4 @@
+import { LINEUP_LABELS } from '../entries/lineup';
 import { Entry } from '../entries/entry.model';
 import { Section } from './section.model';
 import { SectionItem } from './section-item.model';
@@ -76,8 +77,8 @@ export interface SectionSummaryView {
   sortOrder: number;
 }
 
-export function isImprovExit(entry: Entry): boolean {
-  return entry.improv;
+export function isGroupImprov(entry: Entry): boolean {
+  return entry.improv && entry.lineup === LINEUP_LABELS.GROUP;
 }
 
 // A `performance` row whose entry was cancelled (entryId nulled on delete)
@@ -130,9 +131,9 @@ export function buildSectionView(
     type: item.type,
     durationSeconds: item.durationSeconds ?? 0,
     nominationGroupKey: item.nominationGroupKey,
-    isImprovExit:
+    isGroupImprov:
       item.type === PERFORMANCE_ITEM && item.entry != null
-        ? isImprovExit(item.entry)
+        ? isGroupImprov(item.entry)
         : false,
   }));
 

@@ -3,10 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getRules, patchRules } from '../../../lib/competitionRules';
 import type { RulesPatch } from '../../../lib/competitionRules';
 import { getNominationAxes } from '../../../lib/nominations';
-import { LEAGUE_CATEGORY_TYPE } from '../../../lib/categories';
-import { LINEUP_LIMIT_LABELS } from '../../../lib/lineupLimits.constants';
-import { refreshProgram } from '../../../lib/programCache';
-import { getSections, recalculateSchedule } from '../../../lib/schedule';
+import { LEAGUE_CATEGORY_TYPE, LINEUP_CATEGORY_TYPE } from '../../../lib/categories';
+import { getSections } from '../../../lib/schedule';
 import { parseDuration } from '../../../lib/duration';
 import { queryKeys } from '../../../lib/queryKeys';
 import styles from './program.module.css';
@@ -19,7 +17,7 @@ interface ScheduleSettingsProps {
 }
 
 const RECALC_HINT =
-  'Після збереження розклад уже сформованих відділень перераховується автоматично за новими паузами й лімітами.';
+  'Зміна паузи чи лімітів не перерахує вже сформовані відділення — відкрийте вкладку «Програма», режим «Редагувати» → «Перерахувати розклад».';
 
 function readSeconds(raw: string): number | null {
   const trimmed = raw.trim();
@@ -38,7 +36,6 @@ export default function ScheduleSettings({
   const [pause, setPause] = useState('');
   const [limits, setLimits] = useState<Record<string, string>>({});
   const [lineupLimits, setLineupLimits] = useState<Record<string, string>>({});
-  const [improvSeconds, setImprovSeconds] = useState('');
 
   const rulesQuery = useQuery({
     queryKey: queryKeys.rules(competitionId),
@@ -59,6 +56,10 @@ export default function ScheduleSettings({
   const hasSections = (sectionsExistQuery.data?.totalSections ?? 0) > 0;
   const leagues = useMemo(() => {
     const values = axesQuery.data?.[LEAGUE_CATEGORY_TYPE] ?? [];
+    return values.map((value) => value.name).sort();
+  }, [axesQuery.data]);
+  const lineups = useMemo(() => {
+    const values = axesQuery.data?.[LINEUP_CATEGORY_TYPE] ?? [];
     return values.map((value) => value.name).sort();
   }, [axesQuery.data]);
   const loading =
@@ -91,7 +92,6 @@ export default function ScheduleSettings({
         Object.entries(rules.lineupLimits).map(([k, v]) => [k, String(v)]),
       ),
     );
-    setImprovSeconds(String(rules.improvIndividualSeconds));
   }
 
   const patchRulesMutation = useMutation({
@@ -111,6 +111,10 @@ export default function ScheduleSettings({
     const set = new Set<string>([...Object.keys(limits), ...leagues]);
     return [...set].filter(Boolean).sort();
   }, [limits, leagues]);
+  const lineupRows = useMemo(() => {
+    const set = new Set<string>([...Object.keys(lineupLimits), ...lineups]);
+    return [...set].filter(Boolean).sort();
+  }, [lineupLimits, lineups]);
 
   if (loading) return <p className={styles.empty}>Завантаження…</p>;
   if (!rules) return <p className={styles.empty}>Налаштування недоступні.</p>;
@@ -131,22 +135,12 @@ export default function ScheduleSettings({
       const seconds = readSeconds(raw);
       if (seconds !== null && seconds > 0) nextLineupLimits[lineup] = seconds;
     }
-    const nextImprovSeconds = readSeconds(improvSeconds);
-    if (nextImprovSeconds === null || nextImprovSeconds <= 0) {
-      onError('Імпровізація: вкажіть, скільки секунд припадає на учасника.');
-      return;
-    }
     try {
       await patchRulesMutation.mutateAsync({
         pauseSeconds: nextPause,
         leagueLimits: nextLimits,
         lineupLimits: nextLineupLimits,
-        improvIndividualSeconds: nextImprovSeconds,
       });
-      if (hasSections) {
-        await recalculateSchedule(competitionId);
-        await refreshProgram(queryClient, competitionId);
-      }
       onSaved('Налаштування таймінгів збережено.');
     } catch {
       onError('Не вдалося зберегти налаштування.');
@@ -205,43 +199,34 @@ export default function ScheduleSettings({
 
         <div>
           <label className={styles.fieldLabel}>
-            Тривалість групових номерів — за складом, незалежно від ліги (
-            <code>2:30</code> або <code>150</code>)
+            Тривалість виступу за складом (<code>1:30</code> або{' '}
+            <code>90</code>) — має перевагу над лігою, якщо задано обидва
           </label>
-          <div className={styles.chips}>
-            {LINEUP_LIMIT_LABELS.map((lineup) => (
-              <div key={lineup} className={styles.chip}>
-                <span className={styles.chipName}>{lineup}</span>
-                <input
-                  className={styles.chipInput}
-                  value={lineupLimits[lineup] ?? ''}
-                  placeholder="—"
-                  disabled={!canManage}
-                  onChange={(e) =>
-                    setLineupLimits((prev) => ({
-                      ...prev,
-                      [lineup]: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className={styles.fieldRow}>
-          <div>
-            <label className={styles.fieldLabel} htmlFor="settingsImprovSeconds">
-              Імпровізація — секунд на учасника
-            </label>
-            <input
-              id="settingsImprovSeconds"
-              className={styles.numInput}
-              value={improvSeconds}
-              onChange={(e) => setImprovSeconds(e.target.value)}
-              disabled={!canManage}
-            />
-          </div>
+          {lineupRows.length === 0 ? (
+            <p className={styles.muted}>
+              Значень складу ще немає — зʼявляться після формування номінацій.
+            </p>
+          ) : (
+            <div className={styles.chips}>
+              {lineupRows.map((lineup) => (
+                <div key={lineup} className={styles.chip}>
+                  <span className={styles.chipName}>{lineup}</span>
+                  <input
+                    className={styles.chipInput}
+                    value={lineupLimits[lineup] ?? ''}
+                    placeholder="—"
+                    disabled={!canManage}
+                    onChange={(e) =>
+                      setLineupLimits((prev) => ({
+                        ...prev,
+                        [lineup]: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {hasSections && <div className={styles.divider} />}

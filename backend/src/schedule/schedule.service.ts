@@ -40,6 +40,7 @@ import { performanceDuration } from './performance-duration';
 import { eachDateInclusive } from './date-range';
 import {
   buildSectionView,
+  isGroupImprov,
   type ParticipantNumbersByEntry,
   type SectionSummaryView,
   type SectionView,
@@ -1575,7 +1576,7 @@ export class ScheduleService {
     return performanceDuration(
       {
         improv: entry.improv,
-        participantsCount: entry.participantsCount,
+        isGroupImprov: isGroupImprov(entry),
         limitSeconds,
       },
       rules,
