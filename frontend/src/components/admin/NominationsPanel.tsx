@@ -486,15 +486,6 @@ export default function NominationsPanel({
             + Додати спеціальну категорію
           </button>
 
-          {!competitionHasNoNominations && (
-            <button
-              type="button"
-              className={styles.btnSecondary}
-              onClick={() => setImportOpen(true)}
-            >
-              Додати номінації із шаблону
-            </button>
-          )}
           <NominationAxisPrices
             competitionId={competitionId}
             categories={categories}

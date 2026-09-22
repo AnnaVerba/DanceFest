@@ -384,12 +384,8 @@ export class NominationsService {
     await this.assertEveryNominationHasLeague(dto.nominations);
 
     const rules = await this.competitionRulesService.getRules(competitionId);
-    const newNominations = await this.withoutExistingNames(
-      competitionId,
-      dto.nominations,
-    );
     const attributesList = await Promise.all(
-      newNominations.map(async (n) => {
+      dto.nominations.map(async (n) => {
         const attributes = this.toAttributes(competitionId, n);
         await this.applyAutoDuration(competitionId, n, attributes, rules);
         return attributes;
@@ -425,24 +421,6 @@ export class NominationsService {
 
     const categories = await this.loadCategories(created);
     return created.map((n) => this.toDto(n, categories));
-  }
-
-  // A nomination already in the competition under the same name is not added
-  // again, so a template can be copied into a competition that already has
-  // nominations, and a retried batch never duplicates what already landed.
-  private async withoutExistingNames<T extends { name: string }>(
-    competitionId: string,
-    nominations: T[],
-  ): Promise<T[]> {
-    const existing = await this.nominationModel.findAll({
-      where: {
-        competitionId,
-        name: { [Op.in]: nominations.map((n) => n.name) },
-      },
-      attributes: ['name'],
-    });
-    const taken = new Set(existing.map((n) => n.name));
-    return nominations.filter((n) => !taken.has(n.name));
   }
 
   async update(
