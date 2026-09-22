@@ -66,6 +66,7 @@ import {
   NO_NOMINATIONS_FOR_AGE_MESSAGE,
 } from '../lib/applyAge.constants';
 import { NOMINATIONS_LOAD_FAILED_MESSAGE } from '../lib/applyNominations.constants';
+import { AUDIO_ACCEPT } from '../lib/uploads.constants';
 import styles from './ApplyPage.module.css';
 
 type PayMethod = 'cash' | 'card';
@@ -1449,7 +1450,7 @@ export default function ApplyPage() {
                       <input
                         className={styles.fileInput}
                         type="file"
-                        accept="audio/*"
+                        accept={AUDIO_ACCEPT}
                         onChange={(e) => setMusicForRow(row.key, e)}
                       />
                       {musicFileByKey[row.key] && (
