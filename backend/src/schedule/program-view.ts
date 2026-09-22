@@ -44,6 +44,7 @@ export interface MineProgramSection {
   name: string;
   time: string;
   dayId: string;
+  dayDate: string | null;
   venueId: string | null;
   exits: MineExitRow[];
 }
@@ -212,6 +213,7 @@ export function buildMineProgram(
       name: section.name,
       time: section.startsAt,
       dayId: section.dayId,
+      dayDate: section.dayDate,
       venueId: section.venueId,
       exits,
     };

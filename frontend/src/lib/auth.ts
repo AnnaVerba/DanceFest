@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './api';
+import type { AuthorizedFetchOptions } from './authorizedFetch.types';
 import { ACCESS_LEVEL, meetsLevel } from './roles';
 import type { AccessLevel } from './roles';
 import {
@@ -434,6 +435,7 @@ function redirectToLogin() {
 export async function authorizedFetch(
   path: string,
   init: RequestInit = {},
+  options: AuthorizedFetchOptions = {},
 ): Promise<Response> {
   const send = (token: string | null) =>
     fetch(`${API_BASE_URL}${path}`, {
@@ -448,6 +450,7 @@ export async function authorizedFetch(
   if (first.status !== HTTP_STATUS_UNAUTHORIZED) return first;
 
   if (!getRefreshToken()) {
+    if (options.optional) return first;
     redirectToLogin();
     throw new AuthError(SESSION_EXPIRED_MESSAGE);
   }
@@ -456,6 +459,7 @@ export async function authorizedFetch(
     const { accessToken } = await refreshOnce();
     return await send(accessToken);
   } catch {
+    if (options.optional) return first;
     redirectToLogin();
     throw new AuthError(SESSION_EXPIRED_MESSAGE);
   }

@@ -2,19 +2,22 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { ApiError } from '../../lib/http';
 import { HTTP_STATUS_NOT_FOUND } from '../../lib/api.constants';
-import { getPublicProgram } from '../../lib/program';
-import type { PublicProgramRow } from '../../lib/program';
+import { getMyProgram, getPublicProgram, hasSession } from '../../lib/program';
+import type { MineProgram, PublicProgramRow } from '../../lib/program';
 import { getVenues } from '../../lib/venues';
 import type { Venue } from '../../lib/venues';
 import {
+  filterMineSections,
   groupProgramSections,
   groupSectionsByVenue,
   sectionMatchesQuery,
 } from '../../lib/programSections';
 import ProgramSectionBlock from './ProgramSectionBlock';
+import MyProgramBlock from './MyProgramBlock';
 import {
   COLLAPSE_ALL_LABEL,
   EXPAND_ALL_LABEL,
+  FULL_PROGRAM_TITLE,
   JUMP_TO_SECTION_LABEL,
   LOAD_MORE_LABEL,
   NO_VENUE_KEY,
@@ -33,13 +36,15 @@ interface FestivalProgramProps {
 }
 
 // The read-only festival programme for everyone who does not edit it: one
-// tab per venue, each section collapsed until opened.
+// tab per venue, each section collapsed until opened. A signed-in dancer or
+// coach also gets their own performances highlighted on top.
 export default function FestivalProgram({ competitionId }: FestivalProgramProps) {
   const [publicRows, setPublicRows] = useState<PublicProgramRow[] | null>(null);
   const [programPage, setProgramPage] = useState(0);
   const [programPageCount, setProgramPageCount] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [venues, setVenues] = useState<Venue[]>([]);
+  const [mine, setMine] = useState<MineProgram | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [activeVenueIndex, setActiveVenueIndex] = useState(0);
@@ -90,6 +95,16 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
         /* tab names are cosmetic — the programme still renders */
       });
 
+    if (hasSession()) {
+      getMyProgram(competitionId)
+        .then((data) => {
+          if (!cancelled) setMine(data);
+        })
+        .catch(() => {
+          /* personal cut is optional — the full programme still renders */
+        });
+    }
+
     return () => {
       cancelled = true;
     };
@@ -114,6 +129,15 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
 
   const showDayHeadings =
     new Set(visibleSections.map((s) => s.head.dayId)).size > 1;
+
+  // The personal cut follows the open venue tab and the search, so it can
+  // never contradict the programme rendered under it.
+  const mineSections = filterMineSections(
+    (mine?.sections ?? []).filter(
+      (section) => section.venueId === activeVenue?.venueId,
+    ),
+    needle,
+  );
 
   if (loadError) {
     return <p className={styles.status}>{loadError}</p>;
@@ -211,6 +235,13 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
             ))}
           </select>
         </div>
+      )}
+
+      {mineSections.length > 0 && (
+        <>
+          <MyProgramBlock sections={mineSections} />
+          <h2 className={styles.sectionName}>{FULL_PROGRAM_TITLE}</h2>
+        </>
       )}
 
       {searching && visibleSections.length === 0 && (
