@@ -17,9 +17,14 @@ import type {
 import { ROW_TYPE_LABELS } from '../../../lib/schedule';
 import type { NominationToMove } from './nominationToMove.types';
 import { MOVE_NOMINATION_TITLE } from './sectionPicker.constants';
-import { formatParticipantNumbers } from '../../../lib/participantNumbers';
+import { formatMarkedParticipantNumbers } from '../../../lib/participantNumbers';
 import { formatClock, formatDuration } from '../../../lib/duration';
 import { opensProgram, programHeading } from '../../../lib/programHeading';
+import {
+  NOMINATION_NUMBER_MARK,
+  PARTICIPANT_NUMBER_MARK,
+} from '../../../lib/programNumbers.constants';
+import { formatMarkedNominationNumber } from '../../../lib/programNumbers';
 import styles from './program.module.css';
 
 interface ProgramTableProps {
@@ -228,10 +233,10 @@ export default function ProgramTable({
         <thead>
           <tr>
             <th className={styles.th} style={{ width: 44 }}>
-              F
+              {NOMINATION_NUMBER_MARK}
             </th>
             <th className={styles.th} style={{ width: 52 }}>
-              №
+              {PARTICIPANT_NUMBER_MARK}
             </th>
             <th className={styles.th} style={{ minWidth: 170 }}>
               Прізвище Імʼя
@@ -471,7 +476,9 @@ export default function ProgramTable({
                     // blocks with the same group.key — index keeps them apart.
                     <Fragment key={`${group.key}-${blockIndex}`}>
                       <tr className={styles.blockRow}>
-                        <td className={styles.blockF}>{number}</td>
+                        <td className={styles.blockF}>
+                          {formatMarkedNominationNumber(number)}
+                        </td>
                         <td className={styles.blockCell} colSpan={5}>
                           <div className={styles.blockHead}>
                             <button
@@ -579,7 +586,7 @@ export default function ProgramTable({
                           <tr key={item.id} className={styles.perfRow}>
                             <td className={styles.td} />
                             <td className={`${styles.td} ${styles.tdNum}`}>
-                              {formatParticipantNumbers(
+                              {formatMarkedParticipantNumbers(
                                 item.exit?.participantNumbers ?? [],
                               )}
                             </td>

@@ -12,7 +12,6 @@ export const LABEL_SEPARATOR = ' · ';
 export const TIME_RANGE_SEPARATOR = ' – ';
 export const STUDIO_LEADER_SEPARATOR = ', ';
 export const LEADER_ROLE_LABEL = 'керівник';
-export const CATEGORY_NUMBER_PREFIX = '№';
 
 export const EXPAND_ALL_LABEL = 'Розгорнути всі';
 export const COLLAPSE_ALL_LABEL = 'Згорнути всі';
