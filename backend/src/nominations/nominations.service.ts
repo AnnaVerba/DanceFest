@@ -278,8 +278,8 @@ export class NominationsService {
 
   /**
    * Номінація проходить за віком, коли її вікова категорія вміщує кожного
-   * учасника номера. Категорії без обох меж у підборі не беруть участі —
-   * порівнювати з ними нема чого.
+   * учасника номера. Категорії без нижньої межі у підборі не беруть участі —
+   * порівнювати з ними нема чого; порожня верхня межа означає «і старші».
    */
   private ageCondition(
     categories: Category[],
@@ -287,9 +287,7 @@ export class NominationsService {
   ): Record<string, unknown> {
     const bounded = categories
       .filter((category) => category.type === AGE_CATEGORY_TYPE)
-      .filter(
-        (category) => category.rangeFrom !== null && category.rangeTo !== null,
-      );
+      .filter((category) => category.rangeFrom !== null);
     const fitting = ageCategoriesFittingAges(ages, bounded);
     return this.axisOrMissingCondition(
       bounded.map((category) => category.id),

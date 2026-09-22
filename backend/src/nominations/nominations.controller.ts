@@ -27,6 +27,7 @@ import { BulkSetImprovisationDto } from './dto/bulk-set-improvisation.dto';
 import { BulkAssignVenueDto } from './dto/bulk-assign-venue.dto';
 import { BulkSetAxisPricesDto } from './dto/bulk-set-axis-prices.dto';
 import { UpdateNominationDto } from './dto/update-nomination.dto';
+import { joinListQuery } from './list-query';
 
 @ApiTags('nominations')
 @Controller('competitions/:competitionId/nominations')
@@ -89,12 +90,12 @@ export class NominationsController {
     @Param('competitionId') competitionId: string,
     @Query('league') league?: string,
     @Query('ageCategory') ageCategory?: string,
-    @Query('ages') ages?: string,
+    @Query('ages') ages?: string | string[],
   ) {
     return this.nominationsService.listSpecials(competitionId, {
       league,
       ageCategory,
-      ages,
+      ages: joinListQuery(ages),
     });
   }
 

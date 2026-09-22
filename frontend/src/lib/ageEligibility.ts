@@ -30,14 +30,20 @@ export function participantAges(
     .filter((age): age is number => age !== null);
 }
 
-function isBounded(category: NominationCategoryRange): boolean {
-  return category.rangeFrom !== null && category.rangeTo !== null;
+// Only a lower bound is required: an empty upper bound means "N and older",
+// the same as the server's age matching.
+function hasLowerBound(category: NominationCategoryRange): boolean {
+  return category.rangeFrom !== null;
 }
 
 // A category fits a line-up only when every dancer's age is inside it — the
-// same rule as the server's isEligibleForAgeCategory.
+// same rule as the server's ageCategoriesFittingAges.
 function fitsAllAges(ages: number[], category: NominationCategoryRange): boolean {
-  return ages.every((age) => age >= category.rangeFrom! && age <= category.rangeTo!);
+  return ages.every(
+    (age) =>
+      age >= category.rangeFrom! &&
+      (category.rangeTo === null || age <= category.rangeTo),
+  );
 }
 
 // A nomination without age limits fits everyone.
@@ -45,7 +51,7 @@ export function nominationFitsAges(
   ages: number[],
   categories: NominationCategoryRange[],
 ): boolean {
-  const bounded = categories.filter(isBounded);
+  const bounded = categories.filter(hasLowerBound);
   if (bounded.length === 0) return true;
   return bounded.some((c) => fitsAllAges(ages, c));
 }
@@ -57,7 +63,7 @@ export function ageCategoriesFittingAges(
   categories: NominationCategoryRange[],
 ): NominationCategoryRange[] {
   const fitting = categories
-    .filter(isBounded)
+    .filter(hasLowerBound)
     .filter((c) => fitsAllAges(ages, c));
   return fitting.filter(
     (c, index) => fitting.findIndex((other) => other.name === c.name) === index,

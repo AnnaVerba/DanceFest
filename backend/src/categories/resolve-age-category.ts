@@ -10,7 +10,8 @@ export interface AgeCategoryRange {
   rangeTo: number | null;
 }
 
-// Значення з обома заповненими межами — лише вони беруть участь у підборі.
+// Значення з обома заповненими межами — лише за ними визначається категорія
+// учасника (resolveAgeCategory).
 interface BoundedAgeCategory extends AgeCategoryRange {
   rangeFrom: number;
   rangeTo: number;
@@ -20,6 +21,18 @@ function isBounded<T extends AgeCategoryRange>(
   category: T,
 ): category is T & BoundedAgeCategory {
   return category.rangeFrom !== null && category.rangeTo !== null;
+}
+
+// Заповнена лише нижня межа — категорія «N і старші»: порожня верхня межа
+// означає, що згори вік не обмежений.
+interface OpenEndedAgeCategory extends AgeCategoryRange {
+  rangeFrom: number;
+}
+
+function hasLowerBound<T extends AgeCategoryRange>(
+  category: T,
+): category is T & OpenEndedAgeCategory {
+  return category.rangeFrom !== null;
 }
 
 const DATE_ONLY_LENGTH = 10;
@@ -67,10 +80,12 @@ export function ageCategoriesFittingAges<T extends AgeCategoryRange>(
   categories: T[],
 ): T[] {
   return categories
-    .filter(isBounded)
+    .filter(hasLowerBound)
     .filter((category) =>
       ages.every(
-        (age) => age >= category.rangeFrom && age <= category.rangeTo,
+        (age) =>
+          age >= category.rangeFrom &&
+          (category.rangeTo === null || age <= category.rangeTo),
       ),
     );
 }

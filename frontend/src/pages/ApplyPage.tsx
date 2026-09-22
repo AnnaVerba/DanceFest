@@ -370,9 +370,10 @@ export default function ApplyPage() {
     ? [selfParticipant.id]
     : selectedParticipants.map((p) => p.id);
 
-  const activeParticipants = selfParticipant
-    ? [selfParticipant]
-    : selectedParticipants;
+  const activeParticipants = useMemo(
+    () => (selfParticipant ? [selfParticipant] : selectedParticipants),
+    [selfParticipant, selectedParticipants],
+  );
 
   // Вісь ліги рахується й по спецномінаціях, тож ліга, яка трапляється
   // лише в них, у списку теж є — і має id, за яким її можна відфільтрувати.
@@ -506,6 +507,10 @@ export default function ApplyPage() {
       setSpecialsError(null);
       return;
     }
+    // Рядки під попередню лігу чи вік не мають лишатися обраними, поки
+    // вантажаться нові.
+    setSpecials([]);
+    setSpecialsError(null);
     let cancelled = false;
     getSpecialNominations(id, {
       league: leagueId,
@@ -574,6 +579,16 @@ export default function ApplyPage() {
     () => [...styleRows, ...specialRows],
     [styleRows, specialRows],
   );
+
+  // Номінація, що зникла зі списку (змінилась ліга, вік чи стилі), знімається
+  // з вибору: повернувшись, вона не має бути обраною сама собою.
+  useEffect(() => {
+    const visibleKeys = new Set(allRows.map((row) => row.key));
+    setSelectedKeys((prev) => {
+      const kept = prev.filter((key) => visibleKeys.has(key));
+      return kept.length === prev.length ? prev : kept;
+    });
+  }, [allRows]);
 
   const selectedRows = allRows.filter((r) => selectedKeys.includes(r.key));
   const quote = useEntriesQuote(
