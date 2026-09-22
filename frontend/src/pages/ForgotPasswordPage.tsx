@@ -14,6 +14,8 @@ import {
   PASSWORD_TOO_SHORT_MESSAGE,
 } from '../lib/auth.constants';
 import PhoneField from '../components/PhoneField';
+import ProjectLogo from '../components/ProjectLogo';
+import { PROJECT_LOGO_LABEL } from '../components/ProjectLogo.constants';
 import styles from './LoginPage.module.css';
 
 const RESEND_SECONDS = 60;
@@ -101,8 +103,8 @@ export default function ForgotPasswordPage() {
   return (
     <main className={styles.page}>
       <div className={styles.card}>
-        <div className={styles.brand}>
-          <div className={styles.brandTagline}>Управління конкурсами</div>
+        <div className={styles.brand} role="img" aria-label={PROJECT_LOGO_LABEL}>
+          <ProjectLogo className={styles.brandLogo} />
         </div>
 
         {stage === 'request' && (
