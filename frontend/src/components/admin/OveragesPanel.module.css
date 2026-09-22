@@ -32,13 +32,16 @@
   overflow-x: auto;
 }
 
-table {
+/* Scoped under .tableWrap, never bare `table`/`th`/`td`: CSS Modules don't
+   scope element selectors, so a bare rule here applies to every table in the
+   app — this min-width used to stretch the phone card layout of /my-entries. */
+.tableWrap table {
   width: 100%;
   min-width: 900px;
   border-collapse: collapse;
 }
 
-th {
+.tableWrap th {
   text-align: left;
   padding: 10px 12px;
   background: var(--g-field-off);
@@ -50,18 +53,18 @@ th {
   text-transform: uppercase;
 }
 
-td {
+.tableWrap td {
   padding: 12px;
   border-bottom: 1px solid var(--g-line);
   font-size: 13px;
   vertical-align: middle;
 }
 
-tbody tr:last-child td {
+.tableWrap tbody tr:last-child td {
   border-bottom: 0;
 }
 
-tbody tr:hover {
+.tableWrap tbody tr:hover {
   background: var(--g-field-off);
 }
 
