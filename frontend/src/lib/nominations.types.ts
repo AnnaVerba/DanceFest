@@ -43,6 +43,17 @@ export interface NominationEntryFilter {
   ages: number[];
 }
 
+// Вибір, за яким форма заявки просить спецномінації. Стилю й складу вони
+// не несуть: ліга мусить збігтися, вік — підійти кожному учаснику номера.
+export interface NominationSpecialsFilter {
+  league: string;
+  // Обрана категорія: точний збіг, але номінація без вікової осі
+  // проходить теж.
+  ageCategory?: string;
+  // Вік кожного учасника — поки категорію ще не обрано.
+  ages: number[];
+}
+
 export type VenueSummaryGroupBy = 'level' | 'age';
 
 export interface VenueSummaryRow {

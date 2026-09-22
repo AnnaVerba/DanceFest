@@ -39,6 +39,18 @@ export interface NominationEntryQuery {
   ages?: string;
 }
 
+// Сирі параметри вибірки спецномінацій під заявника. Стилю й складу
+// спецномінація не несе, тож звужується лише за цими двома.
+export interface NominationSpecialsQuery {
+  // Id ліги: номінація мусить нести саме її.
+  league?: string;
+  // Id вікової категорії, яку обрав заявник.
+  ageCategory?: string;
+  // Вік кожного учасника номера через кому — поки категорію
+  // ще не обрано.
+  ages?: string;
+}
+
 export interface VenueSummaryRow {
   categoryId: string;
   name: string;
