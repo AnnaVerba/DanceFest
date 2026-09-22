@@ -6,10 +6,10 @@ import type {
 import { formatClock } from '../../../lib/duration';
 import {
   CONFLICT_PAIR_SEPARATOR,
-  CONFLICT_PARTICIPANT_PREFIX,
   CONFLICT_UNKNOWN_NUMBER,
   VENUE_CONFLICTS_TITLE,
 } from './venueConflictsNotice.constants';
+import { PARTICIPANT_NUMBER_MARK } from '../../../lib/programNumbers.constants';
 import styles from './program.module.css';
 
 interface VenueConflictsNoticeProps {
@@ -33,7 +33,7 @@ export default function VenueConflictsNotice({
       <ul className={styles.conflictList}>
         {conflicts.map((conflict, index) => (
           <li key={index}>
-            {CONFLICT_PARTICIPANT_PREFIX}
+            {PARTICIPANT_NUMBER_MARK}
             {conflict.participantNumber ?? CONFLICT_UNKNOWN_NUMBER}:{' '}
             {slotText(conflict.first)}
             {CONFLICT_PAIR_SEPARATOR}
