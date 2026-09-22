@@ -62,7 +62,8 @@
   padding: 0.55rem 1.4rem;
   border: 1px solid var(--border, #d0d5dd);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface, #fff);
+  color: var(--ink, #191b18);
   font: inherit;
   cursor: pointer;
 }

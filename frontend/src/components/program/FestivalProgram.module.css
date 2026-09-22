@@ -87,6 +87,8 @@
   padding: 0.5rem 0.7rem;
   border: 1px solid var(--border, #d0d5dd);
   border-radius: 8px;
+  background: var(--surface, #fff);
+  color: var(--ink, #191b18);
   font: inherit;
 }
 
@@ -94,7 +96,8 @@
   padding: 0.5rem 0.9rem;
   border: 1px solid var(--border, #d0d5dd);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface, #fff);
+  color: var(--ink, #191b18);
   font: inherit;
   cursor: pointer;
 }
@@ -110,7 +113,8 @@
   padding: 0.5rem 1.1rem;
   border: 1px solid var(--border, #d0d5dd);
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface, #fff);
+  color: var(--ink, #191b18);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -150,7 +154,8 @@
   padding: 0.55rem 1.4rem;
   border: 1px solid var(--border, #d0d5dd);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface, #fff);
+  color: var(--ink, #191b18);
   font: inherit;
   cursor: pointer;
 }
