@@ -4,8 +4,62 @@
   font-size: 0.9rem;
 }
 
+/* The personal cut is a panel, not another heading in the flow: an accent
+   frame and its own surface say at a glance that these rows are the
+   viewer's own and not the programme that follows. */
+.myProgram {
+  border: 1px solid var(--g-accent);
+  border-left-width: 4px;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.75rem;
+  background: var(--surface, #fff);
+}
+
+.myProgramToggle {
+  display: flex;
+  width: 100%;
+  gap: 0.6rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink, #191b18);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.myProgramTitle {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+/* The counts stay in the header, so a collapsed panel still says how many
+   performances are hiding inside it. */
+.myProgramCounts {
+  color: var(--text-muted, #667085);
+  font-size: 0.9rem;
+}
+
+.myProgramBody {
+  margin-top: 0.9rem;
+}
+
 .section {
   margin-bottom: 1.5rem;
+}
+
+/* The personal block's sections do not collapse, so they keep the plain
+   header .sectionToggle replaced for the full programme. */
+.sectionHead {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  border-bottom: 2px solid var(--border, #e4e7ec);
+  padding-bottom: 0.35rem;
+  margin-bottom: 0.5rem;
 }
 
 .dayHeading {
@@ -30,9 +84,16 @@
   gap: 0.6rem;
   align-items: baseline;
   padding: 0.4rem 0;
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--text-muted, #667085);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--ink, #191b18);
+}
+
+/* The nomination's F number lines up with the performers' numbers below it,
+   but is not given the muted grey of .num — it carries the block's weight. */
+.groupNum {
+  font-variant-numeric: tabular-nums;
+  min-width: 2.5rem;
 }
 
 .awardRow {
@@ -50,6 +111,34 @@
   padding: 0.4rem 0.5rem;
   border-radius: 6px;
   font-size: 0.92rem;
+}
+
+.exitMine {
+  background: var(--g-accent-bg-soft);
+  font-weight: 600;
+}
+
+.exitStudent {
+  background: var(--hover, #f4f4f6);
+}
+
+/* --g-dark-cta holds in both themes, so white on it stays readable. */
+.tag {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--g-dark-cta);
+  color: #fff;
+  white-space: nowrap;
+}
+
+/* The student tag sits on an already tinted row, so it outlines instead of
+   filling — a muted fill would read as light grey on light grey in one theme
+   and lose its white text in the other. */
+.tagStudent {
+  background: none;
+  border: 1px solid var(--line-strong, #d0d5dd);
+  color: var(--ink, #191b18);
 }
 
 .time {
@@ -80,6 +169,8 @@
   padding: 0.5rem 0.7rem;
   border: 1px solid var(--border, #d0d5dd);
   border-radius: 8px;
+  background: var(--surface, #fff);
+  color: var(--ink, #191b18);
   font: inherit;
 }
 
@@ -87,7 +178,8 @@
   padding: 0.5rem 0.9rem;
   border: 1px solid var(--border, #d0d5dd);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface, #fff);
+  color: var(--ink, #191b18);
   font: inherit;
   cursor: pointer;
 }
@@ -103,7 +195,8 @@
   padding: 0.5rem 1.1rem;
   border: 1px solid var(--border, #d0d5dd);
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface, #fff);
+  color: var(--ink, #191b18);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -143,7 +236,8 @@
   padding: 0.55rem 1.4rem;
   border: 1px solid var(--border, #d0d5dd);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface, #fff);
+  color: var(--ink, #191b18);
   font: inherit;
   cursor: pointer;
 }

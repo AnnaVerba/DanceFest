@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './api';
+import type { AuthorizedFetchOptions } from './authorizedFetch.types';
 import { ACCESS_LEVEL, meetsLevel } from './roles';
 import type { AccessLevel } from './roles';
 import {
@@ -12,6 +13,8 @@ import {
   SESSION_EXPIRED_MESSAGE,
   OTP_VERIFY_FAILED_MESSAGE,
   OTP_RESEND_FAILED_MESSAGE,
+  FORGOT_PASSWORD_FAILED_MESSAGE,
+  RESET_PASSWORD_FAILED_MESSAGE,
   DEVICE_ID_STORAGE_KEY,
   DEVICE_ID_HEADER,
   DEVICE_ID_BYTE_LENGTH,
@@ -186,6 +189,45 @@ async function postForCode(
     throw new AuthError(extractErrorMessage(payload, fallbackMessage));
   }
   return payload as { phone: string };
+}
+
+// Forgot password, step 1: request an SMS code for an existing account.
+export async function forgotPassword(
+  loginId: string,
+): Promise<{ phone: string }> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/auth/password/forgot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ login: loginId }),
+    });
+  } catch {
+    throw new AuthError(CANNOT_CONNECT_TO_SERVER_MESSAGE);
+  }
+  const payload = (await response.json().catch(() => null)) as
+    | (ErrorPayload & { phone: string })
+    | null;
+  if (!response.ok) {
+    throw new AuthError(
+      extractErrorMessage(payload, FORGOT_PASSWORD_FAILED_MESSAGE),
+    );
+  }
+  return payload as { phone: string };
+}
+
+// Forgot password, step 2: verify the SMS code and set a new password.
+export async function resetPassword(
+  loginId: string,
+  code: string,
+  password: string,
+): Promise<Session> {
+  const raw = await postAuth(
+    '/auth/password/reset',
+    { login: loginId, code, password },
+    RESET_PASSWORD_FAILED_MESSAGE,
+  );
+  return toSession(raw);
 }
 
 export function resendOtp(loginId: string): Promise<{ phone: string }> {
@@ -434,6 +476,7 @@ function redirectToLogin() {
 export async function authorizedFetch(
   path: string,
   init: RequestInit = {},
+  options: AuthorizedFetchOptions = {},
 ): Promise<Response> {
   const send = (token: string | null) =>
     fetch(`${API_BASE_URL}${path}`, {
@@ -448,6 +491,7 @@ export async function authorizedFetch(
   if (first.status !== HTTP_STATUS_UNAUTHORIZED) return first;
 
   if (!getRefreshToken()) {
+    if (options.optional) return first;
     redirectToLogin();
     throw new AuthError(SESSION_EXPIRED_MESSAGE);
   }
@@ -456,6 +500,7 @@ export async function authorizedFetch(
     const { accessToken } = await refreshOnce();
     return await send(accessToken);
   } catch {
+    if (options.optional) return first;
     redirectToLogin();
     throw new AuthError(SESSION_EXPIRED_MESSAGE);
   }

@@ -18,5 +18,6 @@ export const USER_CONTACT_TAKEN_MESSAGE =
   'Цей телефон або email уже використовує інший користувач';
 export const PARTICIPANT_PHONE_TAKEN_MESSAGE =
   'Учасник із таким номером телефону вже існує';
+export const NOT_YOUR_ROSTER_MESSAGE = 'Цей учасник не у вашому списку';
 export const DEFAULT_USERS_PAGE_SIZE = 25;
 export const MAX_USERS_PAGE_SIZE = 100;

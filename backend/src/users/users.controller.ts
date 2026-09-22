@@ -1,6 +1,8 @@
 import {
   Body,
   Controller,
+  Delete,
+  ForbiddenException,
   Get,
   Param,
   Patch,
@@ -31,6 +33,7 @@ import { SetMentorCoachDto } from './dto/set-mentor-coach.dto';
 import { NewMentorCoachDto } from './dto/new-mentor-coach.dto';
 import { CompleteProfileDto } from './dto/complete-profile.dto';
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
+import { NOT_YOUR_ROSTER_MESSAGE } from './users.constants';
 import { User } from './user.model';
 import { ParticipantSummary } from './participant-summary.interface';
 import { CoachSummary } from './coach-summary.interface';
@@ -121,6 +124,29 @@ export class UsersController {
       coachId,
     });
     return this.toSummary(participant);
+  }
+
+  @ApiOperation({
+    summary: 'Remove a dancer from a roster (coach: their own; organizer/admin: any)',
+  })
+  @ApiResponse({ status: 200, description: 'Participant removed from roster.' })
+  @ApiResponse({
+    status: 403,
+    description: 'A coach tried to remove someone off their own roster.',
+  })
+  @ApiResponse({ status: 404, description: 'Participant not found.' })
+  @MinLevel(AccessLevel.COACH)
+  @Delete('participants/:id')
+  async removeFromRoster(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<{ id: string }> {
+    const participant = await this.usersService.findByIdOrFail(id);
+    if (user.accessLevel === AccessLevel.COACH && participant.coachId !== user.id) {
+      throw new ForbiddenException(NOT_YOUR_ROSTER_MESSAGE);
+    }
+    await this.usersService.updateFields(id, { coachId: null });
+    return { id };
   }
 
   @ApiOperation({ summary: 'Raise your own access level (up to ORGANIZER)' })

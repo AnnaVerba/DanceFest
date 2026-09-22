@@ -78,3 +78,25 @@ export async function publicRequest<T>(
   }
   return parse<T>(response);
 }
+
+// An authenticated call the page can do without. Unlike apiRequest, a
+// session that cannot be refreshed surfaces here as an ApiError the caller
+// can ignore, instead of clearing the session and bouncing the viewer to
+// /login — the programme is a page a logged-out visitor may read.
+export async function optionalAuthRequest<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  let response: Response;
+  try {
+    response = await authorizedFetch(
+      path,
+      { ...init, headers: { 'Content-Type': 'application/json', ...init?.headers } },
+      { optional: true },
+    );
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(CANNOT_CONNECT_TO_SERVER_MESSAGE, 0);
+  }
+  return parse<T>(response);
+}

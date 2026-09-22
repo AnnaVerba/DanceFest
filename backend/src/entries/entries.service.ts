@@ -23,7 +23,7 @@ import { AccessLevel, meetsLevel } from '../auth/access-level.enum';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Entry } from './entry.model';
 import { isNumberAllocationRace } from './number-allocation-race';
-import { resolveLineup } from './lineup';
+import { isGroupLineup, resolveLineup } from './lineup';
 import { roundMoney } from './entry-amount';
 import type { EntryCharge } from './pricing/entry-charge';
 import { EntryChargeService } from './pricing/entry-charge.service';
@@ -418,6 +418,19 @@ export class EntriesService {
               });
               nextNumber += entry.exits.length;
             }
+
+            const groupRows = rows.filter((row) =>
+              isGroupLineup(row.lineup ?? null),
+            );
+            const groupNumbers =
+              await this.participantNumbersService.issueGroupNumbers(
+                competitionId,
+                groupRows.length,
+                transaction,
+              );
+            groupRows.forEach((row, index) => {
+              row.groupNumber = groupNumbers[index];
+            });
 
             const created = await this.entryModel.bulkCreate(rows, {
               transaction,
@@ -878,6 +891,17 @@ export class EntriesService {
         if (clash) {
           throw this.alreadyInNomination(nominationName);
         }
+        const isGroup = isGroupLineup(changes.lineup ?? entry.lineup);
+        if (isGroup && entry.groupNumber === null) {
+          [changes.groupNumber] =
+            await this.participantNumbersService.issueGroupNumbers(
+              competitionId,
+              1,
+              transaction,
+            );
+        } else if (!isGroup) {
+          changes.groupNumber = null;
+        }
         await entry.update(changes, { transaction });
         await this.participantNumbersService.assignAll(
           competitionId,
@@ -1145,10 +1169,7 @@ export class EntriesService {
     return {
       id: entry.id,
       number: entry.number,
-      participantNumbers: numbers.numbersFor(
-        entry.competitionId,
-        participantIds,
-      ),
+      participantNumbers: numbers.numbersForEntry(entry),
       nomination: entry.nomination,
       ageCategory: entry.ageCategory,
       league: entry.league,
@@ -1165,11 +1186,8 @@ export class EntriesService {
       nominationId: entry.nominationId,
       participantId: entry.participantId,
       participantIds,
-      // One per dancer, in `participantIds` order.
-      participantNumbers: numbers.numbersFor(
-        entry.competitionId,
-        participantIds,
-      ),
+      // A solo's dancer number, or the group performance's own number.
+      participantNumbers: numbers.numbersForEntry(entry),
       number: entry.number,
       routineName: entry.routineName,
       nomination: entry.nomination,

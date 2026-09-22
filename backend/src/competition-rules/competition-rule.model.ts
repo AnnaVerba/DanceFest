@@ -34,6 +34,12 @@ export class CompetitionRule extends Model<CompetitionRule> {
   @Column({ type: DataType.JSONB, allowNull: false, defaultValue: {} })
   declare leagueLimits: Record<string, number>;
 
+  // Same knob, keyed by lineup name instead ({ "Дуо": 150, "Група": 240 }).
+  // Outranks leagueLimits when an entry's lineup and league both have a
+  // configured limit — see CompetitionRulesService.resolveEffectiveLimit.
+  @Column({ type: DataType.JSONB, allowNull: false, defaultValue: {} })
+  declare lineupLimits: Record<string, number>;
+
   @Column({
     type: DataType.ENUM(...TIME_SOURCES),
     allowNull: false,

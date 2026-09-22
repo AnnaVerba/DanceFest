@@ -71,6 +71,11 @@ export class Entry extends Model<Entry> {
   @Column({ type: DataType.STRING, allowNull: true })
   declare lineup: string | null;
 
+  // Own number of a group performance (Дуо / Тріо / Група), issued from the
+  // same per-competition sequence as participant numbers; null for a solo.
+  @Column({ type: DataType.INTEGER, allowNull: true })
+  declare groupNumber: number | null;
+
   @Column({ type: DataType.STRING, allowNull: true })
   declare studioName: string | null;
 

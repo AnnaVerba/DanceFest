@@ -2,24 +2,19 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SmsProvider } from './sms-provider.interface';
 import { DevSmsProvider } from './dev-sms.provider';
-import { TwilioSmsProvider } from './twilio-sms.provider';
-import { TurboSmsProvider } from './turbosms-sms.provider';
+import { SmsFlyProvider } from './fly.provider';
 import {
   SMS_PROVIDER_DEV,
   SMS_PROVIDER_ENV,
-  SMS_PROVIDER_TURBOSMS,
-  SMS_PROVIDER_TWILIO,
+  SMS_PROVIDER_FLY,
 } from './sms.constants';
-import { SmsFlyProvider } from './fly.provider';
 
 @Injectable()
 export class SmsService {
   constructor(
     private readonly config: ConfigService,
     private readonly dev: DevSmsProvider,
-    private readonly twilio: TwilioSmsProvider,
-    private readonly fly:SmsFlyProvider,
-    private readonly turbosms: TurboSmsProvider,
+    private readonly fly: SmsFlyProvider,
   ) {}
 
   private providerName(): string {
@@ -32,12 +27,8 @@ export class SmsService {
 
   private provider(): SmsProvider {
     switch (this.providerName()) {
-      case SMS_PROVIDER_TWILIO:
-        return this.twilio;
-      case SMS_PROVIDER_TURBOSMS:
-        return this.turbosms;
-      case 'fly':
-        return  this.fly;
+      case SMS_PROVIDER_FLY:
+        return this.fly;
       default:
         return this.dev;
     }

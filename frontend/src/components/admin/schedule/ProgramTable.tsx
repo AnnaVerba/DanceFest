@@ -16,10 +16,16 @@ import type {
 } from '../../../lib/schedule';
 import { ROW_TYPE_LABELS } from '../../../lib/schedule';
 import type { NominationToMove } from './nominationToMove.types';
+import type { ProgramBlock } from './programBlock.types';
 import { MOVE_NOMINATION_TITLE } from './sectionPicker.constants';
-import { formatParticipantNumbers } from '../../../lib/participantNumbers';
+import { formatMarkedParticipantNumbers } from '../../../lib/participantNumbers';
 import { formatClock, formatDuration } from '../../../lib/duration';
 import { opensProgram, programHeading } from '../../../lib/programHeading';
+import {
+  NOMINATION_NUMBER_MARK,
+  PARTICIPANT_NUMBER_MARK,
+} from '../../../lib/programNumbers.constants';
+import { formatMarkedNominationNumber } from '../../../lib/programNumbers';
 import styles from './program.module.css';
 
 interface ProgramTableProps {
@@ -66,6 +72,26 @@ function groupLabelOf(item: SectionItem): string {
 }
 function toMinutes(seconds: number | null): number {
   return seconds == null ? 0 : Math.max(1, Math.round(seconds / 60));
+}
+// Walk items in running order and bucket consecutive performances sharing a
+// block key together; every other row is its own singleton group. Shared by
+// rendering (which labels each group) and block move (which reorders them).
+function groupSectionItems(items: SectionItem[]): SectionItem[][] {
+  const groups: SectionItem[][] = [];
+  for (const item of items) {
+    const last = groups[groups.length - 1];
+    if (
+      item.type === 'performance' &&
+      last &&
+      last[0].type === 'performance' &&
+      blockKeyOf(last[0]) === blockKeyOf(item)
+    ) {
+      last.push(item);
+    } else {
+      groups.push([item]);
+    }
+  }
+  return groups;
 }
 
 export default function ProgramTable({
@@ -137,6 +163,23 @@ export default function ProgramTable({
     const to = from + dir;
     if (from < 0 || to < 0 || to >= ids.length) return;
     [ids[from], ids[to]] = [ids[to], ids[from]];
+    const award = section.items.find((i) => i.type === 'award');
+    onReorderItems(section.id, award ? [...ids, award.id] : ids);
+  };
+
+  // Swaps a whole nomination block with the adjacent block (single row or
+  // another nomination) within the same section, one step at a time —
+  // same up/down convention as moveItem, applied to a contiguous block.
+  const moveBlock = (section: Section, blockItemIds: string[], dir: -1 | 1) => {
+    const movable = section.items.filter((i) => i.type !== 'award');
+    const groups = groupSectionItems(movable).map((items) =>
+      items.map((i) => i.id),
+    );
+    const from = groups.findIndex((ids) => ids[0] === blockItemIds[0]);
+    const to = from + dir;
+    if (from < 0 || to < 0 || to >= groups.length) return;
+    [groups[from], groups[to]] = [groups[to], groups[from]];
+    const ids = groups.flat();
     const award = section.items.find((i) => i.type === 'award');
     onReorderItems(section.id, award ? [...ids, award.id] : ids);
   };
@@ -228,10 +271,10 @@ export default function ProgramTable({
         <thead>
           <tr>
             <th className={styles.th} style={{ width: 44 }}>
-              F
+              {NOMINATION_NUMBER_MARK}
             </th>
             <th className={styles.th} style={{ width: 52 }}>
-              №
+              {PARTICIPANT_NUMBER_MARK}
             </th>
             <th className={styles.th} style={{ minWidth: 170 }}>
               Прізвище Імʼя
@@ -262,31 +305,26 @@ export default function ProgramTable({
           {sections.map((section, sectionIndex) => {
             // Walk items in running order so a break inserted between two
             // nomination groups renders at its real place, not at the end.
-            type Block =
-              | { kind: 'group'; key: string; label: string; items: SectionItem[] }
-              | { kind: 'manual'; item: SectionItem }
-              | { kind: 'award'; item: SectionItem };
-            const blocks: Block[] = [];
-            for (const item of section.items) {
-              if (item.type === 'performance') {
-                const key = blockKeyOf(item);
-                const last = blocks[blocks.length - 1];
-                if (last && last.kind === 'group' && last.key === key) {
-                  last.items.push(item);
-                } else {
-                  blocks.push({
-                    kind: 'group',
-                    key,
-                    label: groupLabelOf(item),
-                    items: [item],
-                  });
-                }
-              } else if (item.type === 'award') {
-                blocks.push({ kind: 'award', item });
-              } else {
-                blocks.push({ kind: 'manual', item });
+            const blocks: ProgramBlock[] = groupSectionItems(
+              section.items,
+            ).map((items) => {
+              const first = items[0];
+              if (first.type === 'award') return { kind: 'award', item: first };
+              if (first.type !== 'performance') {
+                return { kind: 'manual', item: first };
               }
-            }
+              return {
+                kind: 'group',
+                key: blockKeyOf(first),
+                label: groupLabelOf(first),
+                items,
+              };
+            });
+            // Move-block ↑/↓ swaps with the adjacent block, excluding the
+            // pinned award row — same movable set moveBlock() reorders.
+            const moveGroups = groupSectionItems(
+              section.items.filter((i) => i.type !== 'award'),
+            );
 
             const sectionStart = section.startsAt;
             // An exit moves only within its own venue's program.
@@ -466,12 +504,17 @@ export default function ProgramTable({
                     (sum, it) => sum + (it.durationSeconds ?? 0),
                     0,
                   );
+                  const moveGroupIndex = moveGroups.findIndex(
+                    (g) => g[0].id === group.items[0].id,
+                  );
                   return (
                     // A manual row can split one nomination group into two
                     // blocks with the same group.key — index keeps them apart.
                     <Fragment key={`${group.key}-${blockIndex}`}>
                       <tr className={styles.blockRow}>
-                        <td className={styles.blockF}>{number}</td>
+                        <td className={styles.blockF}>
+                          {formatMarkedNominationNumber(number)}
+                        </td>
                         <td className={styles.blockCell} colSpan={5}>
                           <div className={styles.blockHead}>
                             <button
@@ -539,6 +582,42 @@ export default function ProgramTable({
                             <td
                               className={`${styles.blockCell} ${styles.tdActions}`}
                             >
+                              {editing && (
+                                <>
+                                  <button
+                                    type="button"
+                                    className={styles.iconBtn}
+                                    title="Перемістити номінацію вгору"
+                                    disabled={moveGroupIndex <= 0}
+                                    onClick={() =>
+                                      moveBlock(
+                                        section,
+                                        group.items.map((i) => i.id),
+                                        -1,
+                                      )
+                                    }
+                                  >
+                                    ↑
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={styles.iconBtn}
+                                    title="Перемістити номінацію вниз"
+                                    disabled={
+                                      moveGroupIndex === moveGroups.length - 1
+                                    }
+                                    onClick={() =>
+                                      moveBlock(
+                                        section,
+                                        group.items.map((i) => i.id),
+                                        1,
+                                      )
+                                    }
+                                  >
+                                    ↓
+                                  </button>
+                                </>
+                              )}
                               {editing && !merged && (
                                 <button
                                   type="button"
@@ -579,7 +658,7 @@ export default function ProgramTable({
                           <tr key={item.id} className={styles.perfRow}>
                             <td className={styles.td} />
                             <td className={`${styles.td} ${styles.tdNum}`}>
-                              {formatParticipantNumbers(
+                              {formatMarkedParticipantNumbers(
                                 item.exit?.participantNumbers ?? [],
                               )}
                             </td>

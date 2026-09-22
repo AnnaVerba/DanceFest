@@ -1,4 +1,4 @@
-import type { PublicProgramRow } from './program';
+import type { MineProgramSection, PublicProgramRow } from './program';
 import type { Venue } from './venues';
 import { formatParticipantNumbers } from './participantNumbers';
 import {
@@ -73,4 +73,23 @@ export function sectionMatchesQuery(
       ((row.routineName ?? '').toLowerCase().includes(needle) ||
         formatParticipantNumbers(row.participantNumbers ?? []).includes(needle)),
   );
+}
+
+// The personal cut, narrowed by the same search box as the full programme.
+// A section whose every exit was filtered out drops with it.
+export function filterMineSections(
+  sections: MineProgramSection[],
+  needle: string,
+): MineProgramSection[] {
+  if (!needle) return sections;
+  return sections
+    .map((section) => ({
+      ...section,
+      exits: section.exits.filter(
+        (exit) =>
+          exit.performerName.toLowerCase().includes(needle) ||
+          formatParticipantNumbers(exit.participantNumbers).includes(needle),
+      ),
+    }))
+    .filter((section) => section.exits.length > 0);
 }

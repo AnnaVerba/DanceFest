@@ -250,10 +250,7 @@ export class ScheduleService {
     for (const item of items) {
       const entry = item.entry;
       if (!entry) continue;
-      byEntry.set(
-        entry.id,
-        lookup.numbersFor(competitionId, entry.participantIds ?? []),
-      );
+      byEntry.set(entry.id, lookup.numbersForEntry(entry));
     }
     return byEntry;
   }

@@ -85,9 +85,7 @@ export class MusicExportProcessor extends WorkerHost {
 
         const soloParticipant = soloNamesByEntryId.get(entry.id) ?? null;
         const fileName = buildTrackFileName({
-          numberLabel: buildTrackNumberLabel(
-            numbers.numbersFor(entry.competitionId, entry.participantIds ?? []),
-          ),
+          numberLabel: buildTrackNumberLabel(numbers.numbersForEntry(entry)),
           soloParticipant,
           routineName: entry.routineName,
           league: entry.league,
