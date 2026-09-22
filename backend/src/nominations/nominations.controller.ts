@@ -69,10 +69,15 @@ export class NominationsController {
   }
 
   @ApiOperation({
-    summary: "A competition's special nominations",
+    summary: "A competition's special nominations an entry can be made in",
     description:
-      'Public — special nominations have no axes, are never filtered and are always shown in ' +
-      'full on the entry form.',
+      'Public — what the entry form lists under «Спеціальні номінації». A special nomination ' +
+      'carries no style or line-up, so only the league and the age apply. `league` is a single ' +
+      'category id the nomination must carry. `ageCategory` is the age category the applicant ' +
+      'picked: a nomination passes when it carries that very category, or when it carries no ' +
+      'age category at all. `ages` is the comma-separated age of every dancer, used instead of ' +
+      '`ageCategory` while none is picked yet: a nomination passes when its age category fits ' +
+      'them all. Without filters every special nomination is returned, never truncated.',
   })
   @ApiResponse({ status: 200, description: 'Special nominations returned.' })
   @ApiResponse({
@@ -80,8 +85,17 @@ export class NominationsController {
     description: 'No competition exists with the given id.',
   })
   @Get('specials')
-  listSpecials(@Param('competitionId') competitionId: string) {
-    return this.nominationsService.listSpecials(competitionId);
+  listSpecials(
+    @Param('competitionId') competitionId: string,
+    @Query('league') league?: string,
+    @Query('ageCategory') ageCategory?: string,
+    @Query('ages') ages?: string,
+  ) {
+    return this.nominationsService.listSpecials(competitionId, {
+      league,
+      ageCategory,
+      ages,
+    });
   }
 
   @ApiOperation({

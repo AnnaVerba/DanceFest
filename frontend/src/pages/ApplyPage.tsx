@@ -65,7 +65,10 @@ import {
   NO_COMMON_AGE_CATEGORY_HINT,
   NO_NOMINATIONS_FOR_AGE_MESSAGE,
 } from '../lib/applyAge.constants';
-import { NOMINATIONS_LOAD_FAILED_MESSAGE } from '../lib/applyNominations.constants';
+import {
+  NOMINATIONS_LOAD_FAILED_MESSAGE,
+  SPECIAL_NOMINATIONS_LOAD_FAILED_MESSAGE,
+} from '../lib/applyNominations.constants';
 import { AUDIO_ACCEPT } from '../lib/uploads.constants';
 import styles from './ApplyPage.module.css';
 
@@ -149,17 +152,6 @@ function matchAgeCategory(
   return hit ? hit.name : null;
 }
 
-function uniqueInOrder(values: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const value of values) {
-    if (!value || seen.has(value)) continue;
-    seen.add(value);
-    out.push(value);
-  }
-  return out;
-}
-
 export default function ApplyPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -177,6 +169,7 @@ export default function ApplyPage() {
   const [specials, setSpecials] = useState<Nomination[]>([]);
   const [entryNominations, setEntryNominations] = useState<Nomination[]>([]);
   const [rowsError, setRowsError] = useState<string | null>(null);
+  const [specialsError, setSpecialsError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Picked dancers are held as full objects: a coach searches the roster by
@@ -256,16 +249,11 @@ export default function ApplyPage() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    Promise.all([
-      getCompetition(id),
-      getNominationAxes(id),
-      getSpecialNominations(id),
-    ])
-      .then(([c, competitionAxes, specialNominations]) => {
+    Promise.all([getCompetition(id), getNominationAxes(id)])
+      .then(([c, competitionAxes]) => {
         if (cancelled) return;
         setCompetition(c);
         setAxes(competitionAxes);
-        setSpecials(specialNominations);
       })
       .catch(() => {
         if (!cancelled) setLoadError('Не вдалося завантажити конкурс.');
@@ -386,15 +374,11 @@ export default function ApplyPage() {
     ? [selfParticipant]
     : selectedParticipants;
 
-  // Ліги звичайних номінацій плюс ліги спецномінацій: осей вони не несуть,
-  // але лігу мають, і в списку вона була завжди.
+  // Вісь ліги рахується й по спецномінаціях, тож ліга, яка трапляється
+  // лише в них, у списку теж є — і має id, за яким її можна відфільтрувати.
   const leagueOptions = useMemo(
-    () =>
-      uniqueInOrder([
-        ...(axes?.[LEAGUE_CATEGORY_TYPE] ?? []).map((value) => value.name),
-        ...specials.flatMap((n) => n.leagues),
-      ]),
-    [axes, specials],
+    () => (axes?.[LEAGUE_CATEGORY_TYPE] ?? []).map((value) => value.name),
+    [axes],
   );
 
   const styleOptions = useMemo(
@@ -488,11 +472,9 @@ export default function ApplyPage() {
   );
 
   // Номінації приходять уже відфільтровані сервером — рівно ті, у яких цей
-  // склад учасників може виступити. Ліга, якої немає серед осей, належить
-  // лише спецномінаціям, тож звичайних рядків під неї не буде.
+  // склад учасників може виступити.
   useEffect(() => {
-    const leagueMissing = league !== '' && leagueId === undefined;
-    if (!id || pickedCount === 0 || styleIds.length === 0 || leagueMissing) {
+    if (!id || pickedCount === 0 || styleIds.length === 0 || !leagueId) {
       setEntryNominations([]);
       setRowsError(null);
       return;
@@ -512,7 +494,40 @@ export default function ApplyPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, league, leagueId, pickedCount, styleIds, entryFilter]);
+  }, [id, leagueId, pickedCount, styleIds, entryFilter]);
+
+  // Спецномінації звужує той самий сервер і за тими самими правилами:
+  // стилю й складу в них немає, але ліга та вік є. Доки учасників і ліги
+  // немає, фільтрувати ні за чим — і показувати нічого: список усіх
+  // спецномінацій конкурсу заявнику нічого не каже.
+  useEffect(() => {
+    if (!id || pickedCount === 0 || !leagueId) {
+      setSpecials([]);
+      setSpecialsError(null);
+      return;
+    }
+    let cancelled = false;
+    getSpecialNominations(id, {
+      league: leagueId,
+      ageCategory: ageCategoryId,
+      // Поки категорію не обрано (підходить кілька), звужуємо за віком —
+      // точно як для звичайних номінацій.
+      ages: ageCategoryId ? [] : ages,
+    })
+      .then((rows) => {
+        if (cancelled) return;
+        setSpecials(rows);
+        setSpecialsError(null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSpecials([]);
+        setSpecialsError(SPECIAL_NOMINATIONS_LOAD_FAILED_MESSAGE);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, leagueId, ageCategoryId, pickedCount, ages]);
 
   const styleRows: NominationRow[] = useMemo(() => {
     const rows: NominationRow[] = [];
@@ -1292,43 +1307,48 @@ export default function ApplyPage() {
             </div>
           )}
 
-          {specialRows.length > 0 && (
+          {(specialRows.length > 0 || specialsError !== null) && (
             <div>
               <label className={styles.label}>Спеціальні номінації</label>
-              <div
-                className={`${styles.nomList} ${
-                  nominationsInvalid ? styles.invalid : ''
-                }`}
-              >
-                {specialRows.map((row) => {
-                  const on = selectedKeys.includes(row.key);
-                  return (
-                    <button
-                      key={row.key}
-                      type="button"
-                      className={`${styles.nomRow} ${on ? styles.nomRowOn : ''}`}
-                      onClick={() => toggleRow(row.key)}
-                    >
-                      <span
-                        className={`${styles.nomCheck} ${on ? styles.nomCheckOn : ''}`}
+              {specialsError !== null ? (
+                <p className={styles.hint}>{specialsError}</p>
+              ) : (
+                <div
+                  className={`${styles.nomList} ${
+                    nominationsInvalid ? styles.invalid : ''
+                  }`}
+                >
+                  {specialRows.map((row) => {
+                    const on = selectedKeys.includes(row.key);
+                    return (
+                      <button
+                        key={row.key}
+                        type="button"
+                        className={`${styles.nomRow} ${on ? styles.nomRowOn : ''}`}
+                        onClick={() => toggleRow(row.key)}
                       >
-                        {on ? '✓' : ''}
-                      </span>
-                      <span className={styles.nomLabel}>{row.label}</span>
-                      <span className={styles.nomPrice}>
-                        {on &&
-                        row.price !== null &&
-                        row.price > 0 &&
-                        quoteAmountByKey.get(row.key) === 0
-                          ? SPECIAL_PAID_ONCE_LABEL
-                          : formatEntryAmount(row.price)}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+                        <span
+                          className={`${styles.nomCheck} ${on ? styles.nomCheckOn : ''}`}
+                        >
+                          {on ? '✓' : ''}
+                        </span>
+                        <span className={styles.nomLabel}>{row.label}</span>
+                        <span className={styles.nomPrice}>
+                          {on &&
+                          row.price !== null &&
+                          row.price > 0 &&
+                          quoteAmountByKey.get(row.key) === 0
+                            ? SPECIAL_PAID_ONCE_LABEL
+                            : formatEntryAmount(row.price)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               <p className={styles.hint}>
-                Номінації поза сіткою категорій — наприклад «Гран-прі конкурсу».
+                Номінації поза сіткою стилів — наприклад «Гран-прі
+                конкурсу». Показані ті, що підходять обраній лізі та віку учасників.
               </p>
             </div>
           )}
