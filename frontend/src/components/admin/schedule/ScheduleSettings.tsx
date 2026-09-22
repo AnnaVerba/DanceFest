@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getRules, patchRules } from '../../../lib/competitionRules';
 import type { RulesPatch } from '../../../lib/competitionRules';
 import { getNominationAxes } from '../../../lib/nominations';
-import { LEAGUE_CATEGORY_TYPE } from '../../../lib/categories';
+import { LEAGUE_CATEGORY_TYPE, LINEUP_CATEGORY_TYPE } from '../../../lib/categories';
 import { getSections } from '../../../lib/schedule';
 import { parseDuration } from '../../../lib/duration';
 import { queryKeys } from '../../../lib/queryKeys';
@@ -35,6 +35,7 @@ export default function ScheduleSettings({
   const queryClient = useQueryClient();
   const [pause, setPause] = useState('');
   const [limits, setLimits] = useState<Record<string, string>>({});
+  const [lineupLimits, setLineupLimits] = useState<Record<string, string>>({});
 
   const rulesQuery = useQuery({
     queryKey: queryKeys.rules(competitionId),
@@ -55,6 +56,10 @@ export default function ScheduleSettings({
   const hasSections = (sectionsExistQuery.data?.totalSections ?? 0) > 0;
   const leagues = useMemo(() => {
     const values = axesQuery.data?.[LEAGUE_CATEGORY_TYPE] ?? [];
+    return values.map((value) => value.name).sort();
+  }, [axesQuery.data]);
+  const lineups = useMemo(() => {
+    const values = axesQuery.data?.[LINEUP_CATEGORY_TYPE] ?? [];
     return values.map((value) => value.name).sort();
   }, [axesQuery.data]);
   const loading =
@@ -82,6 +87,11 @@ export default function ScheduleSettings({
         Object.entries(rules.leagueLimits).map(([k, v]) => [k, String(v)]),
       ),
     );
+    setLineupLimits(
+      Object.fromEntries(
+        Object.entries(rules.lineupLimits).map(([k, v]) => [k, String(v)]),
+      ),
+    );
   }
 
   const patchRulesMutation = useMutation({
@@ -101,6 +111,10 @@ export default function ScheduleSettings({
     const set = new Set<string>([...Object.keys(limits), ...leagues]);
     return [...set].filter(Boolean).sort();
   }, [limits, leagues]);
+  const lineupRows = useMemo(() => {
+    const set = new Set<string>([...Object.keys(lineupLimits), ...lineups]);
+    return [...set].filter(Boolean).sort();
+  }, [lineupLimits, lineups]);
 
   if (loading) return <p className={styles.empty}>Завантаження…</p>;
   if (!rules) return <p className={styles.empty}>Налаштування недоступні.</p>;
@@ -116,10 +130,16 @@ export default function ScheduleSettings({
       const seconds = readSeconds(raw);
       if (seconds !== null && seconds > 0) nextLimits[league] = seconds;
     }
+    const nextLineupLimits: Record<string, number> = {};
+    for (const [lineup, raw] of Object.entries(lineupLimits)) {
+      const seconds = readSeconds(raw);
+      if (seconds !== null && seconds > 0) nextLineupLimits[lineup] = seconds;
+    }
     try {
       await patchRulesMutation.mutateAsync({
         pauseSeconds: nextPause,
         leagueLimits: nextLimits,
+        lineupLimits: nextLineupLimits,
       });
       onSaved('Налаштування таймінгів збережено.');
     } catch {
@@ -168,6 +188,38 @@ export default function ScheduleSettings({
                       setLimits((prev) => ({
                         ...prev,
                         [league]: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className={styles.fieldLabel}>
+            Тривалість виступу за складом (<code>1:30</code> або{' '}
+            <code>90</code>) — має перевагу над лігою, якщо задано обидва
+          </label>
+          {lineupRows.length === 0 ? (
+            <p className={styles.muted}>
+              Значень складу ще немає — зʼявляться після формування номінацій.
+            </p>
+          ) : (
+            <div className={styles.chips}>
+              {lineupRows.map((lineup) => (
+                <div key={lineup} className={styles.chip}>
+                  <span className={styles.chipName}>{lineup}</span>
+                  <input
+                    className={styles.chipInput}
+                    value={lineupLimits[lineup] ?? ''}
+                    placeholder="—"
+                    disabled={!canManage}
+                    onChange={(e) =>
+                      setLineupLimits((prev) => ({
+                        ...prev,
+                        [lineup]: e.target.value,
                       }))
                     }
                   />

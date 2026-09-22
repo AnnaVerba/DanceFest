@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { CreationAttributes, Op, Transaction } from 'sequelize';
+import { CreationAttributes, Op, QueryTypes, Transaction } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionParticipantNumber } from './competition-participant-number.model';
 import { ParticipantNumberLookup } from './participant-number-lookup';
@@ -29,6 +29,16 @@ export class CompetitionParticipantNumbersService {
     for (const personId of new Set(personIds)) {
       await this.findOrIssue(competitionId, personId, transaction);
     }
+  }
+
+  // Group performances draw from the same sequence as dancers, so a group
+  // number never equals a dancer's. Same locking contract as assignAll.
+  async issueGroupNumbers(
+    competitionId: string,
+    count: number,
+    transaction: Transaction,
+  ): Promise<number[]> {
+    return this.issueNumbers(competitionId, count, transaction);
   }
 
   // For readers that must never see a missing number (track file names):
@@ -68,6 +78,30 @@ export class CompetitionParticipantNumbersService {
     return new ParticipantNumberLookup(rows);
   }
 
+  // The next `count` free numbers: past the highest one taken by either a
+  // dancer or a group performance of this competition.
+  private async issueNumbers(
+    competitionId: string,
+    count: number,
+    transaction: Transaction,
+  ): Promise<number[]> {
+    const [row] = await this.numberModel.sequelize!.query<{ max: number }>(
+      `SELECT GREATEST(
+                COALESCE((SELECT MAX(number) FROM competition_participant_numbers
+                           WHERE "competitionId" = :competitionId), 0),
+                COALESCE((SELECT MAX("groupNumber") FROM entries
+                           WHERE "competitionId" = :competitionId), 0)
+              ) AS max`,
+      {
+        replacements: { competitionId },
+        type: QueryTypes.SELECT,
+        transaction,
+      },
+    );
+    const first = Math.max(row.max + 1, FIRST_PARTICIPANT_NUMBER);
+    return Array.from({ length: count }, (_, index) => first + index);
+  }
+
   private async findOrIssue(
     competitionId: string,
     personId: string,
@@ -81,12 +115,7 @@ export class CompetitionParticipantNumbersService {
       return existing;
     }
 
-    const last = await this.numberModel.findOne({
-      where: { competitionId },
-      order: [['number', 'DESC']],
-      transaction,
-    });
-    const number = last ? last.number + 1 : FIRST_PARTICIPANT_NUMBER;
+    const [number] = await this.issueNumbers(competitionId, 1, transaction);
 
     return this.numberModel.create(
       {
