@@ -31,6 +31,11 @@ import { CompetitionRule } from '../competition-rules/competition-rule.model';
 import { resolveLeagueDurationSeconds } from '../competition-rules/resolve-league-duration';
 import { Nomination } from './nomination.model';
 import { NominationCategory } from './nomination-category.model';
+import {
+  CATEGORY_SOURCE,
+  CATEGORY_SOURCE_CONDITIONS,
+} from './category-source';
+import type { CategorySource } from './category-source';
 import { planNominationExits, DEFAULT_EXIT_MODE } from './nomination-exits';
 import type { NominationExit, NominationProgram } from './nomination-exits';
 import { CreateNominationDto } from './dto/create-nomination.dto';
@@ -47,6 +52,7 @@ import type {
   NominationAxes,
   NominationEntryQuery,
   NominationPageQuery,
+  NominationSpecialsQuery,
   VenueSummaryRow,
 } from './nominations.types';
 import { AxisPriceTable } from './axis-price-table';
@@ -139,10 +145,18 @@ export class NominationsService {
    * номінації конкурсу (їх буває шість тисяч) не треба, а обрізати вибірку
    * лімітом — тим паче: саме так вікова категорія, яка є і в базі, і в
    * номінації, зникала зі списку при подачі.
+   *
+   * Вісь ліги — єдина, що рахується і по спецномінаціях: заявник обирає лігу
+   * до того, як побачить номінації, і саме її id іде в /specials. Ліга, яка
+   * трапляється лише у спецномінації, без цього не мала б id і фільтрувати
+   * за нею було б нічим.
    */
   async listAxes(competitionId: string): Promise<NominationAxes> {
     await this.assertCompetitionExists(competitionId);
-    const categories = await this.loadCompetitionCategories(competitionId);
+    const categories = await this.loadCompetitionCategories(
+      competitionId,
+      CATEGORY_SOURCE.REGULAR_WITH_SPECIAL_LEAGUES,
+    );
 
     const axes = CATEGORY_TYPES.reduce((acc, type) => {
       acc[type] = [];
@@ -161,13 +175,40 @@ export class NominationsService {
   }
 
   /**
-   * Спеціальні номінації конкурсу. Осей вони не мають, під фільтри заявки не
-   * підпадають і показуються всі одразу — тож ліміту тут бути не може.
+   * Спеціальні номінації конкурсу — ті, що підходять заявнику. Стилю і складу
+   * вони не несуть, зате мають лігу (без неї номінацію не створити) і часто
+   * вікову категорію, тож звужуються за тими самими правилами, що й звичайні:
+   * ліга — точний збіг, вік має вмістити кожного учасника номера.
+   *
+   * Без фільтрів повертаються всі: список спецномінацій конкурсу — десятки
+   * рядків, і обрізати його лімітом нема за чим.
    */
-  async listSpecials(competitionId: string) {
+  async listSpecials(competitionId: string, query: NominationSpecialsQuery) {
     await this.assertCompetitionExists(competitionId);
+
+    const conditions: Record<string, unknown>[] = [
+      { competitionId, isSpecial: true },
+    ];
+    if (query.league && isUUID(query.league)) {
+      conditions.push(this.withAllCategories([query.league]));
+    }
+    const ages = this.parseAges(query.ages);
+    const ageCategory =
+      query.ageCategory && isUUID(query.ageCategory) ? query.ageCategory : null;
+    if (ageCategory !== null || ages.length > 0) {
+      const specialCategories = await this.loadCompetitionCategories(
+        competitionId,
+        CATEGORY_SOURCE.SPECIAL,
+      );
+      conditions.push(
+        ageCategory !== null
+          ? this.chosenAgeCategoryCondition(specialCategories, ageCategory)
+          : this.ageCondition(specialCategories, ages),
+      );
+    }
+
     const nominations = await this.nominationModel.findAll({
-      where: { competitionId, isSpecial: true },
+      where: { [Op.and]: conditions } as WhereOptions<Nomination>,
       order: [
         ['createdAt', 'ASC'],
         ['id', 'ASC'],
@@ -237,8 +278,8 @@ export class NominationsService {
 
   /**
    * Номінація проходить за віком, коли її вікова категорія вміщує кожного
-   * учасника номера. Категорії без обох меж у підборі не беруть участі —
-   * порівнювати з ними нема чого.
+   * учасника номера. Категорії без нижньої межі у підборі не беруть участі —
+   * порівнювати з ними нема чого; порожня верхня межа означає «і старші».
    */
   private ageCondition(
     categories: Category[],
@@ -246,13 +287,27 @@ export class NominationsService {
   ): Record<string, unknown> {
     const bounded = categories
       .filter((category) => category.type === AGE_CATEGORY_TYPE)
-      .filter(
-        (category) => category.rangeFrom !== null && category.rangeTo !== null,
-      );
+      .filter((category) => category.rangeFrom !== null);
     const fitting = ageCategoriesFittingAges(ages, bounded);
     return this.axisOrMissingCondition(
       bounded.map((category) => category.id),
       fitting.map((category) => category.id),
+    );
+  }
+
+  /**
+   * Вікова категорія, яку заявник обрав явно: збіг по id, а не по
+   * межах. Частина категорій живе без заповнених меж — підбір за віком їх
+   * просто не бачить, і номінація з такою категорією проходила б завжди.
+   * Номінація без вікової осі проходить: вона ніяким віком не обмежена.
+   */
+  private chosenAgeCategoryCondition(
+    categories: Category[],
+    ageCategoryId: string,
+  ): Record<string, unknown> {
+    return this.axisOrMissingCondition(
+      this.axisIdsOf(categories, AGE_CATEGORY_TYPE),
+      [ageCategoryId],
     );
   }
 
@@ -282,20 +337,25 @@ export class NominationsService {
   }
 
   /**
-   * Категорії, використані звичайними номінаціями конкурсу. DISTINCT робить
-   * Postgres: витягати тисячі масивів у пам'ять заради десятка унікальних
-   * id — саме те, чого ці ендпойнти позбуваються.
+   * Категорії, використані номінаціями конкурсу. DISTINCT робить Postgres:
+   * витягати тисячі масивів у пам'ять заради десятка унікальних id — саме
+   * те, чого ці ендпойнти позбуваються.
    */
   private async loadCompetitionCategories(
     competitionId: string,
+    source: CategorySource = CATEGORY_SOURCE.REGULAR,
   ): Promise<Category[]> {
     const rows = await this.nominationModel.sequelize!.query<{ id: string }>(
       `SELECT DISTINCT link."categoryId" AS id
          FROM nomination_categories link
          JOIN nominations n ON n.id = link."nominationId"
+         JOIN categories c ON c.id = link."categoryId"
         WHERE n."competitionId" = :competitionId
-          AND n."isSpecial" = false`,
-      { replacements: { competitionId }, type: QueryTypes.SELECT },
+          AND ${CATEGORY_SOURCE_CONDITIONS[source]}`,
+      {
+        replacements: { competitionId, leagueType: LEAGUE_CATEGORY_TYPE },
+        type: QueryTypes.SELECT,
+      },
     );
     const ids = rows.map((row) => row.id);
     if (ids.length === 0) return [];

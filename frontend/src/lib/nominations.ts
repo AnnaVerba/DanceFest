@@ -11,6 +11,7 @@ import type {
   NominationAxes,
   NominationEntryFilter,
   NominationPageQuery,
+  NominationSpecialsFilter,
   NominationUpdateInput,
   VenueSummaryGroupBy,
   VenueSummaryRow,
@@ -167,12 +168,20 @@ export function getNominationAxes(
   return request<NominationAxes>(`/competitions/${competitionId}/nominations/axes`);
 }
 
-// Спецномінації показуються всі й без фільтрів, тож їдуть окремо.
+// Спецномінації їдуть окремо від звичайних: стилю й складу в них немає,
+// а фільтрує їх сервер за лігою та віком так само, як і всі інші.
 export function getSpecialNominations(
   competitionId: string,
+  filter: NominationSpecialsFilter,
 ): Promise<Nomination[]> {
+  const params = new URLSearchParams();
+  params.set('league', filter.league);
+  if (filter.ageCategory) params.set('ageCategory', filter.ageCategory);
+  if (filter.ages.length > 0) {
+    params.set('ages', filter.ages.join(LIST_QUERY_SEPARATOR));
+  }
   return request<Nomination[]>(
-    `/competitions/${competitionId}/nominations/specials`,
+    `/competitions/${competitionId}/nominations/specials?${params.toString()}`,
   );
 }
 
