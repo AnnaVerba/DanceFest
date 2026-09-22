@@ -6,7 +6,13 @@ import { publicRequest } from './http';
 import { withPageParams } from './pagination';
 import type { Paged } from './pagination';
 import type { EntryStats } from './entryStats.types';
-import type { EntryDetails, EntryUpdateInput } from './entryEdit.types';
+import type { EntriesQuote, EntriesQuoteInput } from './entriesQuote.types';
+import type { EntryParticipantAmount } from './entryAmount.types';
+import type {
+  EntryDetails,
+  EntryParticipant,
+  EntryUpdateInput,
+} from './entryEdit.types';
 
 export interface Entry {
   id: string;
@@ -25,10 +31,14 @@ export interface Entry {
   program: string | null;
   participantsCount: number | null;
   lineup: string | null;
+  studioId?: string | null;
   studioName: string | null;
+  trainerId?: string | null;
   choreographer: string | null;
   city?: string | null;
   improv?: boolean;
+  // Improvisation entries take no track (the organizer plays the music).
+  trackNotNeeded?: boolean;
   paymentMethod?: 'cash' | 'card' | null;
   musicName?: string | null;
   musicUrl?: string | null;
@@ -37,6 +47,9 @@ export interface Entry {
   scoresCount?: number;
   purchasedExtraSeconds?: number;
   extraFee?: number;
+  // What the entry costs: nomination price × dancers + extraFee. Staff
+  // payload only.
+  amount?: number;
   createdAt: string;
 }
 
@@ -62,6 +75,9 @@ export interface EntryInput {
   participantsCount?: number;
   studioName?: string;
   choreographer?: string;
+  // Organizer/admin only: file the entry under this studio / trainer.
+  studioId?: string;
+  trainerId?: string;
   city?: string;
   improv?: boolean;
   paymentMethod?: 'cash' | 'card';
@@ -139,6 +155,9 @@ export interface MyEntry extends Entry {
   competitionId: string;
   competitionName: string | null;
   competitionDateFrom: string | null;
+  amount: number;
+  participants: EntryParticipant[];
+  participantAmounts: EntryParticipantAmount[];
 }
 
 export function getMyEntries(): Promise<MyEntry[]> {
@@ -252,6 +271,18 @@ export function createEntriesBulk(
   return request<Entry[]>(`/competitions/${competitionId}/entries/bulk`, {
     method: 'POST',
     body: JSON.stringify({ entries: inputs }),
+  });
+}
+
+// What each selected nomination costs these dancers, counting what they
+// already registered for — the pay-once rule lives only on the server.
+export function getEntriesQuote(
+  competitionId: string,
+  input: EntriesQuoteInput,
+): Promise<EntriesQuote> {
+  return request<EntriesQuote>(`/competitions/${competitionId}/entries/quote`, {
+    method: 'POST',
+    body: JSON.stringify(input),
   });
 }
 

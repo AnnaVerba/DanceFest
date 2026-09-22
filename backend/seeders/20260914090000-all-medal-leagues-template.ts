@@ -25,9 +25,9 @@ const ALL_MEDAL_LEAGUES = [DEBUT_LEAGUE, FIRST_STEPS_LEAGUE];
 
 const LINEUPS = ['Соло', 'Дует', 'Тріо', 'Група'];
 
-const AGE_GROUPS: { name: string; ageFrom: number; ageTo: number }[] = [
-  { name: 'Діти', ageFrom: 0, ageTo: 12 },
-  { name: 'Дорослі', ageFrom: 13, ageTo: 99 },
+const AGE_GROUPS: { name: string; rangeFrom: number; rangeTo: number }[] = [
+  { name: 'Діти', rangeFrom: 0, rangeTo: 12 },
+  { name: 'Дорослі', rangeFrom: 13, rangeTo: 99 },
 ];
 
 interface CategoryRow {
@@ -63,11 +63,11 @@ async function ensureCategory(
   queryInterface: QueryInterface,
   transaction: Transaction,
   now: Date,
-  category: { name: string; type: string; ageFrom?: number; ageTo?: number },
+  category: { name: string; type: string; rangeFrom?: number; rangeTo?: number },
 ): Promise<void> {
   await queryInterface.sequelize.query(
-    `INSERT INTO categories (id, name, "type", "ageFrom", "ageTo", "createdAt", "updatedAt")
-       SELECT :id, :name, '${category.type}', :ageFrom, :ageTo, :now, :now
+    `INSERT INTO categories (id, name, "type", "rangeFrom", "rangeTo", "createdAt", "updatedAt")
+       SELECT :id, :name, '${category.type}', :rangeFrom, :rangeTo, :now, :now
         WHERE NOT EXISTS (
           SELECT 1 FROM categories
            WHERE lower(btrim(name)) = lower(btrim(:name))
@@ -77,8 +77,8 @@ async function ensureCategory(
       replacements: {
         id: randomUUID(),
         name: category.name,
-        ageFrom: category.ageFrom ?? null,
-        ageTo: category.ageTo ?? null,
+        rangeFrom: category.rangeFrom ?? null,
+        rangeTo: category.rangeTo ?? null,
         now,
       },
       transaction,
@@ -107,8 +107,8 @@ async function seed(
     await ensureCategory(queryInterface, transaction, now, {
       name: age.name,
       type: AGE_TYPE,
-      ageFrom: age.ageFrom,
-      ageTo: age.ageTo,
+      rangeFrom: age.rangeFrom,
+      rangeTo: age.rangeTo,
     });
   }
 
@@ -155,14 +155,21 @@ async function seed(
     for (const league of LEAGUES) {
       for (const lineup of LINEUPS) {
         await queryInterface.sequelize.query(
-          `INSERT INTO template_nominations
-               (id, "templateId", name, "allowsImprovisation", "categoryIds",
-                "isSpecial", "specialName", "exitMode", "sortOrder",
-                "createdAt", "updatedAt")
-             VALUES (:id, :templateId, :name, false,
-                     CAST(ARRAY[:categoryIds] AS uuid[]), false, NULL,
-                     CAST('${SINGLE_EXIT_MODE}' AS "enum_template_nominations_exitMode"),
-                     :sortOrder, :now, :now)`,
+          `WITH created AS (
+               INSERT INTO template_nominations
+                 (id, "templateId", name, "allowsImprovisation",
+                  "isSpecial", "specialName", "exitMode", "sortOrder",
+                  "createdAt", "updatedAt")
+               VALUES (:id, :templateId, :name, false,
+                       false, NULL,
+                       CAST('${SINGLE_EXIT_MODE}' AS "enum_template_nominations_exitMode"),
+                       :sortOrder, :now, :now)
+               RETURNING id
+             )
+             INSERT INTO template_nomination_categories
+               (id, "templateNominationId", "categoryId", "createdAt", "updatedAt")
+             SELECT gen_random_uuid(), created.id, axis, :now, :now
+               FROM created, unnest(CAST(ARRAY[:categoryIds] AS uuid[])) AS axis`,
           {
             replacements: {
               id: randomUUID(),

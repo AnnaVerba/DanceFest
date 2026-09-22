@@ -320,14 +320,21 @@ async function seed(
     // Шаблонна номінація має ті самі categoryIds: звіт нагород знаходить
     // «голу» назву спецномінації саме за парою (templateId, categoryIds).
     await queryInterface.sequelize.query(
-      `INSERT INTO template_nominations
-           (id, "templateId", name, "allowsImprovisation", "categoryIds",
-            "isSpecial", "specialName", "exitMode", "sortOrder",
-            "createdAt", "updatedAt")
-         VALUES (:id, :templateId, :name, false, CAST(ARRAY[:categoryIds] AS uuid[]),
-                 :isSpecial, :specialName,
-                 CAST(:exitMode AS "enum_template_nominations_exitMode"),
-                 :sortOrder, :now, :now)`,
+      `WITH created AS (
+           INSERT INTO template_nominations
+             (id, "templateId", name, "allowsImprovisation",
+              "isSpecial", "specialName", "exitMode", "sortOrder",
+              "createdAt", "updatedAt")
+           VALUES (:id, :templateId, :name, false,
+                   :isSpecial, :specialName,
+                   CAST(:exitMode AS "enum_template_nominations_exitMode"),
+                   :sortOrder, :now, :now)
+           RETURNING id
+         )
+         INSERT INTO template_nomination_categories
+           (id, "templateNominationId", "categoryId", "createdAt", "updatedAt")
+         SELECT gen_random_uuid(), created.id, axis, :now, :now
+           FROM created, unnest(CAST(ARRAY[:categoryIds] AS uuid[])) AS axis`,
       {
         transaction,
         replacements: {
@@ -346,14 +353,21 @@ async function seed(
 
     const nominationId = randomUUID();
     await queryInterface.sequelize.query(
-      `INSERT INTO nominations
-           (id, "competitionId", "templateId", name, "allowsImprovisation",
-            "categoryIds", "isSpecial", "exitMode", "programLimits",
-            "createdAt", "updatedAt")
-         VALUES (:id, :competitionId, :templateId, :name, false,
-                 CAST(ARRAY[:categoryIds] AS uuid[]), :isSpecial,
-                 CAST(:exitMode AS "enum_nominations_exitMode"),
-                 CAST('{}' AS jsonb), :now, :now)`,
+      `WITH created AS (
+           INSERT INTO nominations
+             (id, "competitionId", "templateId", name, "allowsImprovisation",
+              "isSpecial", "exitMode", "programLimits",
+              "createdAt", "updatedAt")
+           VALUES (:id, :competitionId, :templateId, :name, false,
+                   :isSpecial,
+                   CAST(:exitMode AS "enum_nominations_exitMode"),
+                   CAST('{}' AS jsonb), :now, :now)
+           RETURNING id
+         )
+         INSERT INTO nomination_categories
+           (id, "nominationId", "categoryId", "createdAt", "updatedAt")
+         SELECT gen_random_uuid(), created.id, axis, :now, :now
+           FROM created, unnest(CAST(ARRAY[:categoryIds] AS uuid[])) AS axis`,
       {
         transaction,
         replacements: {

@@ -16,6 +16,9 @@ import {
   RESET_PASSWORD_FAILED_MESSAGE,
   DEVICE_ID_STORAGE_KEY,
   DEVICE_ID_HEADER,
+  DEVICE_ID_BYTE_LENGTH,
+  HEX_RADIX,
+  HEX_BYTE_WIDTH,
 } from './auth.constants';
 import { HTTP_STATUS_UNAUTHORIZED } from './api.constants';
 import { clearProfileCompletionSkip } from './profileCompletion';
@@ -88,11 +91,15 @@ function toSession(raw: RawAuthResponse): Session {
 
 // A stable per-browser id, generated once and kept in localStorage. The
 // backend stores it on the session and rejects a refresh whose device id
-// no longer matches.
+// no longer matches. Built from getRandomValues, not randomUUID: the latter
+// exists only in secure contexts (HTTPS/localhost), so it throws on plain HTTP.
 function getDeviceId(): string {
   let id = localStorage.getItem(DEVICE_ID_STORAGE_KEY);
   if (!id) {
-    id = crypto.randomUUID();
+    id = Array.from(
+      crypto.getRandomValues(new Uint8Array(DEVICE_ID_BYTE_LENGTH)),
+      (byte) => byte.toString(HEX_RADIX).padStart(HEX_BYTE_WIDTH, '0'),
+    ).join('');
     localStorage.setItem(DEVICE_ID_STORAGE_KEY, id);
   }
   return id;
@@ -284,9 +291,15 @@ export interface CoachSummary {
   schoolName: string | null;
 }
 
+export interface NewMentorCoach {
+  firstName: string;
+  lastName: string;
+  phone: string;
+}
+
 export type SetMentorCoachBody =
   | { coachId: string }
-  | { newCoach: { firstName: string; lastName: string; phone: string } };
+  | { newCoach: NewMentorCoach };
 
 export interface MentorCoach {
   id: string;
@@ -309,6 +322,24 @@ export async function getSelectableCoaches(
     throw new AuthError(UNEXPECTED_SERVER_RESPONSE_MESSAGE);
   }
   return response.json() as Promise<CoachSummary[]>;
+}
+
+// Organizer/admin only: registers a coach who is not in the system yet.
+export async function createCoach(
+  newCoach: NewMentorCoach,
+): Promise<CoachSummary> {
+  const response = await authorizedFetch('/users/coaches', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(newCoach),
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as ErrorPayload | null;
+    throw new AuthError(
+      extractErrorMessage(payload, UNEXPECTED_SERVER_RESPONSE_MESSAGE),
+    );
+  }
+  return response.json() as Promise<CoachSummary>;
 }
 
 export async function getMyMentorCoach(): Promise<MentorCoach | null> {

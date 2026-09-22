@@ -1,6 +1,12 @@
 import { authorizedFetch } from './auth';
 import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
-import { IMAGE_UPLOAD_FAILED_MESSAGE } from './uploads.constants';
+import {
+  DOCUMENT_UPLOAD_FAILED_MESSAGE,
+  IMAGE_UPLOAD_FAILED_MESSAGE,
+} from './uploads.constants';
+
+const IMAGE_UPLOAD_PATH = '/uploads/image';
+const DOCUMENT_UPLOAD_PATH = '/uploads/document';
 
 export class UploadApiError extends Error {
   status: number;
@@ -19,13 +25,17 @@ function extractMessage(payload: ErrorPayload | null, fallback: string): string 
   return Array.isArray(payload.message) ? payload.message.join(', ') : payload.message;
 }
 
-export async function uploadImage(file: File): Promise<string> {
+async function uploadFile(
+  path: string,
+  file: File,
+  failureMessage: string,
+): Promise<string> {
   const body = new FormData();
   body.append('file', file);
 
   let response: Response;
   try {
-    response = await authorizedFetch('/uploads/image', {
+    response = await authorizedFetch(path, {
       method: 'POST',
       body,
     });
@@ -39,10 +49,18 @@ export async function uploadImage(file: File): Promise<string> {
 
   if (!response.ok) {
     throw new UploadApiError(
-      extractMessage(payload, IMAGE_UPLOAD_FAILED_MESSAGE),
+      extractMessage(payload, failureMessage),
       response.status,
     );
   }
 
   return (payload?.url as string) ?? '';
+}
+
+export function uploadImage(file: File): Promise<string> {
+  return uploadFile(IMAGE_UPLOAD_PATH, file, IMAGE_UPLOAD_FAILED_MESSAGE);
+}
+
+export function uploadDocument(file: File): Promise<string> {
+  return uploadFile(DOCUMENT_UPLOAD_PATH, file, DOCUMENT_UPLOAD_FAILED_MESSAGE);
 }

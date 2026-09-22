@@ -13,10 +13,25 @@ import {
 import NominationSetBuilder from '../components/nominations/NominationSetBuilder';
 import AllMedalLeaguesField from '../components/nominations/AllMedalLeaguesField';
 import { resolveDraftCategories, savedSignatureOf } from '../lib/nominationSet';
-import type { AxisSelection, DraftNomination } from '../lib/nominationSet';
+import type {
+  AxisSelection,
+  DraftNomination,
+  ResolvedDraftCategories,
+} from '../lib/nominationSet';
+import {
+  findInvalidAxisPriceMessage,
+  toAxisPriceMap,
+  toCategoryPriceInputs,
+} from '../lib/templateCategoryPrices';
+import type { AxisPriceMap } from '../lib/nominationPricing';
 import { CategoryApiError, getCategories, LEAGUE_CATEGORY_TYPE } from '../lib/categories';
 import type { Category } from '../lib/categories';
 import { queryKeys } from '../lib/queryKeys';
+import {
+  clearCategoryTemplateDraft,
+  loadCategoryTemplateDraft,
+  saveCategoryTemplateDraft,
+} from '../lib/categoryTemplateDraft';
 import styles from './CategoryTemplateFormPage.module.css';
 
 export default function CategoryTemplateFormPage() {
@@ -26,16 +41,38 @@ export default function CategoryTemplateFormPage() {
   const { toasts, showToast } = useToasts();
   const isEdit = Boolean(id);
 
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [isPublic, setIsPublic] = useState(false);
-  const [nominations, setNominations] = useState<DraftNomination[]>([]);
-  const [axes, setAxes] = useState<AxisSelection | null>(null);
-  // Категорії зі спецмодалки, відсутні в axes — потрібні resolveDraftCategories,
-  // щоб не загубити ageFrom/ageTo нової вікової категорії при збереженні.
-  const [extraCategories, setExtraCategories] = useState<Category[]>([]);
+  // A new template isn't saved anywhere until submit, so an accidental
+  // reload or back-navigation would otherwise wipe it. Restored once, on
+  // mount — an edit has its own saved copy on the server, so it skips this.
+  const [restoredDraft] = useState(() =>
+    isEdit ? null : loadCategoryTemplateDraft(),
+  );
 
-  const [allMedalLeagues, setAllMedalLeagues] = useState<string[]>([]);
+  const [name, setName] = useState(restoredDraft?.name ?? '');
+  const [description, setDescription] = useState(
+    restoredDraft?.description ?? '',
+  );
+  const [isPublic, setIsPublic] = useState(restoredDraft?.isPublic ?? false);
+  const [nominations, setNominations] = useState<DraftNomination[]>(
+    restoredDraft?.nominations ?? [],
+  );
+  const [axes, setAxes] = useState<AxisSelection | null>(
+    restoredDraft?.axes ?? null,
+  );
+  // Ціни за значеннями осей «Склад» і «Ліга» — джерело ціни кожної звичайної
+  // номінації шаблону.
+  const [axisPrices, setAxisPrices] = useState<AxisPriceMap>(
+    restoredDraft?.axisPrices ?? {},
+  );
+  // Категорії зі спецмодалки, відсутні в axes — потрібні resolveDraftCategories,
+  // щоб не загубити rangeFrom/rangeTo нової вікової категорії при збереженні.
+  const [extraCategories, setExtraCategories] = useState<Category[]>(
+    restoredDraft?.extraCategories ?? [],
+  );
+
+  const [allMedalLeagues, setAllMedalLeagues] = useState<string[]>(
+    restoredDraft?.allMedalLeagues ?? [],
+  );
   // Persisted league values — on edit the builder's axes stay null until the
   // organizer touches them, so names for saved ids come from here. null
   // while still loading.
@@ -60,11 +97,12 @@ export default function CategoryTemplateFormPage() {
         setDescription(detail.description ?? '');
         setIsPublic(detail.isPublic);
         setAllMedalLeagues(detail.allMedalLeagues ?? []);
+        setAxisPrices(toAxisPriceMap(detail.categoryPrices ?? []));
         setNominations(
           detail.nominations.map((n) => ({
             signature: savedSignatureOf(n),
             name: n.name,
-            price: '',
+            price: n.price === null ? '' : String(n.price),
             allowsImprovisation: n.allowsImprovisation,
             categoryIds: n.categoryIds,
             isSpecial: n.isSpecial,
@@ -88,6 +126,39 @@ export default function CategoryTemplateFormPage() {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (restoredDraft) {
+      showToast('Відновлено незбережену чернетку шаблону');
+    }
+  }, [restoredDraft, showToast]);
+
+  // Keeps the draft current so a reload or an accidental back-navigation
+  // doesn't lose it. Cleared on successful save (see `save`) or an
+  // explicit cancel.
+  useEffect(() => {
+    if (isEdit) return;
+    saveCategoryTemplateDraft({
+      name,
+      description,
+      isPublic,
+      nominations,
+      axes,
+      axisPrices,
+      extraCategories,
+      allMedalLeagues,
+    });
+  }, [
+    isEdit,
+    name,
+    description,
+    isPublic,
+    nominations,
+    axes,
+    axisPrices,
+    extraCategories,
+    allMedalLeagues,
+  ]);
 
   useEffect(() => {
     getCategories(LEAGUE_CATEGORY_TYPE)
@@ -141,6 +212,16 @@ export default function CategoryTemplateFormPage() {
       return;
     }
 
+    const knownCategories = [
+      ...Object.values(axes ?? {}).flat(),
+      ...extraCategories,
+    ];
+    const badAxisPrice = findInvalidAxisPriceMessage(axisPrices, knownCategories);
+    if (badAxisPrice) {
+      setSubmitError(badAxisPrice);
+      return;
+    }
+
     const withBadPrice = nominations.find(
       (n) => n.price.trim() !== '' && !(Number(n.price) >= 0),
     );
@@ -151,10 +232,7 @@ export default function CategoryTemplateFormPage() {
 
     setSubmitting(true);
     try {
-      const resolved = await resolveDraftCategories(
-        nominations,
-        [...Object.values(axes ?? {}).flat(), ...extraCategories],
-      );
+      const resolved = await resolveDraftCategories(nominations, knownCategories);
       await save(resolved);
     } catch (err) {
       setSubmitError(
@@ -167,7 +245,7 @@ export default function CategoryTemplateFormPage() {
     }
   };
 
-  const save = async (nominations: DraftNomination[]) => {
+  const save = async ({ nominations, idByDraftId }: ResolvedDraftCategories) => {
     const payload = {
       name: name.trim(),
       description: description.trim() || undefined,
@@ -177,8 +255,10 @@ export default function CategoryTemplateFormPage() {
       allMedalLeagues: leagueCategoriesFailed
         ? allMedalLeagues
         : allMedalLeagues.filter((name) => leagueNames.includes(name)),
+      categoryPrices: toCategoryPriceInputs(axisPrices, idByDraftId),
       nominations: nominations.map((n, index) => ({
         name: n.name.trim(),
+        price: n.price.trim() === '' ? undefined : Number(n.price),
         allowsImprovisation: n.allowsImprovisation,
         categoryIds: n.categoryIds,
         isSpecial: n.isSpecial,
@@ -191,6 +271,7 @@ export default function CategoryTemplateFormPage() {
     const template = id
       ? await updateCategoryTemplate(id, payload)
       : await createCategoryTemplate(payload);
+    if (!isEdit) clearCategoryTemplateDraft();
     // The templates list and this template's own cached detail (staleTime:
     // Infinity — see .claude/prompt-caching-strategy.md) won't pick up the
     // edit on their own.
@@ -296,7 +377,10 @@ export default function CategoryTemplateFormPage() {
                 onChange={setNominations}
                 selection={axes}
                 onSelectionChange={setAxes}
+                axisPrices={axisPrices}
+                onAxisPricesChange={setAxisPrices}
                 onNotice={showToast}
+                hideImprovisation
                 seedCategoryIds={seedCategoryIds}
                 onCategoryCreated={(category) =>
                   setExtraCategories((prev) =>
@@ -314,7 +398,13 @@ export default function CategoryTemplateFormPage() {
               </section>
 
               <div className={styles.actions}>
-                <Link to="/category-templates" className={styles.btn}>
+                <Link
+                  to="/category-templates"
+                  className={styles.btn}
+                  onClick={() => {
+                    if (!isEdit) clearCategoryTemplateDraft();
+                  }}
+                >
                   Скасувати
                 </Link>
                 <button

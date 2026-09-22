@@ -1,0 +1,71 @@
+# Production stack for the deploy instance: images come from GHCR (built by
+# .github/workflows/ci-cd.yml), secrets from .env next to this file.
+# Local development keeps using docker-compose.yml.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    # No published port: only the backend reaches the database.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME} -d ${DB_NAME}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Job queue for the async music-archive export. No published port; the
+  # built-in "default" user is disabled so only REDIS_USERNAME can connect
+  # (REDIS_USERNAME must therefore not be "default").
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_USERNAME: ${REDIS_USERNAME}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    command:
+      - sh
+      - -c
+      - >-
+        exec redis-server --appendonly yes
+        --user default off
+        --user "$$REDIS_USERNAME" on ">$$REDIS_PASSWORD" '~*' '&*' '+@all'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli --user "$$REDIS_USERNAME" ping | grep -q PONG']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: ${BACKEND_IMAGE}:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      PORT: 4000
+      DB_HOST: db
+      DB_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+  frontend:
+    image: ${FRONTEND_IMAGE}:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '${HTTP_PORT:-8080}:80'
+
+volumes:
+  pgdata:
+  redisdata:

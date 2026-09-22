@@ -7,3 +7,21 @@ export const TEMPLATE_CANNOT_BE_EMPTY_MESSAGE = 'Шаблон не може бу
 export const FORK_NAME_MUST_DIFFER_MESSAGE =
   'Назва копії має відрізнятися від назви оригіналу';
 export const UNKNOWN_CATEGORIES_MESSAGE_PREFIX = 'Невідомі категорії';
+
+// A generous ceiling above the largest template this app is sized for
+// (5000 nominations) — the real guard against an unbounded payload, since
+// the JSON body-size limit alone is just a byte count, not a business rule.
+export const MAX_TEMPLATE_NOMINATIONS = 6000;
+
+export const DEFAULT_TEMPLATE_NOMINATIONS_PAGE_SIZE = 20;
+export const MAX_TEMPLATE_NOMINATIONS_PAGE_SIZE = 100;
+
+// Ціна не може бути від'ємною; нуль — свідомо, безкоштовна номінація трапляється.
+export const MIN_CATEGORY_PRICE = 0;
+
+export const PRICED_AXIS_REQUIRED_MESSAGE =
+  'Ціну можна задати лише значенням осей «Склад» і «Ліга»';
+export const DUPLICATE_CATEGORY_PRICE_MESSAGE =
+  'Для однієї категорії вказано кілька цін';
+export const UNKNOWN_PRICED_CATEGORIES_MESSAGE_PREFIX =
+  'Невідомі категорії в цінах';

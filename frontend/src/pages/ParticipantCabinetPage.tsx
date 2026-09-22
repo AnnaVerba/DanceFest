@@ -7,9 +7,22 @@ import { getSession, getToken } from '../lib/auth';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import { getMyEntries, uploadEntryTrack } from '../lib/entries';
 import type { MyEntry } from '../lib/entries';
+import { formatParticipants } from '../lib/entryParticipants';
 import { formatParticipantNumbers } from '../lib/participantNumbers';
+import {
+  formatEntryAmount,
+  sumAmountsByParticipant,
+  sumEntryAmounts,
+} from '../lib/entryAmount';
 import { queryKeys } from '../lib/queryKeys';
-import { ENTRY_COLUMN_LABEL } from './ParticipantCabinetPage.constants';
+import { AUDIO_ACCEPT } from '../lib/uploads.constants';
+import {
+  ENTRY_COLUMN_COUNT_BEFORE_AMOUNT,
+  ENTRY_COLUMN_LABEL,
+  ENTRY_GRAND_TOTAL_LABEL,
+  ENTRY_PARTICIPANT_TOTALS_LABEL,
+  ENTRY_TOTAL_LABEL,
+} from './ParticipantCabinetPage.constants';
 import styles from './ParticipantCabinetPage.module.css';
 
 interface CompetitionGroup {
@@ -127,6 +140,9 @@ export default function ParticipantCabinetPage() {
                     {group.entries.map((entry) => (
                       <tr key={entry.id}>
                         <td data-label={ENTRY_COLUMN_LABEL.NUMBER}>{entry.number}</td>
+                        <td data-label={ENTRY_COLUMN_LABEL.PARTICIPANT}>
+                          {formatParticipants(entry.participants)}
+                        </td>
                         <td data-label={ENTRY_COLUMN_LABEL.PARTICIPANT_NUMBERS}>
                           {formatParticipantNumbers(entry.participantNumbers)}
                         </td>
@@ -140,7 +156,7 @@ export default function ParticipantCabinetPage() {
                         </td>
                         <td data-label={ENTRY_COLUMN_LABEL.MUSIC}>
                           <div className={styles.musicCell}>
-                            {entry.improv ? (
+                            {entry.trackNotNeeded ? (
                               <span>Імпровізація</span>
                             ) : (
                               <>
@@ -159,7 +175,7 @@ export default function ParticipantCabinetPage() {
                                 <label className={styles.musicUploadLabel}>
                                   <input
                                     type="file"
-                                    accept="audio/*"
+                                    accept={AUDIO_ACCEPT}
                                     hidden
                                     onChange={(e) => onMusicPick(entry.id, e)}
                                   />
@@ -171,13 +187,49 @@ export default function ParticipantCabinetPage() {
                             )}
                           </div>
                         </td>
+                        <td data-label={ENTRY_COLUMN_LABEL.AMOUNT}>
+                          {formatEntryAmount(entry.amount)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot>
+                    <tr className={styles.totalRow}>
+                      <td colSpan={ENTRY_COLUMN_COUNT_BEFORE_AMOUNT}>
+                        {ENTRY_TOTAL_LABEL}
+                      </td>
+                      <td data-label={ENTRY_COLUMN_LABEL.AMOUNT}>
+                        {formatEntryAmount(
+                          sumEntryAmounts(group.entries.map((e) => e.amount)),
+                        )}
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
+              </div>
+              <div className={styles.participantTotals}>
+                <div className={styles.participantTotalsTitle}>
+                  {ENTRY_PARTICIPANT_TOTALS_LABEL}
+                </div>
+                {sumAmountsByParticipant(group.entries).map((row) => (
+                  <div key={row.key} className={styles.participantTotal}>
+                    <span>{row.participant}</span>
+                    <span>{formatEntryAmount(row.amount)}</span>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
+          {groups.length > 0 && (
+            <div className={styles.grandTotal}>
+              <span>{ENTRY_GRAND_TOTAL_LABEL}</span>
+              <span>
+                {formatEntryAmount(
+                  sumEntryAmounts((myEntries ?? []).map((e) => e.amount)),
+                )}
+              </span>
+            </div>
+          )}
         </section>
       </div>
     </CabinetLayout>

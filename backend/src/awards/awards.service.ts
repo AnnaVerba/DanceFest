@@ -4,7 +4,7 @@ import { CreationAttributes, Op, Transaction } from 'sequelize';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { CategoriesService } from '../categories/categories.service';
 import { LEAGUE_CATEGORY_TYPE } from '../categories/category.model';
-import type { Category } from '../categories/category.model';
+import { Category } from '../categories/category.model';
 import { CategoryTemplate } from '../category-templates/category-template.model';
 import { normalizeLeagueNames } from '../category-templates/normalize-league-names';
 import { TemplateNomination } from '../category-templates/template-nomination.model';
@@ -139,6 +139,7 @@ export class AwardsService {
             limit: MAX_AWARDS_QUERY_ROWS,
           });
     const nominations = await this.nominationModel.findAll({
+      include: [{ model: Category, through: { attributes: [] } }],
       where: { competitionId },
       limit: MAX_AWARDS_QUERY_ROWS,
     });

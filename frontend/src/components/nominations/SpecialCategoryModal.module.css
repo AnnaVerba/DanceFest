@@ -3,8 +3,6 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
-  max-height: calc(100svh - 180px);
-  overflow-y: auto;
 }
 
 .error {
@@ -112,12 +110,13 @@
 
 .axisAdd {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .axisAdd input {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 160px;
+  min-width: 160px;
   padding: 8px 11px;
   border: 1px solid var(--g-line);
   border-radius: 8px;
@@ -130,6 +129,11 @@
 /* Межі віку — вузькі поля, щоб назва значення лишалась головною. */
 .axisAdd input.ageBound {
   flex: 0 0 84px;
+  min-width: 84px;
+}
+
+.axisAdd button {
+  flex: none;
 }
 
 .axisAdd input:focus-visible {
@@ -325,6 +329,12 @@
     flex-direction: column;
   }
 
+  /* У колонці flex-basis задає висоту — полям лишаємо природну. */
+  .axisAdd input,
+  .axisAdd input.ageBound {
+    flex: none;
+  }
+
   .actions {
     flex-direction: column-reverse;
   }
@@ -410,4 +420,11 @@
   position: absolute;
   left: -14px;
   color: var(--g-subtle);
+}
+
+/* Підказка про підтягнуті межі — окремим рядком, щоб не звужувати поля. */
+.ageHint {
+  flex: 1 0 100%;
+  font-size: 13px;
+  color: var(--g-muted);
 }

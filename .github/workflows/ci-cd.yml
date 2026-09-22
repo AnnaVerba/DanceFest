@@ -1,0 +1,218 @@
+name: CI/CD
+
+on:
+  pull_request:
+  push:
+    branches: [production]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  REGISTRY: ghcr.io
+
+jobs:
+  backend:
+    name: Backend — test & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  frontend:
+    name: Frontend — build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # npm install, not npm ci: the Windows-generated lock file lacks the
+      # optional Linux rollup binaries.
+      - run: npm install
+      - run: npm run build
+
+  images:
+    name: Build & push images
+    needs: [backend, frontend]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/production'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image-prefix: ${{ steps.names.outputs.prefix }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Image names (GHCR requires lower case)
+        id: names
+        run: echo "prefix=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/Dockerfile.prod
+          push: true
+          tags: |
+            ${{ steps.names.outputs.prefix }}-backend:${{ github.sha }}
+            ${{ steps.names.outputs.prefix }}-backend:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+      - uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          file: frontend/Dockerfile.prod
+          push: true
+          tags: |
+            ${{ steps.names.outputs.prefix }}-frontend:${{ github.sha }}
+            ${{ steps.names.outputs.prefix }}-frontend:latest
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  deploy:
+    name: Deploy to instance
+    needs: images
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+    env:
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || 'dansefest' }}
+    steps:
+      - uses: actions/checkout@v4
+      # Only secrets the stack cannot run without. Everything else (mail,
+      # SMS, OCP storage, first admin) is optional: the backend starts and
+      # the related feature stays off until the secret is added.
+      - name: Check required secrets
+        env:
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          REDIS_USERNAME: ${{ secrets.REDIS_USERNAME }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+        run: |
+          missing=0
+          for name in DB_PASSWORD JWT_SECRET JWT_REFRESH_SECRET REDIS_USERNAME REDIS_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Required secret $name is not set"
+              missing=1
+            fi
+          done
+          if [ "$REDIS_USERNAME" = "default" ]; then
+            echo "::error::REDIS_USERNAME must not be 'default' (that user is disabled)"
+            missing=1
+          fi
+          exit $missing
+      - name: Set up SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_USER }}
+          SSH_PORT: ${{ secrets.DEPLOY_PORT || 22 }}
+        run: |
+          install -m 700 -d ~/.ssh
+          # Pasted secrets often carry Windows line endings or lose the final
+          # newline — either makes OpenSSH silently ignore the key.
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          # Fails fast on a malformed or passphrase-protected key. The printed
+          # public key must be in ~/.ssh/authorized_keys of DEPLOY_USER.
+          ssh-keygen -y -P '' -f ~/.ssh/id_deploy > /tmp/id_deploy.pub \
+            || { echo "DEPLOY_SSH_KEY is not a valid passphrase-less private key"; exit 1; }
+          echo "Deploy key: $(ssh-keygen -l -f /tmp/id_deploy.pub)"
+          ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<CONFIG
+          Host deploy
+            HostName $SSH_HOST
+            User $SSH_USER
+            Port $SSH_PORT
+            IdentityFile ~/.ssh/id_deploy
+            IdentitiesOnly yes
+            BatchMode yes
+          CONFIG
+      - name: Check SSH access
+        run: ssh deploy 'echo "Connected as $(whoami) on $(hostname)"; docker compose version'
+      - name: Upload compose file
+        run: |
+          ssh deploy "mkdir -p ${DEPLOY_PATH}"
+          scp docker-compose.prod.yml "deploy:${DEPLOY_PATH}/docker-compose.prod.yml"
+      - name: Upload .env from secrets
+        env:
+          HTTP_PORT: ${{ secrets.HTTP_PORT || 80 }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME || 'dansefest' }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME || 'dansefest' }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_EXPIRES_IN_SECONDS: ${{ secrets.JWT_EXPIRES_IN_SECONDS || 3600 }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          JWT_REFRESH_EXPIRES_IN_SECONDS: ${{ secrets.JWT_REFRESH_EXPIRES_IN_SECONDS || 2592000 }}
+          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+          ADMIN_PHONE: ${{ secrets.ADMIN_PHONE }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          MAIL_FROM_NAME: ${{ secrets.MAIL_FROM_NAME || 'CompAdmin' }}
+          OCP_REGION: ${{ secrets.OCP_REGION || 'ua-central-1' }}
+          OCP_ACCESS_KEY_ID: ${{ secrets.OCP_ACCESS_KEY_ID }}
+          OCP_SECRET_ACCESS_KEY: ${{ secrets.OCP_SECRET_ACCESS_KEY }}
+          OCP_BUCKET: ${{ secrets.OCP_BUCKET || 'project-bucket-dance-fest' }}
+          OCP_ENDPOINT: ${{ secrets.OCP_ENDPOINT || 'https://s3.ua-central-1.ocplanet.cloud' }}
+          OCP_PUBLIC_URL: ${{ secrets.OCP_PUBLIC_URL }}
+          OCP_IMAGES_PREFIX: ${{ secrets.OCP_IMAGES_PREFIX || 'images' }}
+          OCP_AUDIO_PREFIX: ${{ secrets.OCP_AUDIO_PREFIX || 'audio' }}
+          REDIS_USERNAME: ${{ secrets.REDIS_USERNAME }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          SMS_PROVIDER: ${{ secrets.SMS_PROVIDER || 'dev' }}
+          SMS_FLY_API_URL: ${{ secrets.SMS_FLY_API_URL }}
+          SMS_FLY_API_KEY: ${{ secrets.SMS_FLY_API_KEY }}
+          SMS_FLY_FROM: ${{ secrets.SMS_FLY_FROM }}
+        run: |
+          # Streamed straight into the file with umask 077 — secrets never
+          # touch the runner's disk and the .env is readable only by its owner.
+          for name in HTTP_PORT DB_USERNAME DB_PASSWORD DB_NAME \
+            JWT_SECRET JWT_EXPIRES_IN_SECONDS JWT_REFRESH_SECRET JWT_REFRESH_EXPIRES_IN_SECONDS \
+            FRONTEND_URL ADMIN_PHONE ADMIN_PASSWORD \
+            GMAIL_USER GMAIL_APP_PASSWORD MAIL_FROM_NAME \
+            OCP_REGION OCP_ACCESS_KEY_ID OCP_SECRET_ACCESS_KEY OCP_BUCKET OCP_ENDPOINT OCP_PUBLIC_URL \
+            OCP_IMAGES_PREFIX OCP_AUDIO_PREFIX \
+            REDIS_USERNAME REDIS_PASSWORD \
+            SMS_PROVIDER \
+            SMS_FLY_API_URL SMS_FLY_API_KEY SMS_FLY_FROM; do
+            printf '%s=%s\n' "$name" "${!name}"
+          done | ssh deploy "umask 077 && cat > ${DEPLOY_PATH}/.env"
+      - name: Pull and restart
+        run: |
+          ssh deploy bash -s <<SCRIPT
+          set -euo pipefail
+          cd ${DEPLOY_PATH}
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${REGISTRY} -u "${{ github.actor }}" --password-stdin
+          export BACKEND_IMAGE=${{ needs.images.outputs.image-prefix }}-backend
+          export FRONTEND_IMAGE=${{ needs.images.outputs.image-prefix }}-frontend
+          export IMAGE_TAG=${{ github.sha }}
+          docker compose -f docker-compose.prod.yml pull
+          docker compose -f docker-compose.prod.yml up -d --remove-orphans
+          docker image prune -f
+          docker logout ${REGISTRY}
+          SCRIPT

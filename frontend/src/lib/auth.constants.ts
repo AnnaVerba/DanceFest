@@ -2,6 +2,9 @@ export const MIN_PASSWORD_LENGTH = 6;
 export const PASSWORD_TOO_SHORT_MESSAGE = `Пароль має містити щонайменше ${MIN_PASSWORD_LENGTH} символів`;
 export const PASSWORD_MISMATCH_MESSAGE = 'Паролі не збігаються';
 
+// Mirrors OTP_CODE_LENGTH in backend/src/auth/otp.constants.ts.
+export const OTP_LENGTH = 4;
+
 // Mirrors PASSWORD_STRENGTH_REGEX in backend/src/auth/auth.constants.ts.
 // Registration password: at least one letter (any alphabet), one digit and
 // one special symbol — anything that is not a letter, digit or whitespace.
@@ -12,6 +15,9 @@ export const PASSWORD_TOO_WEAK_MESSAGE =
 export const SESSION_STORAGE_KEY = 'dansefest.session';
 export const DEVICE_ID_STORAGE_KEY = 'dansefest.deviceId';
 export const DEVICE_ID_HEADER = 'X-Device-Id';
+export const DEVICE_ID_BYTE_LENGTH = 16;
+export const HEX_RADIX = 16;
+export const HEX_BYTE_WIDTH = 2;
 
 export const UNEXPECTED_SERVER_RESPONSE_MESSAGE =
   'Сервер повернув неочікувану відповідь';

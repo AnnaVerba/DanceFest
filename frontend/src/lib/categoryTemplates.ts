@@ -1,12 +1,32 @@
 import { authorizedFetch } from './auth';
+import type { CategoryType } from './categories';
 import { GENERIC_REQUEST_ERROR_MESSAGE } from './api.constants';
 import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
 
 export type ExitMode = 'single' | 'per_program';
 
+// Ціна значення цінової осі («Дуо», «Дебют») у межах шаблону — помічник
+// заповнення: з неї береться ціна при генерації номінацій. Точна ціна живе на
+// самій номінації і правка осі вже згенерованих рядків не чіпає.
+export interface TemplateCategoryPrice {
+  categoryId: string;
+  type: CategoryType;
+  price: number;
+}
+
+export interface TemplateCategoryPriceInput {
+  categoryId: string;
+  price: number;
+}
+
 export interface TemplateNomination {
   id: string;
   name: string;
+  // Власна ціна рядка. null — ціну не виставляли, діє ціна осі.
+  price: number | null;
+  // Ціна, що діє: власна, а якщо її немає — ціна складу або ліги. Саме вона
+  // показується й саме вона їде в конкурс при імпорті.
+  effectivePrice: number | null;
   allowsImprovisation: boolean;
   categoryIds: string[];
   isSpecial: boolean;
@@ -17,6 +37,7 @@ export interface TemplateNomination {
 
 export interface TemplateNominationInput {
   name: string;
+  price?: number;
   allowsImprovisation?: boolean;
   categoryIds?: string[];
   isSpecial?: boolean;
@@ -43,6 +64,7 @@ export interface CategoryTemplate {
 }
 
 export interface CategoryTemplateDetail extends CategoryTemplate {
+  categoryPrices: TemplateCategoryPrice[];
   nominations: TemplateNomination[];
 }
 
@@ -51,6 +73,7 @@ export interface CategoryTemplateInput {
   description?: string;
   isPublic?: boolean;
   allMedalLeagues?: string[];
+  categoryPrices?: TemplateCategoryPriceInput[];
   nominations: TemplateNominationInput[];
 }
 
@@ -121,6 +144,32 @@ export function getCategoryTemplates(
 
 export function getCategoryTemplate(id: string): Promise<CategoryTemplateDetail> {
   return request<CategoryTemplateDetail>(`/category-templates/${id}`);
+}
+
+// Header only — never loads the nomination rows, so it stays cheap for a
+// large template. Used by the template detail page.
+export function getCategoryTemplateMeta(id: string): Promise<CategoryTemplate> {
+  return request<CategoryTemplate>(`/category-templates/${id}/meta`);
+}
+
+export interface PagedTemplateNominations {
+  rows: TemplateNomination[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export function getCategoryTemplateNominations(
+  id: string,
+  query: { page?: number; pageSize?: number } = {},
+): Promise<PagedTemplateNominations> {
+  const params = new URLSearchParams();
+  if (query.page != null) params.set('page', String(query.page));
+  if (query.pageSize != null) params.set('pageSize', String(query.pageSize));
+  const suffix = params.toString() ? `?${params}` : '';
+  return request<PagedTemplateNominations>(
+    `/category-templates/${id}/nominations${suffix}`,
+  );
 }
 
 export function createCategoryTemplate(

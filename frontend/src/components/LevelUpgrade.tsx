@@ -60,7 +60,7 @@ export default function LevelUpgrade({ session }: LevelUpgradeProps) {
             className={styles.primary}
             onClick={() => setMode('coach')}
           >
-            Стати тренером
+            Стати керівником
           </button>
         </div>
       )}

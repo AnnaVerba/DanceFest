@@ -5,17 +5,21 @@ export const PAGE_SIZE = 20;
 // loaded set.
 export const ENTRIES_SERVER_PAGE = 200;
 
-// Columns always shown in the table header: №, № учасника, Назва номеру,
+// Columns always shown in the table header: №, № учасника, Учасники,
 // Номінація, Вік. категорія, Ліга, Програма, К-сть уч., Студія, Хореограф,
 // Бал. The "Дії" column adds one more when canManage. Used to span the
 // "no matches" row across the full table width.
 export const BASE_COLUMN_COUNT = 11;
 export const ACTIONS_COLUMN_COUNT = 1;
+// "Вартість" — money data, shown only when canManage (the server sends
+// `amount` to staff only).
+export const AMOUNT_COLUMN_COUNT = 1;
 
-export type SortKey = 'number' | 'name' | 'score';
+export type SortKey = 'number' | 'name' | 'score' | 'newest';
 
 export const SORT_LABELS: Record<SortKey, string> = {
   number: 'Сортувати за №',
   name: 'За назвою',
   score: 'За балом',
+  newest: 'Спочатку новіші',
 };

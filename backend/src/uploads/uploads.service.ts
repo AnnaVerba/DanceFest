@@ -9,6 +9,7 @@ import { buildPublicObjectUrl } from './build-public-object-url';
 import { resolveImagesKeyPrefix } from './resolve-ocp-key-prefix';
 import {
   STORAGE_NOT_CONFIGURED_MESSAGE,
+  DOCUMENT_UPLOAD_CONFIG,
   IMAGE_UPLOAD_CONFIG,
   OCP_ENDPOINT_ENV_KEY,
   OCP_BUCKET_ENV_KEY,
@@ -25,6 +26,12 @@ export class UploadsService {
 
   async uploadImage(file: Express.Multer.File): Promise<string> {
     return this.upload(file, IMAGE_UPLOAD_CONFIG);
+  }
+
+  // Documents share the images prefix: it's the bucket's public, non-audio
+  // folder, and its own key prefix already keeps them apart from banners.
+  async uploadDocument(file: Express.Multer.File): Promise<string> {
+    return this.upload(file, DOCUMENT_UPLOAD_CONFIG);
   }
 
   private async upload(

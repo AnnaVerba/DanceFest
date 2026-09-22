@@ -14,15 +14,27 @@ export const MIME_EXTENSIONS: Record<string, string> = {
   'image/gif': 'gif',
 };
 
+export const ALLOWED_DOCUMENT_MIME_TYPES = ['application/pdf'];
+
+export const DOCUMENT_MIME_EXTENSIONS: Record<string, string> = {
+  'application/pdf': 'pdf',
+};
+
 export const STORAGE_NOT_CONFIGURED_MESSAGE =
   'Сховище зображень не налаштовано. Зверніться до адміністратора застосунку.';
 export const UNSUPPORTED_FILE_FORMAT_MESSAGE =
   'Непідтримуваний формат файлу. Дозволено: JPEG, PNG, WEBP, GIF.';
+export const UNSUPPORTED_DOCUMENT_FORMAT_MESSAGE =
+  'Непідтримуваний формат файлу. Дозволено лише PDF.';
 export const FILE_MISSING_MESSAGE = 'Файл не передано.';
 
 export const COMPETITION_BANNERS_KEY_PREFIX = 'competition-banners';
+export const COMPETITION_DOCUMENTS_KEY_PREFIX = 'competition-documents';
 
 export const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+// A festival's regulations PDF carries scans and logos, so it outgrows the
+// banner limit well before it stops being a reasonable upload.
+export const MAX_DOCUMENT_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 
 // OCP doesn't apply a bucket's public-read setting to objects retroactively
 // or by default — each object needs this ACL at upload time to be fetchable
@@ -34,6 +46,13 @@ export const IMAGE_UPLOAD_CONFIG: FileUploadConfig = {
   mimeExtensions: MIME_EXTENSIONS,
   keyPrefix: COMPETITION_BANNERS_KEY_PREFIX,
   unsupportedFormatMessage: UNSUPPORTED_FILE_FORMAT_MESSAGE,
+};
+
+export const DOCUMENT_UPLOAD_CONFIG: FileUploadConfig = {
+  allowedMimeTypes: ALLOWED_DOCUMENT_MIME_TYPES,
+  mimeExtensions: DOCUMENT_MIME_EXTENSIONS,
+  keyPrefix: COMPETITION_DOCUMENTS_KEY_PREFIX,
+  unsupportedFormatMessage: UNSUPPORTED_DOCUMENT_FORMAT_MESSAGE,
 };
 
 // Env var keys for the S3-compatible client, storing to OneCloudPlanet's

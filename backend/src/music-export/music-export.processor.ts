@@ -15,7 +15,9 @@ import { OcpS3ClientFactory } from '../uploads/ocp-s3-client.factory';
 import { resolveAudioKeyPrefix } from '../uploads/resolve-ocp-key-prefix';
 import { OCP_BUCKET_ENV_KEY } from '../uploads/uploads.constants';
 import { ExportJob, MissingTrack } from './export-job.model';
-import { buildTrackFileName } from './build-track-filename';
+import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
+import { isImprovisationEntry } from '../tracks/is-improvisation-entry';
+import { buildTrackFileName, buildTrackNumberLabel } from './build-track-filename';
 import { LazyS3ObjectStream } from './lazy-s3-object-stream';
 import {
   MUSIC_EXPORT_QUEUE_NAME,
@@ -41,6 +43,7 @@ export class MusicExportProcessor extends WorkerHost {
     @InjectModel(Category) private readonly categoryModel: typeof Category,
     @InjectModel(User) private readonly userModel: typeof User,
     @InjectModel(Track) private readonly trackModel: typeof Track,
+    private readonly participantNumbersService: CompetitionParticipantNumbersService,
     private readonly s3: OcpS3ClientFactory,
     private readonly config: ConfigService,
   ) {
@@ -62,12 +65,17 @@ export class MusicExportProcessor extends WorkerHost {
       const tracksByEntryId = await this.loadTracks(entries.map((e) => e.id));
       const stylesByEntryId = await this.resolveStyles(entries);
       const soloNamesByEntryId = await this.resolveSoloNames(entries);
+      const numbers =
+        await this.participantNumbersService.loadLookupIssuingMissing(
+          exportJob.competitionId,
+          entries.flatMap((entry) => entry.participantIds ?? []),
+        );
 
       const missing: MissingTrack[] = [];
       const items: ExportItem[] = [];
       for (const entry of entries) {
         // Never expected to have one — not "missing".
-        if (entry.improv) continue;
+        if (isImprovisationEntry(entry)) continue;
 
         const track = tracksByEntryId.get(entry.id);
         if (!track) {
@@ -77,7 +85,9 @@ export class MusicExportProcessor extends WorkerHost {
 
         const soloParticipant = soloNamesByEntryId.get(entry.id) ?? null;
         const fileName = buildTrackFileName({
-          entryNumber: entry.number,
+          numberLabel: buildTrackNumberLabel(
+            numbers.numbersFor(entry.competitionId, entry.participantIds ?? []),
+          ),
           soloParticipant,
           routineName: entry.routineName,
           league: entry.league,
@@ -155,6 +165,7 @@ export class MusicExportProcessor extends WorkerHost {
       ),
     ];
     const nominations = await this.nominationModel.findAll({
+      include: [{ model: Category, through: { attributes: [] } }],
       where: { id: { [Op.in]: nominationIds } },
     });
     const categoryIds = [...new Set(nominations.flatMap((n) => n.categoryIds))];

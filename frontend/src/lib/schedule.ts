@@ -1,6 +1,7 @@
 import { apiRequest } from './http';
 import { withPageParams } from './pagination';
 import type { Paged, RowPaged } from './pagination';
+import type { VenueConflict } from './venueConflict.types';
 
 export interface CompetitionDay {
   id: string;
@@ -21,6 +22,7 @@ export const ROW_TYPE_LABELS: Record<'break' | 'gala', string> = {
 export interface SectionExit {
   entryId: string;
   number: number;
+  nominationId: string | null;
   // Per-competition participant number per dancer (participantIds order);
   // this is what the programme shows.
   participantNumbers: (number | null)[];
@@ -35,6 +37,8 @@ export interface SectionExit {
   participantId: string | null;
   participantIds: string[];
   musicName: string | null;
+  // The venue of the exit's nomination — sections themselves have none.
+  venueId: string | null;
 }
 
 export interface SectionItem {
@@ -65,6 +69,9 @@ export interface Section {
   venueId: string | null;
   name: string;
   startTime: string;
+  // The first row's time in the full running order — stays put under a
+  // venue filter that hides that row.
+  startsAt: string;
   pauseSeconds: number;
   sortOrder: number;
   items: SectionItem[];
@@ -82,6 +89,8 @@ export interface UnassignedExit {
   improv: boolean;
   participantsCount: number | null;
   studioName: string | null;
+  // The venue of the exit's nomination.
+  venueId: string | null;
 }
 
 export interface AssignedClash {
@@ -92,7 +101,6 @@ export interface AssignedClash {
 
 export interface BuildSectionInput {
   dayId: string;
-  venueId?: string;
   name: string;
   startTime: string;
   entryIds: string[];
@@ -193,6 +201,19 @@ export function buildSection(
   });
 }
 
+// Unassigned exits into an already formed section — the server places each
+// at the end of its nomination's block, or opens a new block.
+export function addExitsToSection(
+  competitionId: string,
+  sectionId: string,
+  entryIds: string[],
+): Promise<Section> {
+  return apiRequest<Section>(
+    `${base(competitionId)}/sections/${sectionId}/exits`,
+    { method: 'POST', body: JSON.stringify({ entryIds }) },
+  );
+}
+
 export function reorderSection(
   competitionId: string,
   sectionId: string,
@@ -232,6 +253,41 @@ export function moveExit(
   return apiRequest<{ sections: Section[] }>(
     `${base(competitionId)}/schedule/move-exit`,
     { method: 'POST', body: JSON.stringify({ entryId, targetSectionId }) },
+  );
+}
+
+// Every exit of one nomination into a formed section of any day; a section
+// on another venue moves the nomination's venue too.
+export function moveNomination(
+  competitionId: string,
+  groupKey: string,
+  targetSectionId: string,
+): Promise<Section> {
+  return apiRequest<Section>(`${base(competitionId)}/schedule/move-nomination`, {
+    method: 'POST',
+    body: JSON.stringify({ groupKey, targetSectionId }),
+  });
+}
+
+// Renames a merged block — every group sharing its label in the section.
+export function renameMergedGroup(
+  competitionId: string,
+  sectionId: string,
+  groupKey: string,
+  label: string,
+): Promise<Section> {
+  return apiRequest<Section>(
+    `${base(competitionId)}/sections/${sectionId}/merge-groups/${encodeURIComponent(groupKey)}`,
+    { method: 'PATCH', body: JSON.stringify({ label }) },
+  );
+}
+
+// Participants booked on two venues at overlapping times.
+export function getVenueConflicts(
+  competitionId: string,
+): Promise<VenueConflict[]> {
+  return apiRequest<VenueConflict[]>(
+    `${base(competitionId)}/schedule/conflicts`,
   );
 }
 
@@ -292,14 +348,20 @@ export function deleteRow(
   );
 }
 
+// Orders one venue's program of one day (venueId null: sections without a
+// venue) — every venue keeps its own section order.
 export function reorderSections(
   competitionId: string,
   dayId: string,
+  venueId: string | null,
   sectionIds: string[],
 ): Promise<{ sections: Section[] }> {
   return apiRequest<{ sections: Section[] }>(
     `${base(competitionId)}/schedule/reorder-sections`,
-    { method: 'POST', body: JSON.stringify({ dayId, sectionIds }) },
+    {
+      method: 'POST',
+      body: JSON.stringify({ dayId, venueId: venueId ?? undefined, sectionIds }),
+    },
   );
 }
 

@@ -34,7 +34,7 @@ export default function MentorCoachField() {
 
   return (
     <section className={styles.card}>
-      <div className={styles.label}>Ваш тренер</div>
+      <div className={styles.label}>Ваш керівник</div>
 
       <div className={styles.view}>
         {!loaded && <span className={styles.muted}>Завантаження…</span>}
@@ -59,7 +59,7 @@ export default function MentorCoachField() {
         {loaded && !loadFailed && mentor && (
           <dl className={styles.details}>
             <div className={styles.row}>
-              <dt>Тренер</dt>
+              <dt>Керівник</dt>
               <dd>
                 {mentor.lastName} {mentor.firstName}
               </dd>
@@ -74,7 +74,7 @@ export default function MentorCoachField() {
             </div>
             {!mentor.confirmed && (
               <p className={styles.pending}>
-                Непідтверджений — очікує реєстрації тренера за цим номером.
+                Непідтверджений — очікує реєстрації керівника за цим номером.
               </p>
             )}
           </dl>

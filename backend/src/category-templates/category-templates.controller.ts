@@ -19,6 +19,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { MinLevelGuard } from '../auth/min-level.guard';
+import { MinLevel } from '../auth/min-level.decorator';
+import { AccessLevel } from '../auth/access-level.enum';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedAdmin } from '../auth/current-user.decorator';
 import { CategoryTemplatesService } from './category-templates.service';
@@ -82,6 +85,53 @@ export class CategoryTemplatesController {
     );
   }
 
+  @ApiOperation({
+    summary: 'Get a template header without its nominations',
+    description:
+      'For the template detail page: name, description, author, nomination count — none of the nomination rows themselves.',
+  })
+  @ApiResponse({ status: 200, description: 'Template header returned.' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 404,
+    description: 'No readable template exists with the given id.',
+  })
+  @Get(':id/meta')
+  findMeta(@Param('id') id: string, @CurrentUser() admin: AuthenticatedAdmin) {
+    return this.categoryTemplatesService.findMeta(
+      id,
+      admin.id,
+      admin.accessLevel,
+    );
+  }
+
+  @ApiOperation({
+    summary: "Page through a template's nominations",
+  })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'pageSize', required: false })
+  @ApiResponse({ status: 200, description: 'Nominations page returned.' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 404,
+    description: 'No readable template exists with the given id.',
+  })
+  @Get(':id/nominations')
+  listNominations(
+    @Param('id') id: string,
+    @CurrentUser() admin: AuthenticatedAdmin,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.categoryTemplatesService.listNominations(
+      id,
+      admin.id,
+      admin.accessLevel,
+      page,
+      pageSize,
+    );
+  }
+
   @ApiOperation({ summary: 'Create a category template' })
   @ApiResponse({ status: 201, description: 'Template created.' })
   @ApiResponse({
@@ -89,6 +139,12 @@ export class CategoryTemplatesController {
     description: 'Validation failed for one or more fields.',
   })
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Only organizers and admins can create templates.',
+  })
+  @UseGuards(JwtAuthGuard, MinLevelGuard)
+  @MinLevel(AccessLevel.ORGANIZER)
   @Post()
   create(
     @CurrentUser() admin: AuthenticatedAdmin,
@@ -130,7 +186,13 @@ export class CategoryTemplatesController {
     description: 'The copy name matches the source name.',
   })
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Only organizers and admins can fork templates.',
+  })
   @ApiResponse({ status: 404, description: 'Template not found.' })
+  @UseGuards(JwtAuthGuard, MinLevelGuard)
+  @MinLevel(AccessLevel.ORGANIZER)
   @Post(':id/fork')
   fork(
     @Param('id') id: string,

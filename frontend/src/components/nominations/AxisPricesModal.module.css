@@ -1,0 +1,67 @@
+.hint {
+  margin: 0 0 16px;
+  color: var(--g-muted);
+  font-size: 13.5px;
+}
+
+.axis {
+  margin-bottom: 14px;
+}
+
+.axisTitle {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--g-ink-soft);
+}
+
+.empty {
+  margin: 0 0 16px;
+  color: var(--g-muted);
+  font-size: 13.5px;
+}
+
+.error {
+  margin: 0 0 12px;
+  color: var(--g-danger);
+  font-size: 13.5px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.btn,
+.btnPrimary {
+  padding: 10px 18px;
+  font-size: 15px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--g-line);
+  background: var(--g-surface);
+  color: var(--g-ink);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--g-field-off);
+}
+
+.btnPrimary {
+  background: var(--g-accent);
+  border-color: var(--g-accent);
+  color: #fff;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  background: var(--g-accent-hover);
+}
+
+.btn:disabled,
+.btnPrimary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

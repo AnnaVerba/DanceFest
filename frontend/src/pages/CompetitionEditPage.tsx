@@ -14,9 +14,24 @@ import {
   getPaymentDetails,
   upsertPaymentDetails,
 } from '../lib/paymentDetails';
-import { UploadApiError, uploadImage } from '../lib/uploads';
+import { UploadApiError, uploadDocument, uploadImage } from '../lib/uploads';
+import { PDF_ACCEPT } from '../lib/uploads.constants';
+import {
+  REGULATIONS_DOWNLOAD_LABEL,
+  REGULATIONS_HINT,
+  REGULATIONS_LABEL,
+  REGULATIONS_REPLACE_LABEL,
+  REGULATIONS_UPLOAD_LABEL,
+  REGULATIONS_UPLOADING_LABEL,
+} from '../lib/competitionRegulations.constants';
 import { isValidEmail, isValidPhone } from '../lib/validation';
 import { queryKeys } from '../lib/queryKeys';
+import {
+  TAB_QUERY_PARAM,
+  VENUES_LINK_HINT,
+  VENUES_LINK_LABEL,
+  VENUES_TAB_SLUG,
+} from '../lib/competitionTabs.constants';
 import styles from './CompetitionFormPage.module.css';
 
 interface ContactFieldErrors {
@@ -36,6 +51,7 @@ interface PaymentForm {
 
 const EMPTY_FORM: CompetitionInput = {
   image: '',
+  regulationsUrl: '',
   name: '',
   description: '',
   location: '',
@@ -81,9 +97,12 @@ export default function CompetitionEditPage() {
   const [fieldErrors, setFieldErrors] = useState<ContactFieldErrors>({});
   const [bannerUploading, setBannerUploading] = useState(false);
   const [bannerError, setBannerError] = useState<string | null>(null);
+  const [regulationsUploading, setRegulationsUploading] = useState(false);
+  const [regulationsError, setRegulationsError] = useState<string | null>(null);
   const [organizerSuggestions, setOrganizerSuggestions] = useState<OrganizerOption[]>([]);
   const [organizerQuery, setOrganizerQuery] = useState('');
   const bannerInputRef = useRef<HTMLInputElement>(null);
+  const regulationsInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -102,6 +121,7 @@ export default function CompetitionEditPage() {
         if (cancelled) return;
         setForm({
           image: c.image ?? '',
+          regulationsUrl: c.regulationsUrl ?? '',
           name: c.name,
           description: c.description,
           location: c.location,
@@ -148,6 +168,10 @@ export default function CompetitionEditPage() {
   const handleBannerPick = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Cleared before the upload is awaited, so picking the same file again
+    // after a failure still fires `change` — the input only reports a value
+    // that differs from the one it holds.
+    e.target.value = '';
 
     setBannerError(null);
     setBannerUploading(true);
@@ -163,9 +187,35 @@ export default function CompetitionEditPage() {
     }
   };
 
+  const handleRegulationsPick = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Same reason as handleBannerPick above.
+    e.target.value = '';
+
+    setRegulationsError(null);
+    setRegulationsUploading(true);
+    try {
+      const url = await uploadDocument(file);
+      setForm((prev) => ({ ...prev, regulationsUrl: url }));
+    } catch (err) {
+      setRegulationsError(
+        err instanceof UploadApiError
+          ? err.message
+          : 'Не вдалося завантажити положення.',
+      );
+    } finally {
+      setRegulationsUploading(false);
+    }
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!id) return;
+    // Saving now would persist the banner/regulations URL the form still
+    // holds and silently drop the file being uploaded — it only reaches the
+    // form when uploadImage/uploadDocument resolves.
+    if (bannerUploading || regulationsUploading) return;
 
     const errors: ContactFieldErrors = {};
     if (form.organizers.length === 0) {
@@ -251,6 +301,15 @@ export default function CompetitionEditPage() {
           </Link>
 
           <h1 className={styles.title}>Редагувати конкурс</h1>
+          <p className={styles.venuesHint}>
+            {VENUES_LINK_HINT}{' '}
+            <Link
+              to={`/competitions/${id}?${TAB_QUERY_PARAM}=${VENUES_TAB_SLUG}`}
+              className={styles.back}
+            >
+              {VENUES_LINK_LABEL}
+            </Link>
+          </p>
 
           {loading && <p className={styles.status}>Завантаження...</p>}
           {loadError && <p className={styles.status}>{loadError}</p>}
@@ -350,6 +409,53 @@ export default function CompetitionEditPage() {
                           display: 'block',
                         }}
                       />
+                    )}
+                  </div>
+                  <div className={styles.field}>
+                    <label htmlFor="regulations">{REGULATIONS_LABEL}</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        id="regulations"
+                        type="url"
+                        value={form.regulationsUrl}
+                        onChange={update('regulationsUrl')}
+                        placeholder="https://example.com/regulations.pdf"
+                      />
+                      <button
+                        type="button"
+                        className={styles.btnSecondary}
+                        style={{ flex: 'none' }}
+                        onClick={() => regulationsInputRef.current?.click()}
+                        disabled={regulationsUploading}
+                      >
+                        {regulationsUploading
+                          ? REGULATIONS_UPLOADING_LABEL
+                          : form.regulationsUrl
+                            ? REGULATIONS_REPLACE_LABEL
+                            : REGULATIONS_UPLOAD_LABEL}
+                      </button>
+                      <input
+                        ref={regulationsInputRef}
+                        type="file"
+                        accept={PDF_ACCEPT}
+                        onChange={(e) => void handleRegulationsPick(e)}
+                        style={{ display: 'none' }}
+                      />
+                    </div>
+                    {regulationsError ? (
+                      <p className={styles.fieldError}>{regulationsError}</p>
+                    ) : (
+                      <p className={styles.hint}>{REGULATIONS_HINT}</p>
+                    )}
+                    {form.regulationsUrl && (
+                      <a
+                        href={form.regulationsUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={styles.back}
+                      >
+                        {REGULATIONS_DOWNLOAD_LABEL}
+                      </a>
                     )}
                   </div>
                 </div>
@@ -505,7 +611,11 @@ export default function CompetitionEditPage() {
                 <Link to={`/competitions/${id}`} className={styles.btnSecondary}>
                   Скасувати
                 </Link>
-                <button type="submit" className={styles.btnPrimary} disabled={submitting}>
+                <button
+                  type="submit"
+                  className={styles.btnPrimary}
+                  disabled={submitting || bannerUploading || regulationsUploading}
+                >
                   {submitting ? 'Збереження...' : 'Зберегти зміни'}
                 </button>
               </div>

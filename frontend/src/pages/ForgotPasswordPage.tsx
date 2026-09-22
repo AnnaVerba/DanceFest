@@ -7,11 +7,15 @@ import {
   resetPassword,
   saveSession,
 } from '../lib/auth';
-import { MIN_PASSWORD_LENGTH } from '../lib/auth.constants';
+import {
+  MIN_PASSWORD_LENGTH,
+  OTP_LENGTH,
+  PASSWORD_MISMATCH_MESSAGE,
+  PASSWORD_TOO_SHORT_MESSAGE,
+} from '../lib/auth.constants';
 import PhoneField from '../components/PhoneField';
 import styles from './LoginPage.module.css';
 
-const OTP_LENGTH = 6;
 const RESEND_SECONDS = 60;
 
 export default function ForgotPasswordPage() {
@@ -62,13 +66,11 @@ export default function ForgotPasswordPage() {
   const submitReset = async () => {
     setResetError(null);
     if (password.length < MIN_PASSWORD_LENGTH) {
-      setResetError(
-        `Пароль має містити щонайменше ${MIN_PASSWORD_LENGTH} символів`,
-      );
+      setResetError(PASSWORD_TOO_SHORT_MESSAGE);
       return;
     }
     if (password !== confirmPassword) {
-      setResetError('Паролі не збігаються');
+      setResetError(PASSWORD_MISMATCH_MESSAGE);
       return;
     }
     setResetBusy(true);
@@ -100,29 +102,7 @@ export default function ForgotPasswordPage() {
     <main className={styles.page}>
       <div className={styles.card}>
         <div className={styles.brand}>
-          <div className={styles.brandMark} aria-hidden="true">
-            <svg
-              width="26"
-              height="26"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M6 4h12v5a6 6 0 0 1-12 0V4Z" />
-              <path d="M6 6H4a2 2 0 0 0 0 4h2" />
-              <path d="M18 6h2a2 2 0 0 1 0 4h-2" />
-              <path d="M12 15v3" />
-              <path d="M8.5 21h7" />
-              <path d="M10 18h4v3h-4z" />
-            </svg>
-          </div>
-          <div>
-            <div className={styles.brandName}>CompAdmin</div>
-            <div className={styles.brandTagline}>Управління конкурсами</div>
-          </div>
+          <div className={styles.brandTagline}>Управління конкурсами</div>
         </div>
 
         {stage === 'request' && (

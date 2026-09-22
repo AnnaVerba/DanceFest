@@ -7,8 +7,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { CreationAttributes, Op, UniqueConstraintError } from 'sequelize';
-import { Category } from '../categories/category.model';
+import {
+  CreationAttributes,
+  Op,
+  UniqueConstraintError,
+  literal,
+} from 'sequelize';
+import { Category, LEAGUE_CATEGORY_TYPE } from '../categories/category.model';
 import type { CategoryType } from '../categories/category.model';
 import { Competition } from '../competitions/competition.model';
 import { Nomination } from '../nominations/nomination.model';
@@ -22,7 +27,9 @@ import { UpdateCompetitionRuleDto } from './dto/update-competition-rule.dto';
 import { DurationLimit, DEFAULT_DURATION_ROUND } from './duration-limit.model';
 import type { DurationRound } from './duration-limit.model';
 import { OverlimitTariff } from './overlimit-tariff.model';
+import { resolveLeagueDurationSeconds } from './resolve-league-duration';
 import type { EntryLimitInput } from './entry-limit-input.interface';
+import { LimitCache } from './limit-cache';
 import {
   TARIFF_NOT_FOUND_MESSAGE,
   DURATION_LIMIT_NOT_FOUND_MESSAGE,
@@ -78,6 +85,8 @@ export class CompetitionRulesService {
     private readonly durationLimitModel: typeof DurationLimit,
     @InjectModel(Nomination)
     private readonly nominationModel: typeof Nomination,
+    @InjectModel(Category)
+    private readonly categoryModel: typeof Category,
   ) {}
 
   async getRules(competitionId: string): Promise<CompetitionRule> {
@@ -89,6 +98,15 @@ export class CompetitionRulesService {
     return rules;
   }
 
+  // Staff-only read for the HTTP layer; other services keep using getRules.
+  async getRulesForStaff(
+    competitionId: string,
+    requester: AuthenticatedUser,
+  ): Promise<CompetitionRule> {
+    await this.loadCompetitionAndAssertAccess(competitionId, requester);
+    return this.getRules(competitionId);
+  }
+
   async updateRules(
     competitionId: string,
     requester: AuthenticatedUser,
@@ -96,14 +114,69 @@ export class CompetitionRulesService {
   ): Promise<CompetitionRule> {
     await this.loadCompetitionAndAssertAccess(competitionId, requester);
     const rules = await this.getRules(competitionId);
+    const previousLeagueLimits = rules.leagueLimits;
     if (dto.leagueLimits !== undefined) {
       dto.leagueLimits = sanitizeLeagueLimits(dto.leagueLimits);
     }
-    return rules.update(dto);
+    const updated = await rules.update(dto);
+    if (dto.leagueLimits !== undefined) {
+      await this.applyLeagueDurationChanges(
+        competitionId,
+        previousLeagueLimits,
+        updated.leagueLimits,
+      );
+    }
+    return updated;
   }
 
-  async listTariffs(competitionId: string): Promise<OverlimitTariff[]> {
-    await this.assertCompetitionExists(competitionId);
+  // A league's duration is a knob on CompetitionRule, but nominations keep
+  // their own durationLimitSeconds (TASK-07) so the schedule/admin views
+  // don't need to re-resolve it on every read. Changing the knob (BUG-10)
+  // must therefore push the new value onto every nomination of that league —
+  // except ones an admin already set by hand (durationOverridden).
+  private async applyLeagueDurationChanges(
+    competitionId: string,
+    previous: Record<string, number>,
+    next: Record<string, number>,
+  ): Promise<void> {
+    const changedLeagueNames = [
+      ...new Set([...Object.keys(previous), ...Object.keys(next)]),
+    ].filter((name) => previous[name] !== next[name]);
+    if (changedLeagueNames.length === 0) return;
+
+    const leagueCategories = await this.categoryModel.findAll({
+      where: { type: LEAGUE_CATEGORY_TYPE, name: { [Op.in]: changedLeagueNames } },
+    });
+
+    for (const category of leagueCategories) {
+      await this.nominationModel.update(
+        {
+          durationLimitSeconds: resolveLeagueDurationSeconds(next, category.name),
+        },
+        {
+          where: {
+            competitionId,
+            // Осі — у таблиці зв'язку, тож добір іде підзапитом по її
+            // індексу, а не переглядом масиву в кожному рядку.
+            id: {
+              [Op.in]: literal(
+                `(SELECT "nominationId" FROM nomination_categories
+                    WHERE "categoryId" = '${category.id}')`,
+              ),
+            },
+            allowsImprovisation: false,
+            durationOverridden: false,
+          },
+        },
+      );
+    }
+  }
+
+  async listTariffs(
+    competitionId: string,
+    requester: AuthenticatedUser,
+  ): Promise<OverlimitTariff[]> {
+    await this.loadCompetitionAndAssertAccess(competitionId, requester);
     return this.overlimitTariffModel.findAll({
       where: { competitionId },
       order: [['uptoSeconds', 'ASC']],
@@ -147,8 +220,11 @@ export class CompetitionRulesService {
     await tariff.destroy();
   }
 
-  async listDurationLimits(competitionId: string): Promise<DurationLimit[]> {
-    await this.assertCompetitionExists(competitionId);
+  async listDurationLimits(
+    competitionId: string,
+    requester: AuthenticatedUser,
+  ): Promise<DurationLimit[]> {
+    await this.loadCompetitionAndAssertAccess(competitionId, requester);
     return this.durationLimitModel.findAll({
       where: { competitionId },
       order: [['createdAt', 'ASC']],
@@ -207,7 +283,9 @@ export class CompetitionRulesService {
     nominationId: string,
     round: DurationRound,
   ): Promise<number> {
-    const nomination = await this.nominationModel.findByPk(nominationId);
+    const nomination = await this.nominationModel.findByPk(nominationId, {
+      include: [{ model: Category, through: { attributes: [] } }],
+    });
     if (!nomination) {
       throw new NotFoundException(NOMINATION_NOT_FOUND_MESSAGE);
     }
@@ -243,17 +321,22 @@ export class CompetitionRulesService {
     return DEFAULT_DURATION_LIMIT_SECONDS;
   }
 
-  // Priority for an entry's effective on-stage time limit: league limit
-  // (the simple per-league knob on CompetitionRule) → per-nomination/axis
-  // duration_limits → DEFAULT_DURATION_LIMIT_SECONDS. `limitCache`
-  // (nominationId -> seconds) lets a caller resolving many entries in one
-  // pass — e.g. a whole competition's overage list — skip repeat lookups
-  // for the same nomination.
+  // Priority for an entry's effective on-stage time limit: the nomination's
+  // duration set by hand (TASK-07) → league limit (the simple per-league
+  // knob on CompetitionRule) → per-nomination/axis duration_limits →
+  // DEFAULT_DURATION_LIMIT_SECONDS. `limitCache` lets a caller resolving
+  // many entries in one pass — e.g. a whole competition's overage list —
+  // skip repeat lookups for the same nomination.
   async resolveEffectiveLimit(
     entry: EntryLimitInput,
     rules: CompetitionRule,
-    limitCache?: Map<string, number>,
+    limitCache: LimitCache = new LimitCache(),
   ): Promise<number> {
+    if (entry.nominationId) {
+      const manual = await this.manualLimitOf(entry.nominationId, limitCache);
+      if (manual !== null) return manual;
+    }
+
     // leagueLimits keys are stored trimmed (see sanitizeLeagueLimits).
     const leagueKey = entry.league?.trim();
     const leagueLimit = leagueKey ? rules.leagueLimits?.[leagueKey] : undefined;
@@ -262,17 +345,37 @@ export class CompetitionRulesService {
     }
 
     if (entry.nominationId) {
-      const cached = limitCache?.get(entry.nominationId);
+      const cached = limitCache.resolved.get(entry.nominationId);
       if (cached !== undefined) return cached;
       const resolved = await this.resolveLimit(
         entry.nominationId,
         DEFAULT_DURATION_ROUND,
       );
-      limitCache?.set(entry.nominationId, resolved);
+      limitCache.resolved.set(entry.nominationId, resolved);
       return resolved;
     }
 
     return DEFAULT_DURATION_LIMIT_SECONDS;
+  }
+
+  // A duration an admin set on the nomination by hand; null when it follows
+  // its league (durationOverridden is false) or has none.
+  private async manualLimitOf(
+    nominationId: string,
+    limitCache: LimitCache,
+  ): Promise<number | null> {
+    const cached = limitCache.manual.get(nominationId);
+    if (cached !== undefined) return cached;
+    const nomination = await this.nominationModel.findByPk(nominationId, {
+      attributes: ['id', 'durationOverridden', 'durationLimitSeconds'],
+    });
+    const seconds = nomination?.durationLimitSeconds ?? null;
+    const manual =
+      nomination?.durationOverridden && seconds !== null && seconds > 0
+        ? seconds
+        : null;
+    limitCache.manual.set(nominationId, manual);
+    return manual;
   }
 
   private async assertCompetitionExists(

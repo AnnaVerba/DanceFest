@@ -5,11 +5,13 @@ import {
   IsIn,
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
   Min,
 } from 'class-validator';
+import { MIN_CATEGORY_PRICE } from '../category-templates.constants';
 import { EXIT_MODES } from '../../nominations/nomination-exits';
 import type { ExitMode } from '../../nominations/nomination-exits';
 
@@ -61,6 +63,16 @@ export class TemplateNominationDto {
   @IsOptional()
   @IsIn(EXIT_MODES)
   exitMode?: ExitMode;
+
+  @ApiPropertyOptional({
+    example: 700,
+    description:
+      'The exact price of this nomination. For a special category an empty price inherits the price of its name group.',
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(MIN_CATEGORY_PRICE)
+  price?: number;
 
   @ApiPropertyOptional({ example: 0 })
   @IsOptional()

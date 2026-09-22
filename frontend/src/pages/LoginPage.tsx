@@ -11,6 +11,8 @@ import {
 import { MIN_PASSWORD_LENGTH } from '../lib/auth.constants';
 import PhoneField from '../components/PhoneField';
 import OtpStep from '../components/OtpStep';
+import ProjectLogo from '../components/ProjectLogo';
+import { PROJECT_LOGO_LABEL } from '../components/ProjectLogo.constants';
 import styles from './LoginPage.module.css';
 
 export default function LoginPage() {
@@ -58,30 +60,8 @@ export default function LoginPage() {
   return (
     <main className={styles.page}>
       <div className={styles.card}>
-        <div className={styles.brand}>
-          <div className={styles.brandMark} aria-hidden="true">
-            <svg
-              width="26"
-              height="26"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M6 4h12v5a6 6 0 0 1-12 0V4Z" />
-              <path d="M6 6H4a2 2 0 0 0 0 4h2" />
-              <path d="M18 6h2a2 2 0 0 1 0 4h-2" />
-              <path d="M12 15v3" />
-              <path d="M8.5 21h7" />
-              <path d="M10 18h4v3h-4z" />
-            </svg>
-          </div>
-          <div>
-            <div className={styles.brandName}>CompAdmin</div>
-            <div className={styles.brandTagline}>Управління конкурсами</div>
-          </div>
+        <div className={styles.brand} role="img" aria-label={PROJECT_LOGO_LABEL}>
+          <ProjectLogo className={styles.brandLogo} />
         </div>
 
         {stage === 'login' && (

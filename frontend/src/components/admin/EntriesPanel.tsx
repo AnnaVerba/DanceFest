@@ -6,9 +6,11 @@ import EntryEditModal from './EntryEditModal';
 import { deleteEntry, getEntries } from '../../lib/entries';
 import type { Entry, PagedEntries } from '../../lib/entries';
 import { formatParticipantNumbers } from '../../lib/participantNumbers';
+import { formatEntryAmount } from '../../lib/entryAmount';
 import {
   ACTIONS_COLUMN_COUNT,
   ALL,
+  AMOUNT_COLUMN_COUNT,
   BASE_COLUMN_COUNT,
   ENTRIES_SERVER_PAGE,
   PAGE_SIZE,
@@ -56,7 +58,6 @@ export default function EntriesPanel({
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
-  const [nomination, setNomination] = useState(ALL);
   const [ageCategory, setAgeCategory] = useState(ALL);
   const [league, setLeague] = useState(ALL);
   const [program, setProgram] = useState(ALL);
@@ -138,10 +139,6 @@ export default function EntriesPanel({
     setEditingId(null);
   };
 
-  const nominations = useMemo(
-    () => uniqueValues(entries ?? [], (e) => e.nomination),
-    [entries],
-  );
   const ageCategories = useMemo(
     () => uniqueValues(entries ?? [], (e) => e.ageCategory),
     [entries],
@@ -156,7 +153,6 @@ export default function EntriesPanel({
     if (!entries) return [];
     const query = search.trim().toLowerCase();
     const result = entries.filter((e) => {
-      if (nomination !== ALL && e.nomination !== nomination) return false;
       if (ageCategory !== ALL && e.ageCategory !== ageCategory) return false;
       if (league !== ALL && e.league !== league) return false;
       if (program !== ALL && e.program !== program) return false;
@@ -173,11 +169,19 @@ export default function EntriesPanel({
       sorted.sort((a, b) => a.routineName.localeCompare(b.routineName, 'uk'));
     } else if (sort === 'score') {
       sorted.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+    } else if (sort === 'newest') {
+      // Заявки одного подання діляться міткою часу до секунди, тож за рівних
+      // дат порядок добиває номер — інакше він виглядав би випадковим.
+      sorted.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() ||
+          b.number - a.number,
+      );
     } else {
       sorted.sort((a, b) => a.number - b.number);
     }
     return sorted;
-  }, [entries, search, nomination, ageCategory, league, program, sort]);
+  }, [entries, search, ageCategory, league, program, sort]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -204,19 +208,6 @@ export default function EntriesPanel({
           value={search}
           onChange={(e) => resetPage(setSearch)(e.target.value)}
         />
-        <select
-          className={styles.field}
-          aria-label="Номінація"
-          value={nomination}
-          onChange={(e) => resetPage(setNomination)(e.target.value)}
-        >
-          <option value={ALL}>Усі номінації</option>
-          {nominations.map((v) => (
-            <option key={v} value={v}>
-              {v}
-            </option>
-          ))}
-        </select>
         <select
           className={styles.field}
           aria-label="Вікова категорія"
@@ -286,7 +277,7 @@ export default function EntriesPanel({
                 <tr>
                   <th scope="col">№</th>
                   <th scope="col">№ учасника</th>
-                  <th scope="col">Назва номеру</th>
+                  <th scope="col">Учасники</th>
                   <th scope="col">Номінація</th>
                   <th scope="col">Вік. категорія</th>
                   <th scope="col">Ліга</th>
@@ -294,6 +285,7 @@ export default function EntriesPanel({
                   <th scope="col">К-сть уч.</th>
                   <th scope="col">Студія</th>
                   <th scope="col">Хореограф</th>
+                  {canManage && <th scope="col">Вартість</th>}
                   {showScore && <th scope="col">Бал</th>}
                   {canManage && (
                     <th scope="col" className={styles.colActions}>
@@ -310,7 +302,7 @@ export default function EntriesPanel({
                         (showScore
                           ? BASE_COLUMN_COUNT
                           : BASE_COLUMN_COUNT - 1) +
-                        (canManage ? ACTIONS_COLUMN_COUNT : 0)
+                        (canManage ? AMOUNT_COLUMN_COUNT + ACTIONS_COLUMN_COUNT : 0)
                       }
                       className={styles.noMatches}
                     >
@@ -330,6 +322,7 @@ export default function EntriesPanel({
                     <td>{entry.participantsCount ?? ''}</td>
                     <td>{entry.studioName}</td>
                     <td>{entry.choreographer}</td>
+                    {canManage && <td>{formatEntryAmount(entry.amount ?? null)}</td>}
                     {showScore && (
                       <td
                         className={

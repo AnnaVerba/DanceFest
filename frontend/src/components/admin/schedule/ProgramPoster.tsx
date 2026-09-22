@@ -1,13 +1,17 @@
 import { Fragment } from 'react';
 import type { PublicProgramRow } from '../../../lib/program';
 import type { CompetitionDay } from '../../../lib/schedule';
-import { formatParticipantNumbers } from '../../../lib/participantNumbers';
+import type { Venue } from '../../../lib/venues';
+import { opensProgram, programHeading } from '../../../lib/programHeading';
+import { formatMarkedParticipantNumbers } from '../../../lib/participantNumbers';
 import { formatClock, formatDuration } from '../../../lib/duration';
+import { formatMarkedNominationNumber } from '../../../lib/programNumbers';
 import styles from './Schedule.module.css';
 
 interface ProgramPosterProps {
   rows: PublicProgramRow[];
   days?: CompetitionDay[];
+  venues?: Venue[];
 }
 
 const KIND_LABEL: Record<'award' | 'break' | 'gala', string> = {
@@ -23,12 +27,16 @@ function studioAndCoach(row: PublicProgramRow): string {
 // The festival programme, same for everyone: section starts, nomination
 // blocks, every performance (participant number, routine, studio + coach,
 // length), and the award.
-export default function ProgramPoster({ rows, days = [] }: ProgramPosterProps) {
+export default function ProgramPoster({
+  rows,
+  days = [],
+  venues = [],
+}: ProgramPosterProps) {
   if (rows.length === 0) {
     return <p className={styles.empty}>Публічна програма ще порожня.</p>;
   }
 
-  const multiDay = new Set(rows.map((r) => r.dayId)).size > 1;
+  const venueNames = new Map(venues.map((venue) => [venue.id, venue.name]));
   const dayLabel = (row: PublicProgramRow) => {
     const day = days.find((d) => d.id === row.dayId);
     return day ? (day.label ?? day.date) : (row.dayDate ?? '');
@@ -37,12 +45,11 @@ export default function ProgramPoster({ rows, days = [] }: ProgramPosterProps) {
   return (
     <div className={styles.card}>
       {rows.map((row, index) => {
-        const dayHeader =
-          multiDay && rows[index - 1]?.dayId !== row.dayId ? (
-            <div key={`day-${index}`} className={styles.sectionHead}>
-              <h3 className={styles.sectionName}>{dayLabel(row)}</h3>
-            </div>
-          ) : null;
+        const heading = opensProgram(row, rows[index - 1]) ? (
+          <h3 className={styles.programHeading}>
+            {programHeading(dayLabel(row), row.venueId, venueNames)}
+          </h3>
+        ) : null;
 
         let body;
         if (row.kind === 'section') {
@@ -56,6 +63,11 @@ export default function ProgramPoster({ rows, days = [] }: ProgramPosterProps) {
           body = (
             <div className={styles.groupHead}>
               <span className={styles.time}>{formatClock(row.time, true)}</span>
+              {row.categoryNumber != null && (
+                <span className={styles.groupNum}>
+                  {formatMarkedNominationNumber(row.categoryNumber)}
+                </span>
+              )}
               <span>{row.label}</span>
             </div>
           );
@@ -64,7 +76,7 @@ export default function ProgramPoster({ rows, days = [] }: ProgramPosterProps) {
             <div className={styles.awardRow}>
               <span className={styles.time}>{formatClock(row.time, true)}</span>
               <span className={styles.num}>
-                №{formatParticipantNumbers(row.participantNumbers ?? [])}
+                {formatMarkedParticipantNumbers(row.participantNumbers ?? [])}
               </span>
               <span className={styles.grow}>
                 {row.routineName ?? '—'}
@@ -87,7 +99,7 @@ export default function ProgramPoster({ rows, days = [] }: ProgramPosterProps) {
 
         return (
           <Fragment key={index}>
-            {dayHeader}
+            {heading}
             {body}
           </Fragment>
         );

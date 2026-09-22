@@ -144,12 +144,18 @@
   color: var(--g-ink);
 }
 
-.count {
+.rowCheckbox {
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+
+.badgeImprov {
   padding: 2px 8px;
   border-radius: 999px;
   background: var(--g-field-off);
+  border: 1px solid var(--g-line-strong);
   color: var(--g-muted);
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
 }
 

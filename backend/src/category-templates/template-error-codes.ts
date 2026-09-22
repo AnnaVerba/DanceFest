@@ -4,6 +4,3 @@ export const TEMPLATE_IN_USE = 'TEMPLATE_IN_USE';
 
 export const TEMPLATE_IN_USE_MESSAGE =
   'Шаблон уже використаний у конкурсі, тому видалити його не можна';
-
-export const AGE_RANGES_OVERLAP_MESSAGE =
-  'Вікові діапазони шаблону перетинаються — визначити вікову категорію учасника буде неможливо';

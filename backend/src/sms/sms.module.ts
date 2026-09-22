@@ -1,9 +1,11 @@
 import { Global, Module } from '@nestjs/common';
-import { TwilioVerifyProvider } from './twilio-verify.provider';
+import { SmsService } from './sms.service';
+import { DevSmsProvider } from './dev-sms.provider';
+import { SmsFlyProvider } from './fly.provider';
 
 @Global()
 @Module({
-  providers: [TwilioVerifyProvider],
-  exports: [TwilioVerifyProvider],
+  providers: [SmsService, DevSmsProvider, SmsFlyProvider],
+  exports: [SmsService],
 })
 export class SmsModule {}

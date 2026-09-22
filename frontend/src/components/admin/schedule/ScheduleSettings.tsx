@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getRules, patchRules } from '../../../lib/competitionRules';
 import type { RulesPatch } from '../../../lib/competitionRules';
-import { getNominations } from '../../../lib/nominations';
+import { getNominationAxes } from '../../../lib/nominations';
+import { LEAGUE_CATEGORY_TYPE } from '../../../lib/categories';
 import { getSections } from '../../../lib/schedule';
 import { parseDuration } from '../../../lib/duration';
 import { queryKeys } from '../../../lib/queryKeys';
@@ -39,9 +40,11 @@ export default function ScheduleSettings({
     queryKey: queryKeys.rules(competitionId),
     queryFn: () => getRules(competitionId),
   });
-  const nominationsQuery = useQuery({
-    queryKey: queryKeys.nominations(competitionId),
-    queryFn: () => getNominations(competitionId),
+  // Потрібні лише назви ліг конкурсу — по них задаються ліміти тривалості.
+  // Раніше заради них тяглися всі номінації конкурсу (до шести тисяч рядків).
+  const axesQuery = useQuery({
+    queryKey: queryKeys.nominationAxes(competitionId),
+    queryFn: () => getNominationAxes(competitionId),
   });
   const sectionsExistQuery = useQuery({
     queryKey: queryKeys.sections(competitionId, { pageSize: 1 }),
@@ -51,19 +54,19 @@ export default function ScheduleSettings({
   const rules = rulesQuery.data ?? null;
   const hasSections = (sectionsExistQuery.data?.totalSections ?? 0) > 0;
   const leagues = useMemo(() => {
-    const list = nominationsQuery.data ?? [];
-    return [...new Set(list.flatMap((n) => n.leagues))].filter(Boolean).sort();
-  }, [nominationsQuery.data]);
+    const values = axesQuery.data?.[LEAGUE_CATEGORY_TYPE] ?? [];
+    return values.map((value) => value.name).sort();
+  }, [axesQuery.data]);
   const loading =
-    rulesQuery.isLoading || nominationsQuery.isLoading || sectionsExistQuery.isLoading;
+    rulesQuery.isLoading || axesQuery.isLoading || sectionsExistQuery.isLoading;
 
   useEffect(() => {
-    if (rulesQuery.isError || nominationsQuery.isError || sectionsExistQuery.isError) {
+    if (rulesQuery.isError || axesQuery.isError || sectionsExistQuery.isError) {
       onError('Не вдалося завантажити налаштування таймінгів.');
     }
   }, [
     rulesQuery.isError,
-    nominationsQuery.isError,
+    axesQuery.isError,
     sectionsExistQuery.isError,
     onError,
   ]);
@@ -85,6 +88,12 @@ export default function ScheduleSettings({
     mutationFn: (patch: RulesPatch) => patchRules(competitionId, patch),
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKeys.rules(competitionId), saved);
+      // League duration changes push a new durationLimitSeconds onto that
+      // league's nominations (see BUG-10) — refetch so the Номінації tab
+      // doesn't keep showing the value it had cached before the save.
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.nominations(competitionId),
+      });
     },
   });
 

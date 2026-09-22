@@ -12,8 +12,14 @@ import OrganizersField from '../components/OrganizersField';
 import { createJudge } from '../lib/judges';
 import type { CreatedJudge } from '../lib/judges';
 import { createVenue } from '../lib/venues';
-import { createNominationsBulk } from '../lib/nominations';
+import { createNominationsBulk, NominationsBulkPartialFailureError } from '../lib/nominations';
+import type { NominationInput } from '../lib/nominations';
 import NominationSetBuilder from '../components/nominations/NominationSetBuilder';
+import {
+  findInvalidAxisPriceMessage,
+  toCategoryPriceInputs,
+} from '../lib/templateCategoryPrices';
+import type { AxisPriceMap } from '../lib/nominationPricing';
 import {
   CategoryApiError,
   LEAGUE_CATEGORY_TYPE,
@@ -41,7 +47,15 @@ import {
   getCategoryTemplates,
 } from '../lib/categoryTemplates';
 import { upsertPaymentDetails } from '../lib/paymentDetails';
-import { UploadApiError, uploadImage } from '../lib/uploads';
+import { UploadApiError, uploadDocument, uploadImage } from '../lib/uploads';
+import { PDF_ACCEPT } from '../lib/uploads.constants';
+import {
+  REGULATIONS_HINT,
+  REGULATIONS_LABEL,
+  REGULATIONS_REPLACE_LABEL,
+  REGULATIONS_UPLOAD_LABEL,
+  REGULATIONS_UPLOADING_LABEL,
+} from '../lib/competitionRegulations.constants';
 import { isValidEmail, isValidPhone } from '../lib/validation';
 import { queryKeys } from '../lib/queryKeys';
 import { REFERENCE_STALE_TIME_MS } from '../lib/queryClient.constants';
@@ -54,7 +68,7 @@ const STEP_LABELS = [
   'Судді',
   'Категорії',
   'Майданчики',
-  'Розподіл',
+
 ] as const;
 const TOTAL_STEPS = STEP_LABELS.length;
 const JUDGES_STEP = 4;
@@ -118,6 +132,7 @@ export default function NewCompetitionPage() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const regulationsInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState(1);
 
@@ -134,6 +149,10 @@ export default function NewCompetitionPage() {
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [bannerUploading, setBannerUploading] = useState(false);
   const [bannerError, setBannerError] = useState<string | null>(null);
+  const [regulationsName, setRegulationsName] = useState<string | null>(null);
+  const [regulationsUrl, setRegulationsUrl] = useState<string | null>(null);
+  const [regulationsUploading, setRegulationsUploading] = useState(false);
+  const [regulationsError, setRegulationsError] = useState<string | null>(null);
 
   const [contactNumber, setContactNumber] = useState('');
   const [contactEmail, setContactEmail] = useState('');
@@ -157,8 +176,11 @@ export default function NewCompetitionPage() {
   const [templateName, setTemplateName] = useState('');
   const [nominations, setNominations] = useState<DraftNomination[]>([]);
   const [axes, setAxes] = useState<AxisSelection | null>(null);
+  // Ціни за складом і лігою. У власному наборі вони їдуть у новий шаблон —
+  // саме з них виводиться ціна кожної його номінації.
+  const [axisPrices, setAxisPrices] = useState<AxisPriceMap>({});
   // Категорії зі спецмодалки, відсутні в axes — потрібні resolveDraftCategories,
-  // щоб не загубити ageFrom/ageTo нової вікової категорії при збереженні.
+  // щоб не загубити rangeFrom/rangeTo нової вікової категорії при збереженні.
   const [extraCategories, setExtraCategories] = useState<Category[]>([]);
 
   const [organizerQuery, setOrganizerQuery] = useState('');
@@ -216,7 +238,9 @@ export default function NewCompetitionPage() {
         selectedTemplateQuery.data.nominations.map((n) => ({
           signature: savedSignatureOf(n),
           name: n.name,
-          price: '',
+          // Чинна ціна шаблону — стартова ціна номінації конкурсу; далі її
+          // правлять тут, у конкурсі.
+          price: n.effectivePrice === null ? '' : String(n.effectivePrice),
           allowsImprovisation: n.allowsImprovisation,
           categoryIds: n.categoryIds,
           isSpecial: n.isSpecial,
@@ -251,6 +275,9 @@ export default function NewCompetitionPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [createdCompetitionId, setCreatedCompetitionId] = useState<string | null>(null);
   const [createdJudges, setCreatedJudges] = useState<CreatedJudge[]>([]);
+  const [unsavedNominations, setUnsavedNominations] = useState<NominationInput[]>([]);
+  const [nominationsSaveError, setNominationsSaveError] = useState<string | null>(null);
+  const [retryingNominations, setRetryingNominations] = useState(false);
 
   const [fieldErrors, setFieldErrors] = useState<StepFieldErrors>({});
   const [judgeEmailError, setJudgeEmailError] = useState<string | null>(null);
@@ -275,6 +302,10 @@ export default function NewCompetitionPage() {
   const handleBannerPick = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Cleared before the upload is awaited, so picking the same file again
+    // after a failure still fires `change` — the input only reports a value
+    // that differs from the one it holds.
+    e.target.value = '';
 
     setBannerName(file.name);
     setBannerUrl(null);
@@ -290,6 +321,31 @@ export default function NewCompetitionPage() {
       setBannerName(null);
     } finally {
       setBannerUploading(false);
+    }
+  };
+
+  const handleRegulationsPick = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Same reason as handleBannerPick above.
+    e.target.value = '';
+
+    setRegulationsName(file.name);
+    setRegulationsUrl(null);
+    setRegulationsError(null);
+    setRegulationsUploading(true);
+    try {
+      const url = await uploadDocument(file);
+      setRegulationsUrl(url);
+    } catch (err) {
+      setRegulationsError(
+        err instanceof UploadApiError
+          ? err.message
+          : 'Не вдалося завантажити положення.',
+      );
+      setRegulationsName(null);
+    } finally {
+      setRegulationsUploading(false);
     }
   };
 
@@ -396,6 +452,11 @@ export default function NewCompetitionPage() {
       if (nominations.length === 0) {
         return 'Складіть набір номінацій або оберіть готовий шаблон.';
       }
+      const badAxisPrice = findInvalidAxisPriceMessage(axisPrices, [
+        ...Object.values(axes ?? {}).flat(),
+        ...extraCategories,
+      ]);
+      if (badAxisPrice) return badAxisPrice;
     }
     if (nominations.length === 0) return COMPETITION_NOMINATIONS_REQUIRED_MESSAGE;
     if (leagueCategoriesQuery.isError) return LEAGUES_LOAD_FAILED_MESSAGE;
@@ -462,19 +523,28 @@ export default function NewCompetitionPage() {
 
     setSubmitting(true);
     try {
-      const saved =
+      const knownCategories = [
+        ...Object.values(axes ?? {}).flat(),
+        ...extraCategories,
+      ];
+      const resolved =
         nominationSource === 'custom'
-          ? await resolveDraftCategories(
-              nominations,
-              [...Object.values(axes ?? {}).flat(), ...extraCategories],
-            )
-          : nominations;
+          ? await resolveDraftCategories(nominations, knownCategories)
+          : { nominations, idByDraftId: new Map<string, string>() };
+      const saved = resolved.nominations;
 
       if (nominationSource === 'custom') {
         await createCategoryTemplate({
           name: templateName.trim(),
+          categoryPrices: toCategoryPriceInputs(
+            axisPrices,
+            resolved.idByDraftId,
+          ),
           nominations: saved.map((n, index) => ({
             name: n.name.trim(),
+            // Та сама ціна, що піде в номінації конкурсу нижче: шаблон і
+            // конкурс створюються з одного набору.
+            price: n.price.trim() === '' ? undefined : Number(n.price),
             allowsImprovisation: n.allowsImprovisation,
             categoryIds: n.categoryIds,
             isSpecial: n.isSpecial,
@@ -492,6 +562,7 @@ export default function NewCompetitionPage() {
 
       const competition = await createCompetition({
         image: bannerUrl ?? undefined,
+        regulationsUrl: regulationsUrl ?? undefined,
         name: name.trim(),
         description: description.trim(),
         location: location.trim(),
@@ -534,32 +605,46 @@ export default function NewCompetitionPage() {
         )
         .map((r) => r.value);
 
-      await Promise.allSettled([
-        ...venues
+      // Started, not awaited, so venue creation runs alongside the
+      // nomination batches below instead of blocking on them first.
+      const venuesPromise = Promise.allSettled(
+        venues
           .filter((v) => v.name.trim())
           .map((v) => createVenue(competition.id, v.name.trim(), v.note.trim())),
-        ...(saved.length > 0
-          ? [
-              createNominationsBulk(
-                competition.id,
-                saved.map((n) => ({
-                  templateId:
-                    nominationSource === 'template'
-                      ? effectiveTemplateId || undefined
-                      : undefined,
-                  name: n.name,
-                  price: n.price.trim() === '' ? undefined : Number(n.price),
-                  allowsImprovisation: n.allowsImprovisation,
-                  categoryIds: n.categoryIds,
-                  isSpecial: n.isSpecial,
-                  exitMode: n.exitMode,
-                })),
-              ),
-            ]
-          : []),
-      ]);
+      );
 
-      if (successfulJudges.length > 0) {
+      let stillUnsaved: NominationInput[] = [];
+      if (saved.length > 0) {
+        const nominationInputs = saved.map((n) => ({
+          templateId:
+            nominationSource === 'template' ? effectiveTemplateId || undefined : undefined,
+          name: n.name,
+          price: n.price.trim() === '' ? undefined : Number(n.price),
+          allowsImprovisation: n.allowsImprovisation,
+          categoryIds: n.categoryIds,
+          isSpecial: n.isSpecial,
+          specialName: n.specialName,
+          exitMode: n.exitMode,
+        }));
+        try {
+          await createNominationsBulk(competition.id, nominationInputs);
+        } catch (nominationsErr) {
+          stillUnsaved =
+            nominationsErr instanceof NominationsBulkPartialFailureError
+              ? nominationsErr.unsaved
+              : nominationInputs;
+          setUnsavedNominations(stillUnsaved);
+          setNominationsSaveError(
+            nominationsErr instanceof NominationsBulkPartialFailureError
+              ? nominationsErr.message
+              : 'Не вдалося зберегти номінації.',
+          );
+        }
+      }
+
+      await venuesPromise;
+
+      if (successfulJudges.length > 0 || stillUnsaved.length > 0) {
         setCreatedJudges(successfulJudges);
         setCreatedCompetitionId(competition.id);
       } else {
@@ -588,6 +673,27 @@ export default function NewCompetitionPage() {
     if (step > 1) goStep(step - 1);
   };
 
+  const handleRetryNominations = async () => {
+    if (!createdCompetitionId || unsavedNominations.length === 0 || retryingNominations) {
+      return;
+    }
+    setRetryingNominations(true);
+    try {
+      await createNominationsBulk(createdCompetitionId, unsavedNominations);
+      setUnsavedNominations([]);
+      setNominationsSaveError(null);
+    } catch (err) {
+      if (err instanceof NominationsBulkPartialFailureError) {
+        setUnsavedNominations(err.unsaved);
+        setNominationsSaveError(err.message);
+      } else {
+        setNominationsSaveError('Не вдалося зберегти номінації.');
+      }
+    } finally {
+      setRetryingNominations(false);
+    }
+  };
+
   if (!getToken()) {
     return <Navigate to="/login" replace />;
   }
@@ -598,32 +704,63 @@ export default function NewCompetitionPage() {
         <main className={styles.main}>
           <div className={styles.wrap}>
             <h1>Конкурс створено</h1>
-            <div className={styles.panel}>
-              <p className={styles.sectionTitle}>Паролі суддів</p>
-              <p className={styles.sectionNote}>
-                Тимчасовий пароль показується тут лише один раз. Кому лист не надійшов —
-                перекажіть пароль самі.
-              </p>
-              <div className={styles.list}>
-                {createdJudges.map((j) => (
-                  <div className={styles.item} key={j.id}>
-                    <div>
-                      <h3>{j.name}</h3>
-                      <p className={styles.sub}>{j.email}</p>
+            {createdJudges.length > 0 && (
+              <div className={styles.panel}>
+                <p className={styles.sectionTitle}>Паролі суддів</p>
+                <p className={styles.sectionNote}>
+                  Тимчасовий пароль показується тут лише один раз. Кому лист не надійшов —
+                  перекажіть пароль самі.
+                </p>
+                <div className={styles.list}>
+                  {createdJudges.map((j) => (
+                    <div className={styles.item} key={j.id}>
+                      <div>
+                        <h3>{j.name}</h3>
+                        <p className={styles.sub}>{j.email}</p>
+                      </div>
+                      <div className={styles.spacer} />
+                      <span
+                        className={`${styles.badge} ${j.emailSent ? styles.badgeOk : styles.badgeWarn}`}
+                      >
+                        {j.emailSent ? 'Лист надіслано' : 'Лист не надіслано'}
+                      </span>
+                      <span className={`${styles.badge} ${styles.badgeMuted}`}>
+                        {j.tempPassword}
+                      </span>
                     </div>
-                    <div className={styles.spacer} />
-                    <span
-                      className={`${styles.badge} ${j.emailSent ? styles.badgeOk : styles.badgeWarn}`}
-                    >
-                      {j.emailSent ? 'Лист надіслано' : 'Лист не надіслано'}
-                    </span>
-                    <span className={`${styles.badge} ${styles.badgeMuted}`}>
-                      {j.tempPassword}
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+            {unsavedNominations.length > 0 && (
+              <div className={styles.panel}>
+                <p className={styles.sectionTitle}>Не збережені номінації</p>
+                <p className={styles.sectionNote}>
+                  {nominationsSaveError ?? 'Частину номінацій не вдалося зберегти.'} Не
+                  збережено: {unsavedNominations.length}.
+                </p>
+                <div className={styles.list}>
+                  {unsavedNominations.map((n, index) => (
+                    <div className={styles.item} key={`${n.name}-${index}`}>
+                      <div>
+                        <h3>{n.name}</h3>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className={styles.actions}>
+                  <div className={styles.spacer} />
+                  <button
+                    type="button"
+                    className={`${styles.btn} ${styles.btnPrimary}`}
+                    onClick={handleRetryNominations}
+                    disabled={retryingNominations}
+                  >
+                    {retryingNominations ? 'Зберігаємо...' : 'Спробувати ще раз'}
+                  </button>
+                </div>
+              </div>
+            )}
             <div className={styles.actions}>
               <div className={styles.spacer} />
               <button
@@ -739,6 +876,47 @@ export default function NewCompetitionPage() {
                   style={{ display: 'none' }}
                 />
                 {bannerError && <p className={styles.fieldError}>{bannerError}</p>}
+              </div>
+              <div className={styles.field}>
+                <label htmlFor="w-regulations">{REGULATIONS_LABEL}</label>
+                <button
+                  id="w-regulations"
+                  type="button"
+                  className={styles.dropzone}
+                  onClick={() => regulationsInputRef.current?.click()}
+                  disabled={regulationsUploading}
+                >
+                  <svg
+                    width="26"
+                    height="26"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    aria-hidden="true"
+                  >
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <path d="M14 2v6h6" />
+                  </svg>
+                  {regulationsUploading
+                    ? REGULATIONS_UPLOADING_LABEL
+                    : (regulationsName ??
+                      (regulationsUrl
+                        ? REGULATIONS_REPLACE_LABEL
+                        : REGULATIONS_UPLOAD_LABEL))}
+                </button>
+                <input
+                  ref={regulationsInputRef}
+                  type="file"
+                  accept={PDF_ACCEPT}
+                  onChange={(e) => void handleRegulationsPick(e)}
+                  style={{ display: 'none' }}
+                />
+                {regulationsError ? (
+                  <p className={styles.fieldError}>{regulationsError}</p>
+                ) : (
+                  <p className={styles.hint}>{REGULATIONS_HINT}</p>
+                )}
               </div>
               <div className={styles.field}>
                 <label htmlFor="w-name">
@@ -1169,6 +1347,8 @@ export default function NewCompetitionPage() {
                     onChange={setNominations}
                     selection={axes}
                     onSelectionChange={setAxes}
+                    axisPrices={axisPrices}
+                    onAxisPricesChange={setAxisPrices}
                     onCategoryCreated={(category) =>
                       setExtraCategories((prev) =>
                         prev.some((c) => c.id === category.id) ? prev : [...prev, category],
@@ -1391,26 +1571,38 @@ export default function NewCompetitionPage() {
                 </p>
               ) : (
                 <div className={styles.list}>
-                  {nominations.map((n) => (
-                    <div className={styles.item} key={n.signature}>
-                      <div style={{ flex: 1 }}>
+                  {nominations.map((n) => {
+                    const assigned = assignments[n.signature] ?? '';
+                    return (
+                      <div
+                        className={`${styles.item} ${styles.itemStacked}`}
+                        key={n.signature}
+                      >
                         <h3>{n.name}</h3>
-                      </div>
-                      <div style={{ width: 200 }}>
-                        <select
-                          aria-label="Майданчик для номінації"
-                          value={assignments[n.signature] ?? venues[0]?.name ?? ''}
-                          onChange={(e) => setAssignment(n.signature, e.target.value)}
+                        <div
+                          className={styles.venueChoices}
+                          role="group"
+                          aria-label={`Майданчик для номінації «${n.name}»`}
                         >
                           {venues.map((v) => (
-                            <option key={v.id} value={v.name}>
+                            <label key={v.id} className={styles.venueChoice}>
+                              <input
+                                type="checkbox"
+                                checked={assigned === v.name}
+                                onChange={(e) =>
+                                  setAssignment(
+                                    n.signature,
+                                    e.target.checked ? v.name : '',
+                                  )
+                                }
+                              />
                               {v.name}
-                            </option>
+                            </label>
                           ))}
-                        </select>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1431,7 +1623,7 @@ export default function NewCompetitionPage() {
               type="button"
               className={`${styles.btn} ${styles.btnPrimary}`}
               onClick={handlePrimaryAction}
-              disabled={submitting}
+              disabled={submitting || bannerUploading || regulationsUploading}
             >
               {submitting
                 ? 'Створення...'

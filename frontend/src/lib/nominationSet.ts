@@ -5,7 +5,7 @@ import {
 } from './categories';
 import type { Category, CategoryType } from './categories';
 import type { ExitMode } from './categoryTemplates';
-import type { AgeRange } from './ageRange';
+import type { CategoryRange } from './categoryRange';
 import {
   LISTED_NOMINATIONS_ELLIPSIS,
   LISTED_NOMINATIONS_SEPARATOR,
@@ -54,15 +54,15 @@ const DRAFT_PREFIX = 'draft:';
 export function draftCategory(
   name: string,
   type: CategoryType,
-  range?: AgeRange,
+  range?: CategoryRange,
 ): Category {
   const trimmed = name.trim();
   return {
     id: `${DRAFT_PREFIX}${type}:${trimmed}`,
     name: trimmed,
     type,
-    ageFrom: range?.ageFrom ?? null,
-    ageTo: range?.ageTo ?? null,
+    rangeFrom: range?.rangeFrom ?? null,
+    rangeTo: range?.rangeTo ?? null,
     sortOrder: 0,
     createdAt: '',
   };
@@ -110,6 +110,14 @@ export function usedDraftCategories(
   return drafts;
 }
 
+export interface ResolvedDraftCategories {
+  nominations: DraftNomination[];
+  // draft id → id збереженої категорії. Потрібен не лише номінаціям: ціни
+  // осей теж посилаються на категорії за id, і без цієї мапи ціна щойно
+  // доданого «Квартет» поїхала б на сервер із draft-id.
+  idByDraftId: Map<string, string>;
+}
+
 /**
  * Межі вікових значень у самому id чернетки не поміщаються, тому вони
  * дістаються з обраних осей: там лежать повні об'єкти категорій.
@@ -117,9 +125,11 @@ export function usedDraftCategories(
 export async function resolveDraftCategories(
   nominations: DraftNomination[],
   knownCategories: Category[] = [],
-): Promise<DraftNomination[]> {
+): Promise<ResolvedDraftCategories> {
   const drafts = usedDraftCategories(nominations);
-  if (drafts.length === 0) return nominations;
+  if (drafts.length === 0) {
+    return { nominations, idByDraftId: new Map() };
+  }
 
   const created = await createCategoriesBulk(
     drafts.map(({ id, name, type }) => {
@@ -127,21 +137,24 @@ export async function resolveDraftCategories(
       return {
         name,
         type,
-        ageFrom: known?.ageFrom ?? undefined,
-        ageTo: known?.ageTo ?? undefined,
+        rangeFrom: known?.rangeFrom ?? undefined,
+        rangeTo: known?.rangeTo ?? undefined,
       };
     }),
   );
   const resolved = new Map(drafts.map((d, i) => [d.id, created[i].id]));
 
-  return nominations.map((n) => {
-    const categoryIds = n.categoryIds.map((id) => resolved.get(id) ?? id);
-    return {
-      ...n,
-      categoryIds,
-      signature: n.isSpecial ? n.signature : signatureOf(categoryIds),
-    };
-  });
+  return {
+    idByDraftId: resolved,
+    nominations: nominations.map((n) => {
+      const categoryIds = n.categoryIds.map((id) => resolved.get(id) ?? id);
+      return {
+        ...n,
+        categoryIds,
+        signature: n.isSpecial ? n.signature : signatureOf(categoryIds),
+      };
+    }),
+  };
 }
 
 // A league is either a saved category (its id is in `leagueIds`) or a draft

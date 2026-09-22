@@ -161,9 +161,16 @@
   align-items: baseline;
   margin-top: 0.6rem;
   padding: 0.2rem 0;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--text-muted, #667085);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink, #191b18);
+}
+
+/* Same column as the performers' numbers below, but not the muted grey of
+   .num — it carries the block's weight. */
+.groupNum {
+  font-variant-numeric: tabular-nums;
+  min-width: 2.2rem;
 }
 
 .mergedTag {
@@ -274,4 +281,26 @@
 .warnText {
   font-size: 0.82rem;
   color: var(--warning-text, #92400e);
+}
+
+/* Opens each program: «день · майданчик». */
+.programHeading {
+  margin: 1.25rem 0 0.5rem;
+  color: var(--g-dark-cta);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Where an unassigned exit's nomination runs. */
+.poolVenue {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--g-accent-bg-soft);
+  color: var(--g-accent-hover);
+  font-size: 0.75rem;
+  white-space: nowrap;
 }

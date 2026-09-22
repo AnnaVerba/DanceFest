@@ -25,6 +25,10 @@ export class Competition extends Model<Competition> {
   @Column({ type: DataType.STRING, allowNull: true })
   declare image: string | null;
 
+  // Public URL of the single regulations PDF («положення фестивалю»).
+  @Column({ type: DataType.STRING, allowNull: true })
+  declare regulationsUrl: string | null;
+
   @Column({ type: DataType.STRING, allowNull: false })
   declare name: string;
 

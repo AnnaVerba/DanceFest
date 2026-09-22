@@ -1,15 +1,34 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { getApplyEligibility, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
-import { getNominations } from '../lib/nominations';
-import type { Nomination, NominationAgeCategory } from '../lib/nominations';
+import {
+  getNominationAxes,
+  getNominationsForEntry,
+  getSpecialNominations,
+} from '../lib/nominations';
+import type { Nomination, NominationCategoryRange } from '../lib/nominations';
+import type {
+  NominationAxes,
+  NominationEntryFilter,
+} from '../lib/nominations.types';
+import {
+  AGE_CATEGORY_TYPE,
+  LEAGUE_CATEGORY_TYPE,
+  LINEUP_CATEGORY_TYPE,
+  STYLE_CATEGORY_TYPE,
+} from '../lib/categories';
+import { fitsCount } from '../lib/categoryRange';
+import { exitsAreAllImprovisation } from '../lib/improvisationProgram';
+import { nominationRowKey } from '../lib/nominationRowKey';
 import {
   EntryApiError,
   createEntriesBulk,
   uploadEntryTrack,
 } from '../lib/entries';
+import type { Entry } from '../lib/entries';
 import {
   ParticipantApiError,
   createParticipant,
@@ -21,7 +40,11 @@ import {
   PARTICIPANT_SEARCH_MIN_CHARS,
 } from '../lib/participants.constants';
 import { getSchool } from '../lib/schools';
+import { formatEntryAmount } from '../lib/entryAmount';
+import { useEntriesQuote } from '../lib/useEntriesQuote';
+import { SPECIAL_PAID_ONCE_LABEL } from '../lib/entriesQuote.constants';
 import {
+  createCoach,
   getMyMentorCoach,
   getSelectableCoaches,
   getSession,
@@ -29,9 +52,21 @@ import {
 } from '../lib/auth';
 import type { CoachSummary, SetMentorCoachBody } from '../lib/auth';
 import { completeProfile } from '../lib/users';
+import { refreshProgram } from '../lib/programCache';
 import MentorCoachPicker from '../components/MentorCoachPicker';
 import SchoolPicker from '../components/SchoolPicker';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
+import {
+  ageCategoriesFittingAges,
+  participantAges,
+} from '../lib/ageEligibility';
+import {
+  AGE_CATEGORY_PLACEHOLDER,
+  NO_COMMON_AGE_CATEGORY_HINT,
+  NO_NOMINATIONS_FOR_AGE_MESSAGE,
+} from '../lib/applyAge.constants';
+import { NOMINATIONS_LOAD_FAILED_MESSAGE } from '../lib/applyNominations.constants';
+import { AUDIO_ACCEPT } from '../lib/uploads.constants';
 import styles from './ApplyPage.module.css';
 
 type PayMethod = 'cash' | 'card';
@@ -40,6 +75,11 @@ interface NominationRow {
   key: string;
   nominationId: string;
   improv: boolean;
+  // The entries this row creates take no track: either the row itself is
+  // the nomination's improvisation, or every exit is an improvisation
+  // program. Display only — `improv` is what the entry is created with.
+  takesNoTrack: boolean;
+  isSpecial: boolean;
   label: string;
   price: number | null;
 }
@@ -72,7 +112,7 @@ function lineupLabel(count: number): string {
 
 // Does a nomination's line-up category fit the number of picked dancers?
 // Соло — 1, Дует/Дуо — 2, Тріо — 3, Група/Формейшн — 3+.
-function lineupMatches(categoryName: string, count: number): boolean {
+function lineupNameMatches(categoryName: string, count: number): boolean {
   const name = categoryName.trim().toLowerCase();
   if (name.startsWith('соло')) return count === 1;
   if (name.startsWith('дует') || name.startsWith('дуо')) return count === 2;
@@ -88,27 +128,22 @@ function lineupMatches(categoryName: string, count: number): boolean {
   return true; // unrecognised line-up label — keep the nomination visible
 }
 
-function ageFromBirthDate(birthDate: string): number | null {
-  if (!birthDate) return null;
-  const born = new Date(birthDate);
-  if (Number.isNaN(born.getTime())) return null;
-  const now = new Date();
-  let age = now.getFullYear() - born.getFullYear();
-  const monthDiff = now.getMonth() - born.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < born.getDate())) {
-    age -= 1;
-  }
-  return age;
+// Кількість людей із довідника головніша за назву: саме її задає організатор
+// у конструкторі. Розбір назви лишається запасним варіантом для складів, яким
+// кількість ще не проставили.
+function lineupMatches(lineup: NominationCategoryRange, count: number): boolean {
+  if (lineup.rangeFrom !== null) return fitsCount(lineup, count);
+  return lineupNameMatches(lineup.name, count);
 }
 
 function matchAgeCategory(
   age: number,
-  categories: NominationAgeCategory[],
+  categories: NominationCategoryRange[],
 ): string | null {
   const hit = categories.find((c) => {
-    if (c.ageFrom === null && c.ageTo === null) return false;
-    const from = c.ageFrom ?? Number.NEGATIVE_INFINITY;
-    const to = c.ageTo ?? Number.POSITIVE_INFINITY;
+    if (c.rangeFrom === null && c.rangeTo === null) return false;
+    const from = c.rangeFrom ?? Number.NEGATIVE_INFINITY;
+    const to = c.rangeTo ?? Number.POSITIVE_INFINITY;
     return age >= from && age <= to;
   });
   return hit ? hit.name : null;
@@ -125,19 +160,23 @@ function uniqueInOrder(values: string[]): string[] {
   return out;
 }
 
-function priceLabel(price: number | null): string {
-  return price ? `${price} грн` : '—';
-}
-
 export default function ApplyPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   // Read once: the session only changes on login/logout, which unmounts
   // this page anyway.
   const session = useMemo(() => getSession(), []);
 
   const [competition, setCompetition] = useState<Competition | null>(null);
-  const [nominations, setNominations] = useState<Nomination[] | null>(null);
+  // Осі конкурсу замість усіх його номінацій: випадні списки будуються з
+  // десятка значень, а рядки номінацій приходять уже під конкретний вибір
+  // заявника. Тягнути сюди шість тисяч номінацій нема потреби — і саме на
+  // цьому губились вікові категорії, що не влізли в ліміт відповіді.
+  const [axes, setAxes] = useState<NominationAxes | null>(null);
+  const [specials, setSpecials] = useState<Nomination[]>([]);
+  const [entryNominations, setEntryNominations] = useState<Nomination[]>([]);
+  const [rowsError, setRowsError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Picked dancers are held as full objects: a coach searches the roster by
@@ -158,7 +197,14 @@ export default function ApplyPage() {
   const [mentorSchoolId, setMentorSchoolId] = useState(
     session?.profile.schoolId ?? '',
   );
+  // Organizer/admin only: the studio and trainer the entry is filed under,
+  // instead of the dancer's own. Left empty, the server keeps the dancer's.
+  const [assignedStudioId, setAssignedStudioId] = useState('');
+  const [assignedTrainer, setAssignedTrainer] =
+    useState<SetMentorCoachBody | null>(null);
+  const [trainerPickerKey, setTrainerPickerKey] = useState(0);
   const [league, setLeague] = useState('');
+  const [pickedAgeCategory, setPickedAgeCategory] = useState('');
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [city, setCity] = useState('');
@@ -210,11 +256,16 @@ export default function ApplyPage() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    Promise.all([getCompetition(id), getNominations(id)])
-      .then(([c, noms]) => {
+    Promise.all([
+      getCompetition(id),
+      getNominationAxes(id),
+      getSpecialNominations(id),
+    ])
+      .then(([c, competitionAxes, specialNominations]) => {
         if (cancelled) return;
         setCompetition(c);
-        setNominations(noms);
+        setAxes(competitionAxes);
+        setSpecials(specialNominations);
       })
       .catch(() => {
         if (!cancelled) setLoadError('Не вдалося завантажити конкурс.');
@@ -335,71 +386,169 @@ export default function ApplyPage() {
     ? [selfParticipant]
     : selectedParticipants;
 
-  const nonSpecial = useMemo(
-    () => (nominations ?? []).filter((n) => !n.isSpecial),
-    [nominations],
-  );
-  const specials = useMemo(
-    () => (nominations ?? []).filter((n) => n.isSpecial),
-    [nominations],
-  );
-
+  // Ліги звичайних номінацій плюс ліги спецномінацій: осей вони не несуть,
+  // але лігу мають, і в списку вона була завжди.
   const leagueOptions = useMemo(
-    () => uniqueInOrder((nominations ?? []).flatMap((n) => n.leagues)),
-    [nominations],
+    () =>
+      uniqueInOrder([
+        ...(axes?.[LEAGUE_CATEGORY_TYPE] ?? []).map((value) => value.name),
+        ...specials.flatMap((n) => n.leagues),
+      ]),
+    [axes, specials],
   );
 
   const styleOptions = useMemo(
-    () => uniqueInOrder(nonSpecial.flatMap((n) => n.programs.map((p) => p.name))),
-    [nonSpecial],
+    () => (axes?.[STYLE_CATEGORY_TYPE] ?? []).map((value) => value.name),
+    [axes],
   );
 
-  const ageCategories = useMemo(
-    () => nonSpecial.flatMap((n) => n.ageCategories),
-    [nonSpecial],
+  const ageCategories = useMemo<NominationCategoryRange[]>(
+    () =>
+      (axes?.[AGE_CATEGORY_TYPE] ?? []).map(({ name, rangeFrom, rangeTo }) => ({
+        name,
+        rangeFrom,
+        rangeTo,
+      })),
+    [axes],
   );
 
   const pickedCount = selfParticipant ? 1 : selectedParticipants.length;
 
+  // Counted on the competition's start date; a category is offered only when
+  // every picked dancer fits it — the same rule the server enforces on submit.
+  const ages = useMemo(
+    () =>
+      competition
+        ? participantAges(
+            activeParticipants.map((p) => p.birthDate),
+            competition.dateFrom,
+          )
+        : [],
+    [competition, activeParticipants],
+  );
+  const participantAge = ages.length === 1 ? ages[0] : null;
+
+  const ageCategoryOptions = useMemo(
+    () => ageCategoriesFittingAges(ages, ageCategories),
+    [ages, ageCategories],
+  );
+
+  // A single fitting category needs no choice; with several (overlapping
+  // ranges) the coach's pick is used, and a pick that stopped fitting is ignored.
+  const chosenAgeCategory =
+    ageCategoryOptions.length === 1
+      ? ageCategoryOptions[0].name
+      : ageCategoryOptions.some((c) => c.name === pickedAgeCategory)
+        ? pickedAgeCategory
+        : '';
+
+  // Вибір заявника в id значень осей — саме ними фільтрує сервер.
+  const leagueId = useMemo(
+    () =>
+      (axes?.[LEAGUE_CATEGORY_TYPE] ?? []).find((value) => value.name === league)
+        ?.id,
+    [axes, league],
+  );
+
+  const styleIds = useMemo(
+    () =>
+      (axes?.[STYLE_CATEGORY_TYPE] ?? [])
+        .filter((value) => selectedStyles.includes(value.name))
+        .map((value) => value.id),
+    [axes, selectedStyles],
+  );
+
+  // Кількість учасників жорстко задає склад: один танцюрист — не група.
+  const lineupIds = useMemo(
+    () =>
+      (axes?.[LINEUP_CATEGORY_TYPE] ?? [])
+        .filter((value) => lineupMatches(value, pickedCount))
+        .map((value) => value.id),
+    [axes, pickedCount],
+  );
+
+  const ageCategoryId = useMemo(
+    () =>
+      (axes?.[AGE_CATEGORY_TYPE] ?? []).find(
+        (value) => value.name === chosenAgeCategory,
+      )?.id,
+    [axes, chosenAgeCategory],
+  );
+
+  const entryFilter = useMemo<NominationEntryFilter>(
+    () => ({
+      league: leagueId,
+      ageCategory: ageCategoryId,
+      styles: styleIds,
+      lineups: lineupIds,
+      // Поки категорію не обрано (підходить кілька), звужуємо за віком.
+      ages: ageCategoryId ? [] : ages,
+    }),
+    [leagueId, ageCategoryId, styleIds, lineupIds, ages],
+  );
+
+  // Номінації приходять уже відфільтровані сервером — рівно ті, у яких цей
+  // склад учасників може виступити. Ліга, якої немає серед осей, належить
+  // лише спецномінаціям, тож звичайних рядків під неї не буде.
+  useEffect(() => {
+    const leagueMissing = league !== '' && leagueId === undefined;
+    if (!id || pickedCount === 0 || styleIds.length === 0 || leagueMissing) {
+      setEntryNominations([]);
+      setRowsError(null);
+      return;
+    }
+    let cancelled = false;
+    getNominationsForEntry(id, entryFilter)
+      .then((rows) => {
+        if (cancelled) return;
+        setEntryNominations(rows);
+        setRowsError(null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setEntryNominations([]);
+        setRowsError(NOMINATIONS_LOAD_FAILED_MESSAGE);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, league, leagueId, pickedCount, styleIds, entryFilter]);
+
   const styleRows: NominationRow[] = useMemo(() => {
     const rows: NominationRow[] = [];
-    for (const n of nonSpecial) {
-      const matchesStyle = n.programs.some((p) =>
-        selectedStyles.includes(p.name),
-      );
-      const matchesLeague = !league || n.leagues.includes(league);
-      // Once more than one dancer is picked, hide the solo nominations (and
-      // vice-versa) — the line-up is fixed by the count.
-      const matchesLineup =
-        n.lineups.length === 0 ||
-        n.lineups.some((l) => lineupMatches(l, pickedCount));
-      if (!matchesStyle || !matchesLeague || !matchesLineup) continue;
+    for (const n of entryNominations) {
       rows.push({
-        key: n.id,
+        key: nominationRowKey(n.id, false),
         nominationId: n.id,
         improv: false,
+        takesNoTrack: exitsAreAllImprovisation(n.exits),
+        isSpecial: false,
         label: n.name,
         price: n.price,
       });
       if (n.allowsImprovisation) {
         rows.push({
-          key: `${n.id}:improv`,
+          key: nominationRowKey(n.id, true),
           nominationId: n.id,
           improv: true,
+          takesNoTrack: true,
+          isSpecial: false,
           label: `${n.name} · Імпровізація`,
           price: n.price,
         });
       }
     }
     return rows;
-  }, [nonSpecial, selectedStyles, league, pickedCount]);
+  }, [entryNominations]);
 
   const specialRows: NominationRow[] = useMemo(
     () =>
       specials.map((n) => ({
-        key: n.id,
+        key: nominationRowKey(n.id, false),
         nominationId: n.id,
         improv: false,
+        takesNoTrack: exitsAreAllImprovisation(n.exits),
+        isSpecial: true,
         label: n.name,
         price: n.price,
       })),
@@ -412,7 +561,18 @@ export default function ApplyPage() {
   );
 
   const selectedRows = allRows.filter((r) => selectedKeys.includes(r.key));
-  const total = selectedRows.reduce((sum, r) => sum + (r.price ?? 0), 0);
+  const quote = useEntriesQuote(
+    id,
+    effectiveParticipantIds,
+    selectedRows.map((r) => r.nominationId),
+  );
+  const quoteAmountByKey = new Map(
+    quote.status === 'ready'
+      ? selectedRows.map((r, index) => [r.key, quote.amounts[index]])
+      : [],
+  );
+  const total =
+    quote.status === 'ready' || quote.status === 'loading' ? quote.total : null;
 
   // Which required field to highlight red — mirrors the checks in
   // handleSubmit, so the invalid one stays marked until it's actually fixed.
@@ -426,10 +586,11 @@ export default function ApplyPage() {
     if (activeParticipants.length > 1) {
       return `Груповий номер · ${activeParticipants.length} учасників`;
     }
-    const age = ageFromBirthDate(activeParticipants[0].birthDate);
-    if (age === null) return '—';
-    const category = matchAgeCategory(age, ageCategories);
-    return category ? `${age} р. · ${category}` : `${age} р.`;
+    if (participantAge === null) return '—';
+    const category = matchAgeCategory(participantAge, ageCategories);
+    return category
+      ? `${participantAge} р. · ${category}`
+      : `${participantAge} р.`;
   })();
 
   const coachLabel = isCoach && session
@@ -525,14 +686,26 @@ export default function ApplyPage() {
     setParticipantQuery('');
     setSearchResults([]);
     setLeague('');
+    setPickedAgeCategory('');
     setSelectedStyles([]);
     setSelectedKeys([]);
     setCity('');
     setPayMethod('card');
     setMusicFileByKey({});
     setMentor(null);
+    setAssignedStudioId('');
+    setAssignedTrainer(null);
+    setTrainerPickerKey((key) => key + 1);
     setCreatedCount(0);
     setSubmitError(null);
+  };
+
+  // A trainer typed in by hand is registered first, so the entry only ever
+  // carries a real trainer id.
+  const resolveAssignedTrainerId = async (): Promise<string | undefined> => {
+    if (!assignedTrainer) return undefined;
+    if ('coachId' in assignedTrainer) return assignedTrainer.coachId;
+    return (await createCoach(assignedTrainer.newCoach)).id;
   };
 
   const handleSubmit = async () => {
@@ -553,7 +726,7 @@ export default function ApplyPage() {
       return;
     }
     if (mentor && isCoach && !mentorSchoolId.trim()) {
-      setSubmitError('Оберіть школу, щоб зберегти тренера.');
+      setSubmitError('Оберіть школу, щоб зберегти керівника.');
       return;
     }
 
@@ -572,15 +745,20 @@ export default function ApplyPage() {
           setSubmitError(
             err instanceof Error
               ? err.message
-              : 'Не вдалося зберегти тренера у профілі.',
+              : 'Не вдалося зберегти керівника у профілі.',
           );
           return;
         }
       }
+      const trainerId = canPickCoach
+        ? await resolveAssignedTrainerId()
+        : undefined;
       const created = await createEntriesBulk(
         id,
         rows.map((r) => ({
           participantIds: effectiveParticipantIds,
+          studioId: canPickCoach ? assignedStudioId || undefined : undefined,
+          trainerId,
           nominationId: r.nominationId,
           improv: r.improv,
           city: city.trim() || undefined,
@@ -588,13 +766,36 @@ export default function ApplyPage() {
         })),
       );
       setCreatedCount(created.length);
+      // The server may have placed the new exits straight into a formed
+      // program; otherwise they joined the unassigned pool.
+      void refreshProgram(queryClient, id);
+
+      // The server creates one entry per exit, so a per-program nomination
+      // comes back as several entries for a single row and the two lists do
+      // not line up by index. Each entry names the row it came from.
+      const createdByRowKey = new Map<string, Entry[]>();
+      for (const entry of created) {
+        if (!entry.nominationId) continue;
+        const key = nominationRowKey(entry.nominationId, entry.improv ?? false);
+        const group = createdByRowKey.get(key);
+        if (group) group.push(entry);
+        else createdByRowKey.set(key, [entry]);
+      }
 
       // Entries exist now, so their ids are stable — upload each picked
-      // file for real instead of just remembering its name.
+      // file for real instead of just remembering its name. One picked file
+      // covers every exit of its row; the improvisation exits of a mixed
+      // nomination take no track and would refuse the upload.
       const uploads = await Promise.allSettled(
-        rows.map((r, i) => {
+        rows.map((r) => {
           const file = musicFileByKey[r.key];
-          return file ? uploadEntryTrack(created[i].id, file) : null;
+          if (!file) return null;
+          const targets = (createdByRowKey.get(r.key) ?? []).filter(
+            (entry) => !entry.trackNotNeeded,
+          );
+          return Promise.all(
+            targets.map((entry) => uploadEntryTrack(entry.id, file)),
+          );
         }),
       );
       const failedCount = uploads.filter((u) => u.status === 'rejected').length;
@@ -650,7 +851,7 @@ export default function ApplyPage() {
     );
   }
 
-  if (!competition || !nominations) {
+  if (!competition || !axes) {
     return (
       <main className={styles.main}>
         <div className={styles.card}>Завантаження...</div>
@@ -718,7 +919,10 @@ export default function ApplyPage() {
     );
   }
 
-  const noNominations = nominations.length === 0;
+  // Лігу несе кожна звичайна номінація (сервер цього вимагає), тож порожня
+  // вісь ліг разом із відсутністю спецномінацій і означає «номінацій немає».
+  const noNominations =
+    axes[LEAGUE_CATEGORY_TYPE].length === 0 && specials.length === 0;
 
   return (
     <main className={styles.main}>
@@ -887,7 +1091,7 @@ export default function ApplyPage() {
                     <>
                       <input
                         className={styles.subInput}
-                        placeholder="Тренер — необовʼязково"
+                        placeholder="Керівник — необовʼязково"
                         value={coachQuery}
                         onChange={(e) => setCoachQuery(e.target.value)}
                       />
@@ -950,7 +1154,6 @@ export default function ApplyPage() {
                     value={league}
                     onChange={(e) => {
                       setLeague(e.target.value);
-                      setSelectedKeys([]);
                       setSubmitError(null);
                     }}
                   >
@@ -967,7 +1170,32 @@ export default function ApplyPage() {
                 </div>
                 <div>
                   <label className={styles.label}>Вік / вікова категорія</label>
-                  <div className={styles.readonlyBox}>{ageLabel}</div>
+                  {ageCategoryOptions.length > 0 ? (
+                    <select
+                      className={styles.select}
+                      value={chosenAgeCategory}
+                      onChange={(e) => {
+                        setPickedAgeCategory(e.target.value);
+                        setSubmitError(null);
+                      }}
+                    >
+                      {ageCategoryOptions.length > 1 && (
+                        <option value="">{AGE_CATEGORY_PLACEHOLDER}</option>
+                      )}
+                      {ageCategoryOptions.map((c) => (
+                        <option key={c.name} value={c.name}>
+                          {c.name} ({c.rangeFrom}–{c.rangeTo})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className={styles.readonlyBox}>{ageLabel}</div>
+                  )}
+                  {ages.length > 0 &&
+                    ageCategories.length > 0 &&
+                    ageCategoryOptions.length === 0 && (
+                      <p className={styles.hint}>{NO_COMMON_AGE_CATEGORY_HINT}</p>
+                    )}
                 </div>
               </div>
             )}
@@ -1027,7 +1255,10 @@ export default function ApplyPage() {
               <label className={styles.label}>Номінації за обраними стилями</label>
               {styleRows.length === 0 ? (
                 <p className={styles.hint}>
-                  Немає номінацій для цього поєднання ліги та стилів.
+                  {rowsError ??
+                    (ages.length === 0
+                      ? 'Немає номінацій для цього поєднання ліги та стилів.'
+                      : NO_NOMINATIONS_FOR_AGE_MESSAGE)}
                 </p>
               ) : (
                 <div
@@ -1051,7 +1282,7 @@ export default function ApplyPage() {
                         </span>
                         <span className={styles.nomLabel}>{row.label}</span>
                         <span className={styles.nomPrice}>
-                          {priceLabel(row.price)}
+                          {formatEntryAmount(row.price)}
                         </span>
                       </button>
                     );
@@ -1085,7 +1316,12 @@ export default function ApplyPage() {
                       </span>
                       <span className={styles.nomLabel}>{row.label}</span>
                       <span className={styles.nomPrice}>
-                        {priceLabel(row.price)}
+                        {on &&
+                        row.price !== null &&
+                        row.price > 0 &&
+                        quoteAmountByKey.get(row.key) === 0
+                          ? SPECIAL_PAID_ONCE_LABEL
+                          : formatEntryAmount(row.price)}
                       </span>
                     </button>
                   );
@@ -1106,6 +1342,28 @@ export default function ApplyPage() {
           )}
 
           {activeParticipants.length > 0 &&
+            canPickCoach && (
+              <div>
+                <SchoolPicker
+                  value={assignedStudioId}
+                  onChange={setAssignedStudioId}
+                />
+                <label className={styles.label}>Керівник</label>
+                <MentorCoachPicker
+                  key={trainerPickerKey}
+                  onChange={setAssignedTrainer}
+                />
+                <p className={styles.hint}>
+                  Необовʼязково. Оберіть будь-яку студію й керівника або
+                  створіть нових — заявка зʼявиться у цього керівника в «Моїх
+                  заявках». Якщо не вказувати, буде взято студію й керівника
+                  учасника.
+                </p>
+              </div>
+            )}
+
+          {activeParticipants.length > 0 &&
+            !canPickCoach &&
             (session.profile.coachId ? (
               <div className={styles.two}>
                 <div>
@@ -1113,7 +1371,7 @@ export default function ApplyPage() {
                   <div className={styles.readonlyBox}>{studioLabel}</div>
                 </div>
                 <div>
-                  <label className={styles.label}>Тренер</label>
+                  <label className={styles.label}>Керівник</label>
                   <div className={styles.readonlyBox}>{coachLabel}</div>
                 </div>
               </div>
@@ -1125,10 +1383,10 @@ export default function ApplyPage() {
                     onChange={setMentorSchoolId}
                   />
                 )}
-                <label className={styles.label}>Тренер</label>
+                <label className={styles.label}>Керівник</label>
                 <MentorCoachPicker onChange={setMentor} />
                 <p className={styles.hint}>
-                  Необовʼязково. Якщо вкажете тренера, він і його студія
+                  Необовʼязково. Якщо вкажете керівника, він і його студія
                   збережуться у вашому профілі та підтягнуться в майбутні
                   заявки.
                 </p>
@@ -1169,7 +1427,7 @@ export default function ApplyPage() {
             <div>
               <label className={styles.label}>Сума до сплати</label>
               <div className={styles.readonlyBox}>
-                {total ? `${total} грн` : '—'}
+                {formatEntryAmount(total)}
               </div>
             </div>
           </div>
@@ -1179,7 +1437,7 @@ export default function ApplyPage() {
               <label className={styles.label}>Музика для виступів</label>
               <div className={styles.musicList}>
                 {selectedRows.map((row) =>
-                  row.improv ? (
+                  row.takesNoTrack ? (
                     <div key={row.key} className={styles.musicRow}>
                       <span className={styles.musicLabel}>{row.label}</span>
                       <span className={styles.hint}>
@@ -1192,7 +1450,7 @@ export default function ApplyPage() {
                       <input
                         className={styles.fileInput}
                         type="file"
-                        accept="audio/*"
+                        accept={AUDIO_ACCEPT}
                         onChange={(e) => setMusicForRow(row.key, e)}
                       />
                       {musicFileByKey[row.key] && (

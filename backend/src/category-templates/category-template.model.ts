@@ -9,6 +9,7 @@ import {
 } from 'sequelize-typescript';
 import { User } from '../users/user.model';
 import { TemplateNomination } from './template-nomination.model';
+import { TemplateCategoryPrice } from './template-category-price.model';
 
 @Table({ tableName: 'category_templates' })
 export class CategoryTemplate extends Model<CategoryTemplate> {
@@ -50,6 +51,9 @@ export class CategoryTemplate extends Model<CategoryTemplate> {
 
   @HasMany(() => TemplateNomination)
   declare nominations: TemplateNomination[];
+
+  @HasMany(() => TemplateCategoryPrice)
+  declare categoryPrices: TemplateCategoryPrice[];
 
   @Column(DataType.DATE)
   declare createdAt: Date;
