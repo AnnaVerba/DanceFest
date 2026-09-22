@@ -15,6 +15,7 @@ import {
   sumEntryAmounts,
 } from '../lib/entryAmount';
 import { queryKeys } from '../lib/queryKeys';
+import { AUDIO_ACCEPT } from '../lib/uploads.constants';
 import {
   ENTRY_COLUMN_COUNT_BEFORE_AMOUNT,
   ENTRY_COLUMN_LABEL,
@@ -174,7 +175,7 @@ export default function ParticipantCabinetPage() {
                                 <label className={styles.musicUploadLabel}>
                                   <input
                                     type="file"
-                                    accept="audio/*"
+                                    accept={AUDIO_ACCEPT}
                                     hidden
                                     onChange={(e) => onMusicPick(entry.id, e)}
                                   />
