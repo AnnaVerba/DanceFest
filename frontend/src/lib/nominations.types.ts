@@ -17,6 +17,32 @@ export interface NominationPageQuery {
   venue?: string;
 }
 
+// Значення однієї осі конкурсу: id для фільтра номінацій, назва для списку,
+// межі — щоб форма сама бачила, який склад чи вік підходить учасникам.
+export interface NominationAxisValue {
+  id: string;
+  name: string;
+  rangeFrom: number | null;
+  rangeTo: number | null;
+}
+
+// Осі конкурсу — значення, що реально трапляються в його номінаціях. Вісь
+// без значень приходить порожнім масивом.
+export type NominationAxes = Record<CategoryType, NominationAxisValue[]>;
+
+// Вибір, за яким форма заявки просить номінації: ліга і склад мусять
+// збігтися, стиль — будь-який з обраних, вік — підійти кожному учаснику.
+export interface NominationEntryFilter {
+  // Точний збіг: номінація мусить нести саме це значення.
+  league?: string;
+  ageCategory?: string;
+  // Будь-яке зі значень. Для складу номінація без осі складу теж проходить.
+  styles: string[];
+  lineups: string[];
+  // Вік кожного учасника — поки вікову категорію ще не обрано.
+  ages: number[];
+}
+
 export type VenueSummaryGroupBy = 'level' | 'age';
 
 export interface VenueSummaryRow {

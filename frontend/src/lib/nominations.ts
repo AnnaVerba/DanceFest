@@ -8,6 +8,8 @@ import type {
   AxisPriceInput,
   AxisPriceRow,
   AxisPriceUpdateResult,
+  NominationAxes,
+  NominationEntryFilter,
   NominationPageQuery,
   NominationUpdateInput,
   VenueSummaryGroupBy,
@@ -154,6 +156,46 @@ export function getNominations(
   const suffix = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
   return request<Nomination[]>(
     `/competitions/${competitionId}/nominations${suffix}`,
+  );
+}
+
+// Осі конкурсу замість усіх його номінацій: випадні списки форми заявки
+// будуються з десятка значень, а не з шести тисяч рядків.
+export function getNominationAxes(
+  competitionId: string,
+): Promise<NominationAxes> {
+  return request<NominationAxes>(`/competitions/${competitionId}/nominations/axes`);
+}
+
+// Спецномінації показуються всі й без фільтрів, тож їдуть окремо.
+export function getSpecialNominations(
+  competitionId: string,
+): Promise<Nomination[]> {
+  return request<Nomination[]>(
+    `/competitions/${competitionId}/nominations/specials`,
+  );
+}
+
+// Номінації під конкретний вибір заявника. Сервер сам перевіряє, що вікова
+// категорія номінації підходить кожному учаснику номера.
+export function getNominationsForEntry(
+  competitionId: string,
+  filter: NominationEntryFilter,
+): Promise<Nomination[]> {
+  const params = new URLSearchParams();
+  if (filter.league) params.set('league', filter.league);
+  if (filter.ageCategory) params.set('ageCategory', filter.ageCategory);
+  if (filter.styles.length > 0) {
+    params.set('styles', filter.styles.join(LIST_QUERY_SEPARATOR));
+  }
+  if (filter.lineups.length > 0) {
+    params.set('lineups', filter.lineups.join(LIST_QUERY_SEPARATOR));
+  }
+  if (filter.ages.length > 0) {
+    params.set('ages', filter.ages.join(LIST_QUERY_SEPARATOR));
+  }
+  return request<Nomination[]>(
+    `/competitions/${competitionId}/nominations/for-entry?${params.toString()}`,
   );
 }
 

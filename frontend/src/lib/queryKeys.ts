@@ -49,6 +49,8 @@ export const queryKeys = {
   // Prefix of every nominations query of a competition — invalidate this
   // after any change to its nominations.
   nominationsScope: (competitionId: string) => ['nominations', competitionId] as const,
+  nominationAxes: (competitionId: string) =>
+    ['nominations', competitionId, 'axes'] as const,
   nominationsPage: (competitionId: string, query: NominationPageQuery) =>
     ['nominations', competitionId, 'page', query] as const,
   nominationAxisPrices: (competitionId: string) =>

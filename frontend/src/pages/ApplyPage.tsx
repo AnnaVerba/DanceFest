@@ -4,8 +4,22 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { getApplyEligibility, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
-import { getNominations } from '../lib/nominations';
+import {
+  getNominationAxes,
+  getNominationsForEntry,
+  getSpecialNominations,
+} from '../lib/nominations';
 import type { Nomination, NominationCategoryRange } from '../lib/nominations';
+import type {
+  NominationAxes,
+  NominationEntryFilter,
+} from '../lib/nominations.types';
+import {
+  AGE_CATEGORY_TYPE,
+  LEAGUE_CATEGORY_TYPE,
+  LINEUP_CATEGORY_TYPE,
+  STYLE_CATEGORY_TYPE,
+} from '../lib/categories';
 import { fitsCount } from '../lib/categoryRange';
 import { exitsAreAllImprovisation } from '../lib/improvisationProgram';
 import { nominationRowKey } from '../lib/nominationRowKey';
@@ -44,8 +58,6 @@ import SchoolPicker from '../components/SchoolPicker';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import {
   ageCategoriesFittingAges,
-  nominationFitsAges,
-  nominationHasAgeCategory,
   participantAges,
 } from '../lib/ageEligibility';
 import {
@@ -53,6 +65,7 @@ import {
   NO_COMMON_AGE_CATEGORY_HINT,
   NO_NOMINATIONS_FOR_AGE_MESSAGE,
 } from '../lib/applyAge.constants';
+import { NOMINATIONS_LOAD_FAILED_MESSAGE } from '../lib/applyNominations.constants';
 import styles from './ApplyPage.module.css';
 
 type PayMethod = 'cash' | 'card';
@@ -155,7 +168,14 @@ export default function ApplyPage() {
   const session = useMemo(() => getSession(), []);
 
   const [competition, setCompetition] = useState<Competition | null>(null);
-  const [nominations, setNominations] = useState<Nomination[] | null>(null);
+  // Осі конкурсу замість усіх його номінацій: випадні списки будуються з
+  // десятка значень, а рядки номінацій приходять уже під конкретний вибір
+  // заявника. Тягнути сюди шість тисяч номінацій нема потреби — і саме на
+  // цьому губились вікові категорії, що не влізли в ліміт відповіді.
+  const [axes, setAxes] = useState<NominationAxes | null>(null);
+  const [specials, setSpecials] = useState<Nomination[]>([]);
+  const [entryNominations, setEntryNominations] = useState<Nomination[]>([]);
+  const [rowsError, setRowsError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Picked dancers are held as full objects: a coach searches the roster by
@@ -235,11 +255,16 @@ export default function ApplyPage() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    Promise.all([getCompetition(id), getNominations(id)])
-      .then(([c, noms]) => {
+    Promise.all([
+      getCompetition(id),
+      getNominationAxes(id),
+      getSpecialNominations(id),
+    ])
+      .then(([c, competitionAxes, specialNominations]) => {
         if (cancelled) return;
         setCompetition(c);
-        setNominations(noms);
+        setAxes(competitionAxes);
+        setSpecials(specialNominations);
       })
       .catch(() => {
         if (!cancelled) setLoadError('Не вдалося завантажити конкурс.');
@@ -360,28 +385,30 @@ export default function ApplyPage() {
     ? [selfParticipant]
     : selectedParticipants;
 
-  const nonSpecial = useMemo(
-    () => (nominations ?? []).filter((n) => !n.isSpecial),
-    [nominations],
-  );
-  const specials = useMemo(
-    () => (nominations ?? []).filter((n) => n.isSpecial),
-    [nominations],
-  );
-
+  // Ліги звичайних номінацій плюс ліги спецномінацій: осей вони не несуть,
+  // але лігу мають, і в списку вона була завжди.
   const leagueOptions = useMemo(
-    () => uniqueInOrder((nominations ?? []).flatMap((n) => n.leagues)),
-    [nominations],
+    () =>
+      uniqueInOrder([
+        ...(axes?.[LEAGUE_CATEGORY_TYPE] ?? []).map((value) => value.name),
+        ...specials.flatMap((n) => n.leagues),
+      ]),
+    [axes, specials],
   );
 
   const styleOptions = useMemo(
-    () => uniqueInOrder(nonSpecial.flatMap((n) => n.programs.map((p) => p.name))),
-    [nonSpecial],
+    () => (axes?.[STYLE_CATEGORY_TYPE] ?? []).map((value) => value.name),
+    [axes],
   );
 
-  const ageCategories = useMemo(
-    () => nonSpecial.flatMap((n) => n.ageCategories),
-    [nonSpecial],
+  const ageCategories = useMemo<NominationCategoryRange[]>(
+    () =>
+      (axes?.[AGE_CATEGORY_TYPE] ?? []).map(({ name, rangeFrom, rangeTo }) => ({
+        name,
+        rangeFrom,
+        rangeTo,
+      })),
+    [axes],
   );
 
   const pickedCount = selfParticipant ? 1 : selectedParticipants.length;
@@ -414,26 +441,81 @@ export default function ApplyPage() {
         ? pickedAgeCategory
         : '';
 
+  // Вибір заявника в id значень осей — саме ними фільтрує сервер.
+  const leagueId = useMemo(
+    () =>
+      (axes?.[LEAGUE_CATEGORY_TYPE] ?? []).find((value) => value.name === league)
+        ?.id,
+    [axes, league],
+  );
+
+  const styleIds = useMemo(
+    () =>
+      (axes?.[STYLE_CATEGORY_TYPE] ?? [])
+        .filter((value) => selectedStyles.includes(value.name))
+        .map((value) => value.id),
+    [axes, selectedStyles],
+  );
+
+  // Кількість учасників жорстко задає склад: один танцюрист — не група.
+  const lineupIds = useMemo(
+    () =>
+      (axes?.[LINEUP_CATEGORY_TYPE] ?? [])
+        .filter((value) => lineupMatches(value, pickedCount))
+        .map((value) => value.id),
+    [axes, pickedCount],
+  );
+
+  const ageCategoryId = useMemo(
+    () =>
+      (axes?.[AGE_CATEGORY_TYPE] ?? []).find(
+        (value) => value.name === chosenAgeCategory,
+      )?.id,
+    [axes, chosenAgeCategory],
+  );
+
+  const entryFilter = useMemo<NominationEntryFilter>(
+    () => ({
+      league: leagueId,
+      ageCategory: ageCategoryId,
+      styles: styleIds,
+      lineups: lineupIds,
+      // Поки категорію не обрано (підходить кілька), звужуємо за віком.
+      ages: ageCategoryId ? [] : ages,
+    }),
+    [leagueId, ageCategoryId, styleIds, lineupIds, ages],
+  );
+
+  // Номінації приходять уже відфільтровані сервером — рівно ті, у яких цей
+  // склад учасників може виступити. Ліга, якої немає серед осей, належить
+  // лише спецномінаціям, тож звичайних рядків під неї не буде.
+  useEffect(() => {
+    const leagueMissing = league !== '' && leagueId === undefined;
+    if (!id || pickedCount === 0 || styleIds.length === 0 || leagueMissing) {
+      setEntryNominations([]);
+      setRowsError(null);
+      return;
+    }
+    let cancelled = false;
+    getNominationsForEntry(id, entryFilter)
+      .then((rows) => {
+        if (cancelled) return;
+        setEntryNominations(rows);
+        setRowsError(null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setEntryNominations([]);
+        setRowsError(NOMINATIONS_LOAD_FAILED_MESSAGE);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, league, leagueId, pickedCount, styleIds, entryFilter]);
+
   const styleRows: NominationRow[] = useMemo(() => {
     const rows: NominationRow[] = [];
-    for (const n of nonSpecial) {
-      const matchesStyle = n.programs.some((p) =>
-        selectedStyles.includes(p.name),
-      );
-      const matchesLeague = !league || n.leagues.includes(league);
-      // Once more than one dancer is picked, hide the solo nominations (and
-      // vice-versa) — the line-up is fixed by the count.
-      const matchesLineup =
-        n.lineups.length === 0 ||
-        n.lineups.some((l) => lineupMatches(l, pickedCount));
-      const matchesAge =
-        ages.length === 0 ||
-        (chosenAgeCategory
-          ? nominationHasAgeCategory(chosenAgeCategory, n.ageCategories)
-          : nominationFitsAges(ages, n.ageCategories));
-      if (!matchesStyle || !matchesLeague || !matchesLineup || !matchesAge) {
-        continue;
-      }
+    for (const n of entryNominations) {
       rows.push({
         key: nominationRowKey(n.id, false),
         nominationId: n.id,
@@ -456,14 +538,7 @@ export default function ApplyPage() {
       }
     }
     return rows;
-  }, [
-    nonSpecial,
-    selectedStyles,
-    league,
-    pickedCount,
-    ages,
-    chosenAgeCategory,
-  ]);
+  }, [entryNominations]);
 
   const specialRows: NominationRow[] = useMemo(
     () =>
@@ -775,7 +850,7 @@ export default function ApplyPage() {
     );
   }
 
-  if (!competition || !nominations) {
+  if (!competition || !axes) {
     return (
       <main className={styles.main}>
         <div className={styles.card}>Завантаження...</div>
@@ -843,7 +918,10 @@ export default function ApplyPage() {
     );
   }
 
-  const noNominations = nominations.length === 0;
+  // Лігу несе кожна звичайна номінація (сервер цього вимагає), тож порожня
+  // вісь ліг разом із відсутністю спецномінацій і означає «номінацій немає».
+  const noNominations =
+    axes[LEAGUE_CATEGORY_TYPE].length === 0 && specials.length === 0;
 
   return (
     <main className={styles.main}>
@@ -1176,9 +1254,10 @@ export default function ApplyPage() {
               <label className={styles.label}>Номінації за обраними стилями</label>
               {styleRows.length === 0 ? (
                 <p className={styles.hint}>
-                  {ages.length === 0
-                    ? 'Немає номінацій для цього поєднання ліги та стилів.'
-                    : NO_NOMINATIONS_FOR_AGE_MESSAGE}
+                  {rowsError ??
+                    (ages.length === 0
+                      ? 'Немає номінацій для цього поєднання ліги та стилів.'
+                      : NO_NOMINATIONS_FOR_AGE_MESSAGE)}
                 </p>
               ) : (
                 <div

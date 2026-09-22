@@ -63,7 +63,10 @@ export class TrackFileNameResolver {
   // of in bulk, since this resolves a single upload at a time.
   private async resolveStyle(entry: Entry): Promise<string | null> {
     if (!entry.nominationId) return null;
-    const nomination = await this.nominationModel.findByPk(entry.nominationId);
+    const nomination = await this.nominationModel.findByPk(
+      entry.nominationId,
+      { include: [{ model: Category, through: { attributes: [] } }] },
+    );
     if (!nomination) return null;
     const styleCategory = await this.categoryModel.findOne({
       where: {

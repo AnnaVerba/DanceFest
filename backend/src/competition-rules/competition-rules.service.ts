@@ -7,7 +7,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { CreationAttributes, Op, UniqueConstraintError } from 'sequelize';
+import {
+  CreationAttributes,
+  Op,
+  UniqueConstraintError,
+  literal,
+} from 'sequelize';
 import { Category, LEAGUE_CATEGORY_TYPE } from '../categories/category.model';
 import type { CategoryType } from '../categories/category.model';
 import { Competition } from '../competitions/competition.model';
@@ -151,7 +156,14 @@ export class CompetitionRulesService {
         {
           where: {
             competitionId,
-            categoryIds: { [Op.contains]: [category.id] },
+            // Осі — у таблиці зв'язку, тож добір іде підзапитом по її
+            // індексу, а не переглядом масиву в кожному рядку.
+            id: {
+              [Op.in]: literal(
+                `(SELECT "nominationId" FROM nomination_categories
+                    WHERE "categoryId" = '${category.id}')`,
+              ),
+            },
             allowsImprovisation: false,
             durationOverridden: false,
           },
@@ -271,7 +283,9 @@ export class CompetitionRulesService {
     nominationId: string,
     round: DurationRound,
   ): Promise<number> {
-    const nomination = await this.nominationModel.findByPk(nominationId);
+    const nomination = await this.nominationModel.findByPk(nominationId, {
+      include: [{ model: Category, through: { attributes: [] } }],
+    });
     if (!nomination) {
       throw new NotFoundException(NOMINATION_NOT_FOUND_MESSAGE);
     }

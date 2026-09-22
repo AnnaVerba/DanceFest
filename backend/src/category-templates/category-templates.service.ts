@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes, Op } from 'sequelize';
+import type { Transaction } from 'sequelize';
 import { User } from '../users/user.model';
 import { AccessLevel } from '../auth/access-level.enum';
 import { CategoriesService } from '../categories/categories.service';
@@ -23,6 +24,7 @@ import {
 } from './template-error-codes';
 import { CategoryTemplate } from './category-template.model';
 import { TemplateNomination } from './template-nomination.model';
+import { TemplateNominationCategory } from './template-nomination-category.model';
 import { TemplateCategoryPrice } from './template-category-price.model';
 import { CreateCategoryTemplateDto } from './dto/create-category-template.dto';
 import { UpdateCategoryTemplateDto } from './dto/update-category-template.dto';
@@ -64,6 +66,8 @@ export class CategoryTemplatesService {
     private readonly templateModel: typeof CategoryTemplate,
     @InjectModel(TemplateNomination)
     private readonly nominationModel: typeof TemplateNomination,
+    @InjectModel(TemplateNominationCategory)
+    private readonly nominationCategoryModel: typeof TemplateNominationCategory,
     @InjectModel(TemplateCategoryPrice)
     private readonly categoryPriceModel: typeof TemplateCategoryPrice,
     @InjectModel(Nomination)
@@ -349,20 +353,32 @@ export class CategoryTemplatesService {
     }
 
     if (sourceNominations.length > 0) {
+      // Осі копії беруться з оригіналу, тож вони мусять бути завантажені.
+      await this.loadCategoriesOf(sourceNominations);
       const records = sourceNominations.map((n, index) => ({
         templateId: copy.id,
         name: n.name,
         price: n.price === null ? null : Number(n.price),
         allowsImprovisation: n.allowsImprovisation,
-        categoryIds: n.categoryIds,
         isSpecial: n.isSpecial,
         specialName: n.specialName,
         exitMode: n.exitMode,
         sortOrder: n.sortOrder ?? index,
       })) as CreationAttributes<TemplateNomination>[];
-      await this.nominationModel.sequelize!.transaction((transaction) =>
-        bulkCreateChunked(this.nominationModel, records, transaction),
-      );
+      await this.nominationModel.sequelize!.transaction(async (transaction) => {
+        const rows = await bulkCreateChunked(
+          this.nominationModel,
+          records,
+          transaction,
+        );
+        await this.saveCategoryLinks(
+          rows.map((row, index) => ({
+            templateNominationId: row.id,
+            categoryIds: sourceNominations[index].categoryIds,
+          })),
+          transaction,
+        );
+      });
     }
 
     return this.toDetailDto(await this.loadWithAuthor(copy.id));
@@ -433,7 +449,6 @@ export class CategoryTemplatesService {
         ? (n.price ?? specialGroupPrice(groupPrices, n.specialName))
         : (n.price ?? null),
       allowsImprovisation: n.allowsImprovisation ?? false,
-      categoryIds: n.categoryIds ?? [],
       isSpecial: n.isSpecial ?? false,
       specialName: n.specialName?.trim() || null,
       exitMode: n.exitMode ?? DEFAULT_EXIT_MODE,
@@ -443,8 +458,20 @@ export class CategoryTemplatesService {
     // Chunked inserts issue several INSERT statements instead of one, so the
     // destroy + recreate needs an explicit transaction to still be atomic.
     await this.nominationModel.sequelize!.transaction(async (transaction) => {
+      // Рядки зв'язку зникають разом із номінаціями (ON DELETE CASCADE).
       await this.nominationModel.destroy({ where: { templateId }, transaction });
-      await bulkCreateChunked(this.nominationModel, records, transaction);
+      const rows = await bulkCreateChunked(
+        this.nominationModel,
+        records,
+        transaction,
+      );
+      await this.saveCategoryLinks(
+        rows.map((row, index) => ({
+          templateNominationId: row.id,
+          categoryIds: nominations[index].categoryIds ?? [],
+        })),
+        transaction,
+      );
     });
   }
 
@@ -479,17 +506,60 @@ export class CategoryTemplatesService {
     return new Map(categories.map((category) => [category.id, category]));
   }
 
+  /**
+   * Категорії номінацій шаблону — і водночас єдине місце, де осі потрапляють
+   * у самі рядки. Поки цього не сталося, `n.categoryIds` кидає: порожній
+   * масив мовчки означав би «осей немає».
+   */
   private async loadCategoriesOf(
     nominations: TemplateNomination[],
     extraIds: string[] = [],
   ): Promise<Category[]> {
+    const links =
+      nominations.length === 0
+        ? []
+        : await this.nominationCategoryModel.findAll({
+            where: {
+              templateNominationId: { [Op.in]: nominations.map((n) => n.id) },
+            },
+          });
     const ids = [
-      ...new Set([
-        ...nominations.flatMap((n) => n.categoryIds ?? []),
-        ...extraIds,
-      ]),
+      ...new Set([...links.map((link) => link.categoryId), ...extraIds]),
     ];
-    return this.categoriesService.findByIds(ids);
+    const categories = await this.categoriesService.findByIds(ids);
+
+    const byId = this.categoryMapOf(categories);
+    const byNomination = new Map<string, Category[]>();
+    for (const link of links) {
+      const category = byId.get(link.categoryId);
+      if (!category) continue;
+      const bucket = byNomination.get(link.templateNominationId);
+      if (bucket) bucket.push(category);
+      else byNomination.set(link.templateNominationId, [category]);
+    }
+    for (const nomination of nominations) {
+      nomination.categories = byNomination.get(nomination.id) ?? [];
+    }
+    return categories;
+  }
+
+  /** Осі щойно створених номінацій шаблону: порядок рядків і вхідних збігається. */
+  private async saveCategoryLinks(
+    links: { templateNominationId: string; categoryIds: string[] }[],
+    transaction: Transaction,
+  ): Promise<void> {
+    const rows = links.flatMap(({ templateNominationId, categoryIds }) =>
+      [...new Set(categoryIds)].map((categoryId) => ({
+        templateNominationId,
+        categoryId,
+      })),
+    );
+    if (rows.length === 0) return;
+    await bulkCreateChunked(
+      this.nominationCategoryModel,
+      rows as CreationAttributes<TemplateNominationCategory>[],
+      transaction,
+    );
   }
 
   /**

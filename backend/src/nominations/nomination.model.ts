@@ -1,5 +1,6 @@
 import {
   BelongsTo,
+  BelongsToMany,
   Column,
   DataType,
   ForeignKey,
@@ -7,6 +8,9 @@ import {
   Table,
 } from 'sequelize-typescript';
 import { Competition } from '../competitions/competition.model';
+import { Category } from '../categories/category.model';
+import { NominationCategory } from './nomination-category.model';
+import { CATEGORIES_NOT_LOADED_MESSAGE } from './nominations.constants';
 import { Venue } from '../venues/venue.model';
 import { CategoryTemplate } from '../category-templates/category-template.model';
 import { EXIT_MODES, DEFAULT_EXIT_MODE } from './nomination-exits';
@@ -48,12 +52,20 @@ export class Nomination extends Model<Nomination> {
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   declare allowsImprovisation: boolean;
 
-  @Column({
-    type: DataType.ARRAY(DataType.UUID),
-    allowNull: false,
-    defaultValue: [],
-  })
-  declare categoryIds: string[];
+  @BelongsToMany(() => Category, () => NominationCategory)
+  declare categories: Category[];
+
+  /**
+   * Осі номінації. Читаються зі зв'язку, тож рядок без завантажених категорій
+   * про свої осі нічого не знає — і тоді кидаємо. Порожній масив тут був би
+   * тихою підміною: фільтр вирішив би, що обмежень немає.
+   */
+  get categoryIds(): string[] {
+    if (this.categories === undefined) {
+      throw new Error(CATEGORIES_NOT_LOADED_MESSAGE);
+    }
+    return this.categories.map((category) => category.id);
+  }
 
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   declare isSpecial: boolean;

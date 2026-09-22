@@ -165,6 +165,7 @@ export class MusicExportProcessor extends WorkerHost {
       ),
     ];
     const nominations = await this.nominationModel.findAll({
+      include: [{ model: Category, through: { attributes: [] } }],
       where: { id: { [Op.in]: nominationIds } },
     });
     const categoryIds = [...new Set(nominations.flatMap((n) => n.categoryIds))];

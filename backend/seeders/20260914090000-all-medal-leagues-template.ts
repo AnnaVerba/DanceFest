@@ -155,14 +155,21 @@ async function seed(
     for (const league of LEAGUES) {
       for (const lineup of LINEUPS) {
         await queryInterface.sequelize.query(
-          `INSERT INTO template_nominations
-               (id, "templateId", name, "allowsImprovisation", "categoryIds",
-                "isSpecial", "specialName", "exitMode", "sortOrder",
-                "createdAt", "updatedAt")
-             VALUES (:id, :templateId, :name, false,
-                     CAST(ARRAY[:categoryIds] AS uuid[]), false, NULL,
-                     CAST('${SINGLE_EXIT_MODE}' AS "enum_template_nominations_exitMode"),
-                     :sortOrder, :now, :now)`,
+          `WITH created AS (
+               INSERT INTO template_nominations
+                 (id, "templateId", name, "allowsImprovisation",
+                  "isSpecial", "specialName", "exitMode", "sortOrder",
+                  "createdAt", "updatedAt")
+               VALUES (:id, :templateId, :name, false,
+                       false, NULL,
+                       CAST('${SINGLE_EXIT_MODE}' AS "enum_template_nominations_exitMode"),
+                       :sortOrder, :now, :now)
+               RETURNING id
+             )
+             INSERT INTO template_nomination_categories
+               (id, "templateNominationId", "categoryId", "createdAt", "updatedAt")
+             SELECT gen_random_uuid(), created.id, axis, :now, :now
+               FROM created, unnest(CAST(ARRAY[:categoryIds] AS uuid[])) AS axis`,
           {
             replacements: {
               id: randomUUID(),
