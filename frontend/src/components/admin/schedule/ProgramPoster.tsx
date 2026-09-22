@@ -3,8 +3,9 @@ import type { PublicProgramRow } from '../../../lib/program';
 import type { CompetitionDay } from '../../../lib/schedule';
 import type { Venue } from '../../../lib/venues';
 import { opensProgram, programHeading } from '../../../lib/programHeading';
-import { formatParticipantNumbers } from '../../../lib/participantNumbers';
+import { formatMarkedParticipantNumbers } from '../../../lib/participantNumbers';
 import { formatClock, formatDuration } from '../../../lib/duration';
+import { formatMarkedNominationNumber } from '../../../lib/programNumbers';
 import styles from './Schedule.module.css';
 
 interface ProgramPosterProps {
@@ -62,6 +63,11 @@ export default function ProgramPoster({
           body = (
             <div className={styles.groupHead}>
               <span className={styles.time}>{formatClock(row.time, true)}</span>
+              {row.categoryNumber != null && (
+                <span className={styles.groupNum}>
+                  {formatMarkedNominationNumber(row.categoryNumber)}
+                </span>
+              )}
               <span>{row.label}</span>
             </div>
           );
@@ -70,7 +76,7 @@ export default function ProgramPoster({
             <div className={styles.awardRow}>
               <span className={styles.time}>{formatClock(row.time, true)}</span>
               <span className={styles.num}>
-                №{formatParticipantNumbers(row.participantNumbers ?? [])}
+                {formatMarkedParticipantNumbers(row.participantNumbers ?? [])}
               </span>
               <span className={styles.grow}>
                 {row.routineName ?? '—'}

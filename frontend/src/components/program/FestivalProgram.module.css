@@ -30,9 +30,16 @@
   gap: 0.6rem;
   align-items: baseline;
   padding: 0.4rem 0;
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--text-muted, #667085);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--ink, #191b18);
+}
+
+/* The nomination's F number lines up with the performers' numbers below it,
+   but is not given the muted grey of .num — it carries the block's weight. */
+.groupNum {
+  font-variant-numeric: tabular-nums;
+  min-width: 2.5rem;
 }
 
 .awardRow {
@@ -80,6 +87,8 @@
   padding: 0.5rem 0.7rem;
   border: 1px solid var(--border, #d0d5dd);
   border-radius: 8px;
+  background: var(--surface, #fff);
+  color: var(--ink, #191b18);
   font: inherit;
 }
 
@@ -87,7 +96,8 @@
   padding: 0.5rem 0.9rem;
   border: 1px solid var(--border, #d0d5dd);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface, #fff);
+  color: var(--ink, #191b18);
   font: inherit;
   cursor: pointer;
 }
@@ -103,7 +113,8 @@
   padding: 0.5rem 1.1rem;
   border: 1px solid var(--border, #d0d5dd);
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface, #fff);
+  color: var(--ink, #191b18);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -143,7 +154,8 @@
   padding: 0.55rem 1.4rem;
   border: 1px solid var(--border, #d0d5dd);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface, #fff);
+  color: var(--ink, #191b18);
   font: inherit;
   cursor: pointer;
 }
