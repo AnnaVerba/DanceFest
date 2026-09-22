@@ -2,6 +2,9 @@ export const MIN_PASSWORD_LENGTH = 6;
 export const PASSWORD_TOO_SHORT_MESSAGE = `Пароль має містити щонайменше ${MIN_PASSWORD_LENGTH} символів`;
 export const PASSWORD_MISMATCH_MESSAGE = 'Паролі не збігаються';
 
+// Mirrors OTP_CODE_LENGTH in backend/src/auth/otp.constants.ts.
+export const OTP_LENGTH = 4;
+
 // Mirrors PASSWORD_STRENGTH_REGEX in backend/src/auth/auth.constants.ts.
 // Registration password: at least one letter (any alphabet), one digit and
 // one special symbol — anything that is not a letter, digit or whitespace.
@@ -29,3 +32,6 @@ export const NO_STORED_REFRESH_TOKEN_MESSAGE = 'Немає збереженог�
 export const SESSION_EXPIRED_MESSAGE = 'Сесія закінчилась, увійдіть знову.';
 export const OTP_VERIFY_FAILED_MESSAGE = 'Не вдалося підтвердити код.';
 export const OTP_RESEND_FAILED_MESSAGE = 'Не вдалося надіслати код ще раз.';
+export const FORGOT_PASSWORD_FAILED_MESSAGE =
+  'Не вдалося надіслати код. Перевірте номер телефону.';
+export const RESET_PASSWORD_FAILED_MESSAGE = 'Не вдалося змінити пароль.';

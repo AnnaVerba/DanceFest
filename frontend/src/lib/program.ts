@@ -1,4 +1,4 @@
-import { apiRequest, publicRequest } from './http';
+import { apiRequest, optionalAuthRequest, publicRequest } from './http';
 import { getToken } from './auth';
 import { withPageParams } from './pagination';
 import type { RowPaged } from './pagination';
@@ -38,6 +38,7 @@ export interface MineProgramSection {
   name: string;
   time: string;
   dayId: string;
+  dayDate: string | null;
   venueId: string | null;
   exits: MineExitRow[];
 }
@@ -122,8 +123,12 @@ export function getProgramPreview(
   );
 }
 
+// Optional by design: the programme page is public, so a stale token must
+// cost the viewer their highlights, never the page.
 export function getMyProgram(competitionId: string): Promise<MineProgram> {
-  return apiRequest<MineProgram>(`/competitions/${competitionId}/program/mine`);
+  return optionalAuthRequest<MineProgram>(
+    `/competitions/${competitionId}/program/mine`,
+  );
 }
 
 // The public schedule page asks for the personal cut only when there is a

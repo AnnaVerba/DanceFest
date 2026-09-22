@@ -1,9 +1,8 @@
 import type { PublicProgramRow } from '../../lib/program';
 import type { ProgramSection } from '../../lib/programSections.types';
-import { formatParticipantNumbers } from '../../lib/participantNumbers';
+import { formatMarkedParticipantNumbers } from '../../lib/participantNumbers';
 import { formatClock } from '../../lib/duration';
 import {
-  CATEGORY_NUMBER_PREFIX,
   CHEVRON_COLLAPSED,
   CHEVRON_EXPANDED,
   EMPTY_ROUTINE_NAME,
@@ -13,6 +12,7 @@ import {
   STUDIO_LEADER_SEPARATOR,
   TIME_RANGE_SEPARATOR,
 } from './FestivalProgram.constants';
+import { formatMarkedNominationNumber } from '../../lib/programNumbers';
 import styles from './FestivalProgram.module.css';
 
 interface ProgramSectionBlockProps {
@@ -44,9 +44,8 @@ function renderRow(row: PublicProgramRow, index: number) {
     return (
       <div key={index} className={styles.groupRow}>
         {row.categoryNumber != null && (
-          <span className={styles.num}>
-            {CATEGORY_NUMBER_PREFIX}
-            {row.categoryNumber}
+          <span className={styles.groupNum}>
+            {formatMarkedNominationNumber(row.categoryNumber)}
           </span>
         )}
         <span>{row.label}</span>
@@ -58,8 +57,7 @@ function renderRow(row: PublicProgramRow, index: number) {
     return (
       <div key={index} className={styles.exitRow}>
         <span className={styles.num}>
-          {CATEGORY_NUMBER_PREFIX}
-          {formatParticipantNumbers(row.participantNumbers ?? [])}
+          {formatMarkedParticipantNumbers(row.participantNumbers ?? [])}
         </span>
         <span className={styles.grow}>
           {row.routineName ?? EMPTY_ROUTINE_NAME}

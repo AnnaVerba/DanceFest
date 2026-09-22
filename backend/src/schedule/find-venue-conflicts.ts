@@ -23,7 +23,11 @@ export function findVenueConflicts(
       item.exit.participantIds.forEach((participantId, index) => {
         const slots = byParticipant.get(participantId) ?? [];
         slots.push({
-          participantNumber: item.exit!.participantNumbers[index] ?? null,
+          // A group performance carries one number for all its dancers.
+          participantNumber:
+            item.exit!.participantNumbers[index] ??
+            item.exit!.participantNumbers[0] ??
+            null,
           dayId: section.dayId,
           venueId: section.venueId!,
           start,

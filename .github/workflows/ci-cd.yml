@@ -185,11 +185,6 @@ jobs:
           REDIS_USERNAME: ${{ secrets.REDIS_USERNAME }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           SMS_PROVIDER: ${{ secrets.SMS_PROVIDER || 'dev' }}
-          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
-          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
-          TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
-          TURBOSMS_TOKEN: ${{ secrets.TURBOSMS_TOKEN }}
-          TURBOSMS_SENDER: ${{ secrets.TURBOSMS_SENDER }}
           SMS_FLY_API_URL: ${{ secrets.SMS_FLY_API_URL }}
           SMS_FLY_API_KEY: ${{ secrets.SMS_FLY_API_KEY }}
           SMS_FLY_FROM: ${{ secrets.SMS_FLY_FROM }}
@@ -203,7 +198,7 @@ jobs:
             OCP_REGION OCP_ACCESS_KEY_ID OCP_SECRET_ACCESS_KEY OCP_BUCKET OCP_ENDPOINT OCP_PUBLIC_URL \
             OCP_IMAGES_PREFIX OCP_AUDIO_PREFIX \
             REDIS_USERNAME REDIS_PASSWORD \
-            SMS_PROVIDER TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_FROM TURBOSMS_TOKEN TURBOSMS_SENDER \
+            SMS_PROVIDER \
             SMS_FLY_API_URL SMS_FLY_API_KEY SMS_FLY_FROM; do
             printf '%s=%s\n' "$name" "${!name}"
           done | ssh deploy "umask 077 && cat > ${DEPLOY_PATH}/.env"

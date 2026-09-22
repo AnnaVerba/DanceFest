@@ -370,7 +370,7 @@
 .blockF {
   padding: 10px;
   font-weight: 800;
-  font-size: 13px;
+  font-size: 15px;
   color: var(--g-ink);
   border-top: 1px solid var(--g-line);
 }
@@ -382,8 +382,8 @@
 }
 
 .blockTitle {
-  font-weight: 700;
-  font-size: 13px;
+  font-weight: 800;
+  font-size: 15px;
   color: var(--g-ink);
 }
 

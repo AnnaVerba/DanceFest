@@ -12,7 +12,15 @@ export const LABEL_SEPARATOR = ' · ';
 export const TIME_RANGE_SEPARATOR = ' – ';
 export const STUDIO_LEADER_SEPARATOR = ', ';
 export const LEADER_ROLE_LABEL = 'керівник';
-export const CATEGORY_NUMBER_PREFIX = '№';
+
+export const MY_PROGRAM_TITLE = 'Ваша програма';
+export const FULL_PROGRAM_TITLE = 'Повна програма';
+export const MY_PERFORMANCES_LABEL = 'Ваші виступи';
+export const MY_STUDENTS_LABEL = 'Ваші учні';
+export const MY_PERFORMANCE_TAG = 'Ваш виступ';
+export const MY_STUDENT_TAG = 'Ваш учень';
+export const TOTALS_SEPARATOR = ': ';
+export const GROUP_PERFORMER_SEPARATOR = ' — ';
 
 export const EXPAND_ALL_LABEL = 'Розгорнути всі';
 export const COLLAPSE_ALL_LABEL = 'Згорнути всі';

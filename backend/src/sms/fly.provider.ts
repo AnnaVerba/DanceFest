@@ -5,7 +5,12 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SmsProvider } from './sms-provider.interface';
-import { SMS_NOT_CONFIGURED_MESSAGE } from './sms.constants';
+import {
+  SMS_FLY_API_KEY_ENV,
+  SMS_FLY_API_URL_ENV,
+  SMS_FLY_FROM_ENV,
+  SMS_NOT_CONFIGURED_MESSAGE,
+} from './sms.constants';
 
 interface SmsFlyResponse {
   success: number;
@@ -28,9 +33,9 @@ export class SmsFlyProvider implements SmsProvider {
   constructor(private readonly config: ConfigService) {}
 
   async send(to: string, message: string): Promise<void> {
-    const apiKey = this.config.get<string>('SMS_FLY_API_KEY');
-    const from = this.config.get<string>('SMS_FLY_FROM');
-    const apiUrl = this.config.get<string>('SMS_FLY_API_URL');
+    const apiKey = this.config.get<string>(SMS_FLY_API_KEY_ENV);
+    const from = this.config.get<string>(SMS_FLY_FROM_ENV);
+    const apiUrl = this.config.get<string>(SMS_FLY_API_URL_ENV);
 
     if (!apiKey || !from || !apiUrl) {
       this.logger.error(SMS_NOT_CONFIGURED_MESSAGE);
