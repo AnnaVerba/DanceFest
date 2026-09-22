@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { AuthError } from '../lib/auth';
+import { OTP_LENGTH } from '../lib/auth.constants';
 import styles from '../pages/LoginPage.module.css';
 
-const OTP_LENGTH = 4;
 const RESEND_SECONDS = 60;
 
 interface OtpStepProps {

@@ -137,6 +137,46 @@ export class AuthController {
     return this.authService.resendOtp(dto);
   }
 
+  @ApiOperation({
+    summary:
+      'Forgot password, step 1: request an SMS code for an existing account',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Code sent; returns the masked phone.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No account with a password exists for this phone.',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too soon, or the hourly send limit was reached.',
+  })
+  @HttpCode(HttpStatus.OK)
+  @Post('password/forgot')
+  forgotPassword(@Body() dto: OtpResendDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @ApiOperation({
+    summary:
+      'Forgot password, step 2: verify the SMS code and set a new password',
+  })
+  @ApiResponse({ status: 200, description: 'Returns an access/refresh pair.' })
+  @ApiResponse({
+    status: 401,
+    description: 'The code is wrong, expired, or used up.',
+  })
+  @HttpCode(HttpStatus.OK)
+  @Post('password/reset')
+  resetPassword(
+    @Body() dto: OtpVerifyDto,
+    @ClientContextParam() ctx: ClientContext,
+  ) {
+    return this.authService.resetPassword(dto, ctx);
+  }
+
   @ApiOperation({ summary: 'Exchange a refresh token for a new token pair' })
   @ApiResponse({
     status: 201,

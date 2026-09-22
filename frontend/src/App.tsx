@@ -13,6 +13,7 @@ import CompetitionPreviewRedirect from './pages/CompetitionPreviewRedirect';
 import './App.css';
 
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
 const TeamPage = lazy(() => import('./pages/TeamPage'));
 const NewCompetitionPage = lazy(() => import('./pages/NewCompetitionPage'));
 const CompetitionEditPage = lazy(() => import('./pages/CompetitionEditPage'));
@@ -56,6 +57,7 @@ function App() {
         {/* Auth screens stand alone — no shared chrome. */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/complete-profile" element={<CompleteProfilePage />} />
         {FEATURES.judges && <Route path="/judge" element={<JudgePage />} />}
         <Route
