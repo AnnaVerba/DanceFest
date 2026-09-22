@@ -221,7 +221,8 @@ export class AwardsService {
         isSpecial: true,
         specialName: { [Op.ne]: null },
       },
-      attributes: ['templateId', 'categoryIds', 'specialName'],
+      attributes: ['templateId', 'specialName'],
+      include: [{ model: Category, through: { attributes: [] } }],
       limit: MAX_AWARDS_QUERY_ROWS,
     });
     return new Map(
