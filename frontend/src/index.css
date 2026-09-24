@@ -67,7 +67,7 @@
   --g-accent-hover: #2b543f;
   --g-accent-bg-soft: #e0edd8;
   /* Top bar and cabinet rail sit over the mint ground, frosted. */
-  --g-chrome-bg: rgba(255, 255, 255, 0.72);
+  --g-chrome-bg: rgba(255, 255, 255, 0.9);
 
   /* Fixed app chrome — the top bar and the cabinet's left nav rail. */
   --topbar-h: 64px;
@@ -88,6 +88,11 @@
   --g-gold-hover: #96690f;
   --g-gold-bg: #fdf3e0;
   --g-gold-border: #d8b271;
+  /* The catalog's metallic gold: a light-to-deep sweep for the logo stem,
+     the active-menu edge, the year and the status dot. */
+  --g-gold-light: #e3b65c;
+  --g-gold-deep: #a8742a;
+  --g-gold-grad: linear-gradient(180deg, var(--g-gold-light), var(--g-gold-deep));
   --g-violet-bg-soft: #f4f1fd;
   /* Category hues: four that stay apart from each other and sit in the same
      muted register as the rest of the palette. */
@@ -101,20 +106,24 @@
   /* The ground's diagonal: near-white paper at the top left falling to a
      saturated mint at the bottom right. The spread between start and end is
      what makes the gradient readable — keep it wide. */
-  --g-mint-start: #fcfaf3;
-  --g-mint-mid: #e6efdf;
-  --g-mint-end: #a1c99a;
+  --g-mint-start: #f8f9f2;
+  --g-mint-mid: #e2ebda;
+  --g-mint-end: #b0cead;
   /* The top-left corner burns out to pure white — the lightest point of the
      ground, where the diagonal starts, opposite its saturated end. */
   --g-mint-corner: #ffffff;
-  --g-teal: #35664c;
-  --g-teal-hover: #2b543f;
+  --g-teal: #1f4a32;
+  --g-teal-hover: #15442b;
+  /* Deep forest sweep for the active menu item and the active filter. */
+  --g-teal-grad: linear-gradient(90deg, #15442b, #2b593e);
   /* The catalog's own ink: deep green rather than the near-black the rest of
      the app writes in, so the page reads as one green field instead of black
      type dropped on a mint ground. Still ~9.7:1 on a card and ~5.3:1 on the
      ground's saturated end. */
-  --g-teal-ink: #2c4a37;
-  --g-teal-ink-soft: #4f6555;
+  --g-teal-ink: #173d27;
+  /* The brand mark's own green, measured from the logo artwork. */
+  --g-logo-ink: #103320;
+  --g-teal-ink-soft: #364230;
   --g-teal-soft: rgba(53, 102, 76, 0.08);
   --g-teal-line: rgba(33, 63, 46, 0.2);
   --g-teal-focus: rgba(53, 102, 76, 0.35);
@@ -135,7 +144,7 @@
   --g-brass-border: #ddc890;
   --g-card-border: rgba(33, 63, 46, 0.08);
   --g-backdrop-cool: rgba(84, 130, 98, 0.42);
-  --g-backdrop-warm: rgba(184, 150, 98, 0.55);
+  --g-backdrop-warm: rgba(171, 112, 36, 0.75);
   --g-banner-base: #f2ede5;
   --g-banner-warm: rgba(201, 150, 105, 0.55);
   --g-banner-cool: rgba(140, 180, 140, 0.45);
@@ -189,6 +198,8 @@
     --g-gold-hover: #f0c874;
     --g-gold-bg: rgba(224, 177, 72, 0.14);
     --g-gold-border: rgba(224, 177, 72, 0.35);
+    --g-gold-light: #f0c874;
+    --g-gold-deep: #c08d35;
     --g-violet-bg-soft: rgba(167, 139, 250, 0.14);
     --g-cat-age: #9b8ae8;
     --g-cat-league: #4fc7ba;
@@ -201,7 +212,9 @@
     --g-mint-corner: #2b372d;
     --g-teal: #62a67b;
     --g-teal-hover: #79ba90;
+  --g-teal-grad: linear-gradient(90deg, #2b543f, #35664c);
     --g-teal-ink: #e4e7e2;
+  --g-logo-ink: #e4e7e2;
     --g-teal-ink-soft: #aeb2ad;
     --g-teal-soft: rgba(98, 166, 123, 0.14);
     --g-teal-line: rgba(220, 236, 215, 0.18);
@@ -219,7 +232,7 @@
     --g-brass-border: rgba(212, 172, 90, 0.34);
     --g-card-border: rgba(220, 236, 215, 0.08);
     --g-backdrop-cool: rgba(98, 166, 123, 0.28);
-    --g-backdrop-warm: rgba(208, 170, 98, 0.3);
+    --g-backdrop-warm: rgba(224, 177, 72, 0.45);
     --g-banner-base: #232b20;
     --g-banner-warm: rgba(201, 138, 114, 0.35);
     --g-banner-cool: rgba(98, 166, 123, 0.3);
@@ -264,6 +277,8 @@
   --g-gold-hover: #f0c874;
   --g-gold-bg: rgba(224, 177, 72, 0.14);
   --g-gold-border: rgba(224, 177, 72, 0.35);
+  --g-gold-light: #f0c874;
+  --g-gold-deep: #c08d35;
   --g-violet-bg-soft: rgba(167, 139, 250, 0.14);
   --g-cat-age: #9b8ae8;
   --g-cat-league: #4fc7ba;
@@ -276,7 +291,9 @@
   --g-mint-corner: #2b372d;
   --g-teal: #62a67b;
   --g-teal-hover: #79ba90;
+  --g-teal-grad: linear-gradient(90deg, #2b543f, #35664c);
   --g-teal-ink: #e4e7e2;
+  --g-logo-ink: #e4e7e2;
   --g-teal-ink-soft: #aeb2ad;
   --g-teal-soft: rgba(98, 166, 123, 0.14);
   --g-teal-line: rgba(220, 236, 215, 0.18);
@@ -294,7 +311,7 @@
   --g-brass-border: rgba(212, 172, 90, 0.34);
   --g-card-border: rgba(220, 236, 215, 0.08);
   --g-backdrop-cool: rgba(98, 166, 123, 0.28);
-  --g-backdrop-warm: rgba(208, 170, 98, 0.3);
+  --g-backdrop-warm: rgba(224, 177, 72, 0.45);
   --g-banner-base: #232b20;
   --g-banner-warm: rgba(201, 138, 114, 0.35);
   --g-banner-cool: rgba(98, 166, 123, 0.3);

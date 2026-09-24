@@ -219,9 +219,14 @@ export default function HomePage() {
               key={f.id}
               type="button"
               aria-pressed={statusId === f.id}
-              className={
-                statusId === f.id ? `${styles.chip} ${styles.chipActive}` : styles.chip
-              }
+              className={[
+                styles.chip,
+                statusId === f.id && styles.chipActive,
+                f.id === HOME_STATUS_FILTER_ID.REGISTRATION_OPEN &&
+                  styles.chipAccent,
+              ]
+                .filter(Boolean)
+                .join(' ')}
               onClick={() => changeStatus(f.id)}
             >
               {f.label}
@@ -248,7 +253,10 @@ export default function HomePage() {
           monthGroups.map((g) => (
             <section key={g.key} className={styles.monthGroup}>
               <div className={styles.monthHead}>
-                <span className={styles.monthLabel}>{g.label}</span>
+                <span className={styles.monthLabel}>
+                  {g.monthLabel}{' '}
+                  <span className={styles.monthYear}>{g.yearLabel}</span>
+                </span>
                 <span className={styles.monthRule} />
                 <span className={styles.monthCount}>{g.countLabel}</span>
               </div>

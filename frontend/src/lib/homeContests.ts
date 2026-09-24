@@ -28,7 +28,8 @@ export const HOME_STATUS_FILTERS: readonly HomeStatusFilter[] = [
 
 export interface MonthGroup {
   key: string;
-  label: string;
+  monthLabel: string;
+  yearLabel: string;
   countLabel: string;
   competitions: Competition[];
 }
@@ -109,7 +110,8 @@ export function groupContestsByMonth(competitions: Competition[]): MonthGroup[] 
       const monthName = first.toLocaleDateString(DATE_LOCALE, { month: 'long' });
       return {
         key,
-        label: `${monthName} ${first.getFullYear()}`.toUpperCase(),
+        monthLabel: monthName.toUpperCase(),
+        yearLabel: String(first.getFullYear()),
         countLabel: `${items.length} ${pluralContests(items.length)}`,
         competitions,
       };

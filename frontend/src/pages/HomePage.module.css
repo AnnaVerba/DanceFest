@@ -67,6 +67,7 @@
 .heroLogo {
   width: 30vw;
   height: auto;
+  color: var(--g-logo-ink);
 }
 
 /* The logo is the title the eye reads, and it is aria-hidden, so the page's
@@ -118,7 +119,7 @@
   top: 50%;
   left: 22px;
   transform: translateY(-50%);
-  color: var(--g-teal-ink);
+  color: var(--g-gold);
   pointer-events: none;
 }
 
@@ -134,7 +135,10 @@
   font-size: var(--fs-body);
 }
 
+/* The search box sits quieter than the controls: a soft rim, not the forest
+   green the year picker and chips wear. */
 .search {
+  border-color: var(--g-teal-line);
   width: 100%;
   padding: 0 22px 0 60px;
 }
@@ -206,8 +210,25 @@
 
 .chipActive,
 .chipActive:hover:not(:disabled) {
-  background: var(--g-teal);
+  background: var(--g-teal-grad);
   color: var(--g-on-teal);
+}
+
+/* «Реєстрація відкрита» — the status a visitor can act on — carries the gold
+   accent: a gold rim and a gold dot before the label. */
+.chipAccent {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border-color: var(--g-gold-border);
+}
+
+.chipAccent::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--g-gold-grad);
 }
 
 .status {
@@ -228,22 +249,31 @@
 }
 
 .monthLabel {
-  font-size: var(--fs-h3);
-  font-weight: 500;
+  font-size: var(--fs-h2);
+  font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--g-teal-ink);
   white-space: nowrap;
 }
 
+/* Metallic gold lettering: the gradient shows through the glyphs. */
+.monthYear {
+  background: var(--g-gold-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 .monthRule {
   flex: 1;
   height: 1px;
-  background: var(--g-teal-line);
+  background: var(--g-gold-border);
 }
 
 .monthCount {
   font-size: var(--fs-sm);
-  color: var(--g-muted);
+  font-weight: 500;
+  color: var(--g-gold);
   white-space: nowrap;
 }
 
@@ -257,7 +287,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--g-card-border);
+  border: 1px solid var(--g-gold-border);
   border-radius: 20px;
   background: var(--g-surface);
   box-shadow: 0 12px 32px var(--g-teal-shadow);
