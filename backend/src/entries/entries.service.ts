@@ -124,14 +124,13 @@ export class EntriesService {
     if (!competition) {
       throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
-    // Only staff read the full entry list; the logged-out start list lives
-    // at `listPublic`.
-    const staff = await this.isCompetitionStaff(
-      competition,
-      requesterId,
-      requesterLevel,
-    );
-    if (!staff) {
+    // Staff and coaches read the full entry list (coaches read-only: edit
+    // and delete still go through the staff check); the logged-out start
+    // list lives at `listPublic`.
+    const canRead =
+      meetsLevel(requesterLevel, AccessLevel.COACH) ||
+      (await this.isCompetitionStaff(competition, requesterId, requesterLevel));
+    if (!canRead) {
       throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);
     }
     const { page, pageSize, limit, offset } = resolvePage(
