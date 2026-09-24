@@ -180,6 +180,7 @@ export function getSpecialNominations(
   if (filter.ages.length > 0) {
     params.set('ages', filter.ages.join(LIST_QUERY_SEPARATOR));
   }
+  params.set('participants', String(filter.participants));
   return request<Nomination[]>(
     `/competitions/${competitionId}/nominations/specials?${params.toString()}`,
   );
@@ -197,9 +198,7 @@ export function getNominationsForEntry(
   if (filter.styles.length > 0) {
     params.set('styles', filter.styles.join(LIST_QUERY_SEPARATOR));
   }
-  if (filter.lineups.length > 0) {
-    params.set('lineups', filter.lineups.join(LIST_QUERY_SEPARATOR));
-  }
+  params.set('participants', String(filter.participants));
   if (filter.ages.length > 0) {
     params.set('ages', filter.ages.join(LIST_QUERY_SEPARATOR));
   }
