@@ -10,3 +10,8 @@ export const LINEUP_SIZE_TOO_SMALL_MESSAGE =
   'У складі має бути щонайменше один учасник';
 
 export const RANGE_FROM_EXCEEDS_TO_MESSAGE = 'Нижня межа більша за верхню';
+
+export const DESCRIPTION_ADMIN_ONLY_MESSAGE =
+  'Опис категорії може задавати лише адміністратор';
+
+export const MAX_CATEGORY_DESCRIPTION_LENGTH = 1000;

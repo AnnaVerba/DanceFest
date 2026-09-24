@@ -2,11 +2,16 @@ import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import CabinetLayout from '../components/CabinetLayout';
 import UserEditModal from '../components/admin/UserEditModal';
+import ConfirmDialog from '../components/admin/ConfirmDialog';
 import { getSession } from '../lib/auth';
-import { getAdminUsers } from '../lib/adminUsers';
+import { deleteAdminUser, getAdminUsers } from '../lib/adminUsers';
 import type { AdminUser } from '../lib/adminUsers.types';
 import { ACCESS_LEVEL, ACCESS_LEVEL_LABELS, meetsLevel } from '../lib/roles';
 import {
+  USER_DELETE_CONFIRM_LABEL,
+  USER_DELETE_DESCRIPTION_SUFFIX,
+  USER_DELETE_FAILED_MESSAGE,
+  USER_DELETE_TITLE,
   USERS_LOAD_FAILED_MESSAGE,
   USERS_PAGE_SIZE,
   USERS_SEARCH_DEBOUNCE_MS,
@@ -22,6 +27,7 @@ export default function UsersPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<AdminUser | null>(null);
+  const [deleting, setDeleting] = useState<AdminUser | null>(null);
 
   useEffect(() => {
     const handle = setTimeout(
@@ -66,6 +72,19 @@ export default function UsersPage() {
       (prev) => prev?.map((u) => (u.id === saved.id ? saved : u)) ?? prev,
     );
     setEditing(null);
+  };
+
+  const handleDelete = async () => {
+    if (!deleting) return;
+    try {
+      await deleteAdminUser(deleting.id);
+      setUsers((prev) => prev?.filter((u) => u.id !== deleting.id) ?? prev);
+      setTotal((prev) => prev - 1);
+      setError(null);
+    } catch {
+      setError(USER_DELETE_FAILED_MESSAGE);
+    }
+    setDeleting(null);
   };
 
   return (
@@ -119,13 +138,24 @@ export default function UsersPage() {
                   <td>{u.birthDate ?? '—'}</td>
                   <td>{u.schoolName ?? '—'}</td>
                   <td>
-                    <button
-                      type="button"
-                      className={styles.btnSm}
-                      onClick={() => setEditing(u)}
-                    >
-                      Редагувати
-                    </button>
+                    <div className={styles.rowActions}>
+                      <button
+                        type="button"
+                        className={styles.btnSm}
+                        onClick={() => setEditing(u)}
+                      >
+                        Редагувати
+                      </button>
+                      {u.id !== session.profile.id && (
+                        <button
+                          type="button"
+                          className={`${styles.btnSm} ${styles.btnDanger}`}
+                          onClick={() => setDeleting(u)}
+                        >
+                          Видалити
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -157,6 +187,19 @@ export default function UsersPage() {
           </button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title={USER_DELETE_TITLE}
+        description={
+          deleting
+            ? `${`${deleting.lastName} ${deleting.firstName}`.trim()}. ${USER_DELETE_DESCRIPTION_SUFFIX}`
+            : ''
+        }
+        confirmLabel={USER_DELETE_CONFIRM_LABEL}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleting(null)}
+      />
 
       {editing && (
         <UserEditModal

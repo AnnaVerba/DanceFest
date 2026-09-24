@@ -48,6 +48,8 @@ export interface Category {
   rangeFrom: number | null;
   rangeTo: number | null;
   sortOrder: number;
+  // Пояснення для учасника у формі заявки; null — пояснення немає.
+  description: string | null;
   createdAt: string;
 }
 
@@ -131,11 +133,23 @@ export function updateCategoryAgeRange(
   });
 }
 
+export function updateCategoryDescription(
+  id: string,
+  description: string | null,
+): Promise<Category> {
+  return request<Category>(`/categories/${id}/description`, {
+    method: 'PATCH',
+    body: JSON.stringify({ description }),
+  });
+}
+
 export interface CreateCategoryInput {
   name: string;
   type: CategoryType;
   rangeFrom?: number;
   rangeTo?: number;
+  // Лише адмін: від решти сервер поле відхиляє.
+  description?: string;
 }
 
 export function createCategoriesBulk(
@@ -149,6 +163,7 @@ export function createCategoriesBulk(
         type: c.type,
         rangeFrom: c.rangeFrom,
         rangeTo: c.rangeTo,
+        description: c.description,
       })),
     }),
   });

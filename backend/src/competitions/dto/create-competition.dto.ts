@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  IsUUID,
   Matches,
 } from 'class-validator';
 
@@ -47,6 +48,16 @@ export class CreateCompetitionDto {
   @IsString({ each: true })
   @IsNotEmpty({ each: true })
   organizers: string[];
+
+  @ApiPropertyOptional({
+    description:
+      'Account id for each organizer name, same order; the nil UUID for a name with no account. Listed organizer accounts get the same rights as the owner.',
+    example: ['0b3f6f0e-6d0a-4a3e-9d5e-3c1f2a4b5c6d'],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  organizerIds?: string[];
 
   @ApiProperty({ example: '2026-09-10' })
   @IsDateString()

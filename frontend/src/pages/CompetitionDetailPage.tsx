@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import CompetitionDetails from '../components/CompetitionDetails';
 import ContestIcon from '../components/ContestIcon';
+import ContestTitle from '../components/ContestTitle';
 import AwardsSummary from '../components/awards/AwardsSummary';
 import FestivalProgram from '../components/program/FestivalProgram';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
@@ -17,7 +18,7 @@ import SchedulePanel from '../components/admin/schedule/SchedulePanel';
 import ScheduleSettings from '../components/admin/schedule/ScheduleSettings';
 import { ToastStack } from '../components/admin/Toast';
 import { useToasts } from '../components/admin/useToasts';
-import { getStoredAdmin, getToken } from '../lib/auth';
+import { getSession, getStoredAdmin, getToken } from '../lib/auth';
 import {
   deleteCompetition,
   getApplyEligibility,
@@ -44,7 +45,11 @@ const ALL_TABS = [
 ] as const;
 type Tab = (typeof ALL_TABS)[number];
 const DEFAULT_TAB: Tab = 'Деталі';
-const PUBLIC_TABS: readonly Tab[] = [DEFAULT_TAB, 'Номінації', 'Програма'];
+const PUBLIC_TABS: readonly Tab[] = [DEFAULT_TAB, 'Програма'];
+// Shown to a global admin only — not even to the competition's own staff.
+const ADMIN_ONLY_TABS: readonly Tab[] = ['Номінації'];
+// A coach (керівник) also gets the applications list, read-only.
+const COACH_READ_ONLY_TABS: readonly Tab[] = ['Заявки'];
 const TABS: readonly Tab[] = ALL_TABS.filter(
   (tab) =>
     (FEATURES.judges || tab !== 'Судді') &&
@@ -109,7 +114,12 @@ export default function CompetitionDetailPage() {
     return <Navigate to="/" replace />;
   }
 
-  const isOwner = !!admin && !!competition && competition.ownerId === admin.id;
+  // An account listed among the competition's organizers has the owner's
+  // rights, so it counts as the owner here.
+  const isOwner =
+    !!admin &&
+    !!competition &&
+    (competition.ownerId === admin.id || competition.organizerIds.includes(admin.id));
   // An admin manages every competition exactly like its owner (details,
   // nominations, judges, applications); an organizer only the ones they own.
   const isAdmin = !!admin && meetsLevel(admin.accessLevel, ACCESS_LEVEL.ADMIN);
@@ -117,14 +127,21 @@ export default function CompetitionDetailPage() {
   // Applications, overages and editing the competition are also open to an
   // invited co-organizer (team member).
   const canManageEntries = canManage || isTeamMember;
+  // `admin` is null below ORGANIZER, so a coach is read off the session.
+  const session = getSession();
+  const isCoach =
+    !!session && meetsLevel(session.profile.accessLevel, ACCESS_LEVEL.COACH);
 
-  // Only the details, nominations and programme are public. Every working
-  // tab belongs to the competition's staff (owner, invited team, admin) —
-  // a pending organizer request or another competition's organizer gets
-  // none of them; the server enforces the same rule.
-  const visibleTabs = TABS.filter(
-    (tab) => PUBLIC_TABS.includes(tab) || canManageEntries,
-  );
+  // Only the details and programme are public. Every working tab belongs
+  // to the competition's staff (owner, invited team, admin) — a pending
+  // organizer request or another competition's organizer gets none of them;
+  // the server enforces the same rule. Nominations are for admins only.
+  // A coach additionally reads the applications list, without editing.
+  const visibleTabs = TABS.filter((tab) => {
+    if (ADMIN_ONLY_TABS.includes(tab)) return isAdmin;
+    if (COACH_READ_ONLY_TABS.includes(tab) && isCoach) return true;
+    return PUBLIC_TABS.includes(tab) || canManageEntries;
+  });
 
   // A tab the viewer may not see (e.g. from ?tab=venues) falls back to the details.
   const shownTab: Tab = visibleTabs.includes(activeTab) ? activeTab : DEFAULT_TAB;
@@ -169,7 +186,11 @@ export default function CompetitionDetailPage() {
                 <span className={styles.contestHeadIcon} aria-hidden="true">
                   <ContestIcon />
                 </span>
-                <h1>{competition.name}</h1>
+                <ContestTitle
+                  name={competition.name}
+                  dateFrom={competition.dateFrom}
+                  dateTo={competition.dateTo}
+                />
                 {apply &&
                   (apply.allowed ? (
                     <Link
@@ -223,12 +244,13 @@ export default function CompetitionDetailPage() {
                 />
               )}
 
-              {shownTab === 'Заявки' && !!admin && (
+              {shownTab === 'Заявки' && (isCoach || !!admin) && (
                 <>
                   <MusicExportPanel competitionId={id} canManage={canManageEntries} />
                   <EntriesPanel
                     competitionId={id}
                     canManage={canManageEntries}
+                    canViewAmounts
                     onError={showToast}
                   />
                 </>

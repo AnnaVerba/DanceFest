@@ -76,4 +76,9 @@ export class User extends Model<User> {
 
   @Column(DataType.DATE)
   declare updatedAt: Date;
+
+  // Set when an admin deletes the account. The row and everything pointing
+  // at it stay; only the phone and email are renamed (see softDelete).
+  @Column({ type: DataType.DATE, allowNull: true })
+  declare deletedAt: Date | null;
 }

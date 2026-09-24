@@ -2,6 +2,7 @@ import {Link, Outlet} from 'react-router-dom';
 import PublicTopBar from './PublicTopBar';
 import CabinetSidebar from './CabinetSidebar';
 import ProjectLogo from './ProjectLogo';
+import SiteFooter from './SiteFooter';
 import { PROJECT_LOGO_LABEL } from './ProjectLogo.constants';
 import { getSession } from '../lib/auth';
 import styles from './AppShell.module.css';
@@ -28,10 +29,14 @@ export default function AppShell() {
           </aside>
           <div className={styles.body}>
             <Outlet />
+            <SiteFooter />
           </div>
         </div>
       ) : (
-        <Outlet />
+        <>
+          <Outlet />
+          <SiteFooter />
+        </>
       )}
     </>
   );

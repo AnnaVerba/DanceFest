@@ -24,6 +24,8 @@ export interface NominationAxisValue {
   name: string;
   rangeFrom: number | null;
   rangeTo: number | null;
+  // Пояснення значення для учасника; null — пояснення немає.
+  description: string | null;
 }
 
 // Осі конкурсу — значення, що реально трапляються в його номінаціях. Вісь
@@ -36,15 +38,18 @@ export interface NominationEntryFilter {
   // Точний збіг: номінація мусить нести саме це значення.
   league?: string;
   ageCategory?: string;
-  // Будь-яке зі значень. Для складу номінація без осі складу теж проходить.
+  // Будь-яке зі значень.
   styles: string[];
-  lineups: string[];
+  // Кількість учасників: склад номінації мусить її вміщати. Номінація без
+  // осі складу теж проходить.
+  participants: number;
   // Вік кожного учасника — поки вікову категорію ще не обрано.
   ages: number[];
 }
 
-// Вибір, за яким форма заявки просить спецномінації. Стилю й складу вони
-// не несуть: ліга мусить збігтися, вік — підійти кожному учаснику номера.
+// Вибір, за яким форма заявки просить спецномінації. Стилю вони не несуть:
+// ліга мусить збігтися, вік — підійти кожному учаснику номера, склад (якщо
+// його проставили) — вмістити їхню кількість.
 export interface NominationSpecialsFilter {
   league: string;
   // Обрана категорія: точний збіг, але номінація без вікової осі
@@ -52,6 +57,7 @@ export interface NominationSpecialsFilter {
   ageCategory?: string;
   // Вік кожного учасника — поки категорію ще не обрано.
   ages: number[];
+  participants: number;
 }
 
 export type VenueSummaryGroupBy = 'level' | 'age';

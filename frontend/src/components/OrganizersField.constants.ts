@@ -5,6 +5,6 @@ export const SELF_ORGANIZER_OPTION_LABEL = 'Я';
 // supply one.
 export const ORGANIZER_INPUT_PLACEHOLDER = "Ім'я або назва організатора";
 
-// Hint shown under the input so it's clear typed names not in the list
-// can still be added.
-export const ORGANIZER_MANUAL_ADD_HINT = 'Enter — додати вручну, якщо організатора немає в списку';
+// Hint shown under the input: only accounts found in the search can be
+// added, never free text.
+export const ORGANIZER_SELECT_ONLY_HINT = 'Оберіть організатора зі списку знайдених';

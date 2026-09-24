@@ -42,6 +42,7 @@ import {
   NO_COMPETITION_ACCESS_MESSAGE,
   COMPETITION_OWNER_ONLY_MESSAGE,
 } from '../competitions/competitions.constants';
+import { isListedOrganizer } from '../competitions/competition-organizers';
 
 function randomToken(): string {
   return randomBytes(32).toString('hex');
@@ -124,7 +125,7 @@ export class TeamService {
     dto: CreateInvitationDto,
   ) {
     const competition = await this.loadCompetitionOrFail(competitionId);
-    this.assertOwner(competition, requesterId, requesterLevel);
+    await this.assertOwner(competition, requesterId, requesterLevel);
 
     const email = dto.email.trim().toLowerCase();
 
@@ -189,7 +190,7 @@ export class TeamService {
     requesterLevel: AccessLevel,
   ) {
     const competition = await this.loadCompetitionOrFail(competitionId);
-    this.assertOwner(competition, requesterId, requesterLevel);
+    await this.assertOwner(competition, requesterId, requesterLevel);
 
     const invitation = await this.invitationModel.findOne({
       where: { id: invitationId, competitionId },
@@ -217,7 +218,7 @@ export class TeamService {
     requesterLevel: AccessLevel,
   ): Promise<void> {
     const competition = await this.loadCompetitionOrFail(competitionId);
-    this.assertOwner(competition, requesterId, requesterLevel);
+    await this.assertOwner(competition, requesterId, requesterLevel);
 
     const invitation = await this.invitationModel.findOne({
       where: { id: invitationId, competitionId },
@@ -237,7 +238,7 @@ export class TeamService {
     requesterLevel: AccessLevel,
   ): Promise<void> {
     const competition = await this.loadCompetitionOrFail(competitionId);
-    this.assertOwner(competition, requesterId, requesterLevel);
+    await this.assertOwner(competition, requesterId, requesterLevel);
 
     if (adminId === competition.ownerId) {
       throw new BadRequestException(OWNER_NOT_REMOVABLE_MESSAGE);
@@ -277,16 +278,23 @@ export class TeamService {
     if (!membership) {
       throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);
     }
-    return VIEWER_ROLE_ADMIN;
+    // An account listed among the organizers runs the team like the owner.
+    return isListedOrganizer(competition, adminId)
+      ? VIEWER_ROLE_OWNER
+      : VIEWER_ROLE_ADMIN;
   }
 
-  private assertOwner(
+  private async assertOwner(
     competition: Competition,
     adminId: string,
     adminLevel: AccessLevel,
-  ): void {
-    if (adminLevel === AccessLevel.ADMIN) return;
-    if (competition.ownerId !== adminId) {
+  ): Promise<void> {
+    const viewerRole = await this.resolveViewerRole(
+      competition,
+      adminId,
+      adminLevel,
+    );
+    if (viewerRole !== VIEWER_ROLE_OWNER) {
       throw new ForbiddenException(COMPETITION_OWNER_ONLY_MESSAGE);
     }
   }

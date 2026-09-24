@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -14,11 +15,15 @@ import { CompetitionRule } from '../competition-rules/competition-rule.model';
 import { AccessLevel } from '../auth/access-level.enum';
 import { CreateCompetitionDto } from './dto/create-competition.dto';
 import { UpdateCompetitionDto } from './dto/update-competition.dto';
+import { isListedOrganizer } from './competition-organizers';
+import { NOT_DELETED } from '../users/deleted-user';
 import {
   NO_COMPETITION_ACCESS_MESSAGE,
   COMPETITION_OWNER_ONLY_MESSAGE,
   COMPETITION_STATUS_FILTER,
   ISO_DATE_LENGTH,
+  NO_ACCOUNT_ORGANIZER_ID,
+  ORGANIZER_IDS_MISMATCH_MESSAGE,
   ORGANIZERS_COLUMN,
   ORGANIZERS_SEARCH_SEPARATOR,
   SEARCH_WORDS_SEPARATOR,
@@ -51,6 +56,8 @@ export class CompetitionsService {
     private readonly competitionAdminModel: typeof CompetitionAdmin,
     @InjectModel(CompetitionRule)
     private readonly competitionRuleModel: typeof CompetitionRule,
+    @InjectModel(User)
+    private readonly userModel: typeof User,
   ) {}
 
   // `memberId` narrows the list to «Мої конкурси»: competitions that user
@@ -166,14 +173,20 @@ export class CompetitionsService {
     dto: CreateCompetitionDto,
     ownerId: string,
   ): Promise<Competition> {
+    const organizerIds = this.resolveOrganizerIds(
+      dto.organizers,
+      dto.organizerIds,
+    );
     const competition = await this.competitionModel.create({
       ...dto,
+      organizerIds,
       ownerId,
     } as CreationAttributes<Competition>);
 
     await this.competitionRuleModel.create({
       competitionId: competition.id,
     } as CreationAttributes<CompetitionRule>);
+    await this.syncOrganizerAccess(competition, []);
 
     return competition;
   }
@@ -186,7 +199,15 @@ export class CompetitionsService {
   ): Promise<Competition> {
     const competition = await this.findOne(id);
     await this.assertCanEdit(competition, requesterId, requesterLevel);
-    return competition.update(dto);
+    const previousOrganizerIds = competition.organizerIds;
+    const organizerIds = this.resolveOrganizerIds(
+      dto.organizers,
+      dto.organizerIds,
+    );
+    if (!organizerIds) return competition.update(dto);
+    await competition.update({ ...dto, organizerIds });
+    await this.syncOrganizerAccess(competition, previousOrganizerIds);
+    return competition;
   }
 
   // Same "organizer/owner or admin" edit permission as update() — exposed
@@ -208,8 +229,74 @@ export class CompetitionsService {
     requesterLevel: AccessLevel,
   ): Promise<void> {
     const competition = await this.findOne(id);
-    this.assertOwner(competition, requesterId, requesterLevel);
+    await this.assertOwner(competition, requesterId, requesterLevel);
     await competition.destroy();
+  }
+
+  // One id per organizer name, in the same order; a name typed without an
+  // account gets the nil id.
+  private resolveOrganizerIds(
+    organizers?: string[],
+    organizerIds?: string[],
+  ): string[] | undefined {
+    if (!organizers) {
+      if (organizerIds) {
+        throw new BadRequestException(ORGANIZER_IDS_MISMATCH_MESSAGE);
+      }
+      return undefined;
+    }
+    if (!organizerIds) return organizers.map(() => NO_ACCOUNT_ORGANIZER_ID);
+    if (organizerIds.length !== organizers.length) {
+      throw new BadRequestException(ORGANIZER_IDS_MISMATCH_MESSAGE);
+    }
+    return organizerIds;
+  }
+
+  // The team mirrors the organizers field: listed organizer accounts join
+  // it, accounts dropped from the list leave it. Ids that are not a
+  // confirmed organizer account (or are the owner) are skipped.
+  private async syncOrganizerAccess(
+    competition: Competition,
+    previousOrganizerIds: string[],
+  ): Promise<void> {
+    const currentIds = competition.organizerIds;
+    const removedIds = previousOrganizerIds.filter(
+      (organizerId) => !currentIds.includes(organizerId),
+    );
+    if (removedIds.length > 0) {
+      await this.competitionAdminModel.destroy({
+        where: {
+          competitionId: competition.id,
+          adminId: { [Op.in]: removedIds },
+        },
+      });
+    }
+
+    const organizers = await this.userModel.findAll({
+      where: {
+        ...NOT_DELETED,
+        id: { [Op.in]: currentIds, [Op.ne]: competition.ownerId },
+        confirmed: true,
+        accessLevel: AccessLevel.ORGANIZER,
+      },
+      attributes: ['id'],
+    });
+    const members = await this.competitionAdminModel.findAll({
+      where: { competitionId: competition.id },
+      attributes: ['adminId'],
+    });
+    const memberIds = new Set(members.map((member) => member.adminId));
+    const newMembers = organizers
+      .filter((organizer) => !memberIds.has(organizer.id))
+      .map((organizer) => ({
+        competitionId: competition.id,
+        adminId: organizer.id,
+      }));
+    if (newMembers.length > 0) {
+      await this.competitionAdminModel.bulkCreate(
+        newMembers as CreationAttributes<CompetitionAdmin>[],
+      );
+    }
   }
 
   private async assertCanEdit(
@@ -228,14 +315,19 @@ export class CompetitionsService {
     }
   }
 
-  private assertOwner(
+  private async assertOwner(
     competition: Competition,
     requesterId: string,
     requesterLevel: AccessLevel,
-  ): void {
-    // An admin may delete any competition; an organizer only their own.
+  ): Promise<void> {
+    // An admin may delete any competition; an organizer only their own —
+    // or one that lists them among its organizers.
     if (requesterLevel === AccessLevel.ADMIN) return;
-    if (competition.ownerId !== requesterId) {
+    if (competition.ownerId === requesterId) return;
+    const membership = await this.competitionAdminModel.findOne({
+      where: { competitionId: competition.id, adminId: requesterId },
+    });
+    if (!membership || !isListedOrganizer(competition, requesterId)) {
       throw new ForbiddenException(COMPETITION_OWNER_ONLY_MESSAGE);
     }
   }

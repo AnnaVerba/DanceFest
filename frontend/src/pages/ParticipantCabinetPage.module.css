@@ -34,6 +34,9 @@
   border: 1px solid var(--g-line);
   border-radius: 14px;
   overflow: hidden;
+  /* Layout follows the card's own width, not the viewport — the nav rail
+     eats a varying share of the screen. */
+  container-type: inline-size;
 }
 
 .tableHead {
@@ -74,6 +77,11 @@
 
 .entryTable {
   width: 100%;
+  /* Eight columns stay readable only from this width; narrower cards switch
+     to the stacked layout below. The nav rail leaves ~1090px for the card
+     even on a wide desktop window, so this has to fit inside that, not the
+     viewport. */
+  min-width: 920px;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -83,11 +91,11 @@
   padding: 9px 10px;
   text-align: left;
   vertical-align: top;
-  overflow-wrap: anywhere;
   border-top: 1px solid var(--g-line);
 }
 
 .entryTable th {
+  white-space: nowrap;
   font-size: 11.5px;
   font-weight: 700;
   text-transform: uppercase;
@@ -134,44 +142,73 @@
   font-weight: 800;
 }
 
+/* Short values: one line, so the column takes their full width. */
+.noWrap {
+  white-space: nowrap;
+}
+
 .totalRow td {
   font-weight: 700;
 }
 
-@media (max-width: 680px) {
+/* Too narrow for nine columns: each entry becomes a card of «label — value»
+   lines, laid out in as many columns as fit. */
+@container (max-width: 920px) {
   .tableHead,
   .groupName {
     padding-left: 16px;
     padding-right: 16px;
   }
 
-  /* Phone: each entry becomes a stacked card of «label — value» lines. */
   .entryTable thead {
     display: none;
   }
 
   .entryTable,
   .entryTable tbody,
+  .entryTable tfoot,
   .entryTable tr,
   .entryTable td {
     display: block;
     width: 100%;
+    min-width: 0;
   }
 
-  .entryTable tr {
-    padding: 6px 0;
+  .entryTable tbody tr {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    column-gap: 32px;
+    padding: 8px 16px;
     border-top: 1px solid var(--g-line);
   }
 
-  .entryTable td {
+  /* Long values get the whole card width instead of a narrow grid column. */
+  .entryTable .fullRowCell {
+    grid-column: 1 / -1;
+  }
+
+  .entryTable .totalRow {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-top: 1px solid var(--g-line);
+  }
+
+  .entryTable td,
+  .entryTable td:first-child,
+  .entryTable td:last-child {
     display: flex;
     justify-content: space-between;
     gap: 16px;
-    padding: 5px 16px;
+    padding: 5px 0;
     border-top: 0;
     white-space: normal;
     text-align: right;
     overflow-wrap: anywhere;
+  }
+
+  .entryTable .totalRow td {
+    width: auto;
   }
 
   .entryTable .musicCell {
@@ -191,13 +228,14 @@
     text-align: left;
   }
 
-  .openRow {
-    flex-direction: column;
-    align-items: stretch;
+  .entryTable .totalRow td::before {
+    content: none;
   }
 
-  .applyButton {
-    text-align: center;
+  .participantTotals,
+  .grandTotal {
+    padding-left: 16px;
+    padding-right: 16px;
   }
 }
 
@@ -207,11 +245,15 @@
   gap: 8px;
 }
 
-.musicListen {
+.musicName {
+  min-width: 0;
   color: inherit;
+  overflow-wrap: anywhere;
 }
 
 .musicUploadLabel {
+  flex-shrink: 0;
+  white-space: nowrap;
   cursor: pointer;
 }
 

@@ -3,6 +3,7 @@ import { Link, Navigate, useParams } from 'react-router-dom';
 import CompetitionDetails from '../components/CompetitionDetails';
 import CompetitionFacts from '../components/CompetitionFacts';
 import ContestIcon from '../components/ContestIcon';
+import ContestTitle from '../components/ContestTitle';
 import FestivalProgram from '../components/program/FestivalProgram';
 import { PROGRAM_TITLE } from '../components/program/FestivalProgram.constants';
 import { getApplyEligibility, getCompetition } from '../lib/competitions';
@@ -96,7 +97,11 @@ export default function PublicCompetitionPage() {
                       >
                         <ContestIcon />
                       </span>
-                      <h1>{competition.name}</h1>
+                      <ContestTitle
+                        name={competition.name}
+                        dateFrom={competition.dateFrom}
+                        dateTo={competition.dateTo}
+                      />
                       <Link
                         to={`/competitions/${id}/entries`}
                         className={styles.programLink}

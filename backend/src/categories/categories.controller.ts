@@ -26,6 +26,9 @@ import type { CategoryType } from './category.model';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { BulkCreateCategoriesDto } from './dto/bulk-create-categories.dto';
 import { UpdateAgeRangeDto } from './dto/update-age-range.dto';
+import { UpdateCategoryDescriptionDto } from './dto/update-category-description.dto';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 
 @ApiTags('categories')
 @ApiBearerAuth()
@@ -63,8 +66,11 @@ export class CategoriesController {
   @UseGuards(JwtAuthGuard, MinLevelGuard)
   @MinLevel(AccessLevel.ORGANIZER)
   @Post()
-  create(@Body() dto: CreateCategoryDto) {
-    return this.categoriesService.findOrCreate(dto);
+  create(
+    @Body() dto: CreateCategoryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.categoriesService.findOrCreate(dto, user.accessLevel);
   }
 
   @ApiOperation({
@@ -86,8 +92,14 @@ export class CategoriesController {
   @UseGuards(JwtAuthGuard, MinLevelGuard)
   @MinLevel(AccessLevel.ORGANIZER)
   @Post('bulk')
-  createMany(@Body() dto: BulkCreateCategoriesDto) {
-    return this.categoriesService.findOrCreateMany(dto.categories);
+  createMany(
+    @Body() dto: BulkCreateCategoriesDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.categoriesService.findOrCreateMany(
+      dto.categories,
+      user.accessLevel,
+    );
   }
 
   @ApiOperation({
@@ -111,5 +123,28 @@ export class CategoriesController {
     @Body() dto: UpdateAgeRangeDto,
   ) {
     return this.categoriesService.updateAgeRange(id, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Set or clear the description of a category',
+    description:
+      'Shown to participants on the entry form. The dictionary is shared, so the description applies everywhere the category is used.',
+  })
+  @ApiResponse({ status: 200, description: 'Description updated.' })
+  @ApiResponse({ status: 400, description: 'Validation failed.' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Only admins can change descriptions.',
+  })
+  @ApiResponse({ status: 404, description: 'Category not found.' })
+  @UseGuards(JwtAuthGuard, MinLevelGuard)
+  @MinLevel(AccessLevel.ADMIN)
+  @Patch(':id/description')
+  updateDescription(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateCategoryDescriptionDto,
+  ) {
+    return this.categoriesService.updateDescription(id, dto);
   }
 }

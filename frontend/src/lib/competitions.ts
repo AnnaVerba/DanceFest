@@ -24,6 +24,7 @@ export interface Competition {
   description: string;
   location: string;
   organizers: string[];
+  organizerIds: string[];
   dateFrom: string;
   dateTo: string;
   registrationFrom: string;
@@ -123,6 +124,7 @@ export interface CompetitionInput {
   description: string;
   location: string;
   organizers: string[];
+  organizerIds: string[];
   dateFrom: string;
   dateTo: string;
   registrationFrom: string;

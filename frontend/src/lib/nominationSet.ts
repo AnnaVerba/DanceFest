@@ -64,6 +64,7 @@ export function draftCategory(
     rangeFrom: range?.rangeFrom ?? null,
     rangeTo: range?.rangeTo ?? null,
     sortOrder: 0,
+    description: null,
     createdAt: '',
   };
 }
@@ -139,6 +140,7 @@ export async function resolveDraftCategories(
         type,
         rangeFrom: known?.rangeFrom ?? undefined,
         rangeTo: known?.rangeTo ?? undefined,
+        description: known?.description ?? undefined,
       };
     }),
   );

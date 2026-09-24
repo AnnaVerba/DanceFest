@@ -1,0 +1,36 @@
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+  resize: vertical;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0;
+}
+
+.error {
+  color: var(--danger);
+  font-size: 13px;
+  margin: 0;
+}

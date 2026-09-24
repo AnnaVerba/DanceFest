@@ -64,6 +64,13 @@ import {
 } from './NominationSetBuilder.constants';
 import type { PendingAxisRemoval } from './pendingAxisRemoval.types';
 import ConfirmDialog from '../admin/ConfirmDialog';
+import CategoryDescriptionEditor from './CategoryDescriptionEditor';
+import {
+  DESCRIPTION_EDIT_ICON,
+  DESCRIPTION_EDIT_LABEL,
+} from './CategoryDescriptionEditor.constants';
+import { getSession } from '../../lib/auth';
+import { ACCESS_LEVEL, meetsLevel } from '../../lib/roles';
 import styles from './NominationSetBuilder.module.css';
 
 // Stable reference so useMemo below doesn't see a "new" array on every
@@ -113,6 +120,11 @@ export default function NominationSetBuilder({
   const [pendingRemoval, setPendingRemoval] = useState<PendingAxisRemoval | null>(
     null,
   );
+  const [describingId, setDescribingId] = useState<string | null>(null);
+  // Опис спільний для всіх конкурсів, тож редагує його лише адмін.
+  const session = getSession();
+  const canDescribe =
+    !!session && meetsLevel(session.profile.accessLevel, ACCESS_LEVEL.ADMIN);
 
   // Categories are a near-static reference used across many forms — cached
   // indefinitely, refreshed only when an admin edit invalidates it.
@@ -304,6 +316,21 @@ export default function NominationSetBuilder({
     } finally {
       setSavingRange(false);
     }
+  };
+
+  const applyDescription = (updated: Category) => {
+    if (!isDraftCategory(updated.id)) {
+      queryClient.setQueryData<Category[]>(queryKeys.categories(), (prev) =>
+        prev?.map((c) => (c.id === updated.id ? updated : c)),
+      );
+    }
+    updateSelection((current) => ({
+      ...current,
+      [updated.type]: current[updated.type].map((c) =>
+        c.id === updated.id ? updated : c,
+      ),
+    }));
+    setDescribingId(null);
   };
 
   const dropFromSelection = (type: CategoryType, id: string) =>
@@ -532,6 +559,16 @@ export default function NominationSetBuilder({
                           )}
                         </>
                       )}
+                      {canDescribe && (
+                        <button
+                          type="button"
+                          aria-label={`${DESCRIPTION_EDIT_LABEL}: ${category.name}`}
+                          title={category.description ?? DESCRIPTION_EDIT_LABEL}
+                          onClick={() => setDescribingId(category.id)}
+                        >
+                          {DESCRIPTION_EDIT_ICON}
+                        </button>
+                      )}
                       <button
                         type="button"
                         aria-label={`Прибрати ${category.name}`}
@@ -543,6 +580,18 @@ export default function NominationSetBuilder({
                   ))}
                 </div>
               )}
+              {canDescribe &&
+                picked
+                  .filter((category) => category.id === describingId)
+                  .map((category) => (
+                    <CategoryDescriptionEditor
+                      key={category.id}
+                      category={category}
+                      buttonClassName={`${styles.btn} ${styles.btnSm}`}
+                      onSaved={applyDescription}
+                      onCancel={() => setDescribingId(null)}
+                    />
+                  ))}
               <div className={styles.axisAdd}>
                 <input
                   type="text"

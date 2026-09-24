@@ -110,7 +110,7 @@ export default function ParticipantCabinetPage() {
   const displayName = `${session.profile.firstName} ${session.profile.lastName}`;
 
   return (
-    <CabinetLayout>
+    <CabinetLayout wide>
       <div className={styles.wrap}>
         <h1 className={styles.title}>
           {isCoach ? 'Заявки моїх учасників' : 'Мої заявки'}
@@ -139,8 +139,7 @@ export default function ParticipantCabinetPage() {
                   <tbody>
                     {group.entries.map((entry) => (
                       <tr key={entry.id}>
-                        <td data-label={ENTRY_COLUMN_LABEL.NUMBER}>{entry.number}</td>
-                        <td data-label={ENTRY_COLUMN_LABEL.PARTICIPANT}>
+                        <td data-label={ENTRY_COLUMN_LABEL.PARTICIPANT} className={styles.fullRowCell}>
                           {formatParticipants(entry.participants)}
                         </td>
                         <td data-label={ENTRY_COLUMN_LABEL.PARTICIPANT_NUMBERS}>
@@ -149,12 +148,12 @@ export default function ParticipantCabinetPage() {
                         <td data-label={ENTRY_COLUMN_LABEL.NOMINATION}>
                           {entry.nomination}
                         </td>
-                        <td data-label={ENTRY_COLUMN_LABEL.LEAGUE}>{entry.league ?? '—'}</td>
-                        <td data-label={ENTRY_COLUMN_LABEL.LINEUP}>{entry.lineup ?? '—'}</td>
-                        <td data-label={ENTRY_COLUMN_LABEL.AGE_CATEGORY}>
+                        <td data-label={ENTRY_COLUMN_LABEL.LEAGUE} className={styles.noWrap}>{entry.league ?? '—'}</td>
+                        <td data-label={ENTRY_COLUMN_LABEL.LINEUP} className={styles.noWrap}>{entry.lineup ?? '—'}</td>
+                        <td data-label={ENTRY_COLUMN_LABEL.AGE_CATEGORY} className={styles.noWrap}>
                           {entry.ageCategory ?? '—'}
                         </td>
-                        <td data-label={ENTRY_COLUMN_LABEL.MUSIC}>
+                        <td data-label={ENTRY_COLUMN_LABEL.MUSIC} className={styles.fullRowCell}>
                           <div className={styles.musicCell}>
                             {entry.trackNotNeeded ? (
                               <span>Імпровізація</span>
@@ -165,12 +164,14 @@ export default function ParticipantCabinetPage() {
                                     href={entry.musicUrl}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className={styles.musicListen}
+                                    className={styles.musicName}
                                   >
                                     {entry.musicName}
                                   </a>
                                 ) : (
-                                  <span>{entry.musicName ?? '—'}</span>
+                                  <span className={styles.musicName}>
+                                    {entry.musicName ?? '—'}
+                                  </span>
                                 )}
                                 <label className={styles.musicUploadLabel}>
                                   <input

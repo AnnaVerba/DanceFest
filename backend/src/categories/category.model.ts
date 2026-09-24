@@ -73,6 +73,11 @@ export class Category extends Model<Category> {
   @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0 })
   declare sortOrder: number;
 
+  // Пояснення значення для учасника у формі заявки. Задає лише адмін;
+  // null — пояснення немає.
+  @Column({ type: DataType.TEXT, allowNull: true })
+  declare description: string | null;
+
   @Column(DataType.DATE)
   declare createdAt: Date;
 }

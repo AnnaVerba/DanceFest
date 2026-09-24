@@ -8,6 +8,7 @@ import { CompetitionApiError, getCompetition, updateCompetition } from '../lib/c
 import type { CompetitionInput } from '../lib/competitions';
 import { getOrganizerOptions } from '../lib/users';
 import type { OrganizerOption } from '../lib/organizerOption';
+import { organizerIds, organizerNames, toOrganizerChips } from '../lib/organizerChips';
 import OrganizersField from '../components/OrganizersField';
 import {
   PaymentDetailsApiError,
@@ -56,6 +57,7 @@ const EMPTY_FORM: CompetitionInput = {
   description: '',
   location: '',
   organizers: [],
+  organizerIds: [],
   dateFrom: '',
   dateTo: '',
   registrationFrom: '',
@@ -126,6 +128,7 @@ export default function CompetitionEditPage() {
           description: c.description,
           location: c.location,
           organizers: c.organizers,
+          organizerIds: c.organizerIds,
           dateFrom: c.dateFrom,
           dateTo: c.dateTo,
           registrationFrom: c.registrationFrom,
@@ -359,9 +362,13 @@ export default function CompetitionEditPage() {
                       ariaLabel="Організатори конкурсу"
                       onQuery={setOrganizerQuery}
                       invalid={Boolean(fieldErrors.organizers)}
-                      values={form.organizers}
+                      values={toOrganizerChips(form.organizers, form.organizerIds)}
                       onChange={(next) => {
-                        setForm((prev) => ({ ...prev, organizers: next }));
+                        setForm((prev) => ({
+                          ...prev,
+                          organizers: organizerNames(next),
+                          organizerIds: organizerIds(next),
+                        }));
                         setFieldErrors((prev) => ({ ...prev, organizers: undefined }));
                       }}
                       suggestions={organizerSuggestions}

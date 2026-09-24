@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { getApplyEligibility, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
+import ContestTitle from '../components/ContestTitle';
 import {
   getNominationAxes,
   getNominationsForEntry,
@@ -55,6 +56,7 @@ import { completeProfile } from '../lib/users';
 import { refreshProgram } from '../lib/programCache';
 import MentorCoachPicker from '../components/MentorCoachPicker';
 import SchoolPicker from '../components/SchoolPicker';
+import CategoryDescriptionList from '../components/CategoryDescriptionList';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import {
   ageCategoriesFittingAges,
@@ -435,23 +437,6 @@ export default function ApplyPage() {
     [axes, league],
   );
 
-  const styleIds = useMemo(
-    () =>
-      (axes?.[STYLE_CATEGORY_TYPE] ?? [])
-        .filter((value) => selectedStyles.includes(value.name))
-        .map((value) => value.id),
-    [axes, selectedStyles],
-  );
-
-  // Кількість учасників жорстко задає склад: один танцюрист — не група.
-  const lineupIds = useMemo(
-    () =>
-      (axes?.[LINEUP_CATEGORY_TYPE] ?? [])
-        .filter((value) => lineupMatches(value, pickedCount))
-        .map((value) => value.id),
-    [axes, pickedCount],
-  );
-
   const ageCategoryId = useMemo(
     () =>
       (axes?.[AGE_CATEGORY_TYPE] ?? []).find(
@@ -460,16 +445,56 @@ export default function ApplyPage() {
     [axes, chosenAgeCategory],
   );
 
+  // Обрані значення осей — для пояснень, які адмін задав у довіднику.
+  const chosenLeagueValues = useMemo(
+    () =>
+      (axes?.[LEAGUE_CATEGORY_TYPE] ?? []).filter(
+        (value) => value.name === league,
+      ),
+    [axes, league],
+  );
+  // Опис категорії за назвою — щоб показати його прямо в опції випадного
+  // списку, ще до того як людина зробить вибір.
+  const ageDescriptionByName = useMemo(
+    () =>
+      new Map(
+        (axes?.[AGE_CATEGORY_TYPE] ?? []).map((value) => [
+          value.name,
+          value.description,
+        ]),
+      ),
+    [axes],
+  );
+  const chosenStyleValues = useMemo(
+    () =>
+      (axes?.[STYLE_CATEGORY_TYPE] ?? []).filter((value) =>
+        selectedStyles.includes(value.name),
+      ),
+    [axes, selectedStyles],
+  );
+  // Кількість учасників жорстко задає склад: один танцюрист — не група.
+  const chosenLineupValues = useMemo(
+    () =>
+      (axes?.[LINEUP_CATEGORY_TYPE] ?? []).filter((value) =>
+        lineupMatches(value, pickedCount),
+      ),
+    [axes, pickedCount],
+  );
+
+  const styleIds = useMemo(
+    () => chosenStyleValues.map((value) => value.id),
+    [chosenStyleValues],
+  );
   const entryFilter = useMemo<NominationEntryFilter>(
     () => ({
       league: leagueId,
       ageCategory: ageCategoryId,
       styles: styleIds,
-      lineups: lineupIds,
+      participants: pickedCount,
       // Поки категорію не обрано (підходить кілька), звужуємо за віком.
       ages: ageCategoryId ? [] : ages,
     }),
-    [leagueId, ageCategoryId, styleIds, lineupIds, ages],
+    [leagueId, ageCategoryId, styleIds, pickedCount, ages],
   );
 
   // Номінації приходять уже відфільтровані сервером — рівно ті, у яких цей
@@ -498,7 +523,7 @@ export default function ApplyPage() {
   }, [id, leagueId, pickedCount, styleIds, entryFilter]);
 
   // Спецномінації звужує той самий сервер і за тими самими правилами:
-  // стилю й складу в них немає, але ліга та вік є. Доки учасників і ліги
+  // стилю в них немає, але ліга, вік, а подекуди й склад є. Доки учасників і ліги
   // немає, фільтрувати ні за чим — і показувати нічого: список усіх
   // спецномінацій конкурсу заявнику нічого не каже.
   useEffect(() => {
@@ -518,6 +543,7 @@ export default function ApplyPage() {
       // Поки категорію не обрано (підходить кілька), звужуємо за віком —
       // точно як для звичайних номінацій.
       ages: ageCategoryId ? [] : ages,
+      participants: pickedCount,
     })
       .then((rows) => {
         if (cancelled) return;
@@ -900,7 +926,11 @@ export default function ApplyPage() {
       <main className={styles.main}>
         <div className={styles.card}>
           <p className={styles.eyebrow}>Заявка на конкурс</p>
-          <h1>{competition.name}</h1>
+          <ContestTitle
+            name={competition.name}
+            dateFrom={competition.dateFrom}
+            dateTo={competition.dateTo}
+          />
           <p className={styles.error}>{applyEligibility.reason}</p>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
             <Link to={MY_ENTRIES_PATH} className={styles.home}>
@@ -920,7 +950,11 @@ export default function ApplyPage() {
       <main className={styles.main}>
         <div className={styles.card}>
           <p className={styles.eyebrow}>Заявка на конкурс</p>
-          <h1>{competition.name}</h1>
+          <ContestTitle
+            name={competition.name}
+            dateFrom={competition.dateFrom}
+            dateTo={competition.dateTo}
+          />
           <div className={styles.successWrap}>
             <p className={styles.successTitle}>Заявку надіслано!</p>
             <p className={styles.hint}>
@@ -958,7 +992,11 @@ export default function ApplyPage() {
     <main className={styles.main}>
       <div className={styles.card}>
         <p className={styles.eyebrow}>Заявка на конкурс</p>
-        <h1>{competition.name}</h1>
+        <ContestTitle
+          name={competition.name}
+          dateFrom={competition.dateFrom}
+          dateTo={competition.dateTo}
+        />
         <Link to={`/competitions/${id}`} className={styles.home}>
           ← До сторінки конкурсу
         </Link>
@@ -1197,6 +1235,10 @@ export default function ApplyPage() {
                   <p className={styles.hint}>
                     Ліга обирається окремо для кожної заявки.
                   </p>
+                  <CategoryDescriptionList
+                    values={chosenLeagueValues}
+                    className={styles.hint}
+                  />
                 </div>
                 <div>
                   <label className={styles.label}>Вік / вікова категорія</label>
@@ -1212,11 +1254,15 @@ export default function ApplyPage() {
                       {ageCategoryOptions.length > 1 && (
                         <option value="">{AGE_CATEGORY_PLACEHOLDER}</option>
                       )}
-                      {ageCategoryOptions.map((c) => (
-                        <option key={c.name} value={c.name}>
-                          {c.name} ({c.rangeFrom}–{c.rangeTo})
-                        </option>
-                      ))}
+                      {ageCategoryOptions.map((c) => {
+                        const description = ageDescriptionByName.get(c.name);
+                        return (
+                          <option key={c.name} value={c.name}>
+                            {c.name} ({c.rangeFrom}–{c.rangeTo})
+                            {description ? ` — ${description}` : ''}
+                          </option>
+                        );
+                      })}
                     </select>
                   ) : (
                     <div className={styles.readonlyBox}>{ageLabel}</div>
@@ -1239,6 +1285,10 @@ export default function ApplyPage() {
                 <p className={styles.hint}>
                   Визначається автоматично за кількістю обраних учасників.
                 </p>
+                <CategoryDescriptionList
+                  values={chosenLineupValues}
+                  className={styles.hint}
+                />
               </div>
             )}
           </div>
@@ -1273,6 +1323,10 @@ export default function ApplyPage() {
               кілька — заявка буде подана в кожну номінацію. Імпровізація — це
               окремий рядок у списку номінацій нижче.
             </p>
+            <CategoryDescriptionList
+              values={chosenStyleValues}
+              className={styles.hint}
+            />
             {noNominations && (
               <p className={styles.error}>
                 Для цього конкурсу ще не згенеровано номінацій.
