@@ -13,6 +13,9 @@ import {
   AMOUNT_COLUMN_COUNT,
   BASE_COLUMN_COUNT,
   ENTRIES_SERVER_PAGE,
+  IMPROV_MUSIC_LABEL,
+  MUSIC_COLUMN_COUNT,
+  NO_MUSIC_LABEL,
   PAGE_SIZE,
   SORT_LABELS,
 } from './EntriesPanel.constants';
@@ -289,6 +292,7 @@ export default function EntriesPanel({
                   <th scope="col">К-сть уч.</th>
                   <th scope="col">Студія</th>
                   <th scope="col">Хореограф</th>
+                  {canManage && <th scope="col">Музика</th>}
                   {canViewAmounts && <th scope="col">Вартість</th>}
                   {showScore && <th scope="col">Бал</th>}
                   {canManage && (
@@ -307,7 +311,7 @@ export default function EntriesPanel({
                           ? BASE_COLUMN_COUNT
                           : BASE_COLUMN_COUNT - 1) +
                         (canViewAmounts ? AMOUNT_COLUMN_COUNT : 0) +
-                        (canManage ? ACTIONS_COLUMN_COUNT : 0)
+                        (canManage ? MUSIC_COLUMN_COUNT + ACTIONS_COLUMN_COUNT : 0)
                       }
                       className={styles.noMatches}
                     >
@@ -327,6 +331,19 @@ export default function EntriesPanel({
                     <td>{entry.participantsCount ?? ''}</td>
                     <td>{entry.studioName}</td>
                     <td>{entry.choreographer}</td>
+                    {canManage && (
+                      <td className={styles.music}>
+                        {entry.trackNotNeeded ? (
+                          IMPROV_MUSIC_LABEL
+                        ) : entry.musicUrl ? (
+                          <a href={entry.musicUrl} target="_blank" rel="noreferrer">
+                            {entry.musicName}
+                          </a>
+                        ) : (
+                          (entry.musicName ?? NO_MUSIC_LABEL)
+                        )}
+                      </td>
+                    )}
                     {canViewAmounts && <td>{formatEntryAmount(entry.amount ?? null)}</td>}
                     {showScore && (
                       <td

@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Modal from './Modal';
 import EntryParticipantsField from './EntryParticipantsField';
-import { getEntry, updateEntry } from '../../lib/entries';
+import { getEntry, updateEntry, uploadEntryTrack } from '../../lib/entries';
+import { AUDIO_ACCEPT } from '../../lib/uploads.constants';
+import { queryKeys } from '../../lib/queryKeys';
 import type { Entry } from '../../lib/entries';
 import { getNominations } from '../../lib/nominations';
 import type { Nomination } from '../../lib/nominations';
@@ -14,6 +17,12 @@ import type {
 import {
   ENTRY_LOAD_FAILED_MESSAGE,
   ENTRY_SAVE_FAILED_MESSAGE,
+  MUSIC_ADD_LABEL,
+  MUSIC_LABEL,
+  MUSIC_NONE,
+  MUSIC_REPLACE_LABEL,
+  MUSIC_UPLOADING_LABEL,
+  MUSIC_UPLOAD_FAILED_MESSAGE,
   NO_PAYMENT_METHOD,
   PAYMENT_METHOD_LABELS,
   ROUTINE_NAME_REQUIRED_MESSAGE,
@@ -26,6 +35,13 @@ interface EntryEditModalProps {
   entryId: string;
   onClose: () => void;
   onSaved: (entry: Entry) => void;
+}
+
+// The entry's track as shown in the form; uploaded on pick, not on save.
+interface EntryMusic {
+  trackNotNeeded: boolean;
+  name: string | null;
+  url: string | null;
 }
 
 interface EntryForm {
@@ -58,7 +74,11 @@ export default function EntryEditModal({
   onClose,
   onSaved,
 }: EntryEditModalProps) {
+  const queryClient = useQueryClient();
   const [form, setForm] = useState<EntryForm | null>(null);
+  const [music, setMusic] = useState<EntryMusic | null>(null);
+  const [musicError, setMusicError] = useState<string | null>(null);
+  const [uploadingMusic, setUploadingMusic] = useState(false);
   const [nominations, setNominations] = useState<Nomination[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -73,6 +93,11 @@ export default function EntryEditModal({
       .then(([entry, noms]) => {
         if (cancelled) return;
         setForm(toForm(entry));
+        setMusic({
+          trackNotNeeded: entry.trackNotNeeded ?? false,
+          name: entry.musicName ?? null,
+          url: entry.musicUrl ?? null,
+        });
         setNominations(noms);
       })
       .catch(() => {
@@ -85,6 +110,36 @@ export default function EntryEditModal({
 
   const patch = (changes: Partial<EntryForm>) =>
     setForm((prev) => (prev ? { ...prev, ...changes } : prev));
+
+  const handleMusicPick = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setUploadingMusic(true);
+    setMusicError(null);
+    try {
+      const uploaded = await uploadEntryTrack(entryId, file);
+      setMusic((prev) =>
+        prev ? { ...prev, name: uploaded.fileName, url: uploaded.musicUrl } : prev,
+      );
+      // The entries table shows the track, and its duration can change the
+      // performance's timing.
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.entries(competitionId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.timingScope(competitionId),
+        }),
+      ]);
+    } catch (err) {
+      setMusicError(
+        err instanceof Error ? err.message : MUSIC_UPLOAD_FAILED_MESSAGE,
+      );
+    } finally {
+      setUploadingMusic(false);
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -251,6 +306,36 @@ export default function EntryEditModal({
               Імпровізація
             </label>
           </div>
+
+          {music && !music.trackNotNeeded && (
+            <div className={styles.field}>
+              <span className={styles.label}>{MUSIC_LABEL}</span>
+              <div className={styles.musicRow}>
+                {music.url ? (
+                  <a href={music.url} target="_blank" rel="noreferrer">
+                    {music.name}
+                  </a>
+                ) : (
+                  <span>{music.name ?? MUSIC_NONE}</span>
+                )}
+                <label className={styles.musicPick}>
+                  <input
+                    type="file"
+                    accept={AUDIO_ACCEPT}
+                    hidden
+                    disabled={uploadingMusic}
+                    onChange={handleMusicPick}
+                  />
+                  {uploadingMusic
+                    ? MUSIC_UPLOADING_LABEL
+                    : music.name
+                      ? MUSIC_REPLACE_LABEL
+                      : MUSIC_ADD_LABEL}
+                </label>
+              </div>
+              {musicError && <p className={styles.error}>{musicError}</p>}
+            </div>
+          )}
 
           {saveError && <p className={styles.error}>{saveError}</p>}
           <button type="submit" className={styles.submit} disabled={submitting}>

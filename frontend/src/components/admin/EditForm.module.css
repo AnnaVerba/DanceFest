@@ -60,6 +60,27 @@
   color: var(--g-ink);
 }
 
+.musicRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--g-ink);
+  overflow-wrap: anywhere;
+}
+
+.musicPick {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g-accent);
+  cursor: pointer;
+}
+
+.musicPick:hover {
+  text-decoration: underline;
+}
+
 .hint {
   margin: 6px 0 0;
   font-size: 12.5px;
