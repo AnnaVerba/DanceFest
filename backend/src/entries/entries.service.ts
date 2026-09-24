@@ -648,11 +648,12 @@ export class EntriesService {
   }
 
   // Who may upload/replace/remove this entry's track (TracksService): the
-  // entry's submitter, the entry's performer (entryBelongsTo, checked for
-  // this user only — not their whole coach roster), or the competition's
-  // organizer/admin. Deliberately wider than "заявка належить тому, хто її
-  // подав" (§8.5) so a dancer whose coach submitted the entry can still add
-  // or change its music if the coach hasn't.
+  // entry's submitter, its performer, the coach of any of its dancers, the
+  // trainer it's filed under (the same people listForUser shows it to), or
+  // the competition's organizer/admin. Deliberately wider than "заявка
+  // належить тому, хто її подав" (§8.5) so a dancer whose coach submitted
+  // the entry — or a coach whose dancer submitted it — can still add or
+  // change its music.
   //
   // Returns whether access came via the competition's organizer/admin —
   // TracksService uses this to exempt them from the registrationTo music
@@ -673,7 +674,8 @@ export class EntriesService {
     }
     if (
       entry.submittedByUserId !== user.id &&
-      !this.entryBelongsTo(entry, [user.id])
+      entry.trainerId !== user.id &&
+      !this.entryBelongsTo(entry, await this.ownParticipantIds(user))
     ) {
       throw new ForbiddenException(NOT_OWN_PARTICIPANT_MESSAGE);
     }
