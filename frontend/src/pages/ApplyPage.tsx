@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { getApplyEligibility, getCompetition } from '../lib/competitions';
 import type { Competition } from '../lib/competitions';
+import ContestTitle from '../components/ContestTitle';
 import {
   getNominationAxes,
   getNominationsForEntry,
@@ -924,7 +925,11 @@ export default function ApplyPage() {
       <main className={styles.main}>
         <div className={styles.card}>
           <p className={styles.eyebrow}>Заявка на конкурс</p>
-          <h1>{competition.name}</h1>
+          <ContestTitle
+            name={competition.name}
+            dateFrom={competition.dateFrom}
+            dateTo={competition.dateTo}
+          />
           <p className={styles.error}>{applyEligibility.reason}</p>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
             <Link to={MY_ENTRIES_PATH} className={styles.home}>
@@ -944,7 +949,11 @@ export default function ApplyPage() {
       <main className={styles.main}>
         <div className={styles.card}>
           <p className={styles.eyebrow}>Заявка на конкурс</p>
-          <h1>{competition.name}</h1>
+          <ContestTitle
+            name={competition.name}
+            dateFrom={competition.dateFrom}
+            dateTo={competition.dateTo}
+          />
           <div className={styles.successWrap}>
             <p className={styles.successTitle}>Заявку надіслано!</p>
             <p className={styles.hint}>
@@ -982,7 +991,11 @@ export default function ApplyPage() {
     <main className={styles.main}>
       <div className={styles.card}>
         <p className={styles.eyebrow}>Заявка на конкурс</p>
-        <h1>{competition.name}</h1>
+        <ContestTitle
+          name={competition.name}
+          dateFrom={competition.dateFrom}
+          dateTo={competition.dateTo}
+        />
         <Link to={`/competitions/${id}`} className={styles.home}>
           ← До сторінки конкурсу
         </Link>

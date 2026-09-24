@@ -269,15 +269,15 @@ export default function HomePage() {
                         )}
                       </div>
                       <div className={styles.cardBody}>
-                        <div className={styles.cardTop}>
+                        <div className={styles.cardHead}>
+                          <span className={styles.cardTitle}>{c.name}</span>
                           <span
                             className={`${styles.statusPill} ${STATUS_PILL_CLASS[status]}`}
                           >
                             {status}
                           </span>
-                          <span className={styles.cardMeta}>{cardMetaOf(c)}</span>
                         </div>
-                        <span className={styles.cardTitle}>{c.name}</span>
+                        <span className={styles.cardMeta}>{cardMetaOf(c)}</span>
                       </div>
                     </Link>
                   );
