@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import type { OrganizerOption } from '../lib/organizerOption';
+import type { OrganizerChip } from '../lib/organizerChip';
 import {
   SELF_ORGANIZER_OPTION_LABEL,
   ORGANIZER_INPUT_PLACEHOLDER,
-  ORGANIZER_MANUAL_ADD_HINT,
+  ORGANIZER_SELECT_ONLY_HINT,
 } from './OrganizersField.constants';
 import styles from './OrganizersField.module.css';
 
 interface OrganizersFieldProps {
   id?: string;
-  values: string[];
-  onChange: (values: string[]) => void;
+  values: OrganizerChip[];
+  onChange: (values: OrganizerChip[]) => void;
   suggestions?: OrganizerOption[];
   // Fires as the user types so the parent can fetch name suggestions.
   onQuery?: (query: string) => void;
@@ -43,22 +44,24 @@ export default function OrganizersField({
     return () => document.removeEventListener('mousedown', onOutsideClick);
   }, []);
 
-  const add = (name: string) => {
-    const trimmed = name.trim();
+  // Only an existing account from `suggestions` can be added — never
+  // whatever the user typed — so the field can't name a non-organizer.
+  const add = (option: OrganizerOption) => {
+    const trimmed = option.name.trim();
     if (!trimmed) return;
-    if (values.some((v) => v.toLowerCase() === trimmed.toLowerCase())) {
+    if (values.some((v) => v.name.toLowerCase() === trimmed.toLowerCase())) {
       setInput('');
       return;
     }
-    onChange([...values, trimmed]);
+    onChange([...values, { id: option.id, name: trimmed }]);
     setInput('');
   };
 
-  const remove = (name: string) => onChange(values.filter((v) => v !== name));
+  const remove = (name: string) => onChange(values.filter((v) => v.name !== name));
 
   const query = input.trim().toLowerCase();
   const options = suggestions.filter((o) => {
-    if (values.some((v) => v.toLowerCase() === o.name.toLowerCase())) return false;
+    if (values.some((v) => v.name.toLowerCase() === o.name.toLowerCase())) return false;
     return !query || o.name.toLowerCase().includes(query);
   });
 
@@ -66,7 +69,7 @@ export default function OrganizersField({
     <div className={styles.wrap} ref={wrapRef}>
       {values.length > 0 && (
         <div className={styles.chips}>
-          {values.map((name) => (
+          {values.map(({ name }) => (
             <span className={styles.chip} key={name}>
               {name}
               <button
@@ -99,8 +102,10 @@ export default function OrganizersField({
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
-                add(input);
-                setOpen(false);
+                if (options[0]) {
+                  add(options[0]);
+                  setOpen(false);
+                }
               }
               if (e.key === 'Escape') {
                 setOpen(false);
@@ -116,7 +121,7 @@ export default function OrganizersField({
                   type="button"
                   className={styles.option}
                   onClick={() => {
-                    add(o.name);
+                    add(o);
                     setOpen(false);
                   }}
                 >
@@ -127,7 +132,7 @@ export default function OrganizersField({
           </ul>
         )}
       </div>
-      <p className={styles.hint}>{ORGANIZER_MANUAL_ADD_HINT}</p>
+      <p className={styles.hint}>{ORGANIZER_SELECT_ONLY_HINT}</p>
     </div>
   );
 }

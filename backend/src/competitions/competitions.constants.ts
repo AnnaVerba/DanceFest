@@ -2,6 +2,10 @@ export const COMPETITION_NOT_FOUND_MESSAGE = 'Конкурс не знайден
 export const NO_COMPETITION_ACCESS_MESSAGE = 'Немає доступу до цього конкурсу';
 export const COMPETITION_OWNER_ONLY_MESSAGE =
   'Цю дію може виконати лише власник конкурсу';
+export const ORGANIZER_IDS_MISMATCH_MESSAGE =
+  'Кожному організатору має відповідати один id (або порожній id)';
+// Stands in `organizerIds` for an organizer name that has no account.
+export const NO_ACCOUNT_ORGANIZER_ID = '00000000-0000-0000-0000-000000000000';
 // The list search matches the organizers array joined into one string.
 export const ORGANIZERS_SEARCH_SEPARATOR = ' ';
 export const ORGANIZERS_COLUMN = 'Competition.organizers';

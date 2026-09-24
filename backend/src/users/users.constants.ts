@@ -21,3 +21,9 @@ export const PARTICIPANT_PHONE_TAKEN_MESSAGE =
 export const NOT_YOUR_ROSTER_MESSAGE = 'Цей учасник не у вашому списку';
 export const DEFAULT_USERS_PAGE_SIZE = 25;
 export const MAX_USERS_PAGE_SIZE = 100;
+export const CANNOT_DELETE_SELF_MESSAGE =
+  'Свій власний акаунт видалити не можна';
+// A deleted user's phone and email get this plus their id appended, which
+// frees the originals for a fresh registration and keeps every renamed value
+// unique. To restore an account, cut the value back at the suffix.
+export const DELETED_CONTACT_SUFFIX = '_deleted';

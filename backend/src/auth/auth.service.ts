@@ -174,7 +174,9 @@ export class AuthService {
     await this.sessionStore.revoke(payload.sub, payload.jti);
 
     const user = await this.usersService.findById(payload.sub);
-    if (!user) throw new UnauthorizedException('Недійсний refresh-токен');
+    if (!user || user.deletedAt) {
+      throw new UnauthorizedException('Недійсний refresh-токен');
+    }
     return this.issueSession(user, ctx);
   }
 

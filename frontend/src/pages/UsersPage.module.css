@@ -87,6 +87,21 @@
   background: var(--g-field);
 }
 
+.btnDanger {
+  color: var(--g-danger);
+  border-color: var(--g-danger-border);
+}
+
+.btnSm.btnDanger:hover:not(:disabled) {
+  background: var(--g-danger-bg);
+  border-color: var(--g-danger-border);
+}
+
+.rowActions {
+  display: flex;
+  gap: 8px;
+}
+
 .btnSm:disabled {
   opacity: 0.5;
   cursor: not-allowed;

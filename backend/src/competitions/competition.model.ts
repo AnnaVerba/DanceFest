@@ -41,6 +41,16 @@ export class Competition extends Model<Competition> {
   @Column({ type: DataType.ARRAY(DataType.STRING), allowNull: false })
   declare organizers: string[];
 
+  // Account id behind each name in `organizers` (same index); the nil UUID
+  // marks a name with no account. Listed accounts run the competition like
+  // its owner does.
+  @Column({
+    type: DataType.ARRAY(DataType.UUID),
+    allowNull: false,
+    defaultValue: [],
+  })
+  declare organizerIds: string[];
+
   @Column({ type: DataType.DATEONLY, allowNull: false })
   declare dateFrom: string;
 

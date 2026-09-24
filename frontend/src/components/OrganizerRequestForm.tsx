@@ -5,6 +5,8 @@ import {
   getMyOrganizerRequests,
 } from '../lib/organizerRequests';
 import type { OrganizerRequest } from '../lib/organizerRequests';
+import { getSession, refreshSession } from '../lib/auth';
+import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import styles from './OrganizerRequestForm.module.css';
 
 const STATUS_LABELS: Record<OrganizerRequest['status'], string> = {
@@ -24,7 +26,20 @@ export default function OrganizerRequestForm() {
 
   useEffect(() => {
     getMyOrganizerRequests()
-      .then((rows) => setLatest(rows[0] ?? null))
+      .then((rows) => {
+        const request = rows[0] ?? null;
+        setLatest(request);
+        // The admin approves on their own session — ours still has the
+        // pre-approval accessLevel cached until we refresh it ourselves.
+        const session = getSession();
+        if (
+          request?.status === 'APPROVED' &&
+          session &&
+          !meetsLevel(session.profile.accessLevel, ACCESS_LEVEL.ORGANIZER)
+        ) {
+          refreshSession().catch(() => {});
+        }
+      })
       .catch(() => setLatest(null));
   }, []);
 

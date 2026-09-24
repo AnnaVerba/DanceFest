@@ -8,6 +8,8 @@ import { FEATURES } from '../lib/features';
 import { CompetitionApiError, createCompetition } from '../lib/competitions';
 import { getOrganizerOptions } from '../lib/users';
 import type { OrganizerOption } from '../lib/organizerOption';
+import type { OrganizerChip } from '../lib/organizerChip';
+import { organizerIds, organizerNames } from '../lib/organizerChips';
 import OrganizersField from '../components/OrganizersField';
 import { createJudge } from '../lib/judges';
 import type { CreatedJudge } from '../lib/judges';
@@ -141,7 +143,7 @@ export default function NewCompetitionPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [location, setLocation] = useState('');
-  const [organizers, setOrganizers] = useState<string[]>([]);
+  const [organizers, setOrganizers] = useState<OrganizerChip[]>([]);
   const [organizerSuggestions, setOrganizerSuggestions] = useState<OrganizerOption[]>([]);
   const [registrationFrom, setRegistrationFrom] = useState('');
   const [registrationTo, setRegistrationTo] = useState('');
@@ -566,7 +568,8 @@ export default function NewCompetitionPage() {
         name: name.trim(),
         description: description.trim(),
         location: location.trim(),
-        organizers,
+        organizers: organizerNames(organizers),
+        organizerIds: organizerIds(organizers),
         dateFrom,
         dateTo: dateTo || dateFrom,
         registrationFrom,
