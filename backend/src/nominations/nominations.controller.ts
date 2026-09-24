@@ -73,12 +73,14 @@ export class NominationsController {
     summary: "A competition's special nominations an entry can be made in",
     description:
       'Public — what the entry form lists under «Спеціальні номінації». A special nomination ' +
-      'carries no style or line-up, so only the league and the age apply. `league` is a single ' +
+      'carries no style, so only the league, the age and the line-up (when set) apply. `league` is a single ' +
       'category id the nomination must carry. `ageCategory` is the age category the applicant ' +
       'picked: a nomination passes when it carries that very category, or when it carries no ' +
       'age category at all. `ages` is the comma-separated age of every dancer, used instead of ' +
       '`ageCategory` while none is picked yet: a nomination passes when its age category fits ' +
-      'them all. Without filters every special nomination is returned, never truncated.',
+      'them all. `participants` is the number of dancers: a nomination passes when its line-up ' +
+      'fits that count, or when it has no line-up. Without filters every special nomination ' +
+      'is returned, never truncated.',
   })
   @ApiResponse({ status: 200, description: 'Special nominations returned.' })
   @ApiResponse({
@@ -91,11 +93,13 @@ export class NominationsController {
     @Query('league') league?: string,
     @Query('ageCategory') ageCategory?: string,
     @Query('ages') ages?: string | string[],
+    @Query('participants') participants?: string,
   ) {
     return this.nominationsService.listSpecials(competitionId, {
       league,
       ageCategory,
       ages: joinListQuery(ages),
+      participants,
     });
   }
 
@@ -104,8 +108,8 @@ export class NominationsController {
     description:
       'Public — what the entry form lists once the dancers and their categories are picked. ' +
       '`league` and `ageCategory` are single category ids the nomination must carry. `styles` ' +
-      'and `lineups` are comma-separated: any one of them matches, and for `lineups` a ' +
-      'nomination with no line-up axis passes too. `ages` is the comma-separated age of every ' +
+      'is comma-separated: any one of them matches. `participants` is the number of dancers: ' +
+      'a nomination passes when its line-up fits that count, or when it has no line-up. `ages` is the comma-separated age of every ' +
       'dancer, used instead of `ageCategory` while more than one category still fits: a ' +
       'nomination passes when its age category fits them all, or when it has none. ' +
       'At least one filter is required.',
@@ -122,14 +126,14 @@ export class NominationsController {
     @Query('league') league?: string,
     @Query('ageCategory') ageCategory?: string,
     @Query('styles') styles?: string,
-    @Query('lineups') lineups?: string,
+    @Query('participants') participants?: string,
     @Query('ages') ages?: string,
   ) {
     return this.nominationsService.listForEntry(competitionId, {
       league,
       ageCategory,
       styles,
-      lineups,
+      participants,
       ages,
     });
   }
