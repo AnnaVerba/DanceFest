@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import CompetitionDetails from '../components/CompetitionDetails';
 import ContestIcon from '../components/ContestIcon';
+import ContestTitle from '../components/ContestTitle';
 import AwardsSummary from '../components/awards/AwardsSummary';
 import FestivalProgram from '../components/program/FestivalProgram';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
@@ -169,7 +170,11 @@ export default function CompetitionDetailPage() {
                 <span className={styles.contestHeadIcon} aria-hidden="true">
                   <ContestIcon />
                 </span>
-                <h1>{competition.name}</h1>
+                <ContestTitle
+                  name={competition.name}
+                  dateFrom={competition.dateFrom}
+                  dateTo={competition.dateTo}
+                />
                 {apply &&
                   (apply.allowed ? (
                     <Link
