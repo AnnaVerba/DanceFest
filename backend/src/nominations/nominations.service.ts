@@ -678,6 +678,8 @@ export class NominationsService {
     for (const nomination of nominations) {
       nomination.allowsImprovisation = dto.allowsImprovisation;
     }
+    // resolveBulkSelection returns bare rows; retiming reads their leagues.
+    await this.loadCategories(flipped);
     const retimed = await this.reapplyAutoDurations(competitionId, flipped);
     const idsBySeconds = new Map<number | null, string[]>();
     for (const nomination of retimed) {
