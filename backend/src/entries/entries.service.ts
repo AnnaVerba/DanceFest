@@ -548,8 +548,21 @@ export class EntriesService {
     };
   }
 
-  // The organizer of this competition (or an admin) may file the entry under
-  // any studio and trainer instead of the dancer's own; nobody else may.
+  // Any organizer (on any competition, not only their own), an admin, or
+  // this competition's staff may apply for anyone and under any studio and
+  // trainer; everyone else only for their own dancers.
+  private async canApplyForOthers(
+    competition: Competition,
+    user: AuthenticatedUser,
+  ): Promise<boolean> {
+    return (
+      meetsLevel(user.accessLevel, AccessLevel.ORGANIZER) ||
+      this.isCompetitionStaff(competition, user.id, user.accessLevel)
+    );
+  }
+
+  // Those who may apply for others (canApplyForOthers) may file the entry
+  // under any studio and trainer instead of the dancer's own.
   // A trainer picked without a studio brings their own studio along.
   private async applyStudioAndTrainer(
     competition: Competition,
@@ -559,10 +572,7 @@ export class EntriesService {
   ): Promise<SubmitterContext> {
     if (!dto.studioId && !dto.trainerId) return submitter;
 
-    const isStaff =
-      meetsLevel(user.accessLevel, AccessLevel.ORGANIZER) &&
-      (await this.isCompetitionStaff(competition, user.id, user.accessLevel));
-    if (!isStaff) {
+    if (!(await this.canApplyForOthers(competition, user))) {
       throw new ForbiddenException(ASSIGN_STUDIO_TRAINER_FORBIDDEN_MESSAGE);
     }
 
@@ -974,12 +984,7 @@ export class EntriesService {
     if (!competition) {
       throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
-    const staff = await this.isCompetitionStaff(
-      competition,
-      user.id,
-      user.accessLevel,
-    );
-    if (!staff) {
+    if (!(await this.canApplyForOthers(competition, user))) {
       const own = new Set(await this.ownParticipantIds(user));
       if (dto.participantIds.some((id) => !own.has(id))) {
         throw new ForbiddenException(NOT_OWN_PARTICIPANT_MESSAGE);
