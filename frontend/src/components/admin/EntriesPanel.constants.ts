@@ -11,8 +11,8 @@ export const ENTRIES_SERVER_PAGE = 200;
 // "no matches" row across the full table width.
 export const BASE_COLUMN_COUNT = 11;
 export const ACTIONS_COLUMN_COUNT = 1;
-// "Вартість" — money data, shown only when canManage (the server sends
-// `amount` to staff only).
+// "Вартість" — money data, shown only when canViewAmounts (the server sends
+// `amount` to whoever may read the full entry list).
 export const AMOUNT_COLUMN_COUNT = 1;
 
 export type SortKey = 'number' | 'name' | 'score' | 'newest';

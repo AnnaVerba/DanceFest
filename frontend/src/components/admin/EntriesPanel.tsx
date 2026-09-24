@@ -25,6 +25,9 @@ import styles from './EntriesPanel.module.css';
 interface EntriesPanelProps {
   competitionId: string;
   canManage: boolean;
+  // A read-only viewer (a coach) still sees each entry's cost; defaults to
+  // whatever `canManage` allows.
+  canViewAmounts?: boolean;
   onError: (message: string) => void;
 }
 
@@ -48,6 +51,7 @@ function uniqueValues(entries: Entry[], pick: (e: Entry) => string | null): stri
 export default function EntriesPanel({
   competitionId,
   canManage,
+  canViewAmounts = canManage,
   onError,
 }: EntriesPanelProps) {
   // The score column is staff-only: a non-managing viewer gets the plain
@@ -285,7 +289,7 @@ export default function EntriesPanel({
                   <th scope="col">К-сть уч.</th>
                   <th scope="col">Студія</th>
                   <th scope="col">Хореограф</th>
-                  {canManage && <th scope="col">Вартість</th>}
+                  {canViewAmounts && <th scope="col">Вартість</th>}
                   {showScore && <th scope="col">Бал</th>}
                   {canManage && (
                     <th scope="col" className={styles.colActions}>
@@ -302,7 +306,8 @@ export default function EntriesPanel({
                         (showScore
                           ? BASE_COLUMN_COUNT
                           : BASE_COLUMN_COUNT - 1) +
-                        (canManage ? AMOUNT_COLUMN_COUNT + ACTIONS_COLUMN_COUNT : 0)
+                        (canViewAmounts ? AMOUNT_COLUMN_COUNT : 0) +
+                        (canManage ? ACTIONS_COLUMN_COUNT : 0)
                       }
                       className={styles.noMatches}
                     >
@@ -322,7 +327,7 @@ export default function EntriesPanel({
                     <td>{entry.participantsCount ?? ''}</td>
                     <td>{entry.studioName}</td>
                     <td>{entry.choreographer}</td>
-                    {canManage && <td>{formatEntryAmount(entry.amount ?? null)}</td>}
+                    {canViewAmounts && <td>{formatEntryAmount(entry.amount ?? null)}</td>}
                     {showScore && (
                       <td
                         className={
