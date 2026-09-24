@@ -18,7 +18,7 @@ import SchedulePanel from '../components/admin/schedule/SchedulePanel';
 import ScheduleSettings from '../components/admin/schedule/ScheduleSettings';
 import { ToastStack } from '../components/admin/Toast';
 import { useToasts } from '../components/admin/useToasts';
-import { getSession, getStoredAdmin, getToken } from '../lib/auth';
+import { getStoredAdmin, getToken } from '../lib/auth';
 import {
   deleteCompetition,
   getApplyEligibility,
@@ -48,8 +48,6 @@ const DEFAULT_TAB: Tab = 'Деталі';
 const PUBLIC_TABS: readonly Tab[] = [DEFAULT_TAB, 'Програма'];
 // Shown to a global admin only — not even to the competition's own staff.
 const ADMIN_ONLY_TABS: readonly Tab[] = ['Номінації'];
-// A coach (керівник) also gets the applications list, read-only.
-const COACH_READ_ONLY_TABS: readonly Tab[] = ['Заявки'];
 const TABS: readonly Tab[] = ALL_TABS.filter(
   (tab) =>
     (FEATURES.judges || tab !== 'Судді') &&
@@ -127,19 +125,13 @@ export default function CompetitionDetailPage() {
   // Applications, overages and editing the competition are also open to an
   // invited co-organizer (team member).
   const canManageEntries = canManage || isTeamMember;
-  // `admin` is null below ORGANIZER, so a coach is read off the session.
-  const session = getSession();
-  const isCoach =
-    !!session && meetsLevel(session.profile.accessLevel, ACCESS_LEVEL.COACH);
 
   // Only the details and programme are public. Every working tab belongs
   // to the competition's staff (owner, invited team, admin) — a pending
   // organizer request or another competition's organizer gets none of them;
   // the server enforces the same rule. Nominations are for admins only.
-  // A coach additionally reads the applications list, without editing.
   const visibleTabs = TABS.filter((tab) => {
     if (ADMIN_ONLY_TABS.includes(tab)) return isAdmin;
-    if (COACH_READ_ONLY_TABS.includes(tab) && isCoach) return true;
     return PUBLIC_TABS.includes(tab) || canManageEntries;
   });
 
@@ -244,7 +236,7 @@ export default function CompetitionDetailPage() {
                 />
               )}
 
-              {shownTab === 'Заявки' && (isCoach || !!admin) && (
+              {shownTab === 'Заявки' && canManageEntries && (
                 <>
                   <MusicExportPanel competitionId={id} canManage={canManageEntries} />
                   <EntriesPanel
