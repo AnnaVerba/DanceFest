@@ -36,6 +36,7 @@ import {
   resolveTypeahead,
 } from '../common/pagination';
 import { userSearchWhere } from './user-search';
+import { NOT_DELETED, markContactDeleted } from './deleted-user';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import {
@@ -324,6 +325,7 @@ export class UsersService {
     const like = { [Op.iLike]: `%${q}%` };
     return this.userModel.findAll({
       where: {
+        ...NOT_DELETED,
         accessLevel: {
           [Op.in]: [
             AccessLevel.COACH,
@@ -345,6 +347,7 @@ export class UsersService {
   listSelectableOrganizers(query?: string): Promise<User[]> {
     return this.userModel.findAll({
       where: {
+        ...NOT_DELETED,
         confirmed: true,
         accessLevel: AccessLevel.ORGANIZER,
         ...nameWhere(query),
@@ -401,7 +404,7 @@ export class UsersService {
       MAX_USERS_PAGE_SIZE,
     );
     const { rows, count } = await this.userModel.findAndCountAll({
-      where: userSearchWhere(query),
+      where: { ...NOT_DELETED, ...userSearchWhere(query) },
       include: [School],
       order: [
         ['lastName', 'ASC'],
@@ -412,6 +415,19 @@ export class UsersService {
       distinct: true,
     });
     return { rows, total: count, page, pageSize };
+  }
+
+  // ADMIN: soft delete. The row and everything pointing at it stay; the
+  // phone and email are renamed so the same contacts can register a new
+  // account, and the user drops out of every list and can no longer sign in.
+  async softDelete(userId: string): Promise<void> {
+    const user = await this.findByIdOrFail(userId);
+    if (user.deletedAt) throw new NotFoundException(USER_NOT_FOUND_MESSAGE);
+    await user.update({
+      phone: markContactDeleted(user.phone, user.id),
+      email: user.email && markContactDeleted(user.email, user.id),
+      deletedAt: new Date(),
+    });
   }
 
   // ADMIN: edit any user's profile. A phone or email another account
@@ -491,7 +507,7 @@ export class UsersService {
   // name.
   searchRoster(coachUserId: string, query?: string): Promise<User[]> {
     return this.userModel.findAll({
-      where: { coachId: coachUserId, ...nameWhere(query) },
+      where: { ...NOT_DELETED, coachId: coachUserId, ...nameWhere(query) },
       order: [['lastName', 'ASC']],
       limit: TYPEAHEAD_LIMIT,
     });
@@ -504,7 +520,7 @@ export class UsersService {
       return Promise.resolve([]);
     }
     return this.userModel.findAll({
-      where: nameWhere(query),
+      where: { ...NOT_DELETED, ...nameWhere(query) },
       order: [['lastName', 'ASC']],
       limit: PARTICIPANT_SEARCH_LIMIT,
     });

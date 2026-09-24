@@ -5,6 +5,7 @@ import ConfirmDialog from '../components/admin/ConfirmDialog';
 import { ToastStack } from '../components/admin/Toast';
 import { useToasts } from '../components/admin/useToasts';
 import { getStoredAdmin, getToken } from '../lib/auth';
+import { ACCESS_LEVEL } from '../lib/roles';
 import {
   CategoryTemplateApiError,
   deleteCategoryTemplate,
@@ -28,6 +29,9 @@ function plural(n: number): string {
 
 export default function CategoryTemplatesPage() {
   const admin = getStoredAdmin();
+  // An organizer only browses the full template list — creating, forking
+  // and the mine/public filter stay admin-only.
+  const isAdminUser = admin?.accessLevel === ACCESS_LEVEL.ADMIN;
   const queryClient = useQueryClient();
 
   const [page, setPage] = useState(0);
@@ -132,22 +136,24 @@ export default function CategoryTemplatesPage() {
               </p>
             </div>
             <span className={styles.spacer} />
-            <Link to="/category-templates/new" className={styles.btnPrimary}>
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                aria-hidden="true"
-              >
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 8v8M8 12h8" />
-              </svg>
-              Створити шаблон
-            </Link>
+            {isAdminUser && (
+              <Link to="/category-templates/new" className={styles.btnPrimary}>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 8v8M8 12h8" />
+                </svg>
+                Створити шаблон
+              </Link>
+            )}
           </div>
 
           <div className={styles.toolbar}>
@@ -162,29 +168,31 @@ export default function CategoryTemplatesPage() {
                 setPage(0);
               }}
             />
-            <div className={styles.segmented} role="group" aria-label="Фільтр шаблонів">
-              <button
-                type="button"
-                aria-pressed={scope === 'all'}
-                onClick={() => setScope('all')}
-              >
-                Усі
-              </button>
-              <button
-                type="button"
-                aria-pressed={scope === 'mine'}
-                onClick={() => setScope('mine')}
-              >
-                Мої
-              </button>
-              <button
-                type="button"
-                aria-pressed={scope === 'public'}
-                onClick={() => setScope('public')}
-              >
-                Публічні
-              </button>
-            </div>
+            {isAdminUser && (
+              <div className={styles.segmented} role="group" aria-label="Фільтр шаблонів">
+                <button
+                  type="button"
+                  aria-pressed={scope === 'all'}
+                  onClick={() => setScope('all')}
+                >
+                  Усі
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={scope === 'mine'}
+                  onClick={() => setScope('mine')}
+                >
+                  Мої
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={scope === 'public'}
+                  onClick={() => setScope('public')}
+                >
+                  Публічні
+                </button>
+              </div>
+            )}
           </div>
 
           {loadError && <p className={styles.empty}>{loadError}</p>}
@@ -238,13 +246,15 @@ export default function CategoryTemplatesPage() {
                       )}
                     </div>
                     <div className={styles.tplLinks}>
-                      <button
-                        type="button"
-                        className={styles.link}
-                        onClick={() => void handleFork(t)}
-                      >
-                        {t.author?.id === admin?.id ? 'Дублювати' : 'Зберегти як мою копію'}
-                      </button>
+                      {isAdminUser && (
+                        <button
+                          type="button"
+                          className={styles.link}
+                          onClick={() => void handleFork(t)}
+                        >
+                          {t.author?.id === admin?.id ? 'Дублювати' : 'Зберегти як мою копію'}
+                        </button>
+                      )}
                       {t.author?.id === admin?.id && (
                         <button
                           type="button"

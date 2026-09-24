@@ -6,11 +6,13 @@ import { Competition } from './competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { PaymentDetails } from '../payment-details/payment-details.model';
 import { CompetitionRule } from '../competition-rules/competition-rule.model';
+import { User } from '../users/user.model';
 
 @Module({
   imports: [
     SequelizeModule.forFeature([
       Competition,
+      User,
       CompetitionAdmin,
       PaymentDetails,
       CompetitionRule,

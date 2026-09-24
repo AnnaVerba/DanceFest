@@ -20,6 +20,10 @@ export function getAdminUsers(
   return apiRequest<Paged<AdminUser>>(`/users?${params.toString()}`);
 }
 
+export function deleteAdminUser(userId: string): Promise<{ id: string }> {
+  return apiRequest<{ id: string }>(`/users/${userId}`, { method: 'DELETE' });
+}
+
 export function updateAdminUser(
   userId: string,
   input: AdminUserUpdateInput,

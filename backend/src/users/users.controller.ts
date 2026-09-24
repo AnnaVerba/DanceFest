@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -33,7 +34,10 @@ import { SetMentorCoachDto } from './dto/set-mentor-coach.dto';
 import { NewMentorCoachDto } from './dto/new-mentor-coach.dto';
 import { CompleteProfileDto } from './dto/complete-profile.dto';
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
-import { NOT_YOUR_ROSTER_MESSAGE } from './users.constants';
+import {
+  CANNOT_DELETE_SELF_MESSAGE,
+  NOT_YOUR_ROSTER_MESSAGE,
+} from './users.constants';
 import { User } from './user.model';
 import { ParticipantSummary } from './participant-summary.interface';
 import { CoachSummary } from './coach-summary.interface';
@@ -319,6 +323,29 @@ export class UsersController {
   ): Promise<AdminUserSummary> {
     const user = await this.usersService.adminUpdate(id, dto);
     return this.toAdminSummary(user);
+  }
+
+  @ApiOperation({
+    summary:
+      'Delete a user (admin only): soft delete — data stays, phone and email are freed',
+  })
+  @ApiResponse({ status: 200, description: 'User deleted.' })
+  @ApiResponse({
+    status: 400,
+    description: 'An admin tried to delete themselves.',
+  })
+  @ApiResponse({ status: 404, description: 'User not found.' })
+  @MinLevel(AccessLevel.ADMIN)
+  @Delete(':id')
+  async deleteUser(
+    @CurrentUser() admin: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<{ id: string }> {
+    if (admin.id === id) {
+      throw new BadRequestException(CANNOT_DELETE_SELF_MESSAGE);
+    }
+    await this.usersService.softDelete(id);
+    return { id };
   }
 
   private toAdminSummary(user: User): AdminUserSummary {
