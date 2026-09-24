@@ -17,6 +17,7 @@ import {
   Category,
   LEAGUE_CATEGORY_TYPE,
   LINEUP_CATEGORY_TYPE,
+  MIN_LINEUP_SIZE,
   MIN_PARTICIPANT_AGE,
 } from '../categories/category.model';
 import type { CategoryType } from '../categories/category.model';
@@ -176,10 +177,11 @@ export class NominationsService {
   }
 
   /**
-   * Спеціальні номінації конкурсу — ті, що підходять заявнику. Стилю і складу
-   * вони не несуть, зате мають лігу (без неї номінацію не створити) і часто
-   * вікову категорію, тож звужуються за тими самими правилами, що й звичайні:
-   * ліга — точний збіг, вік має вмістити кожного учасника номера.
+   * Спеціальні номінації конкурсу — ті, що підходять заявнику. Стилю вони
+   * не несуть, зате мають лігу (без неї номінацію не створити), часто
+   * вікову категорію, а подекуди й склад, тож звужуються за тими самими
+   * правилами, що й звичайні: ліга — точний збіг, вік має вмістити кожного
+   * учасника номера, склад — їхню кількість.
    *
    * Без фільтрів повертаються всі: список спецномінацій конкурсу — десятки
    * рядків, і обрізати його лімітом нема за чим.
@@ -196,16 +198,22 @@ export class NominationsService {
     const ages = this.parseAges(query.ages);
     const ageCategory =
       query.ageCategory && isUUID(query.ageCategory) ? query.ageCategory : null;
-    if (ageCategory !== null || ages.length > 0) {
+    const participants = this.parseParticipants(query.participants);
+    if (ageCategory !== null || ages.length > 0 || participants !== null) {
       const specialCategories = await this.loadCompetitionCategories(
         competitionId,
         CATEGORY_SOURCE.SPECIAL,
       );
-      conditions.push(
-        ageCategory !== null
-          ? this.chosenAgeCategoryCondition(specialCategories, ageCategory)
-          : this.ageCondition(specialCategories, ages),
-      );
+      if (ageCategory !== null) {
+        conditions.push(
+          this.chosenAgeCategoryCondition(specialCategories, ageCategory),
+        );
+      } else if (ages.length > 0) {
+        conditions.push(this.ageCondition(specialCategories, ages));
+      }
+      if (participants !== null) {
+        conditions.push(this.lineupCondition(specialCategories, participants));
+      }
     }
 
     const nominations = await this.nominationModel.findAll({
@@ -220,8 +228,9 @@ export class NominationsService {
   }
 
   /**
-   * Номінації під конкретну заявку: ліга та склад мусять збігатися, стиль —
-   * будь-який з обраних, вік — підходити кожному учаснику номера.
+   * Номінації під конкретну заявку: ліга мусить збігатися, склад — вміщати
+   * кількість учасників, стиль — будь-який з обраних, вік — підходити
+   * кожному учаснику номера.
    *
    * Без жодного фільтра вибірка дорівнює всьому конкурсу, тож вона
    * відхиляється: форма заявки завжди знає хоча б стиль, а тихо віддати
@@ -236,8 +245,8 @@ export class NominationsService {
       (id): id is string => typeof id === 'string' && isUUID(id),
     );
     const styleIds = this.parseIdList(query.styles);
-    const lineupIds = this.parseIdList(query.lineups);
-    if (exact.length === 0 && styleIds.length === 0 && lineupIds.length === 0) {
+    const participants = this.parseParticipants(query.participants);
+    if (exact.length === 0 && styleIds.length === 0 && participants === null) {
       throw new BadRequestException(NOMINATION_ENTRY_FILTER_REQUIRED_MESSAGE);
     }
 
@@ -253,13 +262,8 @@ export class NominationsService {
     if (styleIds.length > 0) {
       conditions.push(this.withAnyCategory(styleIds));
     }
-    if (lineupIds.length > 0) {
-      conditions.push(
-        this.axisOrMissingCondition(
-          this.axisIdsOf(categories, LINEUP_CATEGORY_TYPE),
-          lineupIds,
-        ),
-      );
+    if (participants !== null) {
+      conditions.push(this.lineupCondition(categories, participants));
     }
     const ages = this.parseAges(query.ages);
     if (ages.length > 0) {
@@ -292,6 +296,29 @@ export class NominationsService {
     const fitting = ageCategoriesFittingAges(ages, bounded);
     return this.axisOrMissingCondition(
       bounded.map((category) => category.id),
+      fitting.map((category) => category.id),
+    );
+  }
+
+  /**
+   * Склад номінації мусить вміщати кількість учасників номера: одному
+   * танцюристу дует чи група не показується. Склад без заповнених меж
+   * кількістю не обмежений — його номінація проходить, як і номінація
+   * без осі складу взагалі.
+   */
+  private lineupCondition(
+    categories: Category[],
+    participants: number,
+  ): Record<string, unknown> {
+    const lineups = categories.filter(
+      (category) => category.type === LINEUP_CATEGORY_TYPE,
+    );
+    const fitting = [
+      ...lineups.filter((category) => category.rangeFrom === null),
+      ...ageCategoriesFittingAges([participants], lineups),
+    ];
+    return this.axisOrMissingCondition(
+      lineups.map((category) => category.id),
       fitting.map((category) => category.id),
     );
   }
@@ -385,6 +412,12 @@ export class NominationsService {
       .split(LIST_QUERY_SEPARATOR)
       .map((value) => Number.parseInt(value.trim(), 10))
       .filter((age) => Number.isInteger(age) && age >= MIN_PARTICIPANT_AGE);
+  }
+
+  // Кількість учасників, що не є цілим числом від одного, фільтр не звужує.
+  private parseParticipants(raw?: string): number | null {
+    const count = Number.parseInt(raw ?? '', 10);
+    return Number.isInteger(count) && count >= MIN_LINEUP_SIZE ? count : null;
   }
 
   async create(

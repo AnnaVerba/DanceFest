@@ -480,21 +480,16 @@ export default function ApplyPage() {
     () => chosenStyleValues.map((value) => value.id),
     [chosenStyleValues],
   );
-  const lineupIds = useMemo(
-    () => chosenLineupValues.map((value) => value.id),
-    [chosenLineupValues],
-  );
-
   const entryFilter = useMemo<NominationEntryFilter>(
     () => ({
       league: leagueId,
       ageCategory: ageCategoryId,
       styles: styleIds,
-      lineups: lineupIds,
+      participants: pickedCount,
       // Поки категорію не обрано (підходить кілька), звужуємо за віком.
       ages: ageCategoryId ? [] : ages,
     }),
-    [leagueId, ageCategoryId, styleIds, lineupIds, ages],
+    [leagueId, ageCategoryId, styleIds, pickedCount, ages],
   );
 
   // Номінації приходять уже відфільтровані сервером — рівно ті, у яких цей
@@ -523,7 +518,7 @@ export default function ApplyPage() {
   }, [id, leagueId, pickedCount, styleIds, entryFilter]);
 
   // Спецномінації звужує той самий сервер і за тими самими правилами:
-  // стилю й складу в них немає, але ліга та вік є. Доки учасників і ліги
+  // стилю в них немає, але ліга, вік, а подекуди й склад є. Доки учасників і ліги
   // немає, фільтрувати ні за чим — і показувати нічого: список усіх
   // спецномінацій конкурсу заявнику нічого не каже.
   useEffect(() => {
@@ -543,6 +538,7 @@ export default function ApplyPage() {
       // Поки категорію не обрано (підходить кілька), звужуємо за віком —
       // точно як для звичайних номінацій.
       ages: ageCategoryId ? [] : ages,
+      participants: pickedCount,
     })
       .then((rows) => {
         if (cancelled) return;
