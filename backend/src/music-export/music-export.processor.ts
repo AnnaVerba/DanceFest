@@ -152,6 +152,8 @@ export class MusicExportProcessor extends WorkerHost {
   }
 
   // Style is a Category (type='style') reached via the entry's nomination.
+  // A special nomination has no style of its own — its specialName
+  // (e.g. "Корона") takes that slot instead.
   private async resolveStyles(
     entries: Entry[],
   ): Promise<Map<string, string | null>> {
@@ -178,6 +180,10 @@ export class MusicExportProcessor extends WorkerHost {
       const nomination = entry.nominationId
         ? nominationById.get(entry.nominationId)
         : undefined;
+      if (nomination?.isSpecial) {
+        result.set(entry.id, nomination.specialName);
+        continue;
+      }
       const styleId = nomination?.categoryIds.find((id) =>
         styleNameById.has(id),
       );

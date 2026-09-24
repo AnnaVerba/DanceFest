@@ -58,7 +58,9 @@ export class TrackFileNameResolver {
 
   // Style is a Category (type='style') reached via the entry's nomination —
   // same lookup MusicExportProcessor.resolveStyles does per-entry instead
-  // of in bulk, since this resolves a single upload at a time.
+  // of in bulk, since this resolves a single upload at a time. A special
+  // nomination has no style of its own — its specialName (e.g. "Корона")
+  // takes that slot instead, same as MusicExportProcessor.resolveStyles.
   private async resolveStyle(entry: Entry): Promise<string | null> {
     if (!entry.nominationId) return null;
     const nomination = await this.nominationModel.findByPk(
@@ -66,6 +68,7 @@ export class TrackFileNameResolver {
       { include: [{ model: Category, through: { attributes: [] } }] },
     );
     if (!nomination) return null;
+    if (nomination.isSpecial) return nomination.specialName;
     const styleCategory = await this.categoryModel.findOne({
       where: {
         id: { [Op.in]: nomination.categoryIds },
