@@ -18,6 +18,8 @@ export interface NominationAxisValue {
   name: string;
   rangeFrom: number | null;
   rangeTo: number | null;
+  // Пояснення значення для учасника; null — пояснення немає.
+  description: string | null;
 }
 
 // Осі конкурсу: значення, які реально зустрічаються в його номінаціях, по

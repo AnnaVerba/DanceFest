@@ -169,6 +169,7 @@ export class NominationsService {
         name: category.name,
         rangeFrom: category.rangeFrom,
         rangeTo: category.rangeTo,
+        description: category.description,
       });
     }
     return axes;

@@ -55,6 +55,7 @@ import { completeProfile } from '../lib/users';
 import { refreshProgram } from '../lib/programCache';
 import MentorCoachPicker from '../components/MentorCoachPicker';
 import SchoolPicker from '../components/SchoolPicker';
+import CategoryDescriptionList from '../components/CategoryDescriptionList';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import {
   ageCategoriesFittingAges,
@@ -435,29 +436,52 @@ export default function ApplyPage() {
     [axes, league],
   );
 
-  const styleIds = useMemo(
-    () =>
-      (axes?.[STYLE_CATEGORY_TYPE] ?? [])
-        .filter((value) => selectedStyles.includes(value.name))
-        .map((value) => value.id),
-    [axes, selectedStyles],
-  );
-
-  // Кількість учасників жорстко задає склад: один танцюрист — не група.
-  const lineupIds = useMemo(
-    () =>
-      (axes?.[LINEUP_CATEGORY_TYPE] ?? [])
-        .filter((value) => lineupMatches(value, pickedCount))
-        .map((value) => value.id),
-    [axes, pickedCount],
-  );
-
   const ageCategoryId = useMemo(
     () =>
       (axes?.[AGE_CATEGORY_TYPE] ?? []).find(
         (value) => value.name === chosenAgeCategory,
       )?.id,
     [axes, chosenAgeCategory],
+  );
+
+  // Обрані значення осей — для пояснень, які адмін задав у довіднику.
+  const chosenLeagueValues = useMemo(
+    () =>
+      (axes?.[LEAGUE_CATEGORY_TYPE] ?? []).filter(
+        (value) => value.name === league,
+      ),
+    [axes, league],
+  );
+  const chosenAgeValues = useMemo(
+    () =>
+      (axes?.[AGE_CATEGORY_TYPE] ?? []).filter(
+        (value) => value.name === chosenAgeCategory,
+      ),
+    [axes, chosenAgeCategory],
+  );
+  const chosenStyleValues = useMemo(
+    () =>
+      (axes?.[STYLE_CATEGORY_TYPE] ?? []).filter((value) =>
+        selectedStyles.includes(value.name),
+      ),
+    [axes, selectedStyles],
+  );
+  // Кількість учасників жорстко задає склад: один танцюрист — не група.
+  const chosenLineupValues = useMemo(
+    () =>
+      (axes?.[LINEUP_CATEGORY_TYPE] ?? []).filter((value) =>
+        lineupMatches(value, pickedCount),
+      ),
+    [axes, pickedCount],
+  );
+
+  const styleIds = useMemo(
+    () => chosenStyleValues.map((value) => value.id),
+    [chosenStyleValues],
+  );
+  const lineupIds = useMemo(
+    () => chosenLineupValues.map((value) => value.id),
+    [chosenLineupValues],
   );
 
   const entryFilter = useMemo<NominationEntryFilter>(
@@ -1197,6 +1221,10 @@ export default function ApplyPage() {
                   <p className={styles.hint}>
                     Ліга обирається окремо для кожної заявки.
                   </p>
+                  <CategoryDescriptionList
+                    values={chosenLeagueValues}
+                    className={styles.hint}
+                  />
                 </div>
                 <div>
                   <label className={styles.label}>Вік / вікова категорія</label>
@@ -1226,6 +1254,10 @@ export default function ApplyPage() {
                     ageCategoryOptions.length === 0 && (
                       <p className={styles.hint}>{NO_COMMON_AGE_CATEGORY_HINT}</p>
                     )}
+                  <CategoryDescriptionList
+                    values={chosenAgeValues}
+                    className={styles.hint}
+                  />
                 </div>
               </div>
             )}
@@ -1239,6 +1271,10 @@ export default function ApplyPage() {
                 <p className={styles.hint}>
                   Визначається автоматично за кількістю обраних учасників.
                 </p>
+                <CategoryDescriptionList
+                  values={chosenLineupValues}
+                  className={styles.hint}
+                />
               </div>
             )}
           </div>
@@ -1273,6 +1309,10 @@ export default function ApplyPage() {
               кілька — заявка буде подана в кожну номінацію. Імпровізація — це
               окремий рядок у списку номінацій нижче.
             </p>
+            <CategoryDescriptionList
+              values={chosenStyleValues}
+              className={styles.hint}
+            />
             {noNominations && (
               <p className={styles.error}>
                 Для цього конкурсу ще не згенеровано номінацій.
