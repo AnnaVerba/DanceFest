@@ -453,12 +453,17 @@ export default function ApplyPage() {
       ),
     [axes, league],
   );
-  const chosenAgeValues = useMemo(
+  // Опис категорії за назвою — щоб показати його прямо в опції випадного
+  // списку, ще до того як людина зробить вибір.
+  const ageDescriptionByName = useMemo(
     () =>
-      (axes?.[AGE_CATEGORY_TYPE] ?? []).filter(
-        (value) => value.name === chosenAgeCategory,
+      new Map(
+        (axes?.[AGE_CATEGORY_TYPE] ?? []).map((value) => [
+          value.name,
+          value.description,
+        ]),
       ),
-    [axes, chosenAgeCategory],
+    [axes],
   );
   const chosenStyleValues = useMemo(
     () =>
@@ -1249,11 +1254,15 @@ export default function ApplyPage() {
                       {ageCategoryOptions.length > 1 && (
                         <option value="">{AGE_CATEGORY_PLACEHOLDER}</option>
                       )}
-                      {ageCategoryOptions.map((c) => (
-                        <option key={c.name} value={c.name}>
-                          {c.name} ({c.rangeFrom}–{c.rangeTo})
-                        </option>
-                      ))}
+                      {ageCategoryOptions.map((c) => {
+                        const description = ageDescriptionByName.get(c.name);
+                        return (
+                          <option key={c.name} value={c.name}>
+                            {c.name} ({c.rangeFrom}–{c.rangeTo})
+                            {description ? ` — ${description}` : ''}
+                          </option>
+                        );
+                      })}
                     </select>
                   ) : (
                     <div className={styles.readonlyBox}>{ageLabel}</div>
@@ -1263,10 +1272,6 @@ export default function ApplyPage() {
                     ageCategoryOptions.length === 0 && (
                       <p className={styles.hint}>{NO_COMMON_AGE_CATEGORY_HINT}</p>
                     )}
-                  <CategoryDescriptionList
-                    values={chosenAgeValues}
-                    className={styles.hint}
-                  />
                 </div>
               </div>
             )}
