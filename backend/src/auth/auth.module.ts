@@ -14,6 +14,8 @@ import { SessionStoreService } from './session-store.service';
 import { Session } from './session.model';
 import { OtpCode } from './otp-code.model';
 import { OtpService } from './otp.service';
+import { SessionCleanupService } from './session-cleanup.service';
+import { OtpCleanupService } from './otp-cleanup.service';
 import { DEFAULT_ACCESS_EXPIRES_IN_SECONDS } from './auth.constants';
 
 @Module({
@@ -41,6 +43,8 @@ import { DEFAULT_ACCESS_EXPIRES_IN_SECONDS } from './auth.constants';
     JwtStrategy,
     SessionStoreService,
     OtpService,
+    SessionCleanupService,
+    OtpCleanupService,
     { provide: APP_GUARD, useClass: GlobalJwtAuthGuard },
   ],
 })

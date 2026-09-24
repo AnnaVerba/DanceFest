@@ -99,4 +99,12 @@ export class OtpService {
     }
     await row.update({ consumedAt: new Date() });
   }
+
+  // Rows younger than the hourly-limit window are kept: start() counts them
+  // to enforce OTP_MAX_SENDS_PER_HOUR.
+  async deleteStale(): Promise<number> {
+    return this.otpModel.destroy({
+      where: { createdAt: { [Op.lt]: new Date(Date.now() - ONE_HOUR_MS) } },
+    });
+  }
 }

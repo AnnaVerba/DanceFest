@@ -40,6 +40,12 @@ export class SessionStoreService {
     await this.sessionModel.destroy({ where: { userId, tokenId } });
   }
 
+  async deleteExpired(): Promise<number> {
+    return this.sessionModel.destroy({
+      where: { expiresAt: { [Op.lt]: new Date() } },
+    });
+  }
+
   private ttlSeconds(): number {
     return (
       Number(this.config.get<string>('JWT_REFRESH_EXPIRES_IN_SECONDS')) ||
