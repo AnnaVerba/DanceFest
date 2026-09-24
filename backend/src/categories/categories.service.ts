@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -17,11 +18,15 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import {
   AGE_RANGE_FROM_EXCEEDS_TO_MESSAGE,
   CATEGORY_NOT_FOUND_MESSAGE,
+  DESCRIPTION_ADMIN_ONLY_MESSAGE,
   LINEUP_SIZE_TOO_SMALL_MESSAGE,
   NOT_AGE_CATEGORY_MESSAGE,
   RANGE_FROM_EXCEEDS_TO_MESSAGE,
 } from './categories.constants';
 import { UpdateAgeRangeDto } from './dto/update-age-range.dto';
+import { UpdateCategoryDescriptionDto } from './dto/update-category-description.dto';
+import { normalizeDescription } from './normalize-description';
+import { AccessLevel } from '../auth/access-level.enum';
 
 // Reference data (age categories, leagues, styles) is a small curated set;
 // the cap only stops an unbounded scan.
@@ -55,9 +60,10 @@ export class CategoriesService {
     return categories.map((c) => this.toDto(c));
   }
 
-  async findOrCreate(input: CreateCategoryDto) {
+  async findOrCreate(input: CreateCategoryDto, accessLevel: AccessLevel) {
     const trimmed = input.name.trim();
     this.assertRangeIsSane(input);
+    this.assertMayDescribe(input, accessLevel);
 
     const existing = await this.categoryModel.findOne({
       where: {
@@ -68,8 +74,10 @@ export class CategoriesService {
         ),
       },
     });
-    if (existing)
-      return this.toDto(await this.reconcileRange(existing, input));
+    if (existing) {
+      const reconciled = await this.reconcileRange(existing, input);
+      return this.toDto(await this.reconcileDescription(reconciled, input));
+    }
 
     const created = await this.categoryModel.create({
       name: trimmed,
@@ -77,8 +85,34 @@ export class CategoriesService {
       rangeFrom: input.rangeFrom ?? null,
       rangeTo: input.rangeTo ?? null,
       sortOrder: input.sortOrder ?? DEFAULT_CATEGORY_SORT_ORDER,
+      description: normalizeDescription(input.description),
     } as CreationAttributes<Category>);
     return this.toDto(created);
+  }
+
+  // Опис спільний для всіх конкурсів, тож задає його лише адмін.
+  private assertMayDescribe(
+    input: CreateCategoryDto,
+    accessLevel: AccessLevel,
+  ): void {
+    if (input.description === undefined) return;
+    if (accessLevel !== AccessLevel.ADMIN) {
+      throw new ForbiddenException(DESCRIPTION_ADMIN_ONLY_MESSAGE);
+    }
+  }
+
+  // Як і з межами: присланий опис — свідомий намір адміна, а не підказка.
+  private async reconcileDescription(
+    existing: Category,
+    input: CreateCategoryDto,
+  ): Promise<Category> {
+    if (input.description === undefined) return existing;
+    const description = normalizeDescription(input.description);
+    if (existing.description === description) return existing;
+
+    existing.description = description;
+    await existing.save();
+    return existing;
   }
 
   /**
@@ -140,12 +174,19 @@ export class CategoriesService {
     }
   }
 
-  async findOrCreateMany(input: CreateCategoryDto[]) {
+  async findOrCreateMany(input: CreateCategoryDto[], accessLevel: AccessLevel) {
     const created: Awaited<ReturnType<typeof this.findOrCreate>>[] = [];
     for (const category of input) {
-      created.push(await this.findOrCreate(category));
+      created.push(await this.findOrCreate(category, accessLevel));
     }
     return created;
+  }
+
+  async updateDescription(id: string, dto: UpdateCategoryDescriptionDto) {
+    const category = await this.findByIdOrFail(id);
+    category.description = normalizeDescription(dto.description);
+    await category.save();
+    return this.toDto(category);
   }
 
   async updateAgeRange(id: string, dto: UpdateAgeRangeDto) {
@@ -200,6 +241,7 @@ export class CategoriesService {
       rangeFrom: category.rangeFrom,
       rangeTo: category.rangeTo,
       sortOrder: category.sortOrder,
+      description: category.description,
       createdAt: category.createdAt,
     };
   }

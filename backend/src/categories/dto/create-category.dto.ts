@@ -5,9 +5,11 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
   ValidateIf,
 } from 'class-validator';
+import { MAX_CATEGORY_DESCRIPTION_LENGTH } from '../categories.constants';
 import {
   AGE_CATEGORY_TYPE,
   CATEGORY_TYPES,
@@ -61,4 +63,14 @@ export class CreateCategoryDto {
   @IsInt()
   @Min(MIN_SORT_ORDER)
   sortOrder?: number;
+
+  // Лише для адміна: сервіс відхиляє поле від решти.
+  @ApiPropertyOptional({
+    example: 'Учасники 18 років і старші',
+    description: 'Admin only. An empty string removes the description.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_CATEGORY_DESCRIPTION_LENGTH)
+  description?: string;
 }

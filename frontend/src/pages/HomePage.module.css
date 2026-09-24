@@ -294,15 +294,15 @@
   padding: 26px 32px 30px;
 }
 
-.cardTop {
+.cardHead {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 10px 16px;
+  gap: 16px;
 }
 
 .statusPill {
+  flex-shrink: 0;
   padding: 6px 14px;
   border-radius: 999px;
   font-size: var(--fs-xs);
@@ -342,7 +342,6 @@
 .cardMeta {
   font-size: var(--fs-sm);
   color: var(--g-muted);
-  text-align: right;
 }
 
 .cardTitle {
