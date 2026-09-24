@@ -41,6 +41,7 @@ import {
   ALLOWED_TRACK_MIME_TYPES,
   TRACK_MIME_EXTENSIONS,
   MAX_TRACK_SIZE_BYTES,
+  TRACK_METADATA_PARSE_OPTIONS,
   ENTRY_TRACKS_KEY_PREFIX,
   UNSUPPORTED_TRACK_FORMAT_MESSAGE,
   TRACK_TOO_LARGE_MESSAGE,
@@ -262,7 +263,11 @@ export class TracksService {
   ): Promise<number> {
     try {
       const { parseBuffer } = await import('music-metadata');
-      const metadata = await parseBuffer(file.buffer, file.mimetype);
+      const metadata = await parseBuffer(
+        file.buffer,
+        file.mimetype,
+        TRACK_METADATA_PARSE_OPTIONS,
+      );
       const duration = metadata.format.duration;
       if (!duration || !Number.isFinite(duration)) {
         throw new Error('no duration in metadata');
