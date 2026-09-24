@@ -94,14 +94,15 @@ export class TracksService {
     // File naming: participantNumber_FirstName_LastName_League_Style.mp3 —
     // same format buildTrackFileName produces for the organizer's export
     // archive. Used as the object's actual stored name (not just a display
-    // header) — the entryId folder already makes it unique, so a re-upload
-    // just overwrites the same key.
+    // header). Every upload gets its own key (the upload time) so a
+    // replacement gets a new public URL — otherwise the same name maps to
+    // the same URL and browsers/CDN keep serving the old cached audio.
     const displayFileName = await this.fileNameResolver.resolve(
       entry,
       extension,
     );
     const audioPrefix = resolveAudioKeyPrefix(this.config);
-    const objectKey = `${audioPrefix}/${ENTRY_TRACKS_KEY_PREFIX}_${competition.id}_${entryId}_${displayFileName}`;
+    const objectKey = `${audioPrefix}/${ENTRY_TRACKS_KEY_PREFIX}_${competition.id}_${entryId}_${Date.now()}_${displayFileName}`;
 
     const existing = await this.trackModel.findOne({
       where: { performanceId: entryId },
@@ -141,8 +142,7 @@ export class TracksService {
     entry.musicUrl = publicUrl;
     await entry.save();
 
-    // Only delete the old object if the new upload landed on a different
-    // key — a same-named re-upload already overwrote it in place above.
+    // Remove the replaced object now that the new one has its own key.
     // Deferred until both DB writes commit, so a failure there doesn't
     // leave the DB pointing at an object we've already removed.
     if (existing && existing.objectKey !== objectKey) {
