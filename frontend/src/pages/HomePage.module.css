@@ -135,10 +135,10 @@
   font-size: var(--fs-body);
 }
 
-/* The search box sits quieter than the controls: a soft rim, not the forest
-   green the year picker and chips wear. */
+/* The search box wears a soft violet rim, not the forest green the year
+   picker and chips wear. */
 .search {
-  border-color: var(--g-teal-line);
+  border-color: var(--g-gold-border);
   width: 100%;
   padding: 0 22px 0 60px;
 }
@@ -214,21 +214,60 @@
   color: var(--g-on-teal);
 }
 
-/* «Реєстрація відкрита» — the status a visitor can act on — carries the gold
-   accent: a gold rim and a gold dot before the label. */
+/* «Реєстрація відкрита» — the status a visitor can act on — carries the violet
+   accent: a sheen sweeping across and a soft breathing glow. The sheen sits
+   under the label and leaves the chip's own hover and active backgrounds
+   untouched. */
 .chipAccent {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  border-color: var(--g-gold-border);
+  position: relative;
+  isolation: isolate;
+  animation: chipAccentGlow 2.8s ease-in-out infinite;
 }
 
-.chipAccent::before {
+/* The sheen: a soft diagonal band gliding across the face of the chip. */
+.chipAccent::after {
   content: '';
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--g-gold-grad);
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(
+      110deg,
+      transparent 35%,
+      var(--g-gold-bg) 50%,
+      transparent 65%
+    )
+    no-repeat;
+  background-size: 250% 100%;
+  animation: chipAccentSheen 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes chipAccentSheen {
+  0% {
+    background-position: 150% 0;
+  }
+  60%,
+  100% {
+    background-position: -50% 0;
+  }
+}
+
+@keyframes chipAccentGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 16px 1px var(--g-gold-border);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chipAccent,
+  .chipAccent::after {
+    animation: none;
+  }
 }
 
 .status {
@@ -256,7 +295,7 @@
   white-space: nowrap;
 }
 
-/* Metallic gold lettering: the gradient shows through the glyphs. */
+/* Metallic violet lettering: the gradient shows through the glyphs. */
 .monthYear {
   background: var(--g-gold-grad);
   -webkit-background-clip: text;
@@ -270,8 +309,13 @@
   background: var(--g-gold-border);
 }
 
+/* The count reads as a soft violet pill at the end of the rule. */
 .monthCount {
-  font-size: var(--fs-sm);
+  padding: 5px 12px;
+  border: 1px solid var(--g-gold-border);
+  border-radius: 999px;
+  background: var(--g-gold-bg);
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--g-gold);
   white-space: nowrap;

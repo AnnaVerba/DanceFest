@@ -121,7 +121,7 @@
   outline: none;
   background: var(--g-surface);
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(53, 102, 76, 0.14);
+  box-shadow: 0 0 0 3px rgba(123, 79, 196, 0.14);
 }
 
 .field select {
@@ -216,14 +216,12 @@
   background: var(--g-field-off);
 }
 
-.toggle button[aria-pressed='true'] {
-  background: var(--gold);
-  color: #fff;
-  font-weight: 600;
-}
-
+.toggle button[aria-pressed='true'],
 .toggle button[aria-pressed='true']:hover {
-  background: var(--gold-hover);
+  background: var(--g-pill-fill);
+  box-shadow: var(--g-pill-shadow);
+  color: var(--g-pill-ink);
+  font-weight: 600;
 }
 
 .submit {
@@ -349,7 +347,7 @@
   outline: none;
   background: var(--g-surface);
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(53, 102, 76, 0.14);
+  box-shadow: 0 0 0 3px rgba(123, 79, 196, 0.14);
 }
 
 .two {

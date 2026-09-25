@@ -6,8 +6,6 @@
 }
 
 .link {
-  position: relative;
-  overflow: hidden;
   padding: 13px 18px;
   border-radius: 12px;
   font-size: 15px;
@@ -18,23 +16,18 @@
 }
 
 .link:hover {
-  background: var(--g-field);
+  background: var(--g-gold-bg);
 }
 
-/* Deep green with a gold edge — the gold marks where you are. */
+/* A dusky violet pill marks where you are: an even fill inside a thin lilac
+   rim, a glossy strip that runs bright from the top-left corner and dies out
+   towards the bottom, and a slightly darker right edge. */
 .active,
 .active:hover {
-  background: var(--g-teal-grad);
-  box-shadow: 0 6px 16px var(--g-teal-shadow);
-  color: #fff;
-}
-
-.active::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 5px;
-  background: var(--g-gold-grad);
+  border-radius: 8px;
+  background: var(--g-pill-fill);
+  box-shadow: var(--g-pill-shadow);
+  color: var(--g-pill-ink);
 }
 
 @media (max-width: 760px) {

@@ -50,8 +50,9 @@
 }
 
 .toggleActive {
-  background: var(--g-accent);
-  color: #fff;
+  background: var(--g-pill-fill);
+  box-shadow: var(--g-pill-shadow);
+  color: var(--g-pill-ink);
 }
 
 .include {

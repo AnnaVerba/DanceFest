@@ -61,7 +61,7 @@
 .rowSelect:focus {
   outline: none;
   border-color: var(--g-accent);
-  box-shadow: 0 0 0 3px rgba(53, 102, 76, 0.15);
+  box-shadow: 0 0 0 3px rgba(123, 79, 196, 0.15);
 }
 
 .btnPrimary {

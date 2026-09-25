@@ -118,8 +118,8 @@
   height: 40px;
   flex: 0 0 40px;
   border-radius: 10px;
-  background: var(--g-accent-bg-soft);
-  color: var(--g-accent);
+  background: var(--g-gold-bg);
+  color: var(--g-gold);
   display: grid;
   place-items: center;
 }
@@ -157,8 +157,10 @@
 }
 
 .tab[aria-selected='true'] {
-  background: var(--g-accent);
-  color: #fff;
+  border-radius: 8px;
+  background: var(--g-pill-fill);
+  box-shadow: var(--g-pill-shadow);
+  color: var(--g-pill-ink);
 }
 
 .tabPlaceholder {
