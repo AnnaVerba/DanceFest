@@ -203,9 +203,10 @@
 }
 
 .venueTab[aria-selected='true'] {
-  background: var(--g-dark-cta);
-  border-color: var(--g-dark-cta);
-  color: #fff;
+  border-color: transparent;
+  background: var(--g-pill-fill);
+  box-shadow: var(--g-pill-shadow);
+  color: var(--g-pill-ink);
 }
 
 .sectionToggle {

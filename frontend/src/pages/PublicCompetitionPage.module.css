@@ -64,8 +64,8 @@
   height: 40px;
   flex: 0 0 40px;
   border-radius: 10px;
-  background: var(--g-accent-bg-soft);
-  color: var(--g-accent);
+  background: var(--g-gold-bg);
+  color: var(--g-gold);
   display: grid;
   place-items: center;
 }

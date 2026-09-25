@@ -125,9 +125,11 @@
   font-weight: 600;
 }
 
+/* A dot is too small for the pill's glossy strip — just its fill and rim. */
 .stepCurrent .dot {
-  background: var(--accent);
-  color: #fff;
+  background: var(--g-pill-bg);
+  box-shadow: 0 0 0 1px var(--g-pill-rim);
+  color: var(--g-pill-ink);
 }
 
 .stepDone .dot {
@@ -195,9 +197,9 @@
 }
 
 .sourceOption[aria-pressed='true'] {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  box-shadow: 0 0 0 3px rgba(53, 102, 76, 0.12);
+  border-color: var(--g-gold);
+  background: var(--g-gold-bg);
+  box-shadow: 0 0 0 3px var(--g-teal-focus);
 }
 
 @media (max-width: 720px) {
@@ -257,7 +259,7 @@
   outline: none;
   background: var(--g-surface);
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(53, 102, 76, 0.14);
+  box-shadow: 0 0 0 3px rgba(123, 79, 196, 0.14);
 }
 
 .field input.fieldInvalid,
@@ -324,7 +326,7 @@
   outline: none;
   background: var(--g-surface);
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(53, 102, 76, 0.14);
+  box-shadow: 0 0 0 3px rgba(123, 79, 196, 0.14);
 }
 
 .inlineAdd input.fieldInvalid {
@@ -430,13 +432,13 @@
 }
 
 .modeTick {
-  color: var(--accent);
+  color: var(--g-gold);
   opacity: 0;
 }
 
 .mode[aria-pressed='true'] {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(53, 102, 76, 0.13);
+  border-color: var(--g-gold);
+  box-shadow: 0 0 0 3px var(--g-teal-focus);
 }
 
 .mode[aria-pressed='true'] .modeTick {

@@ -114,7 +114,7 @@
 .search:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(53, 102, 76, 0.15);
+  box-shadow: 0 0 0 3px rgba(123, 79, 196, 0.15);
 }
 
 .segmented {
@@ -148,8 +148,9 @@
 }
 
 .segmented button[aria-pressed='true'] {
-  background: var(--accent);
-  color: #fff;
+  background: var(--g-pill-fill);
+  box-shadow: var(--g-pill-shadow);
+  color: var(--g-pill-ink);
 }
 
 .empty {
