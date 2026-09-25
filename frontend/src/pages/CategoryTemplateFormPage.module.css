@@ -127,7 +127,7 @@
   outline: none;
   background: var(--g-surface);
   border-color: var(--gold);
-  box-shadow: 0 0 0 3px rgba(176, 125, 30, 0.15);
+  box-shadow: 0 0 0 3px rgba(123, 79, 196, 0.15);
 }
 
 .field textarea {
@@ -188,7 +188,7 @@
 .vis[aria-pressed='true'] {
   border-color: var(--gold);
   background: var(--g-surface);
-  box-shadow: 0 0 0 3px rgba(176, 125, 30, 0.13);
+  box-shadow: 0 0 0 3px rgba(123, 79, 196, 0.13);
   color: var(--ink);
 }
 
@@ -245,7 +245,7 @@
   outline: none;
   background: var(--g-surface);
   border-color: var(--gold);
-  box-shadow: 0 0 0 3px rgba(176, 125, 30, 0.15);
+  box-shadow: 0 0 0 3px rgba(123, 79, 196, 0.15);
 }
 
 .chips {

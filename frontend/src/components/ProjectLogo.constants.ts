@@ -1,20 +1,20 @@
 // Traced from the brand artwork into flat outlines: no strokes, so the mark
 // takes its colour from the surrounding text and works on the light and the
-// dark theme alike. Only the gold inlay keeps fixed brand colours.
+// dark theme alike. Only the violet inlay keeps fixed brand colours.
 export const PROJECT_LOGO_VIEW_BOX = '0 0 779.5 263';
 
 export const PROJECT_LOGO_LABEL = 'PROJECT — платформа подій';
 
 // The inlay's metallic sweep, top to bottom, following the brand artwork:
-// dark bronze under the crossbar, bright polished gold where the stem turns
+// deep violet under the crossbar, bright polished lilac where the stem turns
 // into the foot, deep again at the tip. Smoothed, so it reads as metal.
 export const PROJECT_LOGO_GOLD_STOPS = [
-  { offset: 0, color: '#7a5212' },
-  { offset: 0.35, color: '#b8802f' },
-  { offset: 0.6, color: '#e8b65a' },
-  { offset: 0.7, color: '#f5d488' },
-  { offset: 0.8, color: '#e2a846' },
-  { offset: 1, color: '#9c6a24' },
+  { offset: 0, color: '#3f2378' },
+  { offset: 0.35, color: '#6a3fb3' },
+  { offset: 0.6, color: '#a98be6' },
+  { offset: 0.7, color: '#d6c6f7' },
+  { offset: 0.8, color: '#9a74e0' },
+  { offset: 1, color: '#55309a' },
 ] as const;
 
 export const SVG_ID_UNSAFE_CHARS = /[^a-zA-Z0-9_-]/g;
@@ -53,7 +53,7 @@ export const PROJECT_LOGO_PATH =
   'M302.3 241.2 303.5 240.2 305 240.8 306.4 245.8 303.5 246.6 301.3 245.8 301.2 244.2Z' +
   'M546.3 241.2 547.2 240.3 548.7 241.2 550 245.8 547.2 246.6 544.9 245.8Z';
 
-// The gold inlay, built as geometry rather than traced, so its edges are
+// The violet inlay, built as geometry rather than traced, so its edges are
 // ruler-straight: a band of constant width (x 27–39.5) down the right of the
 // P's stem, turning into a parallel band along the slanted foot to its tip.
 // Its outer edges sit exactly on the stem's outline above.
@@ -71,8 +71,8 @@ export const PROJECT_LOGO_GOLD_SPAN = { x1: 0, y1: 126, x2: 0, y2: 240 } as cons
 // The shine fades in under the crossbar, peaks where the stem turns into the
 // foot, and dies out before the tip.
 export const PROJECT_LOGO_GOLD_SHINE_STOPS = [
-  { offset: 0, color: '#fff3cf', opacity: 0 },
-  { offset: 0.45, color: '#fff3cf', opacity: 0.55 },
-  { offset: 0.7, color: '#fff8e4', opacity: 0.9 },
-  { offset: 1, color: '#fff3cf', opacity: 0 },
+  { offset: 0, color: '#f3edff', opacity: 0 },
+  { offset: 0.45, color: '#f3edff', opacity: 0.55 },
+  { offset: 0.7, color: '#faf7ff', opacity: 0.9 },
+  { offset: 1, color: '#f3edff', opacity: 0 },
 ] as const;
