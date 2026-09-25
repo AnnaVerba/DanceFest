@@ -88,7 +88,7 @@
 .userName {
   font-weight: 600;
   font-size: 13.5px;
-  color: var(--g-ink-soft);
+  color: var(--g-ink);
 }
 
 .userRole {
