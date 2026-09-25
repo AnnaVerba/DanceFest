@@ -324,3 +324,14 @@ export function updateEntryExtraTime(
     { method: 'PATCH', body: JSON.stringify(input) },
   );
 }
+
+// Cancels a recorded extra-time purchase — the overage is a warning again.
+export function clearEntryExtraTime(
+  competitionId: string,
+  entryId: string,
+): Promise<ExtraTimeResult> {
+  return request<ExtraTimeResult>(
+    `/competitions/${competitionId}/entries/${entryId}/extra-time`,
+    { method: 'DELETE' },
+  );
+}

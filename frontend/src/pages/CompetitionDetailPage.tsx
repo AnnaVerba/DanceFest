@@ -251,7 +251,7 @@ export default function CompetitionDetailPage() {
               {shownTab === 'Доплати' && canManageEntries && (
                 <OveragesPanel
                   competitionId={id}
-                  canManage={canManageEntries}
+                  canManage={canManage}
                   onError={showToast}
                 />
               )}

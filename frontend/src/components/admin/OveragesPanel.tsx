@@ -2,11 +2,20 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getOverages } from '../../lib/overages';
 import type { OverageEntry } from '../../lib/overages';
-import { updateEntryExtraTime, EXTRA_TIME_SECONDS_OPTIONS } from '../../lib/entries';
+import {
+  updateEntryExtraTime,
+  clearEntryExtraTime,
+  EXTRA_TIME_SECONDS_OPTIONS,
+} from '../../lib/entries';
 import type { ExtraTimeSeconds } from '../../lib/entries';
 import { formatDuration } from '../../lib/duration';
 import { queryKeys } from '../../lib/queryKeys';
 import { OVERAGES_STALE_TIME_MS } from '../../lib/queryClient.constants';
+import {
+  CLEAR_EXTRA_TIME_LABEL,
+  CLEARING_EXTRA_TIME_LABEL,
+  CLEAR_EXTRA_TIME_ERROR_MESSAGE,
+} from './OveragesPanel.constants';
 import styles from './OveragesPanel.module.css';
 
 interface OveragesPanelProps {
@@ -35,6 +44,7 @@ export default function OveragesPanel({
   const queryClient = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, RowDraft>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [clearingId, setClearingId] = useState<string | null>(null);
 
   const overagesQuery = useQuery({
     queryKey: queryKeys.overages(competitionId),
@@ -55,17 +65,25 @@ export default function OveragesPanel({
   // (purchasedExtraSeconds/extraFee live on the same Entry), and the
   // performance-program views under the shared 'timing' key prefix, since
   // an on-stage time change is input to their auto-calculated durations.
+  const invalidateExtraTimeCaches = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.overages(competitionId) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.entries(competitionId) });
+    void queryClient.invalidateQueries({ queryKey: ['timing', competitionId] });
+  };
+
   const updateExtraTimeMutation = useMutation({
     mutationFn: (args: { entryId: string; purchasedSec: ExtraTimeSeconds; fee: number }) =>
       updateEntryExtraTime(competitionId, args.entryId, {
         purchasedSec: args.purchasedSec,
         fee: args.fee,
       }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.overages(competitionId) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.entries(competitionId) });
-      void queryClient.invalidateQueries({ queryKey: ['timing', competitionId] });
-    },
+    onSuccess: invalidateExtraTimeCaches,
+  });
+
+  // Cancelling a recorded purchase turns the overage back into a warning.
+  const clearExtraTimeMutation = useMutation({
+    mutationFn: (entryId: string) => clearEntryExtraTime(competitionId, entryId),
+    onSuccess: invalidateExtraTimeCaches,
   });
 
   const draftFor = (item: OverageEntry): RowDraft =>
@@ -76,6 +94,14 @@ export default function OveragesPanel({
       ...prev,
       [item.entryId]: { ...(prev[item.entryId] ?? defaultDraft(item)), ...patch },
     }));
+  };
+
+  const dropDraft = (entryId: string) => {
+    setDrafts((prev) => {
+      const next = { ...prev };
+      delete next[entryId];
+      return next;
+    });
   };
 
   const handleSave = async (item: OverageEntry) => {
@@ -92,15 +118,23 @@ export default function OveragesPanel({
         purchasedSec: draft.purchasedSec,
         fee,
       });
-      setDrafts((prev) => {
-        const next = { ...prev };
-        delete next[item.entryId];
-        return next;
-      });
+      dropDraft(item.entryId);
     } catch {
       onError('Не вдалося зберегти доплату. Спробуйте ще раз.');
     } finally {
       setSavingId(null);
+    }
+  };
+
+  const handleClear = async (item: OverageEntry) => {
+    setClearingId(item.entryId);
+    try {
+      await clearExtraTimeMutation.mutateAsync(item.entryId);
+      dropDraft(item.entryId);
+    } catch {
+      onError(CLEAR_EXTRA_TIME_ERROR_MESSAGE);
+    } finally {
+      setClearingId(null);
     }
   };
 
@@ -148,6 +182,8 @@ export default function OveragesPanel({
                   draft.purchasedSec !== item.purchasedSec ||
                   draft.fee !== (isPaid ? String(item.extraFee) : '');
                 const isSaving = savingId === item.entryId;
+                const isClearing = clearingId === item.entryId;
+                const isBusy = isSaving || isClearing;
 
                 return (
                   <tr key={item.entryId}>
@@ -175,7 +211,7 @@ export default function OveragesPanel({
                             className={styles.field}
                             aria-label={`Докуплений час для №${item.number}`}
                             value={draft.purchasedSec}
-                            disabled={isSaving}
+                            disabled={isBusy}
                             onChange={(e) =>
                               setDraft(item, {
                                 purchasedSec: Number(
@@ -201,19 +237,33 @@ export default function OveragesPanel({
                             aria-label={`Сума доплати для №${item.number}`}
                             placeholder="0"
                             value={draft.fee}
-                            disabled={isSaving}
+                            disabled={isBusy}
                             onChange={(e) => setDraft(item, { fee: e.target.value })}
                           />
                         </td>
                         <td className={styles.colActions}>
-                          <button
-                            className={styles.btnSm}
-                            type="button"
-                            disabled={!dirty || isSaving}
-                            onClick={() => handleSave(item)}
-                          >
-                            {isSaving ? 'Збереження…' : 'Зберегти'}
-                          </button>
+                          <div className={styles.actions}>
+                            <button
+                              className={styles.btnSm}
+                              type="button"
+                              disabled={!dirty || isBusy}
+                              onClick={() => handleSave(item)}
+                            >
+                              {isSaving ? 'Збереження…' : 'Зберегти'}
+                            </button>
+                            {isPaid && (
+                              <button
+                                className={styles.btnSm}
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() => handleClear(item)}
+                              >
+                                {isClearing
+                                  ? CLEARING_EXTRA_TIME_LABEL
+                                  : CLEAR_EXTRA_TIME_LABEL}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </>
                     )}
