@@ -141,6 +141,7 @@
   border-color: var(--g-gold-border);
   width: 100%;
   padding: 0 22px 0 60px;
+  text-overflow: ellipsis;
 }
 
 .search::placeholder {
