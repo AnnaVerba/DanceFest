@@ -7,7 +7,7 @@ export const CATALOG_SUBTITLE =
   'Оберіть конкурс — заявка подається з кабінету керівника або учасника.';
 export const CREATE_COMPETITION_LABEL = '+ Створити конкурс';
 export const MY_COMPETITIONS_LABEL = 'Мої конкурси';
-export const SEARCH_PLACEHOLDER = 'Пошук за назвою, містом або організатором…';
+export const SEARCH_PLACEHOLDER = 'Назва, місто або організатор';
 export const ALL_YEARS_LABEL = 'Усі роки';
 export const LOADING_LABEL = 'Завантаження...';
 export const LOAD_ERROR =
