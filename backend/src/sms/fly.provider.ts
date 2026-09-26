@@ -12,6 +12,7 @@ import {
   SMS_FLY_CHANNEL_VIBER,
   SMS_FLY_FROM_ENV,
   SMS_FLY_TTL_MINUTES,
+  SMS_FLY_VIBER_SOURCE,
   SMS_NOT_CONFIGURED_MESSAGE,
 } from './sms.constants';
 
@@ -67,7 +68,7 @@ export class SmsFlyProvider implements SmsProvider {
               text: message,
             },
             [SMS_FLY_CHANNEL_VIBER]: {
-              source: from,
+              source: SMS_FLY_VIBER_SOURCE,
               ttl: SMS_FLY_TTL_MINUTES,
               text: message,
             },

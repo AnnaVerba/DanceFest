@@ -9,6 +9,9 @@ export const SMS_FLY_API_URL_ENV = 'SMS_FLY_API_URL';
 export const SMS_FLY_CHANNEL_SMS = 'sms';
 export const SMS_FLY_CHANNEL_VIBER = 'viber';
 
+// Viber sender name registered in SMS-fly (differs from the SMS sender).
+export const SMS_FLY_VIBER_SOURCE = 'Promo';
+
 // How long SMS-fly keeps trying to deliver a message per channel, in
 // minutes (the `ttl` API parameter).
 export const SMS_FLY_TTL_MINUTES = 5;
