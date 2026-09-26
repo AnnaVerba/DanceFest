@@ -8,7 +8,10 @@ import { SmsProvider } from './sms-provider.interface';
 import {
   SMS_FLY_API_KEY_ENV,
   SMS_FLY_API_URL_ENV,
+  SMS_FLY_CHANNEL_SMS,
+  SMS_FLY_CHANNEL_VIBER,
   SMS_FLY_FROM_ENV,
+  SMS_FLY_TTL_MINUTES,
   SMS_NOT_CONFIGURED_MESSAGE,
 } from './sms.constants';
 
@@ -56,10 +59,16 @@ export class SmsFlyProvider implements SmsProvider {
           action: 'SENDMESSAGE',
           data: {
             recipient: to.replace(/^\+/, ''),
-            channels: ['sms'],
-            sms: {
+            // Tried in order: Viber only if SMS was not delivered.
+            channels: [SMS_FLY_CHANNEL_SMS, SMS_FLY_CHANNEL_VIBER],
+            [SMS_FLY_CHANNEL_SMS]: {
               source: from,
-              ttl: 5,
+              ttl: SMS_FLY_TTL_MINUTES,
+              text: message,
+            },
+            [SMS_FLY_CHANNEL_VIBER]: {
+              source: from,
+              ttl: SMS_FLY_TTL_MINUTES,
               text: message,
             },
           },
