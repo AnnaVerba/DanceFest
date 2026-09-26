@@ -54,7 +54,7 @@ export interface Entry {
 }
 
 // The only purchasable extra-time brackets for an overrun performance.
-export const EXTRA_TIME_SECONDS_OPTIONS = [30, 60] as const;
+export const EXTRA_TIME_SECONDS_OPTIONS = [30, 60, 90, 120, 150, 180] as const;
 export type ExtraTimeSeconds = (typeof EXTRA_TIME_SECONDS_OPTIONS)[number];
 
 export interface ExtraTimeInput {
