@@ -36,6 +36,7 @@ export default function ScheduleSettings({
   const [pause, setPause] = useState('');
   const [limits, setLimits] = useState<Record<string, string>>({});
   const [lineupLimits, setLineupLimits] = useState<Record<string, string>>({});
+  const [improv, setImprov] = useState('');
 
   const rulesQuery = useQuery({
     queryKey: queryKeys.rules(competitionId),
@@ -82,6 +83,7 @@ export default function ScheduleSettings({
   if (rules && rules.id !== seededRulesId) {
     setSeededRulesId(rules.id);
     setPause(String(rules.pauseSeconds));
+    setImprov(String(rules.improvGroupSeconds));
     setLimits(
       Object.fromEntries(
         Object.entries(rules.leagueLimits).map(([k, v]) => [k, String(v)]),
@@ -125,6 +127,11 @@ export default function ScheduleSettings({
       onError('Пауза має бути числом секунд.');
       return;
     }
+    const nextImprov = readSeconds(improv);
+    if (nextImprov === null || nextImprov <= 0) {
+      onError('Тривалість імпровізації має бути додатною.');
+      return;
+    }
     const nextLimits: Record<string, number> = {};
     for (const [league, raw] of Object.entries(limits)) {
       const seconds = readSeconds(raw);
@@ -140,6 +147,9 @@ export default function ScheduleSettings({
         pauseSeconds: nextPause,
         leagueLimits: nextLimits,
         lineupLimits: nextLineupLimits,
+        // Одна тривалість для будь-якої імпровізації — і групової, і сольної.
+        improvGroupSeconds: nextImprov,
+        improvIndividualSeconds: nextImprov,
       });
       onSaved('Налаштування таймінгів збережено.');
     } catch {
@@ -227,6 +237,20 @@ export default function ScheduleSettings({
               ))}
             </div>
           )}
+        </div>
+
+        <div>
+          <label className={styles.fieldLabel} htmlFor="settingsImprov">
+            Тривалість імпровізації (<code>1:30</code> або <code>90</code>) —
+            має перевагу над складом і лігою
+          </label>
+          <input
+            id="settingsImprov"
+            className={styles.numInput}
+            value={improv}
+            onChange={(e) => setImprov(e.target.value)}
+            disabled={!canManage}
+          />
         </div>
 
         {hasSections && <div className={styles.divider} />}

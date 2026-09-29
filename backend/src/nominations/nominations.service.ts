@@ -604,6 +604,13 @@ export class NominationsService {
         if (groupPrice !== null) nomination.price = groupPrice;
       }
       await nomination.save({ transaction });
+      if (nomination.allowsImprovisation !== wasImprovisation) {
+        await this.syncEntriesImprovisation(
+          [nomination.id],
+          nomination.allowsImprovisation,
+          transaction,
+        );
+      }
       if (categoryIdsChanged) {
         await this.nominationCategoryModel.destroy({
           where: { nominationId: nomination.id },
@@ -692,6 +699,11 @@ export class NominationsService {
       await this.nominationModel.update(
         { allowsImprovisation: dto.allowsImprovisation },
         { where, transaction },
+      );
+      await this.syncEntriesImprovisation(
+        flipped.map((nomination) => nomination.id),
+        dto.allowsImprovisation,
+        transaction,
       );
       // One UPDATE per distinct duration, not one per nomination.
       for (const [seconds, ids] of idsBySeconds) {
@@ -1176,6 +1188,21 @@ export class NominationsService {
       input,
       await this.leagueNamesById(input.categoryIds ?? []),
       effectiveRules,
+    );
+  }
+
+  // An entry is an improvisation exactly when its nomination is: the schedule,
+  // tracks and music export read entry.improv, which is only set when the
+  // entry is filed — a flag flipped later must reach entries already there.
+  private async syncEntriesImprovisation(
+    nominationIds: string[],
+    allowsImprovisation: boolean,
+    transaction: Transaction,
+  ): Promise<void> {
+    if (nominationIds.length === 0) return;
+    await this.entryModel.update(
+      { improv: allowsImprovisation },
+      { where: { nominationId: { [Op.in]: nominationIds } }, transaction },
     );
   }
 
