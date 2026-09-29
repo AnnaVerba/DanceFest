@@ -563,26 +563,29 @@ export default function ApplyPage() {
   const styleRows: NominationRow[] = useMemo(() => {
     const rows: NominationRow[] = [];
     for (const n of entryNominations) {
-      rows.push({
-        key: nominationRowKey(n.id, false),
-        nominationId: n.id,
-        improv: false,
-        takesNoTrack: exitsAreAllImprovisation(n.exits),
-        isSpecial: false,
-        label: n.name,
-        price: n.price,
-      });
-      if (n.allowsImprovisation) {
-        rows.push({
-          key: nominationRowKey(n.id, true),
-          nominationId: n.id,
-          improv: true,
-          takesNoTrack: true,
-          isSpecial: false,
-          label: `${n.name} · Імпровізація`,
-          price: n.price,
-        });
-      }
+      // A nomination marked as improvisation is entered only as one — no
+      // regular-performance twin of the same row.
+      rows.push(
+        n.allowsImprovisation
+          ? {
+              key: nominationRowKey(n.id, true),
+              nominationId: n.id,
+              improv: true,
+              takesNoTrack: true,
+              isSpecial: false,
+              label: `${n.name} · Імпровізація`,
+              price: n.price,
+            }
+          : {
+              key: nominationRowKey(n.id, false),
+              nominationId: n.id,
+              improv: false,
+              takesNoTrack: exitsAreAllImprovisation(n.exits),
+              isSpecial: false,
+              label: n.name,
+              price: n.price,
+            },
+      );
     }
     return rows;
   }, [entryNominations]);
@@ -1320,8 +1323,8 @@ export default function ApplyPage() {
             </div>
             <p className={styles.hint}>
               Доступні стилі з шаблону, за яким створено конкурс. Можна обрати
-              кілька — заявка буде подана в кожну номінацію. Імпровізація — це
-              окремий рядок у списку номінацій нижче.
+              кілька — заявка буде подана в кожну номінацію. Номінації, що є
+              імпровізацією, подаються без треку.
             </p>
             <CategoryDescriptionList
               values={chosenStyleValues}

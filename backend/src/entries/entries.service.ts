@@ -60,7 +60,11 @@ import {
   ASSIGN_STUDIO_TRAINER_FORBIDDEN_MESSAGE,
   TRAINER_NOT_A_COACH_MESSAGE,
   PROGRAM_PLACEMENT_FAILED_MESSAGE,
+  NO_EXTRA_TIME_SECONDS,
+  NO_EXTRA_FEE,
+  EXTRA_TIME_ORGANIZER_ONLY_MESSAGE,
 } from './entries.constants';
+import { isListedOrganizer } from '../competitions/competition-organizers';
 import {
   COMPETITION_NOT_FOUND_MESSAGE,
   NO_COMPETITION_ACCESS_MESSAGE,
@@ -1015,11 +1019,50 @@ export class EntriesService {
     requesterLevel: AccessLevel,
     dto: UpdateEntryExtraTimeDto,
   ) {
-    await this.loadCompetitionAndAssertAccess(
+    return this.saveExtraTime(
+      competitionId,
+      entryId,
+      requesterId,
+      requesterLevel,
+      dto.purchasedSec,
+      dto.fee,
+    );
+  }
+
+  // Cancels a recorded extra-time purchase: the entry owes nothing extra
+  // again and its overage turns back into a warning.
+  async clearExtraTime(
+    competitionId: string,
+    entryId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+  ) {
+    return this.saveExtraTime(
+      competitionId,
+      entryId,
+      requesterId,
+      requesterLevel,
+      NO_EXTRA_TIME_SECONDS,
+      NO_EXTRA_FEE,
+    );
+  }
+
+  private async saveExtraTime(
+    competitionId: string,
+    entryId: string,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+    purchasedSec: number,
+    fee: number,
+  ) {
+    const competition = await this.loadCompetitionAndAssertAccess(
       competitionId,
       requesterId,
       requesterLevel,
     );
+    if (!this.isOrganizerOrAdmin(competition, requesterId, requesterLevel)) {
+      throw new ForbiddenException(EXTRA_TIME_ORGANIZER_ONLY_MESSAGE);
+    }
 
     const entry = await this.entryModel.findOne({
       where: { id: entryId, competitionId },
@@ -1028,8 +1071,8 @@ export class EntriesService {
       throw new NotFoundException(ENTRY_NOT_FOUND_MESSAGE);
     }
 
-    entry.purchasedExtraSeconds = dto.purchasedSec;
-    entry.extraFee = dto.fee;
+    entry.purchasedExtraSeconds = purchasedSec;
+    entry.extraFee = fee;
     await entry.save();
 
     const numbers = await this.participantNumbersService.loadLookup(
@@ -1167,6 +1210,20 @@ export class EntriesService {
       where: { competitionId: competition.id, adminId: requesterId },
     });
     return membership !== null;
+  }
+
+  // An admin, the competition's owner or an account listed among its
+  // organizers — staff minus invited team members.
+  private isOrganizerOrAdmin(
+    competition: Competition,
+    requesterId: string,
+    requesterLevel: AccessLevel,
+  ): boolean {
+    return (
+      requesterLevel === AccessLevel.ADMIN ||
+      competition.ownerId === requesterId ||
+      isListedOrganizer(competition, requesterId)
+    );
   }
 
   // The logged-out public listing: no payment method, choreographer,

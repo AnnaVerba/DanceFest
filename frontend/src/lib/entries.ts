@@ -54,7 +54,7 @@ export interface Entry {
 }
 
 // The only purchasable extra-time brackets for an overrun performance.
-export const EXTRA_TIME_SECONDS_OPTIONS = [30, 60] as const;
+export const EXTRA_TIME_SECONDS_OPTIONS = [30, 60, 90, 120, 150, 180] as const;
 export type ExtraTimeSeconds = (typeof EXTRA_TIME_SECONDS_OPTIONS)[number];
 
 export interface ExtraTimeInput {
@@ -322,5 +322,16 @@ export function updateEntryExtraTime(
   return request<ExtraTimeResult>(
     `/competitions/${competitionId}/entries/${entryId}/extra-time`,
     { method: 'PATCH', body: JSON.stringify(input) },
+  );
+}
+
+// Cancels a recorded extra-time purchase — the overage is a warning again.
+export function clearEntryExtraTime(
+  competitionId: string,
+  entryId: string,
+): Promise<ExtraTimeResult> {
+  return request<ExtraTimeResult>(
+    `/competitions/${competitionId}/entries/${entryId}/extra-time`,
+    { method: 'DELETE' },
   );
 }

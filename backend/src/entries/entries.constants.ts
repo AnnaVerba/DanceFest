@@ -58,8 +58,18 @@ export const NOMINATION_PROGRAM_MISMATCH_MESSAGE =
 
 // The only purchasable extra-time brackets for an overrun performance (see
 // PATCH .../entries/:entryId/extra-time).
-export const EXTRA_TIME_SECONDS_OPTIONS = [30, 60] as const;
+export const EXTRA_TIME_SECONDS_OPTIONS = [30, 60, 90, 120, 150, 180] as const;
 export type ExtraTimeSeconds = (typeof EXTRA_TIME_SECONDS_OPTIONS)[number];
+
+// What an entry's extra time and fee reset to when the organizer cancels a
+// recorded purchase — the overage goes back to being a warning.
+export const NO_EXTRA_TIME_SECONDS = 0;
+export const NO_EXTRA_FEE = 0;
+
+// Recording or cancelling an extra-time purchase is money, so it stays with
+// the organizer and admin; an invited team member only sees the list.
+export const EXTRA_TIME_ORGANIZER_ONLY_MESSAGE =
+  'Змінювати доплати можуть лише організатор конкурсу та адміністратор';
 
 // Money is kept to kopiykas: sums of DECIMAL(10,2) prices are rounded back
 // to two decimals so float drift never shows up in a total.

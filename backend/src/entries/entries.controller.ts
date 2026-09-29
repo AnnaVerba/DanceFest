@@ -300,7 +300,7 @@ export class EntriesController {
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
   @ApiResponse({
     status: 403,
-    description: 'The caller has no access to this competition.',
+    description: 'The caller is not an organizer of this competition or an admin.',
   })
   @ApiResponse({ status: 404, description: 'Competition or entry not found.' })
   @ApiBearerAuth()
@@ -318,6 +318,36 @@ export class EntriesController {
       admin.id,
       admin.accessLevel,
       dto,
+    );
+  }
+
+  @ApiOperation({
+    summary: 'Cancel purchased additional on-stage time for an entry',
+    description:
+      'Resets the purchased extra time and its fee to zero, so the ' +
+      'overage is a warning again. Organizer or admin only. Returns the ' +
+      "updated entry and the entry's total amount due.",
+  })
+  @ApiResponse({ status: 200, description: 'Extra time cancelled.' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'The caller is not an organizer of this competition or an admin.',
+  })
+  @ApiResponse({ status: 404, description: 'Competition or entry not found.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Delete(':entryId/extra-time')
+  clearExtraTime(
+    @Param('competitionId') competitionId: string,
+    @Param('entryId') entryId: string,
+    @CurrentUser() admin: AuthenticatedAdmin,
+  ) {
+    return this.entriesService.clearExtraTime(
+      competitionId,
+      entryId,
+      admin.id,
+      admin.accessLevel,
     );
   }
 }

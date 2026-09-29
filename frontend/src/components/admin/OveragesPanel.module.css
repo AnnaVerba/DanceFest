@@ -132,6 +132,11 @@
   width: 120px;
 }
 
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
 .btnSm {
   display: inline-flex;
   align-items: center;
