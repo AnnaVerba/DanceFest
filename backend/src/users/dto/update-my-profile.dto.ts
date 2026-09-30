@@ -1,11 +1,7 @@
-import {
-  ApiPropertyOptional,
-  IntersectionType,
-  PickType,
-} from '@nestjs/swagger';
-import { IsOptional, IsUUID } from 'class-validator';
+import { IntersectionType, PickType } from '@nestjs/swagger';
 import { AdminUpdateUserDto } from './admin-update-user.dto';
 import { SetMentorCoachDto } from './set-mentor-coach.dto';
+import { SetSchoolDto } from './set-school.dto';
 
 // A user editing their own profile: the admin edit's contact fields minus
 // phone (it is the login) and access level, plus the mentor coach (an
@@ -19,9 +15,5 @@ export class UpdateMyProfileDto extends IntersectionType(
     'birthDate',
   ] as const),
   SetMentorCoachDto,
-) {
-  @ApiPropertyOptional({ description: 'Coach level and above only.' })
-  @IsOptional()
-  @IsUUID()
-  schoolId?: string;
-}
+  SetSchoolDto,
+) {}

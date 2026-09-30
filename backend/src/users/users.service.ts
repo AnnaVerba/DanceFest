@@ -39,7 +39,10 @@ import { userSearchWhere } from './user-search';
 import { NOT_DELETED, markContactDeleted } from './deleted-user';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
+import { AdminEditUserDto } from './dto/admin-edit-user.dto';
 import {
+  COACH_ASSOCIATION,
+  COACH_CANNOT_BE_SELF_MESSAGE,
   LEVEL_ONLY_GOES_UP_MESSAGE,
   MENTOR_COACH_NOT_FOUND_MESSAGE,
   MENTOR_COACH_ONE_OF_MESSAGE,
@@ -405,7 +408,7 @@ export class UsersService {
     );
     const { rows, count } = await this.userModel.findAndCountAll({
       where: { ...NOT_DELETED, ...userSearchWhere(query) },
-      include: [School],
+      include: this.adminListInclude(),
       order: [
         ['lastName', 'ASC'],
         ['firstName', 'ASC'],
@@ -467,12 +470,26 @@ export class UsersService {
     userId: string,
     dto: UpdateMyProfileDto,
   ): Promise<void> {
+    await this.editProfile(userId, dto);
+  }
+
+  // Shared by the own and the admin edit. The school needs coach level —
+  // the level being set in the same edit, if any, else the current one.
+  private async editProfile(
+    userId: string,
+    dto: AdminEditUserDto,
+  ): Promise<void> {
     const { schoolId, coachId, newCoach, ...contact } = dto;
     const fields: Partial<Pick<User, 'schoolId' | 'coachId'>> = {};
 
+    if (coachId === userId) {
+      throw new BadRequestException(COACH_CANNOT_BE_SELF_MESSAGE);
+    }
+
     if (schoolId !== undefined) {
       const user = await this.findByIdOrFail(userId);
-      if (!meetsLevel(user.accessLevel, AccessLevel.COACH)) {
+      const level = contact.accessLevel ?? user.accessLevel;
+      if (!meetsLevel(level, AccessLevel.COACH)) {
         throw new BadRequestException(SCHOOL_ONLY_FOR_COACH_MESSAGE);
       }
       await this.schoolsService.findByIdOrFail(schoolId);
@@ -491,6 +508,20 @@ export class UsersService {
         await this.updateFields(userId, fields, transaction);
       }
     });
+  }
+
+  // ADMIN: edit any user — contacts and access level, and also the school
+  // and mentor coach, through the same checks as a user's own edit.
+  async adminEdit(userId: string, dto: AdminEditUserDto): Promise<User> {
+    await this.editProfile(userId, dto);
+    return (await this.userModel.findByPk(userId, {
+      include: this.adminListInclude(),
+    }))!;
+  }
+
+  // The school and mentor coach the admin's user list shows per row.
+  private adminListInclude() {
+    return [School, { model: User, as: COACH_ASSOCIATION }];
   }
 
   // The coach's whole roster — for internal use (my-entries, my-program

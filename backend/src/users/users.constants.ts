@@ -27,3 +27,7 @@ export const CANNOT_DELETE_SELF_MESSAGE =
 // frees the originals for a fresh registration and keeps every renamed value
 // unique. To restore an account, cut the value back at the suffix.
 export const DELETED_CONTACT_SUFFIX = '_deleted';
+// The User → mentor coach association (User.coach).
+export const COACH_ASSOCIATION = 'coach';
+export const COACH_CANNOT_BE_SELF_MESSAGE =
+  'Користувач не може бути власним тренером';
