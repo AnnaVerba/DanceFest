@@ -91,6 +91,7 @@ interface PreparedEntry {
   routineName: string;
   nominationId: string;
   nominationName: string;
+  lineup: string;
   exits: NominationExit[];
   ageCategory: string | null;
   league: string | null;
@@ -309,14 +310,17 @@ export class EntriesService {
     }
   }
 
-  // One dancer performs in a nomination once. The several exits of a
+  // One dancer performs in a nomination once per lineup — a soloist may
+  // still dance a duo in the same nomination. The several exits of a
   // per-program nomination come from one submitted entry, so they never trip
   // this — only a second entry naming the same dancer does.
   private assertNoRepeatWithinSubmission(prepared: PreparedEntry[]): void {
     const seen = new Set<string>();
     for (const entry of prepared) {
       for (const participantId of entry.submitter.participantIds) {
-        const key = `${entry.nominationId}${NOMINATION_PARTICIPANT_KEY_SEPARATOR}${participantId}`;
+        const key = [entry.nominationId, entry.lineup, participantId].join(
+          NOMINATION_PARTICIPANT_KEY_SEPARATOR,
+        );
         if (seen.has(key)) {
           throw this.alreadyInNomination(entry.nominationName);
         }
@@ -336,6 +340,7 @@ export class EntriesService {
       const clash = await this.hasNominationClash(
         competitionId,
         entry.nominationId,
+        entry.lineup,
         entry.submitter.participantIds,
         transaction,
       );
@@ -345,11 +350,12 @@ export class EntriesService {
     }
   }
 
-  // Whether any of these dancers already performs in the nomination —
-  // `excludeEntryId` skips the entry being edited.
+  // Whether any of these dancers already performs in the nomination with
+  // the same lineup — `excludeEntryId` skips the entry being edited.
   private async hasNominationClash(
     competitionId: string,
     nominationId: string,
+    lineup: string | null,
     participantIds: string[],
     transaction: Transaction,
     excludeEntryId?: string,
@@ -359,6 +365,7 @@ export class EntriesService {
       where: {
         competitionId,
         nominationId,
+        lineup,
         participantIds: { [Op.overlap]: participantIds },
         ...(excludeEntryId ? { id: { [Op.ne]: excludeEntryId } } : {}),
       },
@@ -547,6 +554,11 @@ export class EntriesService {
       routineName,
       nominationId: nomination.id,
       nominationName: nomination.name,
+      lineup: resolveLineup(
+        dto.participantsCount ??
+          submitter.participantsCount ??
+          MIN_PARTICIPANTS_PER_ENTRY,
+      ),
       exits,
       ageCategory,
       league,
@@ -625,7 +637,7 @@ export class EntriesService {
       league: entry.league,
       program: exit.programName,
       participantsCount,
-      lineup: resolveLineup(participantsCount ?? 1),
+      lineup: entry.lineup,
       studioId: submitter.studioId,
       trainerId: submitter.trainerId,
       studioName: dto.studioName?.trim() || submitter.studioName,
@@ -881,11 +893,14 @@ export class EntriesService {
       changes.paymentMethod = dto.paymentMethod;
     }
 
-    // A new nomination is checked for every dancer on the entry; the same
-    // nomination only for the dancers just added.
-    const idsToCheck = nominationChanged
-      ? (changes.participantIds ?? currentIds)
-      : addedIds;
+    // A new nomination or lineup is checked for every dancer on the entry;
+    // the same nomination and lineup only for the dancers just added.
+    const finalLineup = changes.lineup ?? entry.lineup;
+    const lineupChanged = finalLineup !== entry.lineup;
+    const idsToCheck =
+      nominationChanged || lineupChanged
+        ? (changes.participantIds ?? currentIds)
+        : addedIds;
     const finalNominationId = changes.nominationId ?? entry.nominationId;
 
     await this.entryModel.sequelize!.transaction(
@@ -901,6 +916,7 @@ export class EntriesService {
           (await this.hasNominationClash(
             competitionId,
             finalNominationId,
+            finalLineup,
             idsToCheck,
             transaction,
             entry.id,
@@ -908,7 +924,7 @@ export class EntriesService {
         if (clash) {
           throw this.alreadyInNomination(nominationName);
         }
-        const isGroup = isGroupLineup(changes.lineup ?? entry.lineup);
+        const isGroup = isGroupLineup(finalLineup);
         if (isGroup && entry.groupNumber === null) {
           [changes.groupNumber] =
             await this.participantNumbersService.issueGroupNumbers(

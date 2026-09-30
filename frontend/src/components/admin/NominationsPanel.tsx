@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import ConfirmDialog from './ConfirmDialog';
 import TemplateImportModal from './TemplateImportModal';
@@ -16,10 +15,9 @@ import {
   NOTHING_FOUND_MESSAGE,
   SPECIAL_PRICE_SHARED_HINT,
 } from './nominationSelection/nominationFilters.constants';
-import { LEAGUE_CATEGORY_TYPE, getCategories } from '../../lib/categories';
+import { getCategories } from '../../lib/categories';
 import type { Category } from '../../lib/categories';
 import {
-  createNomination,
   createNominationsBulk,
   deleteNomination,
   updateNomination,
@@ -38,11 +36,7 @@ import {
   NOMINATIONS_PAGE_SIZE,
 } from '../../lib/nominations.constants';
 import { formatDuration, parseDuration, pluralExits } from '../../lib/duration';
-import {
-  NOMINATION_LEAGUE_ARIA_LABEL,
-  NOMINATION_LEAGUE_PLACEHOLDER,
-  NOMINATION_LEAGUE_SELECT_REQUIRED_MESSAGE,
-} from '../../lib/nominationLeague.constants';
+import NominationAddForm from './NominationAddForm';
 import { queryKeys } from '../../lib/queryKeys';
 import { REFERENCE_STALE_TIME_MS } from '../../lib/queryClient.constants';
 import styles from './NominationsPanel.module.css';
@@ -69,10 +63,6 @@ export default function NominationsPanel({
   onError,
 }: NominationsPanelProps) {
   const queryClient = useQueryClient();
-  const [name, setName] = useState('');
-  const [price, setPrice] = useState('');
-  const [duration, setDuration] = useState('');
-  const [leagueId, setLeagueId] = useState('');
   const [specialOpen, setSpecialOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Nomination | null>(null);
@@ -100,6 +90,9 @@ export default function NominationsPanel({
     queryFn: () => getCategories(),
     enabled: canManage,
     staleTime: REFERENCE_STALE_TIME_MS,
+    // Значення, додані в шаблон уже після створення конкурсу, мають одразу
+    // з'являтись у підказках форми «Додати», а не після перезавантаження.
+    refetchOnMount: 'always',
   });
   const categories = categoriesQuery.data ?? EMPTY_CATEGORIES;
 
@@ -109,24 +102,11 @@ export default function NominationsPanel({
   });
   const rules = rulesQuery.data ?? null;
 
-  const leaguesQuery = useQuery({
-    queryKey: queryKeys.categories(LEAGUE_CATEGORY_TYPE),
-    queryFn: () => getCategories(LEAGUE_CATEGORY_TYPE),
-    enabled: canManage,
-    staleTime: REFERENCE_STALE_TIME_MS,
-  });
-  const leagues = leaguesQuery.data ?? [];
-
   useEffect(() => {
     if (canManage && categoriesQuery.isError) {
       onError('Не вдалося завантажити довідник категорій.');
     }
   }, [canManage, categoriesQuery.isError, onError]);
-
-  const createNominationMutation = useMutation({
-    mutationFn: (input: NominationInput) => createNomination(competitionId, input),
-    onSuccess: () => refreshNominations(queryClient, competitionId),
-  });
 
   const createNominationsBulkMutation = useMutation({
     mutationFn: (inputs: NominationInput[]) =>
@@ -156,35 +136,6 @@ export default function NominationsPanel({
     }),
     [rows],
   );
-
-  const handleAdd = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!name.trim() || createNominationMutation.isPending) return;
-    if (!leagueId) {
-      onError(NOMINATION_LEAGUE_SELECT_REQUIRED_MESSAGE);
-      return;
-    }
-
-    const seconds = parseDuration(duration);
-    if (duration.trim() !== '' && seconds === null) {
-      onError('Некоректна тривалість. Пишіть «2:30» або «150».');
-      return;
-    }
-
-    try {
-      await createNominationMutation.mutateAsync({
-        name,
-        price: price.trim() === '' ? undefined : Number(price),
-        durationLimitSeconds: seconds ?? undefined,
-        categoryIds: [leagueId],
-      });
-      setName('');
-      setPrice('');
-      setDuration('');
-    } catch {
-      onError('Не вдалося додати номінацію. Спробуйте ще раз.');
-    }
-  };
 
   const handleAddSpecial = async (
     drafts: SpecialNominationDraft[],
@@ -421,57 +372,11 @@ export default function NominationsPanel({
 
       {canManage && (
         <>
-          <form className={styles.add} onSubmit={handleAdd}>
-            <input
-              className={styles.input}
-              type="text"
-              placeholder="Назва номінації (напр. Соло · Діти · Дебют · Фрі Денс)"
-              aria-label="Назва номінації"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-            <select
-              className={styles.input}
-              aria-label={NOMINATION_LEAGUE_ARIA_LABEL}
-              value={leagueId}
-              onChange={(e) => setLeagueId(e.target.value)}
-              required
-            >
-              <option value="">{NOMINATION_LEAGUE_PLACEHOLDER}</option>
-              {leagues.map((league) => (
-                <option key={league.id} value={league.id}>
-                  {league.name}
-                </option>
-              ))}
-            </select>
-            <input
-              className={styles.input}
-              type="number"
-              min="0"
-              step="10"
-              placeholder="Ціна, ₴"
-              aria-label="Ціна номінації"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-            />
-            <input
-              className={styles.input}
-              type="text"
-              inputMode="numeric"
-              placeholder="Тривалість, 2:30"
-              aria-label="Тривалість номінації"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-            />
-            <button
-              type="submit"
-              className={styles.btnPrimary}
-              disabled={createNominationMutation.isPending}
-            >
-              {createNominationMutation.isPending ? 'Додавання…' : 'Додати'}
-            </button>
-          </form>
+          <NominationAddForm
+            competitionId={competitionId}
+            categories={categories}
+            onError={onError}
+          />
 
           <button
             type="button"

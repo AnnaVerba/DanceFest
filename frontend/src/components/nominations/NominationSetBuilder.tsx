@@ -25,12 +25,7 @@ import {
 } from '../../lib/nominationPricing';
 import type { AxisPriceMap } from '../../lib/nominationPricing';
 import { parseAgeRange } from '../../lib/ageRange';
-import {
-  EMPTY_CATEGORY_RANGE,
-  formatCategoryRange,
-  parseLineupSize,
-} from '../../lib/categoryRange';
-import type { CategoryRange } from '../../lib/categoryRange';
+import { EMPTY_CATEGORY_RANGE, formatCategoryRange } from '../../lib/categoryRange';
 import { LINEUP_SIZE_UNBOUNDED_LABEL } from '../../lib/categoryRange.constants';
 import { useCategoryRangeDraft } from '../../lib/useCategoryRangeDraft';
 import type { CategoryRangeDraftController } from '../../lib/useCategoryRangeDraft.types';
@@ -46,6 +41,7 @@ import {
   signatureOf,
 } from '../../lib/nominationSet';
 import type { AxisSelection, DraftNomination } from '../../lib/nominationSet';
+import { resolveAxisValue } from '../../lib/axisValue';
 import { findDraftPriceConflict } from '../../lib/specialPriceConflict';
 import {
   AGE_RANGE_CANCEL_LABEL,
@@ -230,43 +226,15 @@ export default function NominationSetBuilder({
       return;
     }
 
-    const existing = suggestions.find((s) => sameCategoryValue(s, candidate));
-
-    // Довідник спільний за назвою: якщо значення з такою назвою вже є,
-    // порожні поля меж означають «використати наявне», а заповнені — намір
-    // користувача або підтвердити, або перевизначити їх. Тихо відкидати
-    // введене й підставляти чуже — саме той сценарій, що ламав BUG-03.
-    //
-    // Підставлене з довідника й не редаговане — це не введені межі: інакше
-    // вибір наявного значення щоразу створював би чернетку замість нього
-    // самого, і ✎ на чіпі правив би лише набір, а не спільний довідник.
-    let range: CategoryRange | undefined;
-    const draft = rangeDraftFor(type);
-    if (draft) {
-      const rangeEntered =
-        !draft.isFromReference &&
-        (draft.draft.from.trim() !== '' || draft.draft.to.trim() !== '');
-      // Кількість людей обов'язкова для нового складу: без неї він не знає,
-      // скільком танцюристам відповідає, і заявка його не підбере.
-      if (!existing || rangeEntered || draft.draft.unbounded) {
-        const parsed =
-          type === AGE_CATEGORY_TYPE
-            ? parseAgeRange(draft.draft)
-            : parseLineupSize(draft.draft);
-        if (!parsed.ok) {
-          setError(parsed.message);
-          return;
-        }
-        range = parsed.range;
-      }
+    const resolved = resolveAxisValue(raw, type, suggestions, rangeDraftFor(type));
+    if (!resolved.ok) {
+      setError(resolved.message);
+      return;
     }
-
-    const category =
-      existing && !range ? existing : draftCategory(raw, type, range);
 
     updateSelection((current) => ({
       ...current,
-      [type]: [...current[type], category],
+      [type]: [...current[type], resolved.category],
     }));
     clearInput();
   };
