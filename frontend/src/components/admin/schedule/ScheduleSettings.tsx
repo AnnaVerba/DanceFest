@@ -4,9 +4,19 @@ import { getRules, patchRules } from '../../../lib/competitionRules';
 import type { RulesPatch } from '../../../lib/competitionRules';
 import { getNominationAxes } from '../../../lib/nominations';
 import { LEAGUE_CATEGORY_TYPE, LINEUP_CATEGORY_TYPE } from '../../../lib/categories';
-import { getSections } from '../../../lib/schedule';
+import { getSections, recalculateSchedule } from '../../../lib/schedule';
 import { parseDuration } from '../../../lib/duration';
 import { queryKeys } from '../../../lib/queryKeys';
+import { refreshNominations } from '../../../lib/nominationsCache';
+import { refreshProgram } from '../../../lib/programCache';
+import ConfirmDialog from '../ConfirmDialog';
+import {
+  RECALC_DONE_MESSAGE,
+  RECALC_FAILED_MESSAGE,
+  RECALC_PROMPT_CONFIRM_LABEL,
+  RECALC_PROMPT_DESCRIPTION,
+  RECALC_PROMPT_TITLE,
+} from './scheduleSettings.constants';
 import styles from './program.module.css';
 
 interface ScheduleSettingsProps {
@@ -37,6 +47,7 @@ export default function ScheduleSettings({
   const [limits, setLimits] = useState<Record<string, string>>({});
   const [lineupLimits, setLineupLimits] = useState<Record<string, string>>({});
   const [improv, setImprov] = useState('');
+  const [recalcOpen, setRecalcOpen] = useState(false);
 
   const rulesQuery = useQuery({
     queryKey: queryKeys.rules(competitionId),
@@ -101,11 +112,9 @@ export default function ScheduleSettings({
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKeys.rules(competitionId), saved);
       // League duration changes push a new durationLimitSeconds onto that
-      // league's nominations (see BUG-10) — refetch so the Номінації tab
-      // doesn't keep showing the value it had cached before the save.
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.nominations(competitionId),
-      });
+      // league's nominations (see BUG-10) — refetch every nominations view
+      // (the Номінації tab reads paged keys) so none keeps the old value.
+      refreshNominations(queryClient, competitionId);
     },
   });
 
@@ -152,8 +161,22 @@ export default function ScheduleSettings({
         improvIndividualSeconds: nextImprov,
       });
       onSaved('Налаштування таймінгів збережено.');
+      // Built sections keep the durations frozen at build time (BUG-10).
+      if (hasSections) setRecalcOpen(true);
     } catch {
       onError('Не вдалося зберегти налаштування.');
+    }
+  };
+
+  const handleRecalculate = async () => {
+    try {
+      await recalculateSchedule(competitionId);
+      await refreshProgram(queryClient, competitionId);
+      onSaved(RECALC_DONE_MESSAGE);
+    } catch {
+      onError(RECALC_FAILED_MESSAGE);
+    } finally {
+      setRecalcOpen(false);
     }
   };
 
@@ -269,6 +292,15 @@ export default function ScheduleSettings({
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={recalcOpen}
+        title={RECALC_PROMPT_TITLE}
+        description={RECALC_PROMPT_DESCRIPTION}
+        confirmLabel={RECALC_PROMPT_CONFIRM_LABEL}
+        onCancel={() => setRecalcOpen(false)}
+        onConfirm={handleRecalculate}
+      />
     </div>
   );
 }
