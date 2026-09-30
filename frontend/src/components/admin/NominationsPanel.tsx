@@ -33,10 +33,11 @@ import { IMPROVISATION_EXIT_LABEL } from '../../lib/improvisationDuration.consta
 import { refreshNominations } from '../../lib/nominationsCache';
 import {
   DURATION_UNSET_PLACEHOLDER,
-  NOMINATIONS_PAGE_SIZE,
+  COMPETITION_NOMINATIONS_PAGE_SIZE,
 } from '../../lib/nominations.constants';
 import { formatDuration, parseDuration, pluralExits } from '../../lib/duration';
 import NominationAddForm from './NominationAddForm';
+import CompetitionStyleImprovisation from './CompetitionStyleImprovisation';
 import { queryKeys } from '../../lib/queryKeys';
 import { REFERENCE_STALE_TIME_MS } from '../../lib/queryClient.constants';
 import styles from './NominationsPanel.module.css';
@@ -69,7 +70,7 @@ export default function NominationsPanel({
   const [editing, setEditing] = useState<Record<string, EditState>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  const selection = useNominationSelection(NOMINATIONS_PAGE_SIZE);
+  const selection = useNominationSelection(COMPETITION_NOMINATIONS_PAGE_SIZE);
   const nominationsQuery = useNominationsPage(competitionId, selection);
   const rows = nominationsQuery.data?.rows ?? EMPTY_NOMINATIONS;
   const total = nominationsQuery.data?.total ?? 0;
@@ -420,6 +421,14 @@ export default function NominationsPanel({
 
       {nominationsQuery.isSuccess && !competitionHasNoNominations && total === 0 && (
         <p className={styles.status}>{NOTHING_FOUND_MESSAGE}</p>
+      )}
+
+      {canManage && nominationsQuery.isSuccess && !competitionHasNoNominations && (
+        <CompetitionStyleImprovisation
+          competitionId={competitionId}
+          categories={categories}
+          onError={onError}
+        />
       )}
 
       {special.length > 0 && (

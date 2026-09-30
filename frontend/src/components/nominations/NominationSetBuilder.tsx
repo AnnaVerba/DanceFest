@@ -68,6 +68,7 @@ import {
   DESCRIPTION_EDIT_LABEL,
 } from './CategoryDescriptionEditor.constants';
 import { getSession } from '../../lib/auth';
+import { applyCategoryToCache } from '../../lib/categoriesCache';
 import { ACCESS_LEVEL, meetsLevel } from '../../lib/roles';
 import styles from './NominationSetBuilder.module.css';
 
@@ -286,11 +287,7 @@ export default function NominationSetBuilder({
   };
 
   const applyCategoryUpdate = (updated: Category) => {
-    if (!isDraftCategory(updated.id)) {
-      queryClient.setQueryData<Category[]>(queryKeys.categories(), (prev) =>
-        prev?.map((c) => (c.id === updated.id ? updated : c)),
-      );
-    }
+    if (!isDraftCategory(updated.id)) applyCategoryToCache(queryClient, updated);
     updateSelection((current) => ({
       ...current,
       [updated.type]: current[updated.type].map((c) =>
