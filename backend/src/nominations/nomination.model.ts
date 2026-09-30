@@ -49,9 +49,6 @@ export class Nomination extends Model<Nomination> {
   @Column({ type: DataType.DECIMAL(10, 2), allowNull: true })
   declare price: number | null;
 
-  @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
-  declare allowsImprovisation: boolean;
-
   @BelongsToMany(() => Category, () => NominationCategory)
   declare categories: Category[];
 

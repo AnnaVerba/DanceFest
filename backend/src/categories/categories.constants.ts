@@ -15,3 +15,5 @@ export const DESCRIPTION_ADMIN_ONLY_MESSAGE =
   'Опис категорії може задавати лише адміністратор';
 
 export const MAX_CATEGORY_DESCRIPTION_LENGTH = 1000;
+
+export const NOT_STYLE_CATEGORY_MESSAGE = 'Імпровізацією може бути лише стиль';

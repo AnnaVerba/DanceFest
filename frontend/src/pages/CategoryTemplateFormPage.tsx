@@ -103,7 +103,6 @@ export default function CategoryTemplateFormPage() {
             signature: savedSignatureOf(n),
             name: n.name,
             price: n.price === null ? '' : String(n.price),
-            allowsImprovisation: n.allowsImprovisation,
             categoryIds: n.categoryIds,
             isSpecial: n.isSpecial,
             specialName: n.specialName ?? undefined,
@@ -259,7 +258,6 @@ export default function CategoryTemplateFormPage() {
       nominations: nominations.map((n, index) => ({
         name: n.name.trim(),
         price: n.price.trim() === '' ? undefined : Number(n.price),
-        allowsImprovisation: n.allowsImprovisation,
         categoryIds: n.categoryIds,
         isSpecial: n.isSpecial,
         specialName: n.specialName,
@@ -380,7 +378,6 @@ export default function CategoryTemplateFormPage() {
                 axisPrices={axisPrices}
                 onAxisPricesChange={setAxisPrices}
                 onNotice={showToast}
-                hideImprovisation
                 seedCategoryIds={seedCategoryIds}
                 onCategoryCreated={(category) =>
                   setExtraCategories((prev) =>

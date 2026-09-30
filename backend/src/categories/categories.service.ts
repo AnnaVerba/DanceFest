@@ -12,6 +12,7 @@ import {
   LINEUP_CATEGORY_TYPE,
   MIN_LINEUP_SIZE,
   RANGED_CATEGORY_TYPES,
+  STYLE_CATEGORY_TYPE,
 } from './category.model';
 import type { CategoryType } from './category.model';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -21,10 +22,13 @@ import {
   DESCRIPTION_ADMIN_ONLY_MESSAGE,
   LINEUP_SIZE_TOO_SMALL_MESSAGE,
   NOT_AGE_CATEGORY_MESSAGE,
+  NOT_STYLE_CATEGORY_MESSAGE,
   RANGE_FROM_EXCEEDS_TO_MESSAGE,
 } from './categories.constants';
 import { UpdateAgeRangeDto } from './dto/update-age-range.dto';
 import { UpdateCategoryDescriptionDto } from './dto/update-category-description.dto';
+import { UpdateCategoryImprovisationDto } from './dto/update-category-improvisation.dto';
+import { NominationsService } from '../nominations/nominations.service';
 import { normalizeDescription } from './normalize-description';
 import { AccessLevel } from '../auth/access-level.enum';
 
@@ -39,6 +43,7 @@ export class CategoriesService {
   constructor(
     @InjectModel(Category)
     private readonly categoryModel: typeof Category,
+    private readonly nominationsService: NominationsService,
   ) {}
 
   async list(type?: CategoryType, query?: string) {
@@ -189,6 +194,27 @@ export class CategoriesService {
     return this.toDto(category);
   }
 
+  // The flag is shared by every competition, so a flip resyncs every
+  // nomination using the style, together with the flag in one transaction.
+  async updateImprovisation(id: string, dto: UpdateCategoryImprovisationDto) {
+    const category = await this.findByIdOrFail(id);
+    if (category.type !== STYLE_CATEGORY_TYPE) {
+      throw new BadRequestException(NOT_STYLE_CATEGORY_MESSAGE);
+    }
+    if (category.isImprovisation === dto.isImprovisation) {
+      return this.toDto(category);
+    }
+    await this.categoryModel.sequelize!.transaction(async (transaction) => {
+      category.isImprovisation = dto.isImprovisation;
+      await category.save({ transaction });
+      await this.nominationsService.resyncImprovisationForStyle(
+        category.id,
+        transaction,
+      );
+    });
+    return this.toDto(category);
+  }
+
   async updateAgeRange(id: string, dto: UpdateAgeRangeDto) {
     const category = await this.findByIdOrFail(id);
     if (category.type !== AGE_CATEGORY_TYPE) {
@@ -242,6 +268,7 @@ export class CategoriesService {
       rangeTo: category.rangeTo,
       sortOrder: category.sortOrder,
       description: category.description,
+      isImprovisation: category.isImprovisation,
       createdAt: category.createdAt,
     };
   }

@@ -22,6 +22,10 @@ export const LEAGUE_CATEGORY_TYPE: CategoryType = 'level';
 // у номері — ту саму числову пару, що вік несе для 'age'.
 export const LINEUP_CATEGORY_TYPE: CategoryType = 'lineup';
 
+// Вісь стилю: її значення — програми номінації; лише вона несе ознаку
+// імпровізації.
+export const STYLE_CATEGORY_TYPE: CategoryType = 'style';
+
 // Осі, значення яких мають числові межі. Пара колонок у них спільна, бо
 // форма даних однакова; сенс задає тип рядка.
 export const RANGED_CATEGORY_TYPES: CategoryType[] = [
@@ -77,6 +81,11 @@ export class Category extends Model<Category> {
   // null — пояснення немає.
   @Column({ type: DataType.TEXT, allowNull: true })
   declare description: string | null;
+
+  // Лише для стилю: виступ у цьому стилі — імпровізація (без треку, час з
+  // таймінгів). Спільний для всіх конкурсів, як і description.
+  @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
+  declare isImprovisation: boolean;
 
   @Column(DataType.DATE)
   declare createdAt: Date;

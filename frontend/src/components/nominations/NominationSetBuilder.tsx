@@ -6,6 +6,7 @@ import type { SpecialSubmitResult } from './specialSubmitResult.types';
 import AxisPricesModal from './AxisPricesModal';
 import {
   AGE_CATEGORY_TYPE,
+  STYLE_CATEGORY_TYPE,
   CATEGORY_TYPES,
   CATEGORY_TYPE_LABELS,
   CategoryApiError,
@@ -65,6 +66,7 @@ import {
 import type { PendingAxisRemoval } from './pendingAxisRemoval.types';
 import ConfirmDialog from '../admin/ConfirmDialog';
 import CategoryDescriptionEditor from './CategoryDescriptionEditor';
+import StyleImprovisationToggle from './StyleImprovisationToggle';
 import {
   DESCRIPTION_EDIT_ICON,
   DESCRIPTION_EDIT_LABEL,
@@ -91,8 +93,6 @@ interface NominationSetBuilderProps {
   // Категорії, створені лише в модалці спецкатегорії, не потрапляють у
   // selection — цей колбек несе їх межі туди, де їх шукає resolveDraftCategories.
   onCategoryCreated?: (category: Category) => void;
-  // У шаблонах категорій статус імпровізації не задається — колонку ховаємо.
-  hideImprovisation?: boolean;
 }
 
 export default function NominationSetBuilder({
@@ -105,7 +105,6 @@ export default function NominationSetBuilder({
   onNotice,
   seedCategoryIds,
   onCategoryCreated,
-  hideImprovisation = false,
 }: NominationSetBuilderProps) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -318,7 +317,7 @@ export default function NominationSetBuilder({
     }
   };
 
-  const applyDescription = (updated: Category) => {
+  const applyCategoryUpdate = (updated: Category) => {
     if (!isDraftCategory(updated.id)) {
       queryClient.setQueryData<Category[]>(queryKeys.categories(), (prev) =>
         prev?.map((c) => (c.id === updated.id ? updated : c)),
@@ -422,7 +421,6 @@ export default function NominationSetBuilder({
         signature,
         name: combo.map((c) => c.name).join(' · '),
         price,
-        allowsImprovisation: false,
         categoryIds,
         isSpecial: false,
         exitMode: 'single' as ExitMode,
@@ -464,7 +462,6 @@ export default function NominationSetBuilder({
         signature: d.signature,
         name: d.name,
         price: d.price,
-        allowsImprovisation: d.allowsImprovisation,
         categoryIds: d.categoryIds,
         isSpecial: d.isSpecial,
         specialName: d.specialName,
@@ -569,6 +566,15 @@ export default function NominationSetBuilder({
                           {DESCRIPTION_EDIT_ICON}
                         </button>
                       )}
+                      {canDescribe &&
+                        type === STYLE_CATEGORY_TYPE &&
+                        !isDraftCategory(category.id) && (
+                          <StyleImprovisationToggle
+                            category={category}
+                            onSaved={applyCategoryUpdate}
+                            onError={setError}
+                          />
+                        )}
                       <button
                         type="button"
                         aria-label={`Прибрати ${category.name}`}
@@ -588,7 +594,7 @@ export default function NominationSetBuilder({
                       key={category.id}
                       category={category}
                       buttonClassName={`${styles.btn} ${styles.btnSm}`}
-                      onSaved={applyDescription}
+                      onSaved={applyCategoryUpdate}
                       onCancel={() => setDescribingId(null)}
                     />
                   ))}
@@ -696,9 +702,6 @@ export default function NominationSetBuilder({
                 <tr>
                   <th>Назва</th>
                   <th className={styles.colPrice}>Ціна, грн</th>
-                  {!hideImprovisation && (
-                    <th className={styles.colImprov}>Імпровізація</th>
-                  )}
                   <th className={styles.colRemove} aria-label="Прибрати" />
                 </tr>
               </thead>
@@ -748,20 +751,6 @@ export default function NominationSetBuilder({
                         }
                       />
                     </td>
-                    {!hideImprovisation && (
-                      <td className={styles.improvCell}>
-                        <input
-                          type="checkbox"
-                          aria-label={`Дозволити імпровізацію в «${nomination.name}»`}
-                          checked={nomination.allowsImprovisation}
-                          onChange={(e) =>
-                            patchNomination(nomination.signature, {
-                              allowsImprovisation: e.target.checked,
-                            })
-                          }
-                        />
-                      </td>
-                    )}
                     <td>
                       <button
                         type="button"

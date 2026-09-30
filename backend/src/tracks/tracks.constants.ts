@@ -17,10 +17,6 @@ export const MAX_TRACK_SIZE_BYTES = 20 * 1024 * 1024;
 // be off several times over. `true` scans the whole file for the real length.
 export const TRACK_METADATA_PARSE_OPTIONS = { duration: true };
 
-// Same stem the frontend uses (improvisationProgram.constants.ts): a special
-// category's improvisation program is flagged only by its name.
-export const IMPROVISATION_PROGRAM_NAME_STEM = 'імпровіз';
-
 export const ENTRY_TRACKS_KEY_PREFIX = 'entry-tracks';
 
 export const TRACK_FILE_MISSING_MESSAGE = 'Файл не передано.';

@@ -19,6 +19,7 @@ import {
   LINEUP_CATEGORY_TYPE,
   MIN_LINEUP_SIZE,
   MIN_PARTICIPANT_AGE,
+  STYLE_CATEGORY_TYPE,
 } from '../categories/category.model';
 import type { CategoryType } from '../categories/category.model';
 import type { AgeCategoryRange } from '../categories/resolve-age-category';
@@ -39,10 +40,11 @@ import {
 import type { CategorySource } from './category-source';
 import { planNominationExits, DEFAULT_EXIT_MODE } from './nomination-exits';
 import type { NominationExit, NominationProgram } from './nomination-exits';
+import { isImprovisationNomination } from './is-improvisation-nomination';
+import { RECOMPUTE_ENTRIES_IMPROV_SQL } from './recompute-entries-improv.sql';
 import { CreateNominationDto } from './dto/create-nomination.dto';
 import { UpdateNominationDto } from './dto/update-nomination.dto';
 import { BulkCreateNominationsDto } from './dto/bulk-create-nominations.dto';
-import { BulkSetImprovisationDto } from './dto/bulk-set-improvisation.dto';
 import { BulkAssignVenueDto } from './dto/bulk-assign-venue.dto';
 import { BulkSetAxisPricesDto } from './dto/bulk-set-axis-prices.dto';
 import { NominationBulkSelectorDto } from './dto/nomination-bulk-selector.dto';
@@ -548,14 +550,10 @@ export class NominationsService {
       nomination.venueId = dto.venueId;
     }
 
-    const wasImprovisation = nomination.allowsImprovisation;
     const renamed =
       dto.name !== undefined && dto.name.trim() !== nomination.name;
     if (dto.name !== undefined) nomination.name = dto.name.trim();
     if (dto.price !== undefined) nomination.price = dto.price ?? null;
-    if (dto.allowsImprovisation !== undefined) {
-      nomination.allowsImprovisation = dto.allowsImprovisation;
-    }
     const categoryIdsChanged = dto.categoryIds !== undefined;
     if (dto.isSpecial !== undefined) nomination.isSpecial = dto.isSpecial;
     let specialNameChanged = false;
@@ -568,16 +566,12 @@ export class NominationsService {
     } else if (!nomination.specialName) {
       throw new BadRequestException(SPECIAL_NAME_REQUIRED_MESSAGE);
     }
+    const exitModeChanged =
+      dto.exitMode !== undefined && dto.exitMode !== nomination.exitMode;
     if (dto.exitMode !== undefined) nomination.exitMode = dto.exitMode;
     if (dto.durationLimitSeconds !== undefined) {
       nomination.durationLimitSeconds = dto.durationLimitSeconds ?? null;
       nomination.durationOverridden = true;
-    }
-    if (
-      nomination.allowsImprovisation !== wasImprovisation &&
-      dto.durationLimitSeconds === undefined
-    ) {
-      await this.reapplyAutoDurations(competitionId, [nomination]);
     }
     if (dto.programLimits !== undefined) {
       nomination.programLimits = dto.programLimits;
@@ -604,13 +598,6 @@ export class NominationsService {
         if (groupPrice !== null) nomination.price = groupPrice;
       }
       await nomination.save({ transaction });
-      if (nomination.allowsImprovisation !== wasImprovisation) {
-        await this.syncEntriesImprovisation(
-          [nomination.id],
-          nomination.allowsImprovisation,
-          transaction,
-        );
-      }
       if (categoryIdsChanged) {
         await this.nominationCategoryModel.destroy({
           where: { nominationId: nomination.id },
@@ -629,6 +616,21 @@ export class NominationsService {
           where: { id: { [Op.in]: dto.categoryIds as string[] } },
           transaction,
         });
+        // Styles decide improvisation: new axes may move the nomination
+        // between the league and the improvisation duration.
+        if (dto.durationLimitSeconds === undefined) {
+          await this.reapplyAutoDurations(
+            competitionId,
+            [nomination],
+            transaction,
+          );
+          await nomination.save({ transaction });
+        }
+      }
+      // The exit mode decides whether an entry follows its own program's
+      // style or all of the nomination's styles.
+      if (categoryIdsChanged || exitModeChanged) {
+        await this.recomputeEntriesImprovisation([nomination.id], transaction);
       }
       if (nomination.isSpecial && dto.price !== undefined) {
         await this.specialGroups.alignPrice(
@@ -655,67 +657,6 @@ export class NominationsService {
       );
     }
     return this.toDto(nomination, await this.loadCategories([nomination]));
-  }
-
-  // Improvisation is toggled on hundreds of nominations at once (a whole
-  // festival's worth), so it gets its own bulk route rather than forcing one
-  // PATCH per nomination. The caller picks either an explicit id list (a
-  // hand-picked selection) or a filter (name/category match) — a filter lets
-  // "every improvisation nomination" reach the database as one UPDATE
-  // instead of a request body listing 700 ids.
-  async bulkSetImprovisation(
-    competitionId: string,
-    requesterId: string,
-    requesterLevel: AccessLevel,
-    dto: BulkSetImprovisationDto,
-  ) {
-    await this.loadCompetitionAndAssertAccess(
-      competitionId,
-      requesterId,
-      requesterLevel,
-    );
-    const { where, nominations } = await this.resolveBulkSelection(
-      competitionId,
-      dto,
-    );
-
-    const flipped = nominations.filter(
-      (nomination) => nomination.allowsImprovisation !== dto.allowsImprovisation,
-    );
-    for (const nomination of nominations) {
-      nomination.allowsImprovisation = dto.allowsImprovisation;
-    }
-    // resolveBulkSelection returns bare rows; retiming reads their leagues.
-    await this.loadCategories(flipped);
-    const retimed = await this.reapplyAutoDurations(competitionId, flipped);
-    const idsBySeconds = new Map<number | null, string[]>();
-    for (const nomination of retimed) {
-      const ids = idsBySeconds.get(nomination.durationLimitSeconds);
-      if (ids) ids.push(nomination.id);
-      else idsBySeconds.set(nomination.durationLimitSeconds, [nomination.id]);
-    }
-
-    await this.nominationModel.sequelize!.transaction(async (transaction) => {
-      await this.nominationModel.update(
-        { allowsImprovisation: dto.allowsImprovisation },
-        { where, transaction },
-      );
-      await this.syncEntriesImprovisation(
-        flipped.map((nomination) => nomination.id),
-        dto.allowsImprovisation,
-        transaction,
-      );
-      // One UPDATE per distinct duration, not one per nomination.
-      for (const [seconds, ids] of idsBySeconds) {
-        await this.nominationModel.update(
-          { durationLimitSeconds: seconds },
-          { where: { id: { [Op.in]: ids } }, transaction },
-        );
-      }
-    });
-
-    const categories = await this.loadCategories(nominations);
-    return nominations.map((nomination) => this.toDto(nomination, categories));
   }
 
   async bulkAssignVenue(
@@ -1147,7 +1088,6 @@ export class NominationsService {
       templateId: dto.templateId ?? null,
       name: dto.name.trim(),
       price: dto.price ?? null,
-      allowsImprovisation: dto.allowsImprovisation ?? false,
       isSpecial: dto.isSpecial ?? false,
       specialName: dto.isSpecial ? (dto.specialName ?? null) : null,
       exitMode: dto.exitMode ?? DEFAULT_EXIT_MODE,
@@ -1156,16 +1096,15 @@ export class NominationsService {
     } as CreationAttributes<Nomination>;
   }
 
-  // TASK-07: a nomination's duration follows its league unless it's
-  // improvisation (that has its own separate timing, see competition rules'
-  // improvGroupSeconds/improvIndividualSeconds) or an admin already set it by
-  // hand (durationOverridden stops later league-duration changes from
-  // clobbering that choice — see BUG-10).
+  // TASK-07: a nomination's duration follows its league unless it's an
+  // improvisation (the schedule takes the competition's improvisation
+  // duration for it) or an admin already set it by hand (durationOverridden
+  // stops later league-duration changes from clobbering that choice — see
+  // BUG-10).
   private async applyAutoDuration(
     competitionId: string,
     input: {
       categoryIds?: string[];
-      allowsImprovisation?: boolean;
       durationLimitSeconds?: number;
     },
     attributes: CreationAttributes<Nomination>,
@@ -1177,89 +1116,128 @@ export class NominationsService {
     }
 
     attributes.durationOverridden = false;
-    if (input.allowsImprovisation) {
-      attributes.durationLimitSeconds = null;
-      return;
-    }
-
     const effectiveRules =
       rules ?? (await this.competitionRulesService.getRules(competitionId));
+    const categoryIds = input.categoryIds ?? [];
     attributes.durationLimitSeconds = this.autoDurationSeconds(
-      input,
-      await this.leagueNamesById(input.categoryIds ?? []),
+      categoryIds,
+      await this.categoriesById(categoryIds),
       effectiveRules,
     );
   }
 
-  // An entry is an improvisation exactly when its nomination is: the schedule,
-  // tracks and music export read entry.improv, which is only set when the
-  // entry is filed — a flag flipped later must reach entries already there.
-  private async syncEntriesImprovisation(
+  // entries.improv is the server's copy of the exit's improvisation flag;
+  // anything that changes a nomination's styles must refresh it.
+  private async recomputeEntriesImprovisation(
     nominationIds: string[],
-    allowsImprovisation: boolean,
     transaction: Transaction,
   ): Promise<void> {
     if (nominationIds.length === 0) return;
-    await this.entryModel.update(
-      { improv: allowsImprovisation },
-      { where: { nominationId: { [Op.in]: nominationIds } }, transaction },
-    );
+    await this.nominationModel.sequelize!.query(RECOMPUTE_ENTRIES_IMPROV_SQL, {
+      bind: [nominationIds],
+      transaction,
+    });
   }
 
-  // An improvisation flip moves a nomination between TASK-07's two duration
+  // A style's improvisation flag flipped: every nomination using it, in any
+  // competition, re-derives its auto duration and its entries' improv.
+  async resyncImprovisationForStyle(
+    categoryId: string,
+    transaction: Transaction,
+  ): Promise<void> {
+    const links = await this.nominationCategoryModel.findAll({
+      where: { categoryId },
+      attributes: ['nominationId'],
+      transaction,
+    });
+    const ids = [...new Set(links.map((link) => link.nominationId))];
+    if (ids.length === 0) return;
+
+    const nominations = await this.nominationModel.findAll({
+      where: { id: { [Op.in]: ids } },
+      transaction,
+    });
+    // Inside the flip's transaction: outside it the style still reads as
+    // before the flip.
+    await this.loadCategories(nominations, transaction);
+    const byCompetition = new Map<string, Nomination[]>();
+    for (const nomination of nominations) {
+      const group = byCompetition.get(nomination.competitionId);
+      if (group) group.push(nomination);
+      else byCompetition.set(nomination.competitionId, [nomination]);
+    }
+    for (const [competitionId, group] of byCompetition) {
+      const retimed = await this.reapplyAutoDurations(
+        competitionId,
+        group,
+        transaction,
+      );
+      for (const nomination of retimed) {
+        await nomination.save({ transaction });
+      }
+    }
+    await this.recomputeEntriesImprovisation(ids, transaction);
+  }
+
+  // A change of styles can move a nomination between TASK-07's two duration
   // sources; one whose duration was set by hand keeps it. Returns the
   // nominations it retimed (in memory only — the caller persists them).
   private async reapplyAutoDurations(
     competitionId: string,
     nominations: Nomination[],
+    transaction?: Transaction,
   ): Promise<Nomination[]> {
     const automatic = nominations.filter((n) => !n.durationOverridden);
     if (automatic.length === 0) return [];
 
     const rules = await this.competitionRulesService.getRules(competitionId);
-    const leagueNames = await this.leagueNamesById(
+    const categories = await this.categoriesById(
       automatic.flatMap((n) => n.categoryIds),
+      transaction,
     );
     for (const nomination of automatic) {
       nomination.durationLimitSeconds = this.autoDurationSeconds(
-        nomination,
-        leagueNames,
+        nomination.categoryIds,
+        categories,
         rules,
       );
     }
     return automatic;
   }
 
-  // TASK-07's rule: improvisation has no duration of its own, a regular
+  // TASK-07's rule: an improvisation has no duration of its own (the
+  // schedule takes the competition's improvisation duration), a regular
   // nomination runs for its league's.
   private autoDurationSeconds(
-    nomination: { categoryIds?: string[]; allowsImprovisation?: boolean },
-    leagueNames: Map<string, string>,
+    categoryIds: string[],
+    categories: Map<string, Category>,
     rules: CompetitionRule,
   ): number | null {
-    if (nomination.allowsImprovisation) return null;
-    const leagueId = (nomination.categoryIds ?? []).find((id) =>
-      leagueNames.has(id),
-    );
+    const axes = categoryIds
+      .map((id) => categories.get(id))
+      .filter((c): c is Category => c !== undefined);
+    const programs = axes
+      .filter((c) => c.type === STYLE_CATEGORY_TYPE)
+      .map((c) => this.toProgram(c));
+    if (isImprovisationNomination(programs)) return null;
+    const league = axes.find((c) => c.type === LEAGUE_CATEGORY_TYPE);
     return resolveLeagueDurationSeconds(
       rules.leagueLimits,
-      leagueId ? (leagueNames.get(leagueId) ?? null) : null,
+      league?.name ?? null,
     );
   }
 
-  // league category id -> name, in one query for any number of nominations.
-  private async leagueNamesById(
+  // category id -> category, in one query for any number of nominations.
+  private async categoriesById(
     categoryIds: string[],
-  ): Promise<Map<string, string>> {
+    transaction?: Transaction,
+  ): Promise<Map<string, Category>> {
     if (categoryIds.length === 0) return new Map();
-    const leagues = await this.categoryModel.findAll({
-      where: {
-        id: { [Op.in]: [...new Set(categoryIds)] },
-        type: LEAGUE_CATEGORY_TYPE,
-      },
-      attributes: ['id', 'name'],
+    const categories = await this.categoryModel.findAll({
+      where: { id: { [Op.in]: [...new Set(categoryIds)] } },
+      transaction,
     });
-    return new Map(leagues.map((league) => [league.id, league.name]));
+    return new Map(categories.map((category) => [category.id, category]));
   }
 
   private assertLimitsBelongToNomination(input: {
@@ -1308,17 +1286,22 @@ export class NominationsService {
    */
   private async loadCategories(
     nominations: Nomination[],
+    transaction?: Transaction,
   ): Promise<Map<string, Category>> {
     if (nominations.length === 0) return new Map();
 
     const links = await this.nominationCategoryModel.findAll({
       where: { nominationId: { [Op.in]: nominations.map((n) => n.id) } },
+      transaction,
     });
     const ids = [...new Set(links.map((link) => link.categoryId))];
     const categories =
       ids.length === 0
         ? []
-        : await this.categoryModel.findAll({ where: { id: { [Op.in]: ids } } });
+        : await this.categoryModel.findAll({
+            where: { id: { [Op.in]: ids } },
+            transaction,
+          });
 
     const byId = new Map(categories.map((c) => [c.id, c]));
     const byNomination = new Map<string, Category[]>();
@@ -1415,10 +1398,17 @@ export class NominationsService {
     nomination: Nomination,
     categories: Map<string, Category>,
   ): NominationProgram[] {
-    return this.categoriesFor(nomination, categories, 'style').map((c) => ({
-      id: c.id,
-      name: c.name,
-    }));
+    return this.categoriesFor(nomination, categories, STYLE_CATEGORY_TYPE).map(
+      (c) => this.toProgram(c),
+    );
+  }
+
+  private toProgram(category: Category): NominationProgram {
+    return {
+      id: category.id,
+      name: category.name,
+      isImprovisation: category.isImprovisation,
+    };
   }
 
   private exitsOf(
@@ -1498,7 +1488,9 @@ export class NominationsService {
       venueId: nomination.venueId,
       name: nomination.name,
       price: nomination.price === null ? null : Number(nomination.price),
-      allowsImprovisation: nomination.allowsImprovisation,
+      isImprovisation: isImprovisationNomination(
+        this.programsFor(nomination, categories),
+      ),
       categoryIds: nomination.categoryIds,
       isSpecial: nomination.isSpecial,
       specialName: nomination.specialName,

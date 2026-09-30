@@ -17,6 +17,7 @@ import type {
 import {
   ENTRY_LOAD_FAILED_MESSAGE,
   ENTRY_SAVE_FAILED_MESSAGE,
+  IMPROVISATION_ENTRY_NOTE,
   MUSIC_ADD_LABEL,
   MUSIC_LABEL,
   MUSIC_NONE,
@@ -160,7 +161,6 @@ export default function EntryEditModal({
         studioName: form.studioName,
         choreographer: form.choreographer,
         city: form.city,
-        improv: form.improv,
         ...(form.paymentMethod !== NO_PAYMENT_METHOD && {
           paymentMethod: form.paymentMethod,
         }),
@@ -296,16 +296,11 @@ export default function EntryEditModal({
             </div>
           </div>
 
-          <div className={styles.field}>
-            <label className={styles.checkbox}>
-              <input
-                type="checkbox"
-                checked={form.improv}
-                onChange={(e) => patch({ improv: e.target.checked })}
-              />
-              Імпровізація
-            </label>
-          </div>
+          {form.improv && (
+            <div className={styles.field}>
+              <p className={styles.hint}>{IMPROVISATION_ENTRY_NOTE}</p>
+            </div>
+          )}
 
           {music && !music.trackNotNeeded && (
             <div className={styles.field}>

@@ -10,6 +10,7 @@ import { InjectModel } from '@nestjs/sequelize';
 import {
   CreationAttributes,
   Op,
+  QueryTypes,
   UniqueConstraintError,
   literal,
 } from 'sequelize';
@@ -28,14 +29,18 @@ import { DurationLimit, DEFAULT_DURATION_ROUND } from './duration-limit.model';
 import type { DurationRound } from './duration-limit.model';
 import { OverlimitTariff } from './overlimit-tariff.model';
 import { resolveLeagueDurationSeconds } from './resolve-league-duration';
+import { IMPROVISATION_NOMINATION_IDS_SQL } from '../nominations/recompute-entries-improv.sql';
 import type { EntryLimitInput } from './entry-limit-input.interface';
 import { LimitCache } from './limit-cache';
+import type { ImprovisationRoundsInput } from './improvisation-rounds-input.interface';
+import { COUNT_NOMINATION_STYLES_SQL } from './count-nomination-styles.sql';
 import {
   TARIFF_NOT_FOUND_MESSAGE,
   DURATION_LIMIT_NOT_FOUND_MESSAGE,
   DURATION_LIMIT_TARGET_REQUIRED_MESSAGE,
   NOMINATION_LIMIT_ALREADY_SET_MESSAGE,
   AXIS_LIMIT_ALREADY_SET_MESSAGE,
+  MIN_IMPROVISATION_ROUNDS,
 } from './competition-rules.constants';
 import { NOMINATION_NOT_FOUND_MESSAGE } from '../nominations/nominations.constants';
 import {
@@ -166,7 +171,13 @@ export class CompetitionRulesService {
                     WHERE "categoryId" = '${category.id}')`,
               ),
             },
-            allowsImprovisation: false,
+            // An improvisation runs for the improvisation duration, not
+            // its league's (the flag is derived from its styles).
+            [Op.and]: [
+              {
+                id: { [Op.notIn]: literal(IMPROVISATION_NOMINATION_IDS_SQL) },
+              },
+            ],
             durationOverridden: false,
           },
         },
@@ -367,6 +378,29 @@ export class CompetitionRulesService {
     }
 
     return DEFAULT_DURATION_LIMIT_SECONDS;
+  }
+
+  // How many improvisations one exit holds: a per_program exit is one
+  // program; a single exit dances all of its nomination's styles in a row
+  // (Battle Queen: two improvisations, twice the improvisation duration).
+  async improvisationRoundsOf(
+    entry: ImprovisationRoundsInput,
+    limitCache: LimitCache = new LimitCache(),
+  ): Promise<number> {
+    if (entry.program !== null || entry.nominationId === null) {
+      return MIN_IMPROVISATION_ROUNDS;
+    }
+    const cached = limitCache.rounds.get(entry.nominationId);
+    if (cached !== undefined) return cached;
+    const [row] = await this.nominationModel.sequelize!.query<{
+      styles: number;
+    }>(COUNT_NOMINATION_STYLES_SQL, {
+      bind: [entry.nominationId],
+      type: QueryTypes.SELECT,
+    });
+    const rounds = Math.max(row?.styles ?? 0, MIN_IMPROVISATION_ROUNDS);
+    limitCache.rounds.set(entry.nominationId, rounds);
+    return rounds;
   }
 
   // A duration an admin set on the nomination by hand; null when it follows

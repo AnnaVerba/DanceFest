@@ -26,8 +26,8 @@ no new step.
 
 Non-goals: per-program limits (`nominations.programLimits`) are never
 read by the schedule (`resolveEffectiveLimit`). That is a separate bug,
-tracked apart from this change. Nothing changes in the schedule's
-duration arithmetic itself.
+tracked apart from this change. The schedule's duration arithmetic
+changes in one place only, see «Several improvisations in one exit».
 
 ## Decision
 
@@ -88,9 +88,10 @@ categories.
       derivation rule. A `per_program` entry matches its program by
       `entries.program = categories.name` within its nomination's styles,
       the same matching `exitMatchingProgram` already does.
-   4. drop `nominations.allowsImprovisation` and
-      `template_nominations.allowsImprovisation`.
-   5. `down`: re-add both columns and backfill them from the styles.
+   4. dropping `nominations.allowsImprovisation` and
+      `template_nominations.allowsImprovisation` moves to a separate
+      release-2 migration (see «Release safety»).
+   5. `down`: drop `categories.isImprovisation`.
 2. **Categories module:**
    - `PATCH /categories/:id/improvisation`, `MinLevel(ADMIN)`, body
      `{ isImprovisation: boolean }`, shaped like `:id/description`;
@@ -171,6 +172,63 @@ categories.
   the toggle in the dictionary.
 - Durations already frozen in sections change only after «Перерахувати
   розклад», same as any timing change today.
+
+## Admin display of an improvisation's duration (added 2026-09-30)
+
+An exit that is an improvisation runs for the competition's
+improvisation duration whatever the nomination stores
+(`performanceDuration` checks `improv` first). So:
+
+- the server does **not** store an improvisation duration on the
+  nomination. `durationLimitSeconds` of an improvisation nomination
+  stays `NULL`, and `planNominationExits` gives an improvisation exit
+  `durationLimitSeconds = null`. A stored copy cannot work anyway: a
+  mixed special nomination («Корона») has one improvisation exit and one
+  timed exit, but only one `durationLimitSeconds`;
+- `NominationsPanel` shows every exit with `isImprovisation` as
+  «імпровізація · M:SS», with the time taken from the competition rules
+  (`improvGroupSeconds`, which the timings screen writes into both
+  improv fields). It already has the rules query key
+  (`queryKeys.rules`);
+- the duration input is disabled for an improvisation nomination: a
+  manual value would never reach the schedule.
+
+## Several improvisations in one exit (added 2026-09-30, Developer's call)
+
+«Battle Queen» is a special nomination with one exit and two programs
+danced back to back, both improvisations. Such an exit runs for
+**improvisation duration × number of its programs** (2 × 1:00 = 2:00,
+the same time the organizer configured through the league). A
+`per_program` exit, or a regular nomination with one style, counts as
+one. This is the only change to the schedule's duration arithmetic:
+`performanceDuration` multiplies the improvisation time by the exit's
+round count. The schedule gets the count from the nomination's styles
+(`CompetitionRulesService`, cached per pass in `LimitCache`). The admin
+list shows the same product. Pending the client's confirmation; the
+question was sent.
+
+## Release safety (added 2026-09-30)
+
+The code is in production, so the change ships in two releases:
+
+1. **Release 1:** migration adds and backfills `categories.isImprovisation`
+   and recomputes `entries.improv`. All code switches to the derived
+   flag and stops reading or writing `allowsImprovisation`. The columns
+   `nominations.allowsImprovisation` and
+   `template_nominations.allowsImprovisation` stay in the database,
+   unused (`NOT NULL DEFAULT false`, so inserts without them work). Its
+   `down` only drops `categories.isImprovisation`.
+2. **Release 2**, after release 1 has run on production: a separate
+   migration drops both unused columns.
+
+Old browser tabs that still send `improv` or `allowsImprovisation` are
+safe: the global `ValidationPipe` uses `whitelist: true` without
+`forbidNonWhitelisted`, so the unknown fields are stripped, not
+rejected.
+
+Superseded by this spec: `syncEntriesImprovisation` (commit `245bd71`)
+and the idea of a one-off `entries.improv` backfill. The migration's
+recompute covers both.
 
 ## Risks
 

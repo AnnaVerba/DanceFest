@@ -28,7 +28,6 @@ export interface DraftNomination {
   signature: string;
   name: string;
   price: string;
-  allowsImprovisation: boolean;
   categoryIds: string[];
   isSpecial: boolean;
   specialName?: string;
@@ -65,6 +64,8 @@ export function draftCategory(
     rangeTo: range?.rangeTo ?? null,
     sortOrder: 0,
     description: null,
+    // A new style starts unflagged; an admin marks it once it's saved.
+    isImprovisation: false,
     createdAt: '',
   };
 }

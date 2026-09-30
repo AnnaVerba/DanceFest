@@ -13,7 +13,7 @@ export interface Nomination {
   id: string;
   name: string;
   venueId: string | null;
-  allowsImprovisation: boolean;
+  isImprovisation: boolean;
   durationLimitSeconds: number | null;
   durationOverridden: boolean;
   categoryIds: string[];

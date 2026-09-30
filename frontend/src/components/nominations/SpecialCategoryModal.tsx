@@ -13,7 +13,6 @@ import { parseAgeRange } from '../../lib/ageRange';
 import type { AgeRange } from '../../lib/ageRange';
 import { useCategoryRangeDraft } from '../../lib/useCategoryRangeDraft';
 import { buildNominationLabel } from '../../lib/nominationNaming';
-import { isImprovisationProgram } from '../../lib/improvisationProgram';
 import { formatDuration, parseDuration, pluralExits } from '../../lib/duration';
 import type { ExitMode } from '../../lib/categoryTemplates';
 import { SPECIAL_LEAGUE_REQUIRED_MESSAGE } from '../../lib/nominationLeague.constants';
@@ -24,7 +23,6 @@ export interface SpecialNominationDraft {
   signature: string;
   name: string;
   price: string;
-  allowsImprovisation: boolean;
   categoryIds: string[];
   isSpecial: boolean;
   specialName: string;
@@ -175,7 +173,7 @@ export default function SpecialCategoryModal({
     );
 
   const timedPrograms = useMemo(
-    () => programs.filter((p) => !isImprovisationProgram(p.name)),
+    () => programs.filter((p) => !p.isImprovisation),
     [programs],
   );
 
@@ -210,7 +208,6 @@ export default function SpecialCategoryModal({
         signature: `special|${trimmedName}|${[...axisIds].sort().join(',')}`,
         name: label,
         price,
-        allowsImprovisation: false,
         categoryIds: [...axisIds, ...programs.map((p) => p.id)],
         isSpecial: true,
         specialName: trimmedName,
