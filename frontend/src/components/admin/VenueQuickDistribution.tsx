@@ -4,6 +4,7 @@ import { assignVenueBulk, getVenueSummary } from '../../lib/nominations';
 import type { VenueSummaryGroupBy, VenueSummaryRow } from '../../lib/nominations.types';
 import type { Venue } from '../../lib/venues';
 import { refreshNominations } from '../../lib/nominationsCache';
+import { summaryVenueChoice } from '../../lib/nominationVenue';
 import { queryKeys } from '../../lib/queryKeys';
 import {
   NO_VENUE_CHOICE,
@@ -14,7 +15,7 @@ import {
   QUICK_GROUP_BY_LEAGUE,
   QUICK_GROUP_BY_LEAGUE_LABEL,
   QUICK_HINT,
-  QUICK_INCLUDE_ASSIGNED_LABEL,
+  QUICK_NO_VENUE_LABEL,
   QUICK_SELECT_ARIA_PREFIX,
   QUICK_TITLE,
   SUMMARY_LOAD_ERROR_MESSAGE,
@@ -35,7 +36,6 @@ export default function VenueQuickDistribution({
 }: VenueQuickDistributionProps) {
   const queryClient = useQueryClient();
   const [groupBy, setGroupBy] = useState<VenueSummaryGroupBy>(QUICK_GROUP_BY_LEAGUE);
-  const [includeAssigned, setIncludeAssigned] = useState(false);
   const [choices, setChoices] = useState<Record<string, string>>({});
 
   const summaryQuery = useQuery({
@@ -48,28 +48,33 @@ export default function VenueQuickDistribution({
     if (summaryQuery.isError) onError(SUMMARY_LOAD_ERROR_MESSAGE);
   }, [summaryQuery.isError, onError]);
 
-  // Without "include assigned" the filter also requires no venue, so
-  // nominations moved by hand keep their venue.
+  // The whole category moves to the one chosen venue, already-placed
+  // nominations included.
   const assignMutation = useMutation({
     mutationFn: (args: { categoryId: string; venueId: string }) =>
       assignVenueBulk(
         competitionId,
-        {
-          filter: {
-            categoryIds: [args.categoryId],
-            venueId: includeAssigned ? undefined : null,
-          },
-        },
+        { filter: { categoryIds: [args.categoryId] } },
         args.venueId,
       ),
+    // The choice is dropped, so the select falls back to the venue the
+    // refreshed summary reports for the category.
     onSuccess: (_updated, args) => {
       refreshNominations(queryClient, competitionId);
-      setChoices((prev) => ({ ...prev, [args.categoryId]: NO_VENUE_CHOICE }));
+      setChoices((prev) => {
+        const next = { ...prev };
+        delete next[args.categoryId];
+        return next;
+      });
     },
   });
 
+  // The organizer's pick, else the venue the category already stands on.
+  const selectedVenueOf = (row: VenueSummaryRow) =>
+    choices[row.categoryId] ?? summaryVenueChoice(row);
+
   const handleAssign = async (row: VenueSummaryRow) => {
-    const venueId = choices[row.categoryId] ?? NO_VENUE_CHOICE;
+    const venueId = selectedVenueOf(row);
     if (venueId === NO_VENUE_CHOICE || assignMutation.isPending) return;
     try {
       await assignMutation.mutateAsync({ categoryId: row.categoryId, venueId });
@@ -78,8 +83,12 @@ export default function VenueQuickDistribution({
     }
   };
 
-  const nothingToAssign = (row: VenueSummaryRow) =>
-    includeAssigned ? row.total === 0 : row.unassigned === 0;
+  // Nothing to do while no venue is picked or the category already stands
+  // on the picked one.
+  const nothingToAssign = (row: VenueSummaryRow) => {
+    const selected = selectedVenueOf(row);
+    return selected === NO_VENUE_CHOICE || selected === summaryVenueChoice(row);
+  };
 
   return (
     <section className={styles.section}>
@@ -105,14 +114,6 @@ export default function VenueQuickDistribution({
             </button>
           ))}
         </div>
-        <label className={styles.include}>
-          <input
-            type="checkbox"
-            checked={includeAssigned}
-            onChange={(e) => setIncludeAssigned(e.target.checked)}
-          />
-          {QUICK_INCLUDE_ASSIGNED_LABEL}
-        </label>
       </div>
 
       {rows.length > 0 && (
@@ -125,12 +126,14 @@ export default function VenueQuickDistribution({
               <select
                 className={styles.select}
                 aria-label={`${QUICK_SELECT_ARIA_PREFIX} ${row.name}`}
-                value={choices[row.categoryId] ?? NO_VENUE_CHOICE}
+                value={selectedVenueOf(row)}
                 onChange={(e) =>
                   setChoices((prev) => ({ ...prev, [row.categoryId]: e.target.value }))
                 }
               >
-                <option value={NO_VENUE_CHOICE}>—</option>
+                <option value={NO_VENUE_CHOICE} hidden>
+                  {QUICK_NO_VENUE_LABEL}
+                </option>
                 {venues.map((venue) => (
                   <option key={venue.id} value={venue.id}>
                     {venue.name}
@@ -141,11 +144,7 @@ export default function VenueQuickDistribution({
                 type="button"
                 className={styles.btnPrimary}
                 aria-label={`${QUICK_ASSIGN_ARIA_PREFIX} ${row.name}`}
-                disabled={
-                  (choices[row.categoryId] ?? NO_VENUE_CHOICE) === NO_VENUE_CHOICE ||
-                  nothingToAssign(row) ||
-                  assignMutation.isPending
-                }
+                disabled={nothingToAssign(row) || assignMutation.isPending}
                 onClick={() => void handleAssign(row)}
               >
                 {QUICK_ASSIGN_LABEL}
