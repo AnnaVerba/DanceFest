@@ -17,6 +17,7 @@ import {
   RECALC_PROMPT_DESCRIPTION,
   RECALC_PROMPT_TITLE,
 } from './scheduleSettings.constants';
+import { PROGRAM_FORMED_PROBE } from './programFormed.constants';
 import styles from './program.module.css';
 
 interface ScheduleSettingsProps {
@@ -60,8 +61,8 @@ export default function ScheduleSettings({
     queryFn: () => getNominationAxes(competitionId),
   });
   const sectionsExistQuery = useQuery({
-    queryKey: queryKeys.sections(competitionId, { pageSize: 1 }),
-    queryFn: () => getSections(competitionId, { pageSize: 1 }),
+    queryKey: queryKeys.sections(competitionId, PROGRAM_FORMED_PROBE),
+    queryFn: () => getSections(competitionId, PROGRAM_FORMED_PROBE),
   });
 
   const rules = rulesQuery.data ?? null;

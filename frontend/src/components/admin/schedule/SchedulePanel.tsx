@@ -21,6 +21,7 @@ import type { BlockRename } from './blockRename.types';
 import { RENAME_BLOCK_FAILED_MESSAGE } from './schedulePanel.constants';
 import { updateNomination } from '../../../lib/nominations';
 import { NEW_ENTRIES_PROBE } from './newEntriesNotice.constants';
+import { PROGRAM_FORMED_PROBE } from './programFormed.constants';
 import { unassignedVenueOf } from './unassignedVenue';
 import type { GroupOption } from './MergeGroupsModal';
 import {
@@ -110,12 +111,20 @@ export default function SchedulePanel({
 }: SchedulePanelProps) {
   // Building the running order only makes sense once entries are final —
   // timing settings (the Таймінги tab) stay open the whole time regardless.
-  // An admin is not bound by that window.
+  // An admin is not bound by that window; and once a program is formed the
+  // organizer maintains it too, since late entries have to join it.
   const status = getCompetitionStatus(competition);
   const registrationOpen =
     status === COMPETITION_STATUS.PLANNED ||
     status === COMPETITION_STATUS.REGISTRATION_OPEN;
-  const canBuild = canManage && (canBuildAnytime || !registrationOpen);
+  const programFormedQuery = useQuery({
+    queryKey: queryKeys.sections(competitionId, PROGRAM_FORMED_PROBE),
+    queryFn: () => getSections(competitionId, PROGRAM_FORMED_PROBE),
+    enabled: canManage,
+  });
+  const programFormed = (programFormedQuery.data?.totalSections ?? 0) > 0;
+  const canBuild =
+    canManage && (canBuildAnytime || !registrationOpen || programFormed);
   const queryClient = useQueryClient();
   const [sectionsPage, setSectionsPage] = useState(0);
   const [poolPage, setPoolPage] = useState(0);
