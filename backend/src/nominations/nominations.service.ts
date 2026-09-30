@@ -822,10 +822,14 @@ export class NominationsService {
         categoryId: string;
         total: string;
         unassigned: string;
+        venueIds: string[];
       }>(
+        // venueIds — усі майданчики, на яких стоять номінації категорії.
         `SELECT link."categoryId" AS "categoryId",
                 count(*) AS total,
-                count(*) FILTER (WHERE n."venueId" IS NULL) AS unassigned
+                count(*) FILTER (WHERE n."venueId" IS NULL) AS unassigned,
+                array_remove(array_agg(DISTINCT n."venueId"::text), NULL)
+                  AS "venueIds"
            FROM nomination_categories link
            JOIN nominations n ON n.id = link."nominationId"
           WHERE n."competitionId" = :competitionId
@@ -843,6 +847,7 @@ export class NominationsService {
           name: category.name,
           total: Number(counted?.total ?? 0),
           unassigned: Number(counted?.unassigned ?? 0),
+          venueIds: counted?.venueIds ?? [],
         };
       })
       .filter((row) => row.total > 0);

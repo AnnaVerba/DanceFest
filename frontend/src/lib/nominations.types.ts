@@ -67,6 +67,8 @@ export interface VenueSummaryRow {
   name: string;
   total: number;
   unassigned: number;
+  // Усі майданчики, на яких стоять номінації категорії.
+  venueIds: string[];
 }
 
 // Значення складу або ліги, що трапляється в номінаціях конкурсу, разом із
