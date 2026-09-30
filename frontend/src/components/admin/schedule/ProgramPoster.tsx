@@ -33,7 +33,7 @@ interface ProgramPosterProps {
 }
 
 function sectionKeyOf(row: PublicProgramRow): string {
-  return [row.dayId, row.venueId ?? '', row.label ?? ''].join(
+  return [row.dayId, row.venueId ?? '', row.label ?? '', row.time].join(
     POSTER_SECTION_KEY_SEPARATOR,
   );
 }
