@@ -13,6 +13,8 @@ import {
 import type { NominationToMove } from './nominationToMove.types';
 import MergeGroupsModal from './MergeGroupsModal';
 import ProgramTable from './ProgramTable';
+import type { SectionCollapse } from './sectionCollapse.types';
+import { sectionsCollapsed, toggleSection } from './sectionCollapse';
 import ProgramPoster from './ProgramPoster';
 import ProgramPublicationBar from './ProgramPublicationBar';
 import NewEntriesNotice from './NewEntriesNotice';
@@ -150,6 +152,9 @@ export default function SchedulePanel({
   const [search, setSearch] = useState('');
   const [noMusicOnly, setNoMusicOnly] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [sectionCollapse, setSectionCollapse] = useState<SectionCollapse>(
+    sectionsCollapsed(true),
+  );
   const [newRowType, setNewRowType] = useState<'break' | 'gala'>('break');
 
   const daysQuery = useQuery({
@@ -689,14 +694,13 @@ export default function SchedulePanel({
       return next;
     });
 
-  const allGroupKeys = useMemo(() => {
-    const keys = new Set<string>();
-    for (const s of sections)
-      for (const i of s.items)
-        if (i.type === 'performance')
-          keys.add(i.nominationGroupKey ?? i.exit?.nomination ?? '—');
-    return keys;
-  }, [sections]);
+  const toggleSectionCollapse = (sectionId: string) =>
+    setSectionCollapse((prev) => toggleSection(prev, sectionId));
+
+  const expandAll = () => {
+    setSectionCollapse(sectionsCollapsed(false));
+    setCollapsed(new Set());
+  };
 
   const mergeGroupOptions: GroupOption[] = useMemo(() => {
     if (!mergeFor) return [];
@@ -1016,14 +1020,14 @@ export default function SchedulePanel({
             <button
               type="button"
               className={styles.ghostBtn}
-              onClick={() => setCollapsed(new Set(allGroupKeys))}
+              onClick={() => setSectionCollapse(sectionsCollapsed(true))}
             >
               Згорнути всі
             </button>
             <button
               type="button"
               className={styles.ghostBtn}
-              onClick={() => setCollapsed(new Set())}
+              onClick={expandAll}
             >
               Розгорнути
             </button>
@@ -1069,6 +1073,8 @@ export default function SchedulePanel({
             hideWithMusic={noMusicOnly}
             collapsed={collapsed}
             onToggleCollapse={toggleCollapse}
+            sectionCollapse={sectionCollapse}
+            onToggleSection={toggleSectionCollapse}
             onReorderItems={handleReorder}
             onReorderSection={handleReorderSection}
             onSectionTime={handleSectionTime}

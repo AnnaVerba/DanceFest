@@ -7,17 +7,16 @@ import type { MineProgram, PublicProgramRow } from '../../lib/program';
 import { getVenues } from '../../lib/venues';
 import type { Venue } from '../../lib/venues';
 import {
-  filterMineSections,
   groupProgramSections,
   groupSectionsByVenue,
+  indexMineSections,
+  markMineGroups,
   sectionMatchesQuery,
 } from '../../lib/programSections';
 import ProgramSectionBlock from './ProgramSectionBlock';
-import MyProgramBlock from './MyProgramBlock';
 import {
   COLLAPSE_ALL_LABEL,
   EXPAND_ALL_LABEL,
-  FULL_PROGRAM_TITLE,
   JUMP_TO_SECTION_LABEL,
   LOAD_MORE_LABEL,
   NO_VENUE_KEY,
@@ -37,7 +36,7 @@ interface FestivalProgramProps {
 
 // The read-only festival programme for everyone who does not edit it: one
 // tab per venue, each section collapsed until opened. A signed-in dancer or
-// coach also gets their own performances highlighted on top.
+// coach sees the nominations they (or their students) perform in highlighted.
 export default function FestivalProgram({ competitionId }: FestivalProgramProps) {
   const [publicRows, setPublicRows] = useState<PublicProgramRow[] | null>(null);
   const [programPage, setProgramPage] = useState(0);
@@ -130,13 +129,9 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
   const showDayHeadings =
     new Set(visibleSections.map((s) => s.head.dayId)).size > 1;
 
-  // The personal cut follows the open venue tab and the search, so it can
-  // never contradict the programme rendered under it.
-  const mineSections = filterMineSections(
-    (mine?.sections ?? []).filter(
-      (section) => section.venueId === activeVenue?.venueId,
-    ),
-    needle,
+  const mineByKey = useMemo(
+    () => indexMineSections(mine?.sections ?? []),
+    [mine],
   );
 
   if (loadError) {
@@ -237,13 +232,6 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
         </div>
       )}
 
-      {mineSections.length > 0 && (
-        <>
-          <MyProgramBlock sections={mineSections} />
-          <h2 className={styles.sectionName}>{FULL_PROGRAM_TITLE}</h2>
-        </>
-      )}
-
       {searching && visibleSections.length === 0 && (
         <p className={styles.status}>{SEARCH_NO_RESULTS_LABEL}</p>
       )}
@@ -260,6 +248,7 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
             <ProgramSectionBlock
               section={section}
               expanded={isExpanded(section.id)}
+              marks={markMineGroups(section, mineByKey)}
               onToggle={toggleSection}
             />
           </div>

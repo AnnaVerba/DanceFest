@@ -351,6 +351,12 @@
   border-top: 1px solid var(--g-line-strong);
 }
 
+/* A section's name stands out from the break and award labels. */
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 800;
+}
+
 .serviceCell {
   padding: 10px;
   white-space: nowrap;

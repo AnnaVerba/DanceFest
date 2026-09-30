@@ -1,9 +1,11 @@
 import type { MineProgramSection, PublicProgramRow } from './program';
+import type { MineMark, SectionMarks } from './programHighlight.types';
 import type { Venue } from './venues';
 import { formatParticipantNumbers } from './participantNumbers';
 import {
   NO_VENUE_LABEL,
   PROGRAM_SECTION_ID_PREFIX,
+  SECTION_MATCH_KEY_SEPARATOR,
   UNKNOWN_VENUE_LABEL,
 } from './programSections.constants';
 import type { ProgramSection, VenueProgram } from './programSections.types';
@@ -75,21 +77,64 @@ export function sectionMatchesQuery(
   );
 }
 
-// The personal cut, narrowed by the same search box as the full programme.
-// A section whose every exit was filtered out drops with it.
-export function filterMineSections(
+function sectionMatchKey(
+  dayId: string,
+  venueId: string | null,
+  name: string | null,
+  time: string,
+): string {
+  return [dayId, venueId ?? '', name ?? '', time].join(
+    SECTION_MATCH_KEY_SEPARATOR,
+  );
+}
+
+// The viewer's own cut, keyed so each public section can find its part.
+export function indexMineSections(
   sections: MineProgramSection[],
-  needle: string,
-): MineProgramSection[] {
-  if (!needle) return sections;
-  return sections
-    .map((section) => ({
-      ...section,
-      exits: section.exits.filter(
-        (exit) =>
-          exit.performerName.toLowerCase().includes(needle) ||
-          formatParticipantNumbers(exit.participantNumbers).includes(needle),
-      ),
-    }))
-    .filter((section) => section.exits.length > 0);
+): Map<string, MineProgramSection> {
+  return new Map(
+    sections.map((section) => [
+      sectionMatchKey(section.dayId, section.venueId, section.name, section.time),
+      section,
+    ]),
+  );
+}
+
+function strongerMark(a: MineMark | undefined, b: MineMark): MineMark {
+  return a === 'mine' || b === 'mine' ? 'mine' : 'student';
+}
+
+// Marks every nomination of a public section that holds one of the viewer's
+// exits. An exit is found by its time — unique within a section — and marks
+// the nomination row it runs under.
+export function markMineGroups(
+  section: ProgramSection,
+  mineByKey: Map<string, MineProgramSection>,
+): SectionMarks {
+  const groups = new Map<number, MineMark>();
+  const { head } = section;
+  const mine = mineByKey.get(
+    sectionMatchKey(head.dayId, head.venueId, head.label, head.time),
+  );
+  if (!mine) return { section: null, groups };
+
+  const markByTime = new Map(
+    mine.exits.map((exit): [string, MineMark] => [
+      exit.time,
+      exit.isMine ? 'mine' : 'student',
+    ]),
+  );
+  let groupIndex: number | null = null;
+  section.rows.forEach((row, index) => {
+    if (row.kind === 'group') groupIndex = index;
+    const mark = row.kind === 'exit' ? markByTime.get(row.time) : undefined;
+    if (mark && groupIndex !== null) {
+      groups.set(groupIndex, strongerMark(groups.get(groupIndex), mark));
+    }
+  });
+
+  const marks = [...groups.values()];
+  const sectionMark =
+    marks.length === 0 ? null : marks.includes('mine') ? 'mine' : 'student';
+  return { section: sectionMark, groups };
 }
