@@ -7,7 +7,7 @@ export interface OverageEntry {
   entryId: string;
   number: number;
   dancerName: string;
-  league: string | null;
+  nomination: string;
   limitSec: number;
   durationSec: number;
   overageSec: number;

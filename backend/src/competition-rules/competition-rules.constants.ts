@@ -7,3 +7,6 @@ export const NOMINATION_LIMIT_ALREADY_SET_MESSAGE =
   'Ліміт для цієї номінації й раунду вже задано';
 export const AXIS_LIMIT_ALREADY_SET_MESSAGE =
   'Ліміт для цієї осі й раунду вже задано';
+
+// An improvisation exit holds at least one improvisation.
+export const MIN_IMPROVISATION_ROUNDS = 1;

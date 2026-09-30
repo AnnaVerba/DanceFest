@@ -25,12 +25,16 @@ export type { ExitMode };
 export interface NominationProgram {
   id: string;
   name: string;
+  isImprovisation: boolean;
 }
 
 export interface NominationExit {
   programId: string | null;
   programName: string | null;
   label: string;
+  isImprovisation: boolean;
+  // null for an improvisation: it runs for the competition's improvisation
+  // duration.
   durationLimitSeconds: number | null;
 }
 
@@ -49,7 +53,9 @@ export interface Nomination {
   venueId: string | null;
   name: string;
   price: number | null;
-  allowsImprovisation: boolean;
+  // Derived by the server: the nomination has styles and all are
+  // improvisations.
+  isImprovisation: boolean;
   categoryIds: string[];
   isSpecial: boolean;
   specialName: string | null;
@@ -71,7 +77,6 @@ export interface NominationInput {
   templateId?: string;
   name: string;
   price?: number;
-  allowsImprovisation?: boolean;
   categoryIds?: string[];
   isSpecial?: boolean;
   specialName?: string;
@@ -322,25 +327,11 @@ export interface NominationBulkFilter {
 }
 
 // Either a hand-picked set of ids, or a filter the backend resolves itself —
-// the filter is how "every improvisation nomination" reaches the server
+// the filter is how "every nomination on this venue" reaches the server
 // without listing hundreds of ids in the request body.
 export type NominationBulkSelector =
   | { nominationIds: string[] }
   | { filter: NominationBulkFilter };
-
-export function setImprovisationBulk(
-  competitionId: string,
-  selector: NominationBulkSelector,
-  allowsImprovisation: boolean,
-): Promise<Nomination[]> {
-  return request<Nomination[]>(
-    `/competitions/${competitionId}/nominations/bulk-improvisation`,
-    {
-      method: 'PATCH',
-      body: JSON.stringify({ ...selector, allowsImprovisation }),
-    },
-  );
-}
 
 export function assignVenueBulk(
   competitionId: string,

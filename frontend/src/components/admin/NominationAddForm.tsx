@@ -124,7 +124,6 @@ export default function NominationAddForm({
             signature: signatureOf(categoryIds),
             name,
             price,
-            allowsImprovisation: false,
             categoryIds,
             isSpecial: false,
             exitMode: SINGLE_EXIT,

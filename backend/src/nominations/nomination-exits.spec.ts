@@ -1,9 +1,9 @@
 import { planNominationExits } from './nomination-exits';
 
 const programs = [
-  { id: 'p1', name: 'Імпровізація межансе' },
-  { id: 'p2', name: 'Табла' },
-  { id: 'p3', name: 'Класика' },
+  { id: 'p1', name: 'Імпровізація межансе', isImprovisation: false },
+  { id: 'p2', name: 'Табла', isImprovisation: false },
+  { id: 'p3', name: 'Класика', isImprovisation: false },
 ];
 
 describe('planNominationExits', () => {
@@ -21,6 +21,7 @@ describe('planNominationExits', () => {
         programId: null,
         programName: null,
         label: 'Юніори 1 · Перші кроки · Корона Шехеризади',
+        isImprovisation: false,
         durationLimitSeconds: null,
       },
     ]);
@@ -98,6 +99,7 @@ describe('planNominationExits', () => {
         programId: null,
         programName: null,
         label: 'Соло · Діти · Дебют · Фрі Денс',
+        isImprovisation: false,
         durationLimitSeconds: 150,
       },
     ]);
@@ -107,7 +109,7 @@ describe('planNominationExits', () => {
     const exits = planNominationExits({
       label: 'Соло · Діти · Дебют · Фрі Денс',
       exitMode: 'single',
-      programs: [{ id: 'd1', name: 'Фрі Денс' }],
+      programs: [{ id: 'd1', name: 'Фрі Денс', isImprovisation: false }],
       durationLimitSeconds: 150,
       programLimits: {},
     });

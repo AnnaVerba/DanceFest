@@ -50,6 +50,9 @@ export interface Category {
   sortOrder: number;
   // Пояснення для учасника у формі заявки; null — пояснення немає.
   description: string | null;
+  // Лише для стилю: виступ у ньому — імпровізація (без треку, час з
+  // таймінгів). Спільне для всіх конкурсів, задає адмін.
+  isImprovisation: boolean;
   createdAt: string;
 }
 
@@ -140,6 +143,16 @@ export function updateCategoryDescription(
   return request<Category>(`/categories/${id}/description`, {
     method: 'PATCH',
     body: JSON.stringify({ description }),
+  });
+}
+
+export function updateCategoryImprovisation(
+  id: string,
+  isImprovisation: boolean,
+): Promise<Category> {
+  return request<Category>(`/categories/${id}/improvisation`, {
+    method: 'PATCH',
+    body: JSON.stringify({ isImprovisation }),
   });
 }
 

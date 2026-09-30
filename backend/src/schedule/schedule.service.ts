@@ -30,6 +30,7 @@ import { Venue } from '../venues/venue.model';
 import { CompetitionRule } from '../competition-rules/competition-rule.model';
 import { CompetitionRulesService } from '../competition-rules/competition-rules.service';
 import { LimitCache } from '../competition-rules/limit-cache';
+import { MIN_IMPROVISATION_ROUNDS } from '../competition-rules/competition-rules.constants';
 import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
 import { CompetitionDay } from './competition-day.model';
 import { Section } from './section.model';
@@ -1573,11 +1574,15 @@ export class ScheduleService {
       rules,
       limitCache,
     );
+    const improvRounds = entry.improv
+      ? await this.rulesService.improvisationRoundsOf(entry, limitCache)
+      : MIN_IMPROVISATION_ROUNDS;
     return performanceDuration(
       {
         improv: entry.improv,
         isGroupImprov: isGroupImprov(entry),
         limitSeconds,
+        improvRounds,
       },
       rules,
     );

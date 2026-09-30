@@ -359,7 +359,6 @@ export class CategoryTemplatesService {
         templateId: copy.id,
         name: n.name,
         price: n.price === null ? null : Number(n.price),
-        allowsImprovisation: n.allowsImprovisation,
         isSpecial: n.isSpecial,
         specialName: n.specialName,
         exitMode: n.exitMode,
@@ -448,7 +447,6 @@ export class CategoryTemplatesService {
       price: n.isSpecial
         ? (n.price ?? specialGroupPrice(groupPrices, n.specialName))
         : (n.price ?? null),
-      allowsImprovisation: n.allowsImprovisation ?? false,
       isSpecial: n.isSpecial ?? false,
       specialName: n.specialName?.trim() || null,
       exitMode: n.exitMode ?? DEFAULT_EXIT_MODE,
@@ -694,7 +692,6 @@ export class CategoryTemplatesService {
         ? price
         : (price ??
           resolveAxisPrice(nomination.categoryIds ?? [], categoryById, prices)),
-      allowsImprovisation: nomination.allowsImprovisation,
       categoryIds: nomination.categoryIds,
       isSpecial: nomination.isSpecial,
       specialName: nomination.specialName,

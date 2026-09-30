@@ -1,18 +1,30 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { CreationAttributes } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
+import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Nomination } from '../nominations/nomination.model';
+import { AccessLevel } from '../auth/access-level.enum';
+import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Venue } from './venue.model';
 import { CreateVenueDto } from './dto/create-venue.dto';
 import { VENUE_NOT_FOUND_MESSAGE } from './venues.constants';
-import { COMPETITION_NOT_FOUND_MESSAGE } from '../competitions/competitions.constants';
+import {
+  COMPETITION_NOT_FOUND_MESSAGE,
+  NO_COMPETITION_ACCESS_MESSAGE,
+} from '../competitions/competitions.constants';
 
 @Injectable()
 export class VenuesService {
   constructor(
     @InjectModel(Competition)
     private readonly competitionModel: typeof Competition,
+    @InjectModel(CompetitionAdmin)
+    private readonly competitionAdminModel: typeof CompetitionAdmin,
     @InjectModel(Venue)
     private readonly venueModel: typeof Venue,
     @InjectModel(Nomination)
@@ -32,9 +44,14 @@ export class VenuesService {
     return venues.map((v) => this.toDto(v, nominationCounts.get(v.id) ?? 0));
   }
 
-  // The controller restricts these to ORGANIZER and above.
-  async create(competitionId: string, dto: CreateVenueDto) {
-    await this.assertCompetitionExists(competitionId);
+  // Only the competition's own staff (owner, invited co-organizer, admin)
+  // change its venues — being an organizer of another competition is not enough.
+  async create(
+    competitionId: string,
+    dto: CreateVenueDto,
+    requester: AuthenticatedUser,
+  ) {
+    await this.assertAccess(competitionId, requester);
 
     const venue = await this.venueModel.create({
       competitionId,
@@ -45,8 +62,12 @@ export class VenuesService {
     return this.toDto(venue, 0);
   }
 
-  async remove(competitionId: string, venueId: string): Promise<void> {
-    await this.assertCompetitionExists(competitionId);
+  async remove(
+    competitionId: string,
+    venueId: string,
+    requester: AuthenticatedUser,
+  ): Promise<void> {
+    await this.assertAccess(competitionId, requester);
 
     const venue = await this.venueModel.findOne({
       where: { id: venueId, competitionId },
@@ -57,10 +78,29 @@ export class VenuesService {
     await venue.destroy();
   }
 
-  private async assertCompetitionExists(competitionId: string): Promise<void> {
+  private async assertCompetitionExists(
+    competitionId: string,
+  ): Promise<Competition> {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
       throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
+    }
+    return competition;
+  }
+
+  private async assertAccess(
+    competitionId: string,
+    requester: AuthenticatedUser,
+  ): Promise<void> {
+    const competition = await this.assertCompetitionExists(competitionId);
+    // A global admin manages every competition's venues.
+    if (requester.accessLevel === AccessLevel.ADMIN) return;
+    if (competition.ownerId === requester.id) return;
+    const membership = await this.competitionAdminModel.findOne({
+      where: { competitionId, adminId: requester.id },
+    });
+    if (!membership) {
+      throw new ForbiddenException(NO_COMPETITION_ACCESS_MESSAGE);
     }
   }
 

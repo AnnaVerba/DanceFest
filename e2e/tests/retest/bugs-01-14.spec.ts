@@ -134,10 +134,6 @@ test.afterAll(async () => {
     filter: {},
     venueId: null,
   });
-  await api.send('PATCH', `/competitions/${C}/nominations/bulk-improvisation`, {
-    filter: {},
-    allowsImprovisation: false,
-  });
   await api.setLeagueLimits(C, {});
   await context?.close();
 });
@@ -348,32 +344,6 @@ test.describe('Durations (TASK-07, BUG-10, manual override)', () => {
     );
     expect(otherPro.every((n) => n.durationLimitSeconds === PRO_SECONDS)).toBeTruthy();
   });
-});
-
-test('TASK-04 + fix #4 — bulk improvisation by filter, duration follows', async () => {
-  const isDrift = (n: Nomination) => n.name.includes(STYLE_DRIFT);
-  const proId = categoryId('level', LEAGUE_PRO);
-
-  await openTab('Номінації');
-  await page.getByLabel('Пошук номінацій за назвою').fill(STYLE_DRIFT);
-  const drift = await nominationsOf(isDrift);
-  await page.getByLabel(`Обрати всі відфільтровані (${drift.length})`).check();
-  await page.getByRole('button', { name: 'Встановити «Імпровізація»' }).click();
-  await expect.poll(async () => (await nominationsOf(isDrift)).every((n) => n.allowsImprovisation)).toBe(true);
-  expect((await nominationsOf(isDrift)).every((n) => n.durationLimitSeconds === null)).toBeTruthy();
-  const others = await nominationsOf((n) => !isDrift(n) && n.id !== created.nominationIds[0]);
-  expect(others.every((n) => !n.allowsImprovisation)).toBeTruthy();
-
-  await page.reload();
-  await page.getByRole('tab', { name: 'Номінації', exact: true }).click();
-  await page.getByLabel('Пошук номінацій за назвою').fill(STYLE_DRIFT);
-  await expect(page.getByText('імпровізація', { exact: true }).first()).toBeVisible();
-
-  await page.getByLabel(`Обрати всі відфільтровані (${drift.length})`).check();
-  await page.getByRole('button', { name: 'Зняти «Імпровізація»' }).click();
-  await expect.poll(async () => (await nominationsOf(isDrift)).every((n) => !n.allowsImprovisation)).toBe(true);
-  const back = await nominationsOf(isDrift);
-  expect(back.filter(hasCategory(proId)).every((n) => n.durationLimitSeconds === PRO_SECONDS)).toBeTruthy();
 });
 
 test('TASK-08 — filter + select all filtered + bulk venue', async () => {

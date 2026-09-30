@@ -20,6 +20,8 @@ import { Public } from '../auth/public.decorator';
 import { MinLevelGuard } from '../auth/min-level.guard';
 import { MinLevel } from '../auth/min-level.decorator';
 import { AccessLevel } from '../auth/access-level.enum';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { VenuesService } from './venues.service';
 import { CreateVenueDto } from './dto/create-venue.dto';
 
@@ -49,7 +51,7 @@ export class VenuesController {
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
   @ApiResponse({
     status: 403,
-    description: 'Only organizers and admins can change venues.',
+    description: "Only the competition's staff can change its venues.",
   })
   @ApiResponse({
     status: 404,
@@ -62,8 +64,9 @@ export class VenuesController {
   create(
     @Param('competitionId') competitionId: string,
     @Body() dto: CreateVenueDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.venuesService.create(competitionId, dto);
+    return this.venuesService.create(competitionId, dto, user);
   }
 
   @ApiOperation({
@@ -73,7 +76,7 @@ export class VenuesController {
   @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
   @ApiResponse({
     status: 403,
-    description: 'Only organizers and admins can change venues.',
+    description: "Only the competition's staff can change its venues.",
   })
   @ApiResponse({ status: 404, description: 'Competition or venue not found.' })
   @ApiBearerAuth()
@@ -84,7 +87,8 @@ export class VenuesController {
   remove(
     @Param('competitionId') competitionId: string,
     @Param('venueId') venueId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.venuesService.remove(competitionId, venueId);
+    return this.venuesService.remove(competitionId, venueId, user);
   }
 }

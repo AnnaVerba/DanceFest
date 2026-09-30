@@ -29,7 +29,7 @@ import { UsersService } from './users.service';
 import { CreateRosterParticipantDto } from './dto/create-roster-participant.dto';
 import { UpgradeLevelDto } from './dto/upgrade-level.dto';
 import { SetLevelDto } from './dto/set-level.dto';
-import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
+import { AdminEditUserDto } from './dto/admin-edit-user.dto';
 import { SetMentorCoachDto } from './dto/set-mentor-coach.dto';
 import { NewMentorCoachDto } from './dto/new-mentor-coach.dto';
 import { CompleteProfileDto } from './dto/complete-profile.dto';
@@ -308,9 +308,17 @@ export class UsersController {
     };
   }
 
-  @ApiOperation({ summary: "Edit any user's profile (admin only)" })
+  @ApiOperation({
+    summary:
+      "Edit any user's profile, school and mentor coach (admin only)",
+  })
   @ApiResponse({ status: 200, description: 'User updated.' })
-  @ApiResponse({ status: 404, description: 'User not found.' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'A school below coach level, both coach choices sent, or the user as their own coach.',
+  })
+  @ApiResponse({ status: 404, description: 'User, school or coach not found.' })
   @ApiResponse({
     status: 409,
     description: 'The phone or email belongs to another user.',
@@ -319,9 +327,9 @@ export class UsersController {
   @Patch(':id')
   async updateUser(
     @Param('id') id: string,
-    @Body() dto: AdminUpdateUserDto,
+    @Body() dto: AdminEditUserDto,
   ): Promise<AdminUserSummary> {
-    const user = await this.usersService.adminUpdate(id, dto);
+    const user = await this.usersService.adminEdit(id, dto);
     return this.toAdminSummary(user);
   }
 
@@ -358,7 +366,15 @@ export class UsersController {
       birthDate: user.birthDate,
       accessLevel: user.accessLevel,
       confirmed: user.confirmed,
+      schoolId: user.schoolId,
       schoolName: user.school?.name ?? null,
+      coach: user.coach
+        ? {
+            id: user.coach.id,
+            firstName: user.coach.firstName,
+            lastName: user.coach.lastName,
+          }
+        : null,
       createdAt: user.createdAt,
     };
   }

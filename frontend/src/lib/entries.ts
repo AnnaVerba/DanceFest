@@ -79,7 +79,6 @@ export interface EntryInput {
   studioId?: string;
   trainerId?: string;
   city?: string;
-  improv?: boolean;
   paymentMethod?: 'cash' | 'card';
   musicName?: string;
 }

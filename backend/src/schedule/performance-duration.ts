@@ -11,6 +11,8 @@ export interface PerformanceDurationInput {
   // Effective duration limit for the exit's nomination and round, already
   // resolved by the caller.
   limitSeconds: number;
+  // Improvisations the exit holds back to back (Battle Queen: two).
+  improvRounds: number;
 }
 
 // Deterministic on-stage time for a single exit.
@@ -24,9 +26,10 @@ export function performanceDuration(
   rules: ImprovDurationRules,
 ): number {
   if (input.improv) {
-    return input.isGroupImprov
+    const oneRound = input.isGroupImprov
       ? rules.improvGroupSeconds
       : rules.improvIndividualSeconds;
+    return oneRound * input.improvRounds;
   }
   return input.limitSeconds;
 }

@@ -100,7 +100,6 @@ export default function CategoryTemplateDetailPage() {
                   <li key={nomination.id}>
                     <span className={styles.nomName}>
                       {nomination.name}
-                      {nomination.allowsImprovisation && ' · імпровізація'}
                     </span>
                     <span
                       className={styles.nomPrice}

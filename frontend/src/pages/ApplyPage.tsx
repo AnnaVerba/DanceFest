@@ -23,7 +23,6 @@ import {
 } from '../lib/categories';
 import { fitsCount } from '../lib/categoryRange';
 import { exitsAreAllImprovisation } from '../lib/improvisationProgram';
-import { nominationRowKey } from '../lib/nominationRowKey';
 import {
   EntryApiError,
   createEntriesBulk,
@@ -79,10 +78,8 @@ type PayMethod = 'cash' | 'card';
 interface NominationRow {
   key: string;
   nominationId: string;
-  improv: boolean;
-  // The entries this row creates take no track: either the row itself is
-  // the nomination's improvisation, or every exit is an improvisation
-  // program. Display only — `improv` is what the entry is created with.
+  // The entries this row creates take no track: every exit is an
+  // improvisation. Display only — the server derives each entry's flag.
   takesNoTrack: boolean;
   isSpecial: boolean;
   label: string;
@@ -563,29 +560,14 @@ export default function ApplyPage() {
   const styleRows: NominationRow[] = useMemo(() => {
     const rows: NominationRow[] = [];
     for (const n of entryNominations) {
-      // A nomination marked as improvisation is entered only as one — no
-      // regular-performance twin of the same row.
-      rows.push(
-        n.allowsImprovisation
-          ? {
-              key: nominationRowKey(n.id, true),
-              nominationId: n.id,
-              improv: true,
-              takesNoTrack: true,
-              isSpecial: false,
-              label: `${n.name} · Імпровізація`,
-              price: n.price,
-            }
-          : {
-              key: nominationRowKey(n.id, false),
-              nominationId: n.id,
-              improv: false,
-              takesNoTrack: exitsAreAllImprovisation(n.exits),
-              isSpecial: false,
-              label: n.name,
-              price: n.price,
-            },
-      );
+      rows.push({
+        key: n.id,
+        nominationId: n.id,
+        takesNoTrack: exitsAreAllImprovisation(n.exits),
+        isSpecial: false,
+        label: n.isImprovisation ? `${n.name} · Імпровізація` : n.name,
+        price: n.price,
+      });
     }
     return rows;
   }, [entryNominations]);
@@ -593,9 +575,8 @@ export default function ApplyPage() {
   const specialRows: NominationRow[] = useMemo(
     () =>
       specials.map((n) => ({
-        key: nominationRowKey(n.id, false),
+        key: n.id,
         nominationId: n.id,
-        improv: false,
         takesNoTrack: exitsAreAllImprovisation(n.exits),
         isSpecial: true,
         label: n.name,
@@ -819,7 +800,6 @@ export default function ApplyPage() {
           studioId: canPickCoach ? assignedStudioId || undefined : undefined,
           trainerId,
           nominationId: r.nominationId,
-          improv: r.improv,
           city: city.trim() || undefined,
           paymentMethod: payMethod,
         })),
@@ -835,7 +815,7 @@ export default function ApplyPage() {
       const createdByRowKey = new Map<string, Entry[]>();
       for (const entry of created) {
         if (!entry.nominationId) continue;
-        const key = nominationRowKey(entry.nominationId, entry.improv ?? false);
+        const key = entry.nominationId;
         const group = createdByRowKey.get(key);
         if (group) group.push(entry);
         else createdByRowKey.set(key, [entry]);

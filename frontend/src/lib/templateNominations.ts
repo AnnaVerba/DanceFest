@@ -13,7 +13,6 @@ export function templateNominationsToInputs(
     templateId,
     name: n.name,
     price: n.effectivePrice ?? undefined,
-    allowsImprovisation: n.allowsImprovisation,
     categoryIds: n.categoryIds,
     isSpecial: n.isSpecial,
     specialName: n.specialName ?? undefined,

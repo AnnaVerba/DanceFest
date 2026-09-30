@@ -25,15 +25,15 @@ export const DISTRIBUTION_NO_NOMINATIONS_MESSAGE =
 
 export const QUICK_TITLE = 'Швидкий розподіл';
 export const QUICK_HINT =
-  'Призначте майданчик одразу всім номінаціям ліги чи вікової категорії. Номінації, які вже стоять на майданчику, не змінюються — хіба що позначите «Включно з уже розподіленими».';
+  'Призначте майданчик одразу всім номінаціям ліги чи вікової категорії. Повторне призначення переносить на новий майданчик усі її номінації.';
 export const QUICK_GROUP_BY_LEAGUE: VenueSummaryGroupBy = 'level';
 export const QUICK_GROUP_BY_AGE: VenueSummaryGroupBy = 'age';
 export const QUICK_GROUP_BY_LEAGUE_LABEL = 'По лігах';
 export const QUICK_GROUP_BY_AGE_LABEL = 'По віку';
-export const QUICK_INCLUDE_ASSIGNED_LABEL = 'Включно з уже розподіленими';
 export const QUICK_ASSIGN_LABEL = 'Призначити';
 export const QUICK_SELECT_ARIA_PREFIX = 'Майданчик для категорії';
 export const QUICK_ASSIGN_ARIA_PREFIX = 'Призначити майданчик категорії';
+export const QUICK_NO_VENUE_LABEL = '—';
 export const SUMMARY_LOAD_ERROR_MESSAGE = 'Не вдалося завантажити зведення по майданчиках.';
 
 export const VENUE_ASSIGN_ERROR_MESSAGE =

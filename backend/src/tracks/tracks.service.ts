@@ -17,11 +17,7 @@ import { Entry } from '../entries/entry.model';
 import { EntriesService } from '../entries/entries.service';
 import { ENTRY_NOT_FOUND_MESSAGE } from '../entries/entries.constants';
 import { COMPETITION_NOT_FOUND_MESSAGE } from '../competitions/competitions.constants';
-import {
-  CompetitionRulesService,
-  DEFAULT_DURATION_LIMIT_SECONDS,
-} from '../competition-rules/competition-rules.service';
-import { DEFAULT_DURATION_ROUND } from '../competition-rules/duration-limit.model';
+import { CompetitionRulesService } from '../competition-rules/competition-rules.service';
 import { OcpS3ClientFactory } from '../uploads/ocp-s3-client.factory';
 import { buildContentDisposition } from '../uploads/content-disposition';
 import { buildPublicObjectUrl } from '../uploads/build-public-object-url';
@@ -278,14 +274,13 @@ export class TracksService {
     }
   }
 
-  // No round concept on Entry yet — defaults to the "final" round, same as
-  // CompetitionRulesService's own default.
+  // Same effective limit the schedule and the overages list use (manual
+  // nomination duration → lineup → league → duration_limits → default).
   private async resolveLimitSeconds(entry: Entry): Promise<number> {
-    if (!entry.nominationId) return DEFAULT_DURATION_LIMIT_SECONDS;
-    return this.competitionRulesService.resolveLimit(
-      entry.nominationId,
-      DEFAULT_DURATION_ROUND,
+    const rules = await this.competitionRulesService.getRules(
+      entry.competitionId,
     );
+    return this.competitionRulesService.resolveEffectiveLimit(entry, rules);
   }
 
   private requireBucket(): string {

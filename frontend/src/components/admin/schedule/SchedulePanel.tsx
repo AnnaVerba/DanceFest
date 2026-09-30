@@ -13,6 +13,8 @@ import {
 import type { NominationToMove } from './nominationToMove.types';
 import MergeGroupsModal from './MergeGroupsModal';
 import ProgramTable from './ProgramTable';
+import type { SectionCollapse } from './sectionCollapse.types';
+import { sectionsCollapsed, toggleSection } from './sectionCollapse';
 import ProgramPoster from './ProgramPoster';
 import ProgramPublicationBar from './ProgramPublicationBar';
 import NewEntriesNotice from './NewEntriesNotice';
@@ -21,6 +23,7 @@ import type { BlockRename } from './blockRename.types';
 import { RENAME_BLOCK_FAILED_MESSAGE } from './schedulePanel.constants';
 import { updateNomination } from '../../../lib/nominations';
 import { NEW_ENTRIES_PROBE } from './newEntriesNotice.constants';
+import { PROGRAM_FORMED_PROBE } from './programFormed.constants';
 import { unassignedVenueOf } from './unassignedVenue';
 import type { GroupOption } from './MergeGroupsModal';
 import {
@@ -110,12 +113,20 @@ export default function SchedulePanel({
 }: SchedulePanelProps) {
   // Building the running order only makes sense once entries are final —
   // timing settings (the Таймінги tab) stay open the whole time regardless.
-  // An admin is not bound by that window.
+  // An admin is not bound by that window; and once a program is formed the
+  // organizer maintains it too, since late entries have to join it.
   const status = getCompetitionStatus(competition);
   const registrationOpen =
     status === COMPETITION_STATUS.PLANNED ||
     status === COMPETITION_STATUS.REGISTRATION_OPEN;
-  const canBuild = canManage && (canBuildAnytime || !registrationOpen);
+  const programFormedQuery = useQuery({
+    queryKey: queryKeys.sections(competitionId, PROGRAM_FORMED_PROBE),
+    queryFn: () => getSections(competitionId, PROGRAM_FORMED_PROBE),
+    enabled: canManage,
+  });
+  const programFormed = (programFormedQuery.data?.totalSections ?? 0) > 0;
+  const canBuild =
+    canManage && (canBuildAnytime || !registrationOpen || programFormed);
   const queryClient = useQueryClient();
   const [sectionsPage, setSectionsPage] = useState(0);
   const [poolPage, setPoolPage] = useState(0);
@@ -141,6 +152,9 @@ export default function SchedulePanel({
   const [search, setSearch] = useState('');
   const [noMusicOnly, setNoMusicOnly] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [sectionCollapse, setSectionCollapse] = useState<SectionCollapse>(
+    sectionsCollapsed(true),
+  );
   const [newRowType, setNewRowType] = useState<'break' | 'gala'>('break');
 
   const daysQuery = useQuery({
@@ -680,14 +694,13 @@ export default function SchedulePanel({
       return next;
     });
 
-  const allGroupKeys = useMemo(() => {
-    const keys = new Set<string>();
-    for (const s of sections)
-      for (const i of s.items)
-        if (i.type === 'performance')
-          keys.add(i.nominationGroupKey ?? i.exit?.nomination ?? '—');
-    return keys;
-  }, [sections]);
+  const toggleSectionCollapse = (sectionId: string) =>
+    setSectionCollapse((prev) => toggleSection(prev, sectionId));
+
+  const expandAll = () => {
+    setSectionCollapse(sectionsCollapsed(false));
+    setCollapsed(new Set());
+  };
 
   const mergeGroupOptions: GroupOption[] = useMemo(() => {
     if (!mergeFor) return [];
@@ -1007,14 +1020,14 @@ export default function SchedulePanel({
             <button
               type="button"
               className={styles.ghostBtn}
-              onClick={() => setCollapsed(new Set(allGroupKeys))}
+              onClick={() => setSectionCollapse(sectionsCollapsed(true))}
             >
               Згорнути всі
             </button>
             <button
               type="button"
               className={styles.ghostBtn}
-              onClick={() => setCollapsed(new Set())}
+              onClick={expandAll}
             >
               Розгорнути
             </button>
@@ -1060,6 +1073,8 @@ export default function SchedulePanel({
             hideWithMusic={noMusicOnly}
             collapsed={collapsed}
             onToggleCollapse={toggleCollapse}
+            sectionCollapse={sectionCollapse}
+            onToggleSection={toggleSectionCollapse}
             onReorderItems={handleReorder}
             onReorderSection={handleReorderSection}
             onSectionTime={handleSectionTime}

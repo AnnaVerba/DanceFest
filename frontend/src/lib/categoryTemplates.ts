@@ -27,7 +27,6 @@ export interface TemplateNomination {
   // Ціна, що діє: власна, а якщо її немає — ціна складу або ліги. Саме вона
   // показується й саме вона їде в конкурс при імпорті.
   effectivePrice: number | null;
-  allowsImprovisation: boolean;
   categoryIds: string[];
   isSpecial: boolean;
   specialName: string | null;
@@ -38,7 +37,6 @@ export interface TemplateNomination {
 export interface TemplateNominationInput {
   name: string;
   price?: number;
-  allowsImprovisation?: boolean;
   categoryIds?: string[];
   isSpecial?: boolean;
   specialName?: string;
