@@ -27,6 +27,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { BulkCreateCategoriesDto } from './dto/bulk-create-categories.dto';
 import { UpdateAgeRangeDto } from './dto/update-age-range.dto';
 import { UpdateCategoryDescriptionDto } from './dto/update-category-description.dto';
+import { UpdateCategoryImprovisationDto } from './dto/update-category-improvisation.dto';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 
@@ -146,5 +147,28 @@ export class CategoriesController {
     @Body() dto: UpdateCategoryDescriptionDto,
   ) {
     return this.categoriesService.updateDescription(id, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Mark a style as improvisation, or unmark it',
+    description:
+      'The dictionary is shared, so the flag applies at every competition: nominations using the style re-derive their duration and entries their improvisation flag.',
+  })
+  @ApiResponse({ status: 200, description: 'Flag updated.' })
+  @ApiResponse({ status: 400, description: 'Not a style, or validation failed.' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Only admins can mark a style as improvisation.',
+  })
+  @ApiResponse({ status: 404, description: 'Category not found.' })
+  @UseGuards(JwtAuthGuard, MinLevelGuard)
+  @MinLevel(AccessLevel.ADMIN)
+  @Patch(':id/improvisation')
+  updateImprovisation(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateCategoryImprovisationDto,
+  ) {
+    return this.categoriesService.updateImprovisation(id, dto);
   }
 }

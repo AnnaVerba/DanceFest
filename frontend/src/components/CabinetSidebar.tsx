@@ -15,7 +15,6 @@ export default function CabinetSidebar() {
   const session = getSession();
   const level = session?.profile.accessLevel;
 
-  const isOrganizer = level ? meetsLevel(level, ACCESS_LEVEL.ORGANIZER) : false;
   const isAdmin = level ? meetsLevel(level, ACCESS_LEVEL.ADMIN) : false;
 
   const items: NavItem[] = [
@@ -31,7 +30,7 @@ export default function CabinetSidebar() {
     {
       to: '/category-templates',
       label: 'Шаблони категорій',
-      show: isOrganizer,
+      show: isAdmin,
     },
     { to: '/users', label: 'Користувачі', show: isAdmin },
     {

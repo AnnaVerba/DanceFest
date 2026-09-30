@@ -16,10 +16,13 @@ import {
   IMPROV_MUSIC_LABEL,
   MUSIC_COLUMN_COUNT,
   NO_MUSIC_LABEL,
+  NO_PAYMENT_METHOD_LABEL,
   PAGE_SIZE,
+  PAYMENT_METHOD_COLUMN_COUNT,
   SORT_LABELS,
 } from './EntriesPanel.constants';
 import type { SortKey } from './EntriesPanel.constants';
+import { PAYMENT_METHOD_LABELS } from './EntryEditModal.constants';
 import { FEATURES } from '../../lib/features';
 import { queryKeys } from '../../lib/queryKeys';
 import { APPLICATIONS_STALE_TIME_MS } from '../../lib/queryClient.constants';
@@ -286,14 +289,13 @@ export default function EntriesPanel({
                   <th scope="col">№ учасника</th>
                   <th scope="col">Учасники</th>
                   <th scope="col">Номінація</th>
-                  <th scope="col">Вік. категорія</th>
-                  <th scope="col">Ліга</th>
                   <th scope="col">Програма</th>
                   <th scope="col">К-сть уч.</th>
                   <th scope="col">Студія</th>
                   <th scope="col">Хореограф</th>
                   {canManage && <th scope="col">Музика</th>}
                   {canViewAmounts && <th scope="col">Вартість</th>}
+                  {canViewAmounts && <th scope="col">Спосіб оплати</th>}
                   {showScore && <th scope="col">Бал</th>}
                   {canManage && (
                     <th scope="col" className={styles.colActions}>
@@ -310,7 +312,9 @@ export default function EntriesPanel({
                         (showScore
                           ? BASE_COLUMN_COUNT
                           : BASE_COLUMN_COUNT - 1) +
-                        (canViewAmounts ? AMOUNT_COLUMN_COUNT : 0) +
+                        (canViewAmounts
+                          ? AMOUNT_COLUMN_COUNT + PAYMENT_METHOD_COLUMN_COUNT
+                          : 0) +
                         (canManage ? MUSIC_COLUMN_COUNT + ACTIONS_COLUMN_COUNT : 0)
                       }
                       className={styles.noMatches}
@@ -325,8 +329,6 @@ export default function EntriesPanel({
                     <td>{formatParticipantNumbers(entry.participantNumbers)}</td>
                     <td className={styles.name}>{entry.routineName}</td>
                     <td>{entry.nomination}</td>
-                    <td>{entry.ageCategory}</td>
-                    <td>{entry.league}</td>
                     <td>{entry.program}</td>
                     <td>{entry.participantsCount ?? ''}</td>
                     <td>{entry.studioName}</td>
@@ -345,6 +347,13 @@ export default function EntriesPanel({
                       </td>
                     )}
                     {canViewAmounts && <td>{formatEntryAmount(entry.amount ?? null)}</td>}
+                    {canViewAmounts && (
+                      <td>
+                        {entry.paymentMethod
+                          ? PAYMENT_METHOD_LABELS[entry.paymentMethod]
+                          : NO_PAYMENT_METHOD_LABEL}
+                      </td>
+                    )}
                     {showScore && (
                       <td
                         className={

@@ -22,6 +22,5 @@ export interface EntryUpdateInput {
   studioName?: string;
   choreographer?: string;
   city?: string;
-  improv?: boolean;
   paymentMethod?: PaymentMethod;
 }

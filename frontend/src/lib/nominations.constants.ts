@@ -6,6 +6,9 @@ export const MAX_NOMINATIONS_PER_BULK_REQUEST = 2000;
 // Must match LIST_QUERY_SEPARATOR in backend/src/nominations/nominations.constants.ts.
 export const LIST_QUERY_SEPARATOR = ',';
 export const NOMINATIONS_PAGE_SIZE = 50;
+// The competition's nominations tab pages in smaller steps than the venue
+// distribution, which keeps NOMINATIONS_PAGE_SIZE.
+export const COMPETITION_NOMINATIONS_PAGE_SIZE = 10;
 
 // Must match SPECIAL_PRICE_CONFLICT in backend/src/nominations/nomination-error-codes.ts.
 export const SPECIAL_PRICE_CONFLICT_CODE = 'SPECIAL_PRICE_CONFLICT';

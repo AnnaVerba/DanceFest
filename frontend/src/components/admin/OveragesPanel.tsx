@@ -158,7 +158,7 @@ export default function OveragesPanel({
               <tr>
                 <th scope="col">№</th>
                 <th scope="col">Виступ</th>
-                <th scope="col">Ліга</th>
+                <th scope="col">Номінація</th>
                 <th scope="col">Ліміт</th>
                 <th scope="col">Тривалість</th>
                 <th scope="col">Перевищення</th>
@@ -189,7 +189,7 @@ export default function OveragesPanel({
                   <tr key={item.entryId}>
                     <td className={styles.num}>{item.number}</td>
                     <td className={styles.name}>{item.dancerName}</td>
-                    <td>{item.league}</td>
+                    <td>{item.nomination}</td>
                     <td>{formatDuration(item.limitSec)}</td>
                     <td>{formatDuration(item.durationSec)}</td>
                     <td className={styles.overage}>+{formatDuration(item.overageSec)}</td>

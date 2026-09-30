@@ -6,4 +6,6 @@ export class LimitCache {
   readonly manual = new Map<string, number | null>();
   // The limit resolved from duration_limits (per nomination / per axis).
   readonly resolved = new Map<string, number>();
+  // Improvisations one single-exit nomination holds: its style count.
+  readonly rounds = new Map<string, number>();
 }

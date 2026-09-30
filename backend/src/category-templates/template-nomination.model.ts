@@ -35,9 +35,6 @@ export class TemplateNomination extends Model<TemplateNomination> {
   @Column({ type: DataType.DECIMAL(10, 2), allowNull: true })
   declare price: number | null;
 
-  @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
-  declare allowsImprovisation: boolean;
-
   @BelongsToMany(() => Category, () => TemplateNominationCategory)
   declare categories: Category[];
 

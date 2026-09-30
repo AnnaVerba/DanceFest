@@ -2,9 +2,17 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import Modal from './Modal';
 import PhoneField from '../PhoneField';
+import SchoolPicker from '../SchoolPicker';
+import MentorCoachPicker from '../MentorCoachPicker';
+import type { SetMentorCoachBody } from '../../lib/auth';
 import { updateAdminUser } from '../../lib/adminUsers';
 import type { AdminUser } from '../../lib/adminUsers.types';
-import { ACCESS_LEVEL_LABELS } from '../../lib/roles';
+import {
+  ACCESS_LEVEL,
+  ACCESS_LEVEL_LABELS,
+  canHaveMentorCoach,
+  meetsLevel,
+} from '../../lib/roles';
 import type { AccessLevel } from '../../lib/roles';
 import {
   isValidBirthDate,
@@ -18,8 +26,18 @@ import {
   NAME_INVALID_MESSAGE,
   PHONE_INVALID_MESSAGE,
 } from '../../lib/validation.constants';
-import { USER_SAVE_FAILED_MESSAGE } from './UserEditModal.constants';
+import {
+  USER_COACH_LABEL,
+  USER_NO_COACH_LABEL,
+  USER_SAVE_FAILED_MESSAGE,
+} from './UserEditModal.constants';
+import {
+  CHANGE_COACH_LABEL,
+  COACH_CHOICE_REQUIRED_MESSAGE,
+  KEEP_COACH_LABEL,
+} from '../ProfileEditModal.constants';
 import styles from './EditForm.module.css';
+import profileStyles from '../ProfileEditModal.module.css';
 
 interface UserEditModalProps {
   // Mounted per user (keyed by id), so the form starts from this user.
@@ -35,9 +53,12 @@ interface UserForm {
   email: string;
   birthDate: string;
   accessLevel: AccessLevel;
+  schoolId: string;
 }
 
-type UserFormErrors = Partial<Record<keyof UserForm, string>>;
+// The coach choice lives in its own picker, not in the form values, but
+// its error is shown the same way.
+type UserFormErrors = Partial<Record<keyof UserForm | 'coach', string>>;
 
 function toForm(user: AdminUser): UserForm {
   return {
@@ -47,6 +68,7 @@ function toForm(user: AdminUser): UserForm {
     email: user.email ?? '',
     birthDate: user.birthDate ?? '',
     accessLevel: user.accessLevel,
+    schoolId: user.schoolId ?? '',
   };
 }
 
@@ -74,6 +96,18 @@ export default function UserEditModal({
   const [errors, setErrors] = useState<UserFormErrors>({});
   const [saveError, setSaveError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // The current coach stays unless the admin opens the picker.
+  const [changingCoach, setChangingCoach] = useState(false);
+  const [mentor, setMentor] = useState<SetMentorCoachBody | null>(null);
+  // Follow the level picked in this form: raising a user to coach opens
+  // the school, making them an admin hides the coach.
+  const canEditSchool = meetsLevel(form.accessLevel, ACCESS_LEVEL.COACH);
+  const canEditCoach = canHaveMentorCoach(form.accessLevel);
+
+  const toggleCoachChange = () => {
+    setChangingCoach((prev) => !prev);
+    setMentor(null);
+  };
 
   const patch = (changes: Partial<UserForm>) =>
     setForm((prev) => ({ ...prev, ...changes }));
@@ -82,6 +116,9 @@ export default function UserEditModal({
     e.preventDefault();
     if (submitting) return;
     const found = validate(form);
+    if (canEditCoach && changingCoach && !mentor) {
+      found.coach = COACH_CHOICE_REQUIRED_MESSAGE;
+    }
     setErrors(found);
     if (Object.keys(found).length > 0) return;
 
@@ -95,6 +132,12 @@ export default function UserEditModal({
         accessLevel: form.accessLevel,
         ...(form.email.trim() && { email: form.email.trim() }),
         ...(form.birthDate && { birthDate: form.birthDate }),
+        ...(canEditSchool &&
+          form.schoolId &&
+          form.schoolId !== (user.schoolId ?? '') && {
+            schoolId: form.schoolId,
+          }),
+        ...(canEditCoach && changingCoach && mentor),
       });
       onSaved(saved);
     } catch (err) {
@@ -213,6 +256,37 @@ export default function UserEditModal({
             </select>
           </div>
         </div>
+
+        {canEditSchool && (
+          <div className={styles.field}>
+            <SchoolPicker
+              value={form.schoolId}
+              onChange={(schoolId) => patch({ schoolId })}
+            />
+          </div>
+        )}
+
+        {canEditCoach && (
+          <div className={styles.field}>
+            <span className={styles.label}>{USER_COACH_LABEL}</span>
+            {!changingCoach && (
+              <span>
+                {user.coach
+                  ? `${user.coach.lastName} ${user.coach.firstName}`
+                  : USER_NO_COACH_LABEL}
+              </span>
+            )}
+            {errors.coach && <p className={styles.error}>{errors.coach}</p>}
+            {changingCoach && <MentorCoachPicker onChange={setMentor} />}
+            <button
+              type="button"
+              className={profileStyles.coachToggle}
+              onClick={toggleCoachChange}
+            >
+              {changingCoach ? KEEP_COACH_LABEL : CHANGE_COACH_LABEL}
+            </button>
+          </div>
+        )}
 
         {saveError && <p className={styles.error}>{saveError}</p>}
         <button type="submit" className={styles.submit} disabled={submitting}>

@@ -21,14 +21,6 @@ export class TemplateNominationDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiPropertyOptional({
-    example: false,
-    description: 'Whether the admin allows improvisation entries here.',
-  })
-  @IsOptional()
-  @IsBoolean()
-  allowsImprovisation?: boolean;
-
   @ApiPropertyOptional({ type: [String], description: 'Source category ids.' })
   @IsOptional()
   @IsArray()

@@ -2,12 +2,15 @@ import { Fragment, useMemo, useState } from 'react';
 import KebabMenu from '../KebabMenu';
 import type { Venue } from '../../../lib/venues';
 import {
+  EXIT_BLOCK_KEY_SEPARATOR,
   FOREIGN_VENUE_WARNING_HINT,
   FOREIGN_VENUE_WARNING_PREFIX,
   MERGED_BLOCK_KEY_PREFIX,
   VENUE_LIST_SEPARATOR,
 } from './programTable.constants';
 import type { BlockRename } from './blockRename.types';
+import type { SectionCollapse } from './sectionCollapse.types';
+import { isSectionCollapsed } from './sectionCollapse';
 import type {
   CompetitionDay,
   Section,
@@ -41,6 +44,8 @@ interface ProgramTableProps {
   hideWithMusic: boolean;
   collapsed: Set<string>;
   onToggleCollapse: (key: string) => void;
+  sectionCollapse: SectionCollapse;
+  onToggleSection: (sectionId: string) => void;
   onReorderItems: (sectionId: string, itemIds: string[]) => void;
   onReorderSection: (sectionId: string, dir: -1 | 1) => void;
   onSectionTime: (sectionId: string, startTime: string) => void;
@@ -61,11 +66,13 @@ interface ProgramTableProps {
 function groupKeyOf(item: SectionItem): string {
   return item.nominationGroupKey ?? item.exit?.nomination ?? '—';
 }
-// Merged groups share one block (TASK-15); any other group is its own.
+// Merged groups share one block (TASK-15); any other group splits by its
+// exit label, so each program of a per-program nomination is its own block —
+// the same headers the public program shows (see buildPublicProgram).
 function blockKeyOf(item: SectionItem): string {
   return item.mergedGroupLabel
     ? `${MERGED_BLOCK_KEY_PREFIX}${item.mergedGroupLabel}`
-    : groupKeyOf(item);
+    : `${groupKeyOf(item)}${EXIT_BLOCK_KEY_SEPARATOR}${groupLabelOf(item)}`;
 }
 function groupLabelOf(item: SectionItem): string {
   return item.mergedGroupLabel ?? item.exit?.nomination ?? '—';
@@ -105,6 +112,8 @@ export default function ProgramTable({
   hideWithMusic,
   collapsed,
   onToggleCollapse,
+  sectionCollapse,
+  onToggleSection,
   onReorderItems,
   onReorderSection,
   onSectionTime,
@@ -187,6 +196,27 @@ export default function ProgramTable({
   const rowActions = (buttons: React.ReactNode) =>
     tech ? <td className={`${styles.td} ${styles.tdActions}`}>{buttons}</td> : null;
 
+  // A row's clock time; a section's start is editable in edit mode.
+  const renderTime = (
+    section: Section,
+    time: string,
+    editableTimeKey?: string,
+  ) =>
+    editing && editableTimeKey ? (
+      <input
+        className={styles.timeInput}
+        value={draft(editableTimeKey, section.startTime)}
+        onChange={(e) => setDraft(editableTimeKey, e.target.value)}
+        onBlur={() =>
+          onSectionTime(section.id, draft(editableTimeKey, section.startTime))
+        }
+      />
+    ) : (
+      <span style={{ fontWeight: 600, color: '#1d4ed8' }}>
+        {formatClock(time)}
+      </span>
+    );
+
   const renderServiceRow = (opts: {
     key: string;
     section: Section;
@@ -203,23 +233,7 @@ export default function ProgramTable({
         {opts.label}
       </td>
       <td className={styles.serviceCell}>
-        {editing && opts.editableTimeKey ? (
-          <input
-            className={styles.timeInput}
-            value={draft(opts.editableTimeKey, opts.section.startTime)}
-            onChange={(e) => setDraft(opts.editableTimeKey!, e.target.value)}
-            onBlur={() =>
-              onSectionTime(
-                opts.section.id,
-                draft(opts.editableTimeKey!, opts.section.startTime),
-              )
-            }
-          />
-        ) : (
-          <span style={{ fontWeight: 600, color: '#1d4ed8' }}>
-            {formatClock(opts.time)}
-          </span>
-        )}
+        {renderTime(opts.section, opts.time, opts.editableTimeKey)}
       </td>
       {tech && (
         <>
@@ -326,7 +340,6 @@ export default function ProgramTable({
               section.items.filter((i) => i.type !== 'award'),
             );
 
-            const sectionStart = section.startsAt;
             // An exit moves only within its own venue's program.
             const other = sectionSummaries
               .filter((s) => s.id !== section.id)
@@ -362,6 +375,10 @@ export default function ProgramTable({
             // Column F: the category's position among this section's
             // category blocks, independent of the search filter below.
             let categoryNumber = 0;
+            // A search opens every section, so a hit is never hidden —
+            // as in the public program.
+            const sectionCollapsed =
+              !needle && isSectionCollapsed(sectionCollapse, section.id);
 
             return (
               <Fragment key={section.id}>
@@ -379,8 +396,19 @@ export default function ProgramTable({
                 {renderServiceRow({
                   key: `s-${section.id}`,
                   section,
-                  label: section.name,
-                  time: sectionStart,
+                  label: (
+                    <span className={styles.sectionTitle}>
+                      <button
+                        type="button"
+                        className={styles.collapseBtn}
+                        onClick={() => onToggleSection(section.id)}
+                      >
+                        {sectionCollapsed ? '▸' : '▾'}
+                      </button>{' '}
+                      {section.name}
+                    </span>
+                  ),
+                  time: section.startsAt,
                   editableTimeKey: `t-${section.id}`,
                   actions: editing && (
                     <>
@@ -432,7 +460,8 @@ export default function ProgramTable({
                   </tr>
                 )}
 
-                {blocks.map((block, blockIndex) => {
+                {!sectionCollapsed &&
+                  blocks.map((block, blockIndex) => {
                   if (block.kind === 'award') {
                     return renderServiceRow({
                       key: block.item.id,

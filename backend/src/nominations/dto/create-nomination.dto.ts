@@ -44,14 +44,6 @@ export class CreateNominationDto {
   price?: number;
 
   @ApiPropertyOptional({
-    example: false,
-    description: 'Whether the admin allows improvisation entries here.',
-  })
-  @IsOptional()
-  @IsBoolean()
-  allowsImprovisation?: boolean;
-
-  @ApiPropertyOptional({
     type: [String],
     description: 'Ids of the categories this nomination was generated from.',
   })

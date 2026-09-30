@@ -59,7 +59,7 @@ export class OveragesService {
         entryId: entry.id,
         number: entry.number,
         dancerName: entry.routineName,
-        league: entry.league,
+        nomination: entry.nomination,
         limitSec,
         durationSec,
         overageSec,

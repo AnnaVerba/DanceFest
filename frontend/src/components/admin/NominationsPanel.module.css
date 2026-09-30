@@ -185,11 +185,6 @@
   color: var(--g-ink);
 }
 
-.rowCheckbox {
-  margin-top: 3px;
-  flex: 0 0 auto;
-}
-
 .badgeImprov {
   padding: 2px 8px;
   border-radius: 999px;

@@ -1,0 +1,52 @@
+.block {
+  margin-top: 18px;
+}
+
+.title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--g-ink);
+}
+
+.intro {
+  margin: 4px 0 10px;
+  font-size: 13px;
+  color: var(--g-muted);
+}
+
+.styles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.style {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 13px;
+  border: 1px solid var(--g-line);
+  border-radius: 999px;
+  background: var(--g-field);
+  color: var(--g-ink);
+  font-size: 13px;
+}
+
+.style button {
+  border: 0;
+  background: none;
+  color: var(--g-accent);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.style button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}

@@ -243,7 +243,6 @@ export default function NewCompetitionPage() {
           // Чинна ціна шаблону — стартова ціна номінації конкурсу; далі її
           // правлять тут, у конкурсі.
           price: n.effectivePrice === null ? '' : String(n.effectivePrice),
-          allowsImprovisation: n.allowsImprovisation,
           categoryIds: n.categoryIds,
           isSpecial: n.isSpecial,
           specialName: n.specialName ?? undefined,
@@ -547,7 +546,6 @@ export default function NewCompetitionPage() {
             // Та сама ціна, що піде в номінації конкурсу нижче: шаблон і
             // конкурс створюються з одного набору.
             price: n.price.trim() === '' ? undefined : Number(n.price),
-            allowsImprovisation: n.allowsImprovisation,
             categoryIds: n.categoryIds,
             isSpecial: n.isSpecial,
             specialName: n.specialName,
@@ -623,7 +621,6 @@ export default function NewCompetitionPage() {
             nominationSource === 'template' ? effectiveTemplateId || undefined : undefined,
           name: n.name,
           price: n.price.trim() === '' ? undefined : Number(n.price),
-          allowsImprovisation: n.allowsImprovisation,
           categoryIds: n.categoryIds,
           isSpecial: n.isSpecial,
           specialName: n.specialName,
@@ -1416,7 +1413,6 @@ export default function NewCompetitionPage() {
                         <tr>
                           <th>Назва</th>
                           <th className={styles.nomColPrice}>Ціна, грн</th>
-                          <th className={styles.nomColImprov}>Імпровізація</th>
                           <th className={styles.nomColRemove} aria-label="Прибрати" />
                         </tr>
                       </thead>
@@ -1444,18 +1440,6 @@ export default function NewCompetitionPage() {
                                 onChange={(e) =>
                                   patchNomination(n.signature, {
                                     price: e.target.value,
-                                  })
-                                }
-                              />
-                            </td>
-                            <td className={styles.nomImprovCell}>
-                              <input
-                                type="checkbox"
-                                aria-label={`Дозволити імпровізацію в «${n.name}»`}
-                                checked={n.allowsImprovisation}
-                                onChange={(e) =>
-                                  patchNomination(n.signature, {
-                                    allowsImprovisation: e.target.checked,
                                   })
                                 }
                               />

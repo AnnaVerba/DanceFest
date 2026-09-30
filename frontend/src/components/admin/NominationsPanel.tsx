@@ -8,13 +8,11 @@ import type { SpecialNominationDraft } from '../nominations/SpecialCategoryModal
 import type { SpecialSubmitResult } from '../nominations/specialSubmitResult.types';
 import { serverPriceConflictMessage } from '../../lib/specialPriceConflict';
 import NominationFilterBar from './nominationSelection/NominationFilterBar';
-import NominationBulkBar from './nominationSelection/NominationBulkBar';
 import NominationPager from './nominationSelection/NominationPager';
 import { useNominationSelection } from './nominationSelection/useNominationSelection';
 import { useNominationsPage } from './nominationSelection/useNominationsPage';
 import {
   NOTHING_FOUND_MESSAGE,
-  SELECT_NOMINATION_ARIA_PREFIX,
   SPECIAL_PRICE_SHARED_HINT,
 } from './nominationSelection/nominationFilters.constants';
 import { getCategories } from '../../lib/categories';
@@ -22,21 +20,24 @@ import type { Category } from '../../lib/categories';
 import {
   createNominationsBulk,
   deleteNomination,
-  setImprovisationBulk,
   updateNomination,
 } from '../../lib/nominations';
 import type {
   Nomination,
-  NominationBulkSelector,
+  NominationExit,
   NominationInput,
 } from '../../lib/nominations';
+import { getRules } from '../../lib/competitionRules';
+import { improvisationSecondsOf } from '../../lib/improvisationDuration';
+import { IMPROVISATION_EXIT_LABEL } from '../../lib/improvisationDuration.constants';
 import { refreshNominations } from '../../lib/nominationsCache';
 import {
   DURATION_UNSET_PLACEHOLDER,
-  NOMINATIONS_PAGE_SIZE,
+  COMPETITION_NOMINATIONS_PAGE_SIZE,
 } from '../../lib/nominations.constants';
 import { formatDuration, parseDuration, pluralExits } from '../../lib/duration';
 import NominationAddForm from './NominationAddForm';
+import CompetitionStyleImprovisation from './CompetitionStyleImprovisation';
 import { queryKeys } from '../../lib/queryKeys';
 import { REFERENCE_STALE_TIME_MS } from '../../lib/queryClient.constants';
 import styles from './NominationsPanel.module.css';
@@ -69,7 +70,7 @@ export default function NominationsPanel({
   const [editing, setEditing] = useState<Record<string, EditState>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  const selection = useNominationSelection(NOMINATIONS_PAGE_SIZE);
+  const selection = useNominationSelection(COMPETITION_NOMINATIONS_PAGE_SIZE);
   const nominationsQuery = useNominationsPage(competitionId, selection);
   const rows = nominationsQuery.data?.rows ?? EMPTY_NOMINATIONS;
   const total = nominationsQuery.data?.total ?? 0;
@@ -96,6 +97,12 @@ export default function NominationsPanel({
   });
   const categories = categoriesQuery.data ?? EMPTY_CATEGORIES;
 
+  const rulesQuery = useQuery({
+    queryKey: queryKeys.rules(competitionId),
+    queryFn: () => getRules(competitionId),
+  });
+  const rules = rulesQuery.data ?? null;
+
   useEffect(() => {
     if (canManage && categoriesQuery.isError) {
       onError('Не вдалося завантажити довідник категорій.');
@@ -112,17 +119,6 @@ export default function NominationsPanel({
     mutationFn: (args: { id: string; input: Partial<NominationInput> }) =>
       updateNomination(competitionId, args.id, args.input),
     onSuccess: () => refreshNominations(queryClient, competitionId),
-  });
-
-  const setImprovisationMutation = useMutation({
-    mutationFn: (args: {
-      selector: NominationBulkSelector;
-      allowsImprovisation: boolean;
-    }) => setImprovisationBulk(competitionId, args.selector, args.allowsImprovisation),
-    onSuccess: () => {
-      refreshNominations(queryClient, competitionId);
-      selection.clearSelection();
-    },
   });
 
   const deleteNominationMutation = useMutation({
@@ -142,18 +138,6 @@ export default function NominationsPanel({
     [rows],
   );
 
-  const handleBulkImprovisation = async (allowsImprovisation: boolean) => {
-    if (selection.selectedCount(total) === 0 || setImprovisationMutation.isPending) return;
-    try {
-      await setImprovisationMutation.mutateAsync({
-        selector: selection.buildBulkSelector(),
-        allowsImprovisation,
-      });
-    } catch {
-      onError('Не вдалося оновити ознаку імпровізації. Спробуйте ще раз.');
-    }
-  };
-
   const handleAddSpecial = async (
     drafts: SpecialNominationDraft[],
   ): Promise<SpecialSubmitResult> => {
@@ -162,7 +146,6 @@ export default function NominationsPanel({
         drafts.map((d) => ({
           name: d.name,
           price: d.price.trim() === '' ? undefined : Number(d.price),
-          allowsImprovisation: d.allowsImprovisation,
           categoryIds: d.categoryIds,
           isSpecial: d.isSpecial,
           specialName: d.specialName,
@@ -239,6 +222,23 @@ export default function NominationsPanel({
     }
   };
 
+  // «до 2:00» for a timed exit, «імпровізація · 2:00» for an improvisation
+  // (its time comes from the timings, as in the schedule); null when unset.
+  const exitDurationText = (
+    nomination: Nomination,
+    exit: NominationExit | undefined,
+  ): string | null => {
+    if (!exit) return null;
+    if (exit.isImprovisation) {
+      return rules
+        ? `${IMPROVISATION_EXIT_LABEL} · ${formatDuration(improvisationSecondsOf(rules, nomination, exit))}`
+        : IMPROVISATION_EXIT_LABEL;
+    }
+    return exit.durationLimitSeconds === null
+      ? null
+      : `до ${formatDuration(exit.durationLimitSeconds)}`;
+  };
+
   const renderRow = (nomination: Nomination) => {
     const state = editStateOf(nomination);
     const dirty = editing[nomination.id] !== undefined;
@@ -246,16 +246,6 @@ export default function NominationsPanel({
 
     return (
       <li key={nomination.id} className={styles.row}>
-        {canManage && (
-          <input
-            type="checkbox"
-            className={styles.rowCheckbox}
-            aria-label={`${SELECT_NOMINATION_ARIA_PREFIX} ${nomination.name}`}
-            checked={selection.isSelected(nomination.id)}
-            disabled={selection.allFilteredSelected}
-            onChange={() => selection.toggleSelected(nomination.id)}
-          />
-        )}
         <div className={styles.rowMain}>
           <div className={styles.rowName}>
             {nomination.name}
@@ -266,7 +256,7 @@ export default function NominationsPanel({
                   : `${exits.length} ${pluralExits(exits.length)}`}
               </span>
             )}
-            {nomination.allowsImprovisation && (
+            {nomination.isImprovisation && (
               <span className={styles.badgeImprov}>імпровізація</span>
             )}
             {nomination.durationOverridden && (
@@ -284,9 +274,9 @@ export default function NominationsPanel({
               {exits.map((exit) => (
                 <li key={exit.programId ?? exit.label}>
                   {exit.programName}
-                  {exit.durationLimitSeconds !== null && (
+                  {exitDurationText(nomination, exit) && (
                     <span className={styles.exitLimit}>
-                      до {formatDuration(exit.durationLimitSeconds)}
+                      {exitDurationText(nomination, exit)}
                     </span>
                   )}
                 </li>
@@ -327,12 +317,18 @@ export default function NominationsPanel({
               inputMode="numeric"
               placeholder={DURATION_UNSET_PLACEHOLDER}
               aria-label={`Тривалість номінації ${nomination.name}`}
-              disabled={nomination.exitMode === 'per_program'}
+              // An improvisation runs for the timings' improvisation duration;
+              // a value typed here would never reach the schedule.
+              disabled={
+                nomination.exitMode === 'per_program' || nomination.isImprovisation
+              }
               value={
                 nomination.exitMode === 'per_program'
                   ? ''
-                  : state.duration ||
-                    formatDuration(exits[0]?.durationLimitSeconds ?? null)
+                  : nomination.isImprovisation
+                    ? (exitDurationText(nomination, exits[0]) ?? '')
+                    : state.duration ||
+                      formatDuration(exits[0]?.durationLimitSeconds ?? null)
               }
               onChange={(e) =>
                 patchEdit(nomination.id, { duration: e.target.value }, state)
@@ -358,9 +354,9 @@ export default function NominationsPanel({
         ) : (
           <div className={styles.rowMeta}>
             {nomination.price !== null && <span>{nomination.price} ₴</span>}
-            {exits[0]?.durationLimitSeconds !== null &&
-              exits.length === 1 &&
-              exits[0] && <span>до {formatDuration(exits[0].durationLimitSeconds)}</span>}
+            {exits.length === 1 && exitDurationText(nomination, exits[0]) && (
+              <span>{exitDurationText(nomination, exits[0])}</span>
+            )}
           </div>
         )}
       </li>
@@ -427,25 +423,12 @@ export default function NominationsPanel({
         <p className={styles.status}>{NOTHING_FOUND_MESSAGE}</p>
       )}
 
-      {canManage && (
-        <NominationBulkBar selection={selection} total={total}>
-          <button
-            type="button"
-            className={styles.btnSecondary}
-            disabled={setImprovisationMutation.isPending}
-            onClick={() => void handleBulkImprovisation(true)}
-          >
-            Встановити «Імпровізація»
-          </button>
-          <button
-            type="button"
-            className={styles.btnSecondary}
-            disabled={setImprovisationMutation.isPending}
-            onClick={() => void handleBulkImprovisation(false)}
-          >
-            Зняти «Імпровізація»
-          </button>
-        </NominationBulkBar>
+      {canManage && nominationsQuery.isSuccess && !competitionHasNoNominations && (
+        <CompetitionStyleImprovisation
+          competitionId={competitionId}
+          categories={categories}
+          onError={onError}
+        />
       )}
 
       {special.length > 0 && (

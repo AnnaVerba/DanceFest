@@ -2,7 +2,6 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayNotEmpty,
   IsArray,
-  IsBoolean,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -100,11 +99,6 @@ export class CreateEntryDto {
   @IsOptional()
   @IsString()
   city?: string;
-
-  @ApiPropertyOptional({ example: false })
-  @IsOptional()
-  @IsBoolean()
-  improv?: boolean;
 
   @ApiPropertyOptional({ example: 'card', enum: ['cash', 'card'] })
   @IsOptional()

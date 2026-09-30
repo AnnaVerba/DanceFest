@@ -1,3 +1,5 @@
+import type { MineMark } from '../../lib/programHighlight.types';
+
 export const PROGRAM_TITLE = 'Програма фестивалю';
 export const PROGRAM_SUBTITLE =
   'Час початку й завершення кожного відділення. Точний порядок може незначно зсуватися по ходу дня.';
@@ -9,18 +11,11 @@ export const SEARCH_NO_RESULTS_LABEL = 'Нічого не знайдено.';
 export const LOAD_MORE_LABEL = 'Показати ще';
 export const EMPTY_ROUTINE_NAME = '—';
 export const LABEL_SEPARATOR = ' · ';
-export const TIME_RANGE_SEPARATOR = ' – ';
-export const STUDIO_LEADER_SEPARATOR = ', ';
-export const LEADER_ROLE_LABEL = 'керівник';
 
-export const MY_PROGRAM_TITLE = 'Ваша програма';
-export const FULL_PROGRAM_TITLE = 'Повна програма';
-export const MY_PERFORMANCES_LABEL = 'Ваші виступи';
-export const MY_STUDENTS_LABEL = 'Ваші учні';
-export const MY_PERFORMANCE_TAG = 'Ваш виступ';
-export const MY_STUDENT_TAG = 'Ваш учень';
-export const TOTALS_SEPARATOR = ': ';
-export const GROUP_PERFORMER_SEPARATOR = ' — ';
+export const MINE_MARK_TAGS: Record<MineMark, string> = {
+  mine: 'Ваш виступ',
+  student: 'Ваш учень',
+};
 
 export const EXPAND_ALL_LABEL = 'Розгорнути всі';
 export const COLLAPSE_ALL_LABEL = 'Згорнути всі';

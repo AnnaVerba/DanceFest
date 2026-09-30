@@ -18,3 +18,6 @@ export const MUSIC_ADD_LABEL = 'Додати';
 export const MUSIC_UPLOADING_LABEL = 'Завантаження…';
 export const MUSIC_NONE = '—';
 export const MUSIC_UPLOAD_FAILED_MESSAGE = 'Не вдалося зберегти музику.';
+
+// Похідне від стилю номінації — редагувати тут нема чого.
+export const IMPROVISATION_ENTRY_NOTE = 'Імпровізація (за стилем номінації)';

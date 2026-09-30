@@ -643,7 +643,7 @@ export class EntriesService {
       studioName: dto.studioName?.trim() || submitter.studioName,
       choreographer: dto.choreographer?.trim() || submitter.choreographer,
       city: dto.city?.trim() || null,
-      improv: dto.improv ?? false,
+      improv: exit.isImprovisation,
       paymentMethod: dto.paymentMethod ?? null,
       musicName: dto.musicName?.trim() || null,
       submittedByUserId: entry.submittedByUserId,
@@ -867,6 +867,7 @@ export class EntriesService {
       changes.nominationId = nomination.id;
       changes.nomination = exit.label;
       changes.program = exit.programName;
+      changes.improv = exit.isImprovisation;
       changes.ageCategory = ageCategory;
       changes.league = league;
     }
@@ -888,7 +889,6 @@ export class EntriesService {
       changes.choreographer = dto.choreographer.trim() || null;
     }
     if (dto.city !== undefined) changes.city = dto.city.trim() || null;
-    if (dto.improv !== undefined) changes.improv = dto.improv;
     if (dto.paymentMethod !== undefined) {
       changes.paymentMethod = dto.paymentMethod;
     }
