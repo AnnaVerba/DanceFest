@@ -25,6 +25,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { TracksService } from './tracks.service';
 import { TRACK_FILE_MISSING_MESSAGE } from './tracks.constants';
+import { MULTIPART_FILE_NAME_CHARSET } from '../uploads/uploads.constants';
 
 // Named `entries` per the ticket's literal route — matches this codebase's
 // `Entry` (one stage performance per nomination).
@@ -51,7 +52,12 @@ export class TracksController {
     description: "Duration couldn't be read from the file.",
   })
   @Post()
-  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      defParamCharset: MULTIPART_FILE_NAME_CHARSET,
+    }),
+  )
   async upload(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,

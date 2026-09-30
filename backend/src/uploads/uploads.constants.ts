@@ -41,6 +41,10 @@ export const MAX_DOCUMENT_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 // by an unauthenticated <img>/<audio> src.
 export const PUBLIC_READ_ACL = 'public-read';
 
+// Multer reads a multipart file name as latin1 by default, so a Cyrillic
+// name («Мала група.mp3») arrives as mojibake. Browsers send it as UTF-8.
+export const MULTIPART_FILE_NAME_CHARSET = 'utf8';
+
 export const IMAGE_UPLOAD_CONFIG: FileUploadConfig = {
   allowedMimeTypes: ALLOWED_MIME_TYPES,
   mimeExtensions: MIME_EXTENSIONS,

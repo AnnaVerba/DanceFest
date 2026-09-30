@@ -106,12 +106,12 @@ export class Entry extends Model<Entry> {
   // File name of the track for this performance. One per nomination, since
   // each nomination the applicant picked is a separate stage performance.
   // The actual uploaded audio file is tracked separately, in Track.
-  @Column({ type: DataType.STRING, allowNull: true })
+  @Column({ type: DataType.TEXT, allowNull: true })
   declare musicName: string | null;
 
   // Display copy of Track.publicUrl — kept in step by TracksService, same
   // reasoning as musicName above (see TracksService.upload/remove).
-  @Column({ type: DataType.STRING, allowNull: true })
+  @Column({ type: DataType.TEXT, allowNull: true })
   declare musicUrl: string | null;
 
   // Who submitted this entry (coach or the dancer themself) — distinct from

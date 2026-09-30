@@ -24,18 +24,19 @@ export class Track extends Model<Track> {
   @Column({ type: DataType.UUID, allowNull: false, unique: true })
   declare performanceId: string;
 
-  @Column({ type: DataType.STRING, allowNull: false })
+  @Column({ type: DataType.TEXT, allowNull: false })
   declare originalFileName: string;
 
   // Key of the object in OCP Object Storage (bucket comes from
-  // OCP_BUCKET_ENV_KEY).
-  @Column({ type: DataType.STRING, allowNull: false })
+  // OCP_BUCKET_ENV_KEY). TEXT: the key carries the full file name, which for
+  // a group runs past 255 characters.
+  @Column({ type: DataType.TEXT, allowNull: false })
   declare objectKey: string;
 
   // Permanent public URL for the same object — computed once at upload time
   // (see TracksService.upload) the same way UploadsService does for banner
   // images, so playback never needs a signed/expiring URL.
-  @Column({ type: DataType.STRING, allowNull: true })
+  @Column({ type: DataType.TEXT, allowNull: true })
   declare publicUrl: string | null;
 
   @Column({ type: DataType.STRING, allowNull: false })
