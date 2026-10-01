@@ -148,11 +148,6 @@ export default function ParticipantCabinetPage() {
                         <td data-label={ENTRY_COLUMN_LABEL.NOMINATION}>
                           {entry.nomination}
                         </td>
-                        <td data-label={ENTRY_COLUMN_LABEL.LEAGUE} className={styles.noWrap}>{entry.league ?? '—'}</td>
-                        <td data-label={ENTRY_COLUMN_LABEL.LINEUP} className={styles.noWrap}>{entry.lineup ?? '—'}</td>
-                        <td data-label={ENTRY_COLUMN_LABEL.AGE_CATEGORY} className={styles.noWrap}>
-                          {entry.ageCategory ?? '—'}
-                        </td>
                         <td data-label={ENTRY_COLUMN_LABEL.MUSIC} className={styles.fullRowCell}>
                           <div className={styles.musicCell}>
                             {entry.trackNotNeeded ? (

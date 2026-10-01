@@ -4,9 +4,6 @@ export const ENTRY_COLUMN_LABEL = {
   PARTICIPANT: 'Учасник',
   PARTICIPANT_NUMBERS: '№ учасника',
   NOMINATION: 'Номінація',
-  LEAGUE: 'Ліга',
-  LINEUP: 'Склад',
-  AGE_CATEGORY: 'Вік. кат.',
   MUSIC: 'Музика',
   AMOUNT: 'Вартість',
 } as const;

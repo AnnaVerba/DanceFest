@@ -142,16 +142,11 @@
   font-weight: 800;
 }
 
-/* Short values: one line, so the column takes their full width. */
-.noWrap {
-  white-space: nowrap;
-}
-
 .totalRow td {
   font-weight: 700;
 }
 
-/* Too narrow for nine columns: each entry becomes a card of «label — value»
+/* Too narrow for the table: each entry becomes a card of «label — value»
    lines, laid out in as many columns as fit. */
 @container (max-width: 920px) {
   .tableHead,
