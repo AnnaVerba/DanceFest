@@ -265,7 +265,7 @@ export class NominationsService {
       conditions.push(this.withAnyCategory(styleIds));
     }
     if (participants !== null) {
-      conditions.push(this.lineupCondition(categories, participants));
+      conditions.push(this.requiredLineupCondition(categories, participants));
     }
     const ages = this.parseAges(query.ages);
     if (ages.length > 0) {
@@ -312,17 +312,43 @@ export class NominationsService {
     categories: Category[],
     participants: number,
   ): Record<string, unknown> {
-    const lineups = categories.filter(
-      (category) => category.type === LINEUP_CATEGORY_TYPE,
-    );
-    const fitting = [
-      ...lineups.filter((category) => category.rangeFrom === null),
-      ...ageCategoriesFittingAges([participants], lineups),
-    ];
+    const lineups = this.lineupsOf(categories);
     return this.axisOrMissingCondition(
       lineups.map((category) => category.id),
-      fitting.map((category) => category.id),
+      this.lineupIdsFitting(lineups, participants),
     );
+  }
+
+  /**
+   * Звичайна номінація під заявку: якщо в конкурсі є склад, що вміщує
+   * кількість учасників, — лише номінації з таким складом; номінація без
+   * складу дуету не показується, бо коштує вона за лігою, а не за складом.
+   * Коли такого складу немає (скажімо, «Соло» в конкурсі не заведено), номер
+   * подається в номінації без складу.
+   */
+  private requiredLineupCondition(
+    categories: Category[],
+    participants: number,
+  ): Record<string, unknown> {
+    const lineups = this.lineupsOf(categories);
+    const fitting = this.lineupIdsFitting(lineups, participants);
+    return fitting.length > 0
+      ? this.withAnyCategory(fitting)
+      : this.withoutAnyCategory(lineups.map((category) => category.id));
+  }
+
+  private lineupsOf(categories: Category[]): Category[] {
+    return categories.filter(
+      (category) => category.type === LINEUP_CATEGORY_TYPE,
+    );
+  }
+
+  // Склад без заповнених меж кількістю не обмежений.
+  private lineupIdsFitting(lineups: Category[], participants: number): string[] {
+    return [
+      ...lineups.filter((category) => category.rangeFrom === null),
+      ...ageCategoriesFittingAges([participants], lineups),
+    ].map((category) => category.id);
   }
 
   /**
