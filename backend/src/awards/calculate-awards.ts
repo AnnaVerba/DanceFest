@@ -5,7 +5,6 @@ import {
   PRIZE_PLACES_COUNT,
   SECOND_PLACE_INDEX,
   THIRD_PLACE_INDEX,
-  WINNERS_PER_SPECIAL_CATEGORY,
 } from './awards.constants';
 import { distributeAllPlaces, distributeTopPlaces } from './medal-distribution';
 import type { AwardPerformance } from './award-performance.interface';
@@ -45,14 +44,21 @@ export function calculateAwards(input: AwardsInput): AwardsCalculation {
       const summary = specials.get(specialName) ?? {
         name: specialName,
         winners: 0,
+        secondPlaces: 0,
+        thirdPlaces: 0,
         participations: 0,
       };
-      summary.winners += WINNERS_PER_SPECIAL_CATEGORY;
       // One award per performer, however many exits they dance here
-      // (Корона: improvisation and a solo); the winner's is the 1st place.
+      // (Корона: improvisation and a solo): places 1–3, the rest take part.
+      const performers = new Set(
+        category.map((performance) => performance.performerKey),
+      ).size;
+      const places = distributeTopPlaces(performers);
+      summary.winners += places[FIRST_PLACE_INDEX];
+      summary.secondPlaces += places[SECOND_PLACE_INDEX];
+      summary.thirdPlaces += places[THIRD_PLACE_INDEX];
       summary.participations +=
-        new Set(category.map((performance) => performance.performerKey)).size -
-        WINNERS_PER_SPECIAL_CATEGORY;
+        performers - places.reduce((sum, count) => sum + count, 0);
       specials.set(specialName, summary);
       continue;
     }

@@ -12,8 +12,6 @@ export const NO_PERFORMANCES = 0;
 
 // A group performance is one cup, whatever its place.
 export const CUPS_PER_GROUP_PERFORMANCE = 1;
-// Every category of a special nomination has exactly one 1st place.
-export const WINNERS_PER_SPECIAL_CATEGORY = 1;
 
 export const SPECIAL_NAME_KEY_SEPARATOR = '|';
 export const CATEGORY_IDS_SEPARATOR = ',';

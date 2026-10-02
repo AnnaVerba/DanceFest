@@ -5,6 +5,8 @@ import {
   PARTICIPATION_MEDALS,
   SECOND_PLACE_MEDALS,
   SPECIAL_PARTICIPATIONS,
+  SPECIAL_SECOND_PLACES,
+  SPECIAL_THIRD_PLACES,
   SPECIAL_WINNERS,
   THIRD_PLACE_MEDALS,
 } from './award-line-kind';
@@ -40,6 +42,18 @@ export function buildAwardLines(
     lineOf(DIPLOMAS, calculation.diplomas, overrides),
     ...calculation.specials.flatMap((special) => [
       lineOf(SPECIAL_WINNERS, special.winners, overrides, special.name),
+      lineOf(
+        SPECIAL_SECOND_PLACES,
+        special.secondPlaces,
+        overrides,
+        special.name,
+      ),
+      lineOf(
+        SPECIAL_THIRD_PLACES,
+        special.thirdPlaces,
+        overrides,
+        special.name,
+      ),
       lineOf(
         SPECIAL_PARTICIPATIONS,
         special.participations,

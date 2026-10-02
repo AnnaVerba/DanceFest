@@ -11,11 +11,15 @@ export const AWARD_LINE_KIND = {
   CUPS: 'cups',
   DIPLOMAS: 'diplomas',
   SPECIAL_WINNERS: 'special_winners',
+  SPECIAL_SECOND_PLACES: 'special_second_places',
+  SPECIAL_THIRD_PLACES: 'special_third_places',
   SPECIAL_PARTICIPATIONS: 'special_participations',
 } as const;
 
 export const SPECIAL_LINE_KINDS: readonly string[] = [
   AWARD_LINE_KIND.SPECIAL_WINNERS,
+  AWARD_LINE_KIND.SPECIAL_SECOND_PLACES,
+  AWARD_LINE_KIND.SPECIAL_THIRD_PLACES,
   AWARD_LINE_KIND.SPECIAL_PARTICIPATIONS,
 ];
 

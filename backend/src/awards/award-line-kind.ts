@@ -6,6 +6,8 @@ export const AWARD_LINE_KINDS = [
   'cups',
   'diplomas',
   'special_winners',
+  'special_second_places',
+  'special_third_places',
   'special_participations',
 ] as const;
 export type AwardLineKind = (typeof AWARD_LINE_KINDS)[number];
@@ -17,4 +19,6 @@ export const PARTICIPATION_MEDALS: AwardLineKind = 'participation_medals';
 export const CUPS: AwardLineKind = 'cups';
 export const DIPLOMAS: AwardLineKind = 'diplomas';
 export const SPECIAL_WINNERS: AwardLineKind = 'special_winners';
+export const SPECIAL_SECOND_PLACES: AwardLineKind = 'special_second_places';
+export const SPECIAL_THIRD_PLACES: AwardLineKind = 'special_third_places';
 export const SPECIAL_PARTICIPATIONS: AwardLineKind = 'special_participations';

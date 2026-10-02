@@ -33,5 +33,7 @@ export const AWARD_LINE_LABELS: Record<AwardLineKind, string> = {
   [AWARD_LINE_KIND.CUPS]: 'Кубки',
   [AWARD_LINE_KIND.DIPLOMAS]: 'Дипломи',
   [AWARD_LINE_KIND.SPECIAL_WINNERS]: '1 місце',
+  [AWARD_LINE_KIND.SPECIAL_SECOND_PLACES]: '2 місце',
+  [AWARD_LINE_KIND.SPECIAL_THIRD_PLACES]: '3 місце',
   [AWARD_LINE_KIND.SPECIAL_PARTICIPATIONS]: 'Участей',
 };

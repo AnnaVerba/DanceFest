@@ -11,8 +11,11 @@ export interface CupCount {
 
 export interface SpecialAwardSummary {
   name: string;
-  // One 1st place per category of the special nomination.
+  // 1st, 2nd and 3rd places: one per category of the special nomination,
+  // fewer places when the category has fewer than three performers.
   winners: number;
+  secondPlaces: number;
+  thirdPlaces: number;
   participations: number;
 }
 
