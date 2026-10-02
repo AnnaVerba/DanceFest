@@ -37,6 +37,8 @@ export interface SectionExit {
   participantId: string | null;
   participantIds: string[];
   musicName: string | null;
+  // Extra on-stage time the organizer recorded as purchased.
+  purchasedExtraSeconds: number;
   // The venue of the exit's nomination — sections themselves have none.
   venueId: string | null;
 }
@@ -51,6 +53,8 @@ export interface SectionItem {
   time: string;
   startTimeSeconds: number;
   durationSeconds: number | null;
+  // Track seconds past the allowed time left out of durationSeconds.
+  overageSeconds: number;
   exit: SectionExit | null;
 }
 

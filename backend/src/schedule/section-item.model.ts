@@ -56,6 +56,11 @@ export class SectionItem extends Model<SectionItem> {
   @Column({ type: DataType.INTEGER, allowNull: true })
   declare durationSeconds: number | null;
 
+  // Track seconds past the exit's allowed time that durationSeconds leaves
+  // out, frozen alongside it (see performanceDuration). 0 for every other row.
+  @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0 })
+  declare overageSeconds: number;
+
   @Column({ type: DataType.INTEGER, allowNull: false })
   declare sortOrder: number;
 

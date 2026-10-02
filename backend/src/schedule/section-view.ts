@@ -28,6 +28,8 @@ export interface SectionExitView {
   participantId: string | null;
   participantIds: string[];
   musicName: string | null;
+  // Extra on-stage time the organizer recorded as purchased.
+  purchasedExtraSeconds: number;
   // The venue of the exit's nomination — sections themselves have none.
   venueId: string | null;
 }
@@ -47,6 +49,8 @@ export interface SectionItemView {
   time: string;
   startTimeSeconds: number;
   durationSeconds: number | null;
+  // Track seconds past the allowed time left out of durationSeconds.
+  overageSeconds: number;
   exit: SectionExitView | null;
 }
 
@@ -110,6 +114,7 @@ function toExitView(
     participantId: entry.participantId,
     participantIds: entry.participantIds ?? [],
     musicName: entry.musicName,
+    purchasedExtraSeconds: entry.purchasedExtraSeconds,
     venueId: entry.nominationRef?.venueId ?? null,
   };
 }
@@ -156,6 +161,7 @@ export function buildSectionView(
       time: formatHhMmSs(seconds),
       startTimeSeconds: seconds,
       durationSeconds: item.durationSeconds,
+      overageSeconds: item.overageSeconds,
       exit:
         item.entry != null
           ? toExitView(item.entry, participantNumbers.get(item.entry.id) ?? [])

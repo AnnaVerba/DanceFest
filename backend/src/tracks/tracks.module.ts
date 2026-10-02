@@ -10,6 +10,7 @@ import { CompetitionsModule } from '../competitions/competitions.module';
 import { CompetitionRulesModule } from '../competition-rules/competition-rules.module';
 import { CompetitionParticipantNumbersModule } from '../competition-participant-numbers/competition-participant-numbers.module';
 import { UploadsModule } from '../uploads/uploads.module';
+import { ScheduleModule } from '../schedule/schedule.module';
 import { Track } from './track.model';
 import { TracksController } from './tracks.controller';
 import { TracksService } from './tracks.service';
@@ -29,6 +30,7 @@ import { TrackFileNameResolver } from './track-file-name-resolver.service';
     CompetitionsModule,
     CompetitionRulesModule,
     UploadsModule,
+    ScheduleModule,
     CompetitionParticipantNumbersModule,
   ],
   controllers: [TracksController],

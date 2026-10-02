@@ -425,7 +425,6 @@
 
 .perfRow {
   font-size: 13px;
-  white-space: nowrap;
 }
 
 .perfRow:hover {
@@ -440,6 +439,7 @@
 
 .tdNum {
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .tdName {
@@ -454,6 +454,13 @@
 .tdActions {
   text-align: right;
   white-space: nowrap;
+}
+
+/* The kebab menu is a block wrapper; kept on the arrows' line so an exit
+   row stays one line tall. */
+.tdActions > div {
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .iconBtn {
@@ -592,6 +599,9 @@
 
 /* A nomination block's name, edited in place. */
 .titleInput {
+  /* Fills the block header's free width, so the nomination name shows in
+     full instead of being cut at the minimum. */
+  flex: 1 1 auto;
   min-width: 220px;
   box-sizing: border-box;
   padding: 4px 7px;
@@ -601,4 +611,13 @@
   font-weight: 600;
   font-family: inherit;
   background: var(--g-surface);
+}
+
+/* Overage / purchased notes stacked under the duration, so they never widen
+   its column. */
+.durationMarks > span {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 2px 0 0;
 }

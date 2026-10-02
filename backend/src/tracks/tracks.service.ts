@@ -31,6 +31,7 @@ import {
 } from '../uploads/uploads.constants';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Track } from './track.model';
+import { ScheduleService } from '../schedule/schedule.service';
 import { isImprovisationEntry } from './is-improvisation-entry';
 import { TrackFileNameResolver } from './track-file-name-resolver.service';
 import {
@@ -64,6 +65,7 @@ export class TracksService {
     @InjectModel(Track) private readonly trackModel: typeof Track,
     private readonly entriesService: EntriesService,
     private readonly competitionRulesService: CompetitionRulesService,
+    private readonly scheduleService: ScheduleService,
     private readonly fileNameResolver: TrackFileNameResolver,
     private readonly s3: OcpS3ClientFactory,
     private readonly config: ConfigService,
@@ -138,6 +140,7 @@ export class TracksService {
     entry.musicName = displayFileName;
     entry.musicUrl = publicUrl;
     await entry.save();
+    await this.scheduleService.refreshExitDuration(entryId);
 
     // Remove the replaced object now that the new one has its own key.
     // Deferred until both DB writes commit, so a failure there doesn't
@@ -197,6 +200,7 @@ export class TracksService {
     entry.musicName = null;
     entry.musicUrl = null;
     await entry.save();
+    await this.scheduleService.refreshExitDuration(entryId);
   }
 
   private async loadContext(

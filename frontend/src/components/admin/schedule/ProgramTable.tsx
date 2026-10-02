@@ -29,6 +29,7 @@ import {
   PARTICIPANT_NUMBER_MARK,
 } from '../../../lib/programNumbers.constants';
 import { formatMarkedNominationNumber } from '../../../lib/programNumbers';
+import DurationMarks from '../../program/DurationMarks';
 import styles from './program.module.css';
 
 interface ProgramTableProps {
@@ -129,7 +130,7 @@ export default function ProgramTable({
   const tech = view === 'tech';
   const needle = search.trim().toLowerCase();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const colCount = tech ? 9 : 6;
+  const colCount = tech ? 8 : 6;
   const dayLabel = (id: string) => {
     const day = days.find((d) => d.id === id);
     return day ? (day.label ?? day.date) : '';
@@ -272,7 +273,6 @@ export default function ProgramTable({
               ''
             )}
           </td>
-          <td className={styles.serviceCell} />
           {rowActions(opts.actions ?? null)}
         </>
       )}
@@ -306,9 +306,6 @@ export default function ProgramTable({
               <>
                 <th className={styles.th} style={{ width: 96 }}>
                   Тривалість
-                </th>
-                <th className={styles.th} style={{ width: 160 }}>
-                  Переплати
                 </th>
                 <th className={styles.th} style={{ width: 108 }} />
               </>
@@ -607,7 +604,6 @@ export default function ProgramTable({
                             >
                               {formatDuration(blockSeconds)}
                             </td>
-                            <td className={styles.blockCell} />
                             <td
                               className={`${styles.blockCell} ${styles.tdActions}`}
                             >
@@ -707,8 +703,15 @@ export default function ProgramTable({
                               <>
                                 <td className={`${styles.td} ${styles.tdNum}`}>
                                   {formatDuration(item.durationSeconds)}
+                                  <div className={styles.durationMarks}>
+                                    <DurationMarks
+                                      overageSeconds={item.overageSeconds}
+                                      purchasedSeconds={
+                                        item.exit?.purchasedExtraSeconds ?? 0
+                                      }
+                                    />
+                                  </div>
                                 </td>
-                                <td className={styles.td} />
                                 <td
                                   className={`${styles.td} ${styles.tdActions}`}
                                 >

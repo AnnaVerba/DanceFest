@@ -59,6 +59,8 @@ export interface ExtendedProgramItem {
   studioName: string | null;
   choreographer: string | null;
   effectiveDurationSeconds: number | null;
+  overageSeconds: number;
+  purchasedSeconds: number;
   hasTrack: boolean;
 }
 

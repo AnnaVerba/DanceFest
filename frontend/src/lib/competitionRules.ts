@@ -1,8 +1,5 @@
 import { apiRequest } from './http';
 
-export const TIME_SOURCES = ['track', 'limit'] as const;
-export type TimeSource = (typeof TIME_SOURCES)[number];
-
 export const DURATION_ROUNDS = ['final', 'semifinal'] as const;
 export type DurationRound = (typeof DURATION_ROUNDS)[number];
 
@@ -12,7 +9,6 @@ export interface CompetitionRules {
   pauseSeconds: number;
   leagueLimits: Record<string, number>;
   lineupLimits: Record<string, number>;
-  timeSource: TimeSource;
   surchargesEnabled: boolean;
   coachPercent: number;
   semifinalThreshold: number;
@@ -25,7 +21,6 @@ export interface RulesPatch {
   pauseSeconds?: number;
   leagueLimits?: Record<string, number>;
   lineupLimits?: Record<string, number>;
-  timeSource?: TimeSource;
   surchargesEnabled?: boolean;
   coachPercent?: number;
   semifinalThreshold?: number;

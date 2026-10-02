@@ -25,6 +25,7 @@ import {
   NO_COMPETITION_ACCESS_MESSAGE,
 } from '../competitions/competitions.constants';
 import { Entry } from '../entries/entry.model';
+import { Track } from '../tracks/track.model';
 import { Nomination } from '../nominations/nomination.model';
 import { Venue } from '../venues/venue.model';
 import { CompetitionRule } from '../competition-rules/competition-rule.model';
@@ -38,6 +39,7 @@ import type { ExitRun } from './exit-run';
 import { SectionItem } from './section-item.model';
 import { AWARD_ITEM, PERFORMANCE_ITEM, isManualRow } from './section-item-type';
 import { performanceDuration } from './performance-duration';
+import type { PerformanceDurationResult } from './performance-duration-result';
 import { eachDateInclusive } from './date-range';
 import {
   buildSectionView,
@@ -62,6 +64,7 @@ import {
   DEFAULT_PROGRAM_PAGE_ROWS,
   DEFAULT_SECTIONS_PAGE_ROWS,
   DEFAULT_UNASSIGNED_PAGE_SIZE,
+  GROUP_KEY_PROGRAM_SEPARATOR,
   MAX_COMPETITION_DAYS,
   MAX_PROGRAM_PAGE_ROWS,
   MAX_SECTIONS_PAGE_ROWS,
@@ -153,6 +156,8 @@ export class ScheduleService {
     private readonly entryModel: typeof Entry,
     @InjectModel(Nomination)
     private readonly nominationModel: typeof Nomination,
+    @InjectModel(Track)
+    private readonly trackModel: typeof Track,
     private readonly rulesService: CompetitionRulesService,
     private readonly participantNumbersService: CompetitionParticipantNumbersService,
   ) {}
@@ -477,6 +482,7 @@ export class ScheduleService {
     // Resolve every duration up front: durationOf hits the rules service and
     // can throw, so it must not run mid-insert and leave a half-built section.
     const limitCache = new LimitCache();
+    const trackSeconds = await this.trackSecondsByEntry(entries);
     const performanceRows: CreationAttributes<SectionItem>[] = [];
     for (const group of grouped) {
       for (const entry of group.entries) {
@@ -484,7 +490,7 @@ export class ScheduleService {
           entryId: entry.id,
           type: PERFORMANCE_ITEM,
           nominationGroupKey: group.key,
-          durationSeconds: await this.durationOf(entry, rules, limitCache),
+          ...(await this.durationOf(entry, rules, limitCache, trackSeconds)),
           sortOrder: performanceRows.length,
         } as CreationAttributes<SectionItem>);
       }
@@ -1155,6 +1161,27 @@ export class ScheduleService {
     return this.viewOf(section);
   }
 
+  // Re-freezes one scheduled exit's time after its track or purchased extra
+  // time changed, so the running order follows without a manual
+  // recalculation. An exit not in the schedule has nothing to update.
+  async refreshExitDuration(entryId: string): Promise<void> {
+    const item = await this.itemModel.findOne({
+      where: { entryId, type: PERFORMANCE_ITEM },
+      include: [{ model: Entry }],
+    });
+    if (!item?.entry) return;
+    const section = await this.sectionModel.findByPk(item.sectionId, {
+      attributes: ['competitionId'],
+    });
+    if (!section) return;
+    const rules = await this.rulesService.getRules(section.competitionId);
+    const trackSeconds = await this.trackSecondsByEntry([item.entry]);
+    item.set(
+      await this.durationOf(item.entry, rules, new LimitCache(), trackSeconds),
+    );
+    await item.save();
+  }
+
   // --- Explicit recalculation -----------------------------------------
 
   async recalculate(
@@ -1190,12 +1217,14 @@ export class ScheduleService {
           include: [{ model: Entry }],
           transaction,
         });
+        const trackSeconds = await this.trackSecondsByEntry(
+          items.flatMap((item) => (item.entry ? [item.entry] : [])),
+          transaction,
+        );
         for (const item of items) {
           if (!item.entry) continue;
-          item.durationSeconds = await this.durationOf(
-            item.entry,
-            rules,
-            limitCache,
+          item.set(
+            await this.durationOf(item.entry, rules, limitCache, trackSeconds),
           );
           await item.save({ transaction });
         }
@@ -1323,13 +1352,14 @@ export class ScheduleService {
     rules: CompetitionRule,
     limitCache: LimitCache,
   ): Promise<CreationAttributes<SectionItem>[]> {
+    const trackSeconds = await this.trackSecondsByEntry(entries);
     const rows: CreationAttributes<SectionItem>[] = [];
     for (const entry of entries) {
       rows.push({
         entryId: entry.id,
         type: PERFORMANCE_ITEM,
         nominationGroupKey: groupKey,
-        durationSeconds: await this.durationOf(entry, rules, limitCache),
+        ...(await this.durationOf(entry, rules, limitCache, trackSeconds)),
       } as CreationAttributes<SectionItem>);
     }
     return rows;
@@ -1537,8 +1567,13 @@ export class ScheduleService {
 
   // The key a section groups an entry's exits under — also how a late entry
   // finds its nomination's block.
+  // A per-program nomination splits into one block per program (style), so
+  // all of one style's exits run together under their own header.
   private nominationGroupKeyOf(entry: Entry): string {
-    return entry.nominationId ?? entry.nomination;
+    const nominationKey = entry.nominationId ?? entry.nomination;
+    return entry.program
+      ? `${nominationKey}${GROUP_KEY_PROGRAM_SEPARATOR}${entry.program}`
+      : nominationKey;
   }
 
   private groupByNomination(
@@ -1559,16 +1594,18 @@ export class ScheduleService {
       .sort((a, b) => a.entries[0].number - b.entries[0].number);
   }
 
-  // A non-improv exit runs for its effective limit (see
-  // CompetitionRulesService.resolveEffectiveLimit for the priority).
-  // `limitCache` is passed by callers that resolve many entries in one
-  // pass — a section or a whole recalculate — where the same nomination
-  // recurs and its limit cannot change mid-pass.
+  // A non-improv exit runs for its track, held to its effective limit plus
+  // purchased extra time (see performanceDuration; the limit priority is in
+  // CompetitionRulesService.resolveEffectiveLimit). `limitCache` is passed by
+  // callers that resolve many entries in one pass — a section or a whole
+  // recalculate — where the same nomination recurs and its limit cannot
+  // change mid-pass; `trackSeconds` holds the pass's track lengths.
   private async durationOf(
     entry: Entry,
     rules: CompetitionRule,
     limitCache: LimitCache,
-  ): Promise<number> {
+    trackSeconds: Map<string, number>,
+  ): Promise<PerformanceDurationResult> {
     const limitSeconds = await this.rulesService.resolveEffectiveLimit(
       entry,
       rules,
@@ -1583,8 +1620,26 @@ export class ScheduleService {
         isGroupImprov: isGroupImprov(entry),
         limitSeconds,
         improvRounds,
+        trackSeconds: trackSeconds.get(entry.id) ?? null,
+        purchasedSeconds: entry.purchasedExtraSeconds,
       },
       rules,
+    );
+  }
+
+  // entry id -> its uploaded track's length, for the entries that have one.
+  private async trackSecondsByEntry(
+    entries: Entry[],
+    transaction?: Transaction,
+  ): Promise<Map<string, number>> {
+    if (entries.length === 0) return new Map();
+    const tracks = await this.trackModel.findAll({
+      where: { performanceId: { [Op.in]: entries.map((entry) => entry.id) } },
+      attributes: ['performanceId', 'durationSeconds'],
+      transaction,
+    });
+    return new Map(
+      tracks.map((track) => [track.performanceId, track.durationSeconds]),
     );
   }
 

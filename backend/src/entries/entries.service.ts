@@ -1090,6 +1090,7 @@ export class EntriesService {
     entry.purchasedExtraSeconds = purchasedSec;
     entry.extraFee = fee;
     await entry.save();
+    await this.scheduleService.refreshExitDuration(entry.id);
 
     const numbers = await this.participantNumbersService.loadLookup(
       [competitionId],

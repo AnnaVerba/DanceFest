@@ -1,0 +1,25 @@
+.marks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+}
+
+.mark {
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.overage {
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  font-weight: 600;
+}
+
+.purchased {
+  border: 1px solid var(--line-strong, #d0d5dd);
+}

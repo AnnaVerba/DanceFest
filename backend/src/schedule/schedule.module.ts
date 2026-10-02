@@ -3,6 +3,7 @@ import { SequelizeModule } from '@nestjs/sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Entry } from '../entries/entry.model';
+import { Track } from '../tracks/track.model';
 import { Nomination } from '../nominations/nomination.model';
 import { CompetitionRulesModule } from '../competition-rules/competition-rules.module';
 import { CompetitionParticipantNumbersModule } from '../competition-participant-numbers/competition-participant-numbers.module';
@@ -22,6 +23,7 @@ import { SectionItem } from './section-item.model';
       CompetitionAdmin,
       Entry,
       Nomination,
+      Track,
       CompetitionDay,
       Section,
       SectionItem,

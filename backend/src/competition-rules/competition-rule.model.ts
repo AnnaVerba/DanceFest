@@ -8,9 +8,6 @@ import {
 } from 'sequelize-typescript';
 import { Competition } from '../competitions/competition.model';
 
-export const TIME_SOURCES = ['track', 'limit'] as const;
-export type TimeSource = (typeof TIME_SOURCES)[number];
-
 @Table({ tableName: 'competition_rules' })
 export class CompetitionRule extends Model<CompetitionRule> {
   @Column({
@@ -39,13 +36,6 @@ export class CompetitionRule extends Model<CompetitionRule> {
   // configured limit — see CompetitionRulesService.resolveEffectiveLimit.
   @Column({ type: DataType.JSONB, allowNull: false, defaultValue: {} })
   declare lineupLimits: Record<string, number>;
-
-  @Column({
-    type: DataType.ENUM(...TIME_SOURCES),
-    allowNull: false,
-    defaultValue: 'limit',
-  })
-  declare timeSource: TimeSource;
 
   @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false })
   declare surchargesEnabled: boolean;

@@ -1,5 +1,9 @@
 export const SECTION_ITEMS_TABLE = 'section_items';
 
+// Joins a per-program exit's nomination and program into its group key, so
+// each style of the nomination is its own block in the running order.
+export const GROUP_KEY_PROGRAM_SEPARATOR = '::';
+
 // Rewrites a section's running order in one statement: each id in the bound
 // uuid[] gets its zero-based index as sortOrder.
 export const PERSIST_ORDER_SQL = `
@@ -60,3 +64,8 @@ export const MIXED_VENUE_SECTION_MESSAGE =
 export const PROGRAM_NOT_PUBLISHED_MESSAGE = 'Програма ще не опублікована';
 export const OTHER_VENUE_SECTION_MESSAGE =
   'Обрані виходи належать до іншого майданчика, ніж це відділення';
+
+// A track may run this many seconds past the time it is allowed (limit plus
+// purchased extra time) and still count in full; anything longer is an
+// overage: the exit counts only the allowed time and the rest is flagged.
+export const OVERAGE_TOLERANCE_SECONDS = 10;

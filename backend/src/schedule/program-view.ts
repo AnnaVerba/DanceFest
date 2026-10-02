@@ -65,6 +65,8 @@ export interface ExtendedProgramItem {
   studioName: string | null;
   choreographer: string | null;
   effectiveDurationSeconds: number | null;
+  overageSeconds: number;
+  purchasedSeconds: number;
   hasTrack: boolean;
 }
 
@@ -251,6 +253,8 @@ export function buildExtendedProgram(
       studioName: item.exit?.studioName ?? null,
       choreographer: item.exit?.choreographer ?? null,
       effectiveDurationSeconds: item.durationSeconds,
+      overageSeconds: item.overageSeconds,
+      purchasedSeconds: item.exit?.purchasedExtraSeconds ?? 0,
       hasTrack: item.exit?.musicName != null,
     })),
   }));

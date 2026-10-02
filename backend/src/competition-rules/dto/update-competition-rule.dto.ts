@@ -1,15 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
-  IsIn,
   IsInt,
   IsNumber,
   IsObject,
   IsOptional,
   Min,
 } from 'class-validator';
-import { TIME_SOURCES } from '../competition-rule.model';
-import type { TimeSource } from '../competition-rule.model';
 
 export class UpdateCompetitionRuleDto {
   @ApiPropertyOptional({
@@ -41,16 +38,6 @@ export class UpdateCompetitionRuleDto {
   @IsOptional()
   @IsObject()
   lineupLimits?: Record<string, number>;
-
-  @ApiPropertyOptional({
-    example: 'limit',
-    enum: TIME_SOURCES,
-    description:
-      'How time is counted while surcharges are off: the track itself, or the configured limit.',
-  })
-  @IsOptional()
-  @IsIn(TIME_SOURCES)
-  timeSource?: TimeSource;
 
   @ApiPropertyOptional({ example: false })
   @IsOptional()
