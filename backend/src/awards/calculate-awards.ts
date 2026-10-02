@@ -28,7 +28,8 @@ function groupByCategory(
 }
 
 // Every exit on stage is its own participation: a dancer who performs in the
-// same category several times can place several times, so nothing is merged.
+// same category several times can place several times, so nothing is merged —
+// except in a special nomination, which awards each performer once.
 export function calculateAwards(input: AwardsInput): AwardsCalculation {
   const medalStandings = input.awardSystem === MEDAL_STANDINGS_AWARD_SYSTEM;
   const placeMedals = new Array<number>(PRIZE_PLACES_COUNT).fill(0);
@@ -47,7 +48,11 @@ export function calculateAwards(input: AwardsInput): AwardsCalculation {
         participations: 0,
       };
       summary.winners += WINNERS_PER_SPECIAL_CATEGORY;
-      summary.participations += category.length;
+      // One award per performer, however many exits they dance here
+      // (Корона: improvisation and a solo); the winner's is the 1st place.
+      summary.participations +=
+        new Set(category.map((performance) => performance.performerKey)).size -
+        WINNERS_PER_SPECIAL_CATEGORY;
       specials.set(specialName, summary);
       continue;
     }

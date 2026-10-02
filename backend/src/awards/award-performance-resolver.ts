@@ -38,6 +38,9 @@ export class AwardPerformanceResolver {
       allMedals:
         entry.league !== null && this.allMedalLeagues.has(entry.league.trim()),
       specialName: this.specialNameOf(nomination),
+      // Special nominations are solo; an organizer-typed entry has no
+      // participant, only the performer's name.
+      performerKey: entry.participantId ?? entry.routineName,
     };
   }
 

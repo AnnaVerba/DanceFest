@@ -12,4 +12,7 @@ export interface AwardPerformance {
   allMedals: boolean;
   // Set for a special nomination; such performances are counted apart.
   specialName: string | null;
+  // Who dances the exit: the same key on several exits of one category
+  // (a per-program special nomination) is one person, awarded once.
+  performerKey: string;
 }
