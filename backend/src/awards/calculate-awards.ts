@@ -48,11 +48,13 @@ export function calculateAwards(input: AwardsInput): AwardsCalculation {
         thirdPlaces: 0,
         participations: 0,
       };
-      // One award per performer, however many exits they dance here
-      // (Корона: improvisation and a solo): places 1–3, the rest take part.
+      // One award and one diploma per performer, however many exits they
+      // dance here (Корона: improvisation and a solo): places 1–3, the rest
+      // take part.
       const performers = new Set(
         category.map((performance) => performance.performerKey),
       ).size;
+      diplomas += performers;
       const places = distributeTopPlaces(performers);
       summary.winners += places[FIRST_PLACE_INDEX];
       summary.secondPlaces += places[SECOND_PLACE_INDEX];
