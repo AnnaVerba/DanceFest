@@ -16,6 +16,8 @@ import ProgramTable from './ProgramTable';
 import type { SectionCollapse } from './sectionCollapse.types';
 import { sectionsCollapsed, toggleSection } from './sectionCollapse';
 import ProgramPoster from './ProgramPoster';
+import SectionPager from './SectionPager';
+import type { SectionPageNavigator } from './sectionPager.types';
 import ProgramPublicationBar from './ProgramPublicationBar';
 import NewEntriesNotice from './NewEntriesNotice';
 import VenueConflictsNotice from './VenueConflictsNotice';
@@ -132,6 +134,7 @@ export default function SchedulePanel({
     canManage && (canBuildAnytime || !registrationOpen || programFormed);
   const queryClient = useQueryClient();
   const [sectionsPage, setSectionsPage] = useState(0);
+  const [posterPage, setPosterPage] = useState(0);
   const [poolPage, setPoolPage] = useState(0);
   const [poolLeague, setPoolLeague] = useState('');
   const [poolAge, setPoolAge] = useState('');
@@ -221,6 +224,11 @@ export default function SchedulePanel({
     rangeEnd: sectionsQuery.data?.rangeEnd ?? 0,
     totalSections: sectionsQuery.data?.totalSections ?? 0,
   };
+  const sectionsNavigator: SectionPageNavigator = {
+    ...sectionsMeta,
+    page: sectionsPage,
+    goTo: setSectionsPage,
+  };
   const daySummary = summaryQuery.data ?? [];
   // Day-wide counters from the server — the section list on screen is only
   // one page of a possibly-500-exit day, so they can't be summed here.
@@ -244,10 +252,12 @@ export default function SchedulePanel({
   }
 
   // The read-only poster: a viewer always needs it, a manager only in the
-  // «Публічна» view.
+  // «Публічна» view. Paged like the editor, so a big festival is never
+  // loaded at once.
   const posterFilter = {
     dayId: dayId || undefined,
     venueId: venueId || undefined,
+    page: posterPage,
     pageSize: SECTIONS_PAGE_ROWS,
   };
 
@@ -264,8 +274,20 @@ export default function SchedulePanel({
     enabled: daysReady && (!canManage || view === 'public'),
     staleTime: TIMING_STALE_TIME_MS,
   });
+  // The server clamps an out-of-range page — follow it, as for sections.
+  if (posterQuery.data && posterQuery.data.page !== posterPage) {
+    setPosterPage(posterQuery.data.page);
+  }
   // Failure is silent — the editor still renders without the poster.
   const poster = posterQuery.data?.rows ?? EMPTY_POSTER;
+  const posterNavigator: SectionPageNavigator = {
+    page: posterPage,
+    pageCount: posterQuery.data?.pageCount ?? 0,
+    rangeStart: posterQuery.data?.rangeStart ?? 0,
+    rangeEnd: posterQuery.data?.rangeEnd ?? 0,
+    totalSections: posterQuery.data?.totalSections ?? 0,
+    goTo: setPosterPage,
+  };
 
   // The unassigned pool is only shown while building.
   const poolFilter = {
@@ -365,10 +387,12 @@ export default function SchedulePanel({
   const changeDay = (id: string) => {
     setDayId(id);
     setSectionsPage(0);
+    setPosterPage(0);
   };
   const changeVenue = (id: string) => {
     setVenueId(id);
     setSectionsPage(0);
+    setPosterPage(0);
   };
 
   // The public endpoint has no day param, so scope its rows to the pill
@@ -753,6 +777,7 @@ export default function SchedulePanel({
             ))}
           </div>
         )}
+        <SectionPager navigator={posterNavigator} />
         <ProgramPoster rows={posterRows} days={days} venues={venues} />
       </div>
     );
@@ -927,7 +952,10 @@ export default function SchedulePanel({
       )}
 
       {view === 'public' ? (
-        <ProgramPoster rows={posterRows} days={days} venues={venues} />
+        <>
+          <SectionPager navigator={posterNavigator} />
+          <ProgramPoster rows={posterRows} days={days} venues={venues} />
+        </>
       ) : building ? (
         <div className={styles.buildCols}>
           <UnassignedPool
@@ -1036,34 +1064,7 @@ export default function SchedulePanel({
             </button>
           </div>
 
-          {sectionsMeta.pageCount > 1 && (
-            <div className={styles.filterRow}>
-              <button
-                type="button"
-                className={styles.ghostBtn}
-                disabled={sectionsPage <= 0}
-                onClick={() => setSectionsPage((p) => Math.max(0, p - 1))}
-              >
-                ‹ Попередні
-              </button>
-              <span className={styles.muted}>
-                Відділення {sectionsMeta.rangeStart}–{sectionsMeta.rangeEnd} з{' '}
-                {sectionsMeta.totalSections}
-              </span>
-              <button
-                type="button"
-                className={styles.ghostBtn}
-                disabled={sectionsPage >= sectionsMeta.pageCount - 1}
-                onClick={() =>
-                  setSectionsPage((p) =>
-                    Math.min(sectionsMeta.pageCount - 1, p + 1),
-                  )
-                }
-              >
-                Наступні ›
-              </button>
-            </div>
-          )}
+          <SectionPager navigator={sectionsNavigator} />
 
           <ProgramTable
             sections={sections}
