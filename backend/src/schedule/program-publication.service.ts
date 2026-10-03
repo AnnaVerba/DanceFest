@@ -9,7 +9,9 @@ import type { ProgramPublicationStatus } from './program-publication-status';
 import { PROGRAM_STATUS } from './program-status';
 import {
   buildMineProgram,
+  buildProgramOutline,
   buildPublicProgram,
+  sectionMatchesNeedle,
   type MineProgram,
   type PublicProgramRow,
 } from './program-view';
@@ -21,6 +23,7 @@ import {
   DEFAULT_PROGRAM_PAGE_ROWS,
   MAX_PROGRAM_PAGE_ROWS,
   PROGRAM_NOT_PUBLISHED_MESSAGE,
+  SECTION_NOT_FOUND_MESSAGE,
 } from './schedule.constants';
 
 @Injectable()
@@ -90,6 +93,33 @@ export class ProgramPublicationService {
       MAX_PROGRAM_PAGE_ROWS,
     );
     return { ...page, rows: buildPublicProgram(page.rows) };
+  }
+
+  async publishedOutline(competitionId: string): Promise<PublicProgramRow[]> {
+    return buildProgramOutline(await this.publishedSnapshot(competitionId));
+  }
+
+  async publishedSection(
+    competitionId: string,
+    sectionId: string,
+  ): Promise<PublicProgramRow[]> {
+    const snapshot = await this.publishedSnapshot(competitionId);
+    const section = snapshot.find((s) => s.id === sectionId);
+    if (!section) throw new NotFoundException(SECTION_NOT_FOUND_MESSAGE);
+    return buildPublicProgram([section]);
+  }
+
+  // Every section holding a matching performance, in full.
+  async searchPublished(
+    competitionId: string,
+    query: string,
+  ): Promise<PublicProgramRow[]> {
+    const snapshot = await this.publishedSnapshot(competitionId);
+    const needle = query.trim().toLowerCase();
+    if (!needle) return [];
+    return buildPublicProgram(
+      snapshot.filter((section) => sectionMatchesNeedle(section, needle)),
+    );
   }
 
   async publishedMineProgram(

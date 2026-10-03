@@ -18,7 +18,7 @@ export function groupProgramSections(
   rows.forEach((row, index) => {
     if (row.kind === 'section') {
       sections.push({
-        id: `${PROGRAM_SECTION_ID_PREFIX}${index}`,
+        id: `${PROGRAM_SECTION_ID_PREFIX}${row.sectionId ?? index}`,
         head: row,
         rows: [],
       });
@@ -133,8 +133,13 @@ export function markMineGroups(
     }
   });
 
-  const marks = [...groups.values()];
-  const sectionMark =
-    marks.length === 0 ? null : marks.includes('mine') ? 'mine' : 'student';
+  // From the viewer's own cut, not the rows: a section's performances load
+  // only once it is opened, yet its header is marked from the start.
+  const sectionMark: MineMark | null =
+    mine.exits.length === 0
+      ? null
+      : mine.exits.some((exit) => exit.isMine)
+        ? 'mine'
+        : 'student';
   return { section: sectionMark, groups };
 }

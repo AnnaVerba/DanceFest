@@ -1,26 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { ApiError } from '../../lib/http';
-import { HTTP_STATUS_NOT_FOUND } from '../../lib/api.constants';
-import { getMyProgram, getPublicProgram, hasSession } from '../../lib/program';
-import type { MineProgram, PublicProgramRow } from '../../lib/program';
+import { getMyProgram, hasSession } from '../../lib/program';
+import type { MineProgram } from '../../lib/program';
 import { getVenues } from '../../lib/venues';
 import type { Venue } from '../../lib/venues';
 import {
-  groupProgramSections,
   groupSectionsByVenue,
   indexMineSections,
   markMineGroups,
-  sectionMatchesQuery,
 } from '../../lib/programSections';
 import ProgramSectionBlock from './ProgramSectionBlock';
+import { useLazyProgram } from './useLazyProgram';
 import {
   COLLAPSE_ALL_LABEL,
   EXPAND_ALL_LABEL,
   JUMP_TO_SECTION_LABEL,
-  LOAD_MORE_LABEL,
   NO_VENUE_KEY,
-  PROGRAM_LOAD_ERROR,
   PROGRAM_LOADING_LABEL,
   PROGRAM_NOT_PUBLISHED_LABEL,
   PROGRAM_SUBTITLE,
@@ -35,56 +30,20 @@ interface FestivalProgramProps {
 }
 
 // The read-only festival programme for everyone who does not edit it: one
-// tab per venue, each section collapsed until opened. A signed-in dancer or
-// coach sees the nominations they (or their students) perform in highlighted.
+// tab per venue, each section collapsed until opened — and its performances
+// fetched only then. A signed-in dancer or coach sees the nominations they
+// (or their students) perform in highlighted.
 export default function FestivalProgram({ competitionId }: FestivalProgramProps) {
-  const [publicRows, setPublicRows] = useState<PublicProgramRow[] | null>(null);
-  const [programPage, setProgramPage] = useState(0);
-  const [programPageCount, setProgramPageCount] = useState(0);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [venues, setVenues] = useState<Venue[]>([]);
   const [mine, setMine] = useState<MineProgram | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [activeVenueIndex, setActiveVenueIndex] = useState(0);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-
-  const hasMore = programPage + 1 < programPageCount;
-
-  const loadMore = () => {
-    if (loadingMore || !hasMore) return;
-    setLoadingMore(true);
-    getPublicProgram(competitionId, { page: programPage + 1 })
-      .then((paged) => {
-        setPublicRows((prev) => [...(prev ?? []), ...paged.rows]);
-        setProgramPage(paged.page);
-        setProgramPageCount(paged.pageCount);
-      })
-      .catch(() => setLoadError(PROGRAM_LOAD_ERROR))
-      .finally(() => setLoadingMore(false));
-  };
+  const program = useLazyProgram(competitionId, query);
+  const { outline, loadError, sections, matchedIds } = program;
 
   useEffect(() => {
     let cancelled = false;
-
-    getPublicProgram(competitionId)
-      .then((paged) => {
-        if (cancelled) return;
-        setPublicRows(paged.rows);
-        setProgramPage(paged.page);
-        setProgramPageCount(paged.pageCount);
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        if (
-          error instanceof ApiError &&
-          error.status === HTTP_STATUS_NOT_FOUND
-        ) {
-          setPublicRows([]);
-          return;
-        }
-        setLoadError(PROGRAM_LOAD_ERROR);
-      });
 
     getVenues(competitionId)
       .then((list) => {
@@ -110,20 +69,20 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
   }, [competitionId]);
 
   const venuePrograms = useMemo(
-    () => groupSectionsByVenue(groupProgramSections(publicRows ?? []), venues),
-    [publicRows, venues],
+    () => groupSectionsByVenue(sections, venues),
+    [sections, venues],
   );
 
-  const needle = query.trim().toLowerCase();
-  const searching = needle.length > 0;
+  const searching = query.trim().length > 0;
+  const searchPending = searching && matchedIds === null;
   const activeVenue =
     venuePrograms[Math.min(activeVenueIndex, venuePrograms.length - 1)];
   const visibleSections = useMemo(
     () =>
       (activeVenue?.sections ?? []).filter(
-        (section) => !searching || sectionMatchesQuery(section, needle),
+        (section) => !searching || (matchedIds?.has(section.id) ?? false),
       ),
-    [activeVenue, searching, needle],
+    [activeVenue, searching, matchedIds],
   );
 
   const showDayHeadings =
@@ -138,7 +97,7 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
     return <p className={styles.status}>{loadError}</p>;
   }
 
-  if (!publicRows) {
+  if (!outline) {
     return <p className={styles.status}>{PROGRAM_LOADING_LABEL}</p>;
   }
 
@@ -146,21 +105,30 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
   const isExpanded = (sectionId: string) =>
     searching || expandedIds.has(sectionId);
 
-  const toggleSection = (sectionId: string) =>
+  // As a list, so it goes straight to loadSections; empty if not shown.
+  const sectionsWithId = (sectionId: string) =>
+    visibleSections.filter((section) => section.id === sectionId);
+
+  const toggleSection = (sectionId: string) => {
+    if (!expandedIds.has(sectionId)) program.loadSections(sectionsWithId(sectionId));
     setExpandedIds((prev) => {
       const next = new Set(prev);
       if (!next.delete(sectionId)) next.add(sectionId);
       return next;
     });
+  };
 
-  const setAllExpanded = (expanded: boolean) =>
+  const setAllExpanded = (expanded: boolean) => {
+    if (expanded) program.loadSections(visibleSections);
     setExpandedIds(
       expanded ? new Set(visibleSections.map((s) => s.id)) : new Set(),
     );
+  };
 
   const jumpToSection = (event: ChangeEvent<HTMLSelectElement>) => {
     const sectionId = event.target.value;
     if (!sectionId) return;
+    program.loadSections(sectionsWithId(sectionId));
     setExpandedIds((prev) => new Set(prev).add(sectionId));
     // The section body mounts on the next render; scroll once it has.
     requestAnimationFrame(() =>
@@ -173,7 +141,7 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
     <div>
       <p className={styles.subtitle}>{PROGRAM_SUBTITLE}</p>
 
-      {publicRows.length === 0 && (
+      {outline.length === 0 && (
         <p className={styles.status}>{PROGRAM_NOT_PUBLISHED_LABEL}</p>
       )}
 
@@ -194,7 +162,7 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
         </div>
       )}
 
-      {publicRows.length > 0 && (
+      {outline.length > 0 && (
         <div className={styles.toolbar}>
           <input
             className={styles.search}
@@ -232,7 +200,11 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
         </div>
       )}
 
-      {searching && visibleSections.length === 0 && (
+      {searchPending && (
+        <p className={styles.status}>{PROGRAM_LOADING_LABEL}</p>
+      )}
+
+      {searching && !searchPending && visibleSections.length === 0 && (
         <p className={styles.status}>{SEARCH_NO_RESULTS_LABEL}</p>
       )}
 
@@ -248,6 +220,7 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
             <ProgramSectionBlock
               section={section}
               expanded={isExpanded(section.id)}
+              loading={!program.isLoaded(section)}
               marks={markMineGroups(section, mineByKey)}
               onToggle={toggleSection}
             />
@@ -255,16 +228,6 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
         );
       })}
 
-      {hasMore && (
-        <button
-          type="button"
-          className={styles.loadMore}
-          onClick={loadMore}
-          disabled={loadingMore}
-        >
-          {loadingMore ? PROGRAM_LOADING_LABEL : LOAD_MORE_LABEL}
-        </button>
-      )}
     </div>
   );
 }

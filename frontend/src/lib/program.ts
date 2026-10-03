@@ -10,6 +10,8 @@ export interface PublicProgramRow {
   dayId: string;
   dayDate: string | null;
   venueId: string | null;
+  // Only on `section` rows: the id to fetch the section's performances by.
+  sectionId?: string;
   // Only on `section` rows: when the section ends.
   endTime?: string;
   // Only on `group` rows: the category's position within its section.
@@ -112,6 +114,38 @@ export function getPublicProgram(
 ): Promise<RowPaged<PublicProgramRow>> {
   return publicRequest<RowPaged<PublicProgramRow>>(
       programUrl(competitionId, 'program', query),
+  );
+}
+
+// Every published section's header row, no performances. Rejects with a
+// 404 until the program is published.
+export function getPublicProgramOutline(
+  competitionId: string,
+): Promise<PublicProgramRow[]> {
+  return publicRequest<PublicProgramRow[]>(
+    `/competitions/${competitionId}/program/outline`,
+  );
+}
+
+// One published section: its header row followed by its performances.
+export function getPublicProgramSection(
+  competitionId: string,
+  sectionId: string,
+): Promise<PublicProgramRow[]> {
+  return publicRequest<PublicProgramRow[]>(
+    `/competitions/${competitionId}/program/sections/${sectionId}`,
+  );
+}
+
+// Every published section holding a performer or number matching `query`,
+// in full.
+export function searchPublicProgram(
+  competitionId: string,
+  query: string,
+): Promise<PublicProgramRow[]> {
+  const params = new URLSearchParams({ q: query });
+  return publicRequest<PublicProgramRow[]>(
+    `/competitions/${competitionId}/program/search?${params.toString()}`,
   );
 }
 

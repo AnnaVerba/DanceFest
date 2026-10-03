@@ -12,6 +12,7 @@ import {
   EMPTY_ROUTINE_NAME,
   LABEL_SEPARATOR,
   MINE_MARK_TAGS,
+  PROGRAM_LOADING_LABEL,
   SERVICE_ROW_LABELS,
 } from './FestivalProgram.constants';
 import { formatMarkedNominationNumber } from '../../lib/programNumbers';
@@ -20,6 +21,8 @@ import styles from './FestivalProgram.module.css';
 interface ProgramSectionBlockProps {
   section: ProgramSection;
   expanded: boolean;
+  // Its performances have not arrived yet.
+  loading: boolean;
   marks: SectionMarks;
   onToggle: (sectionId: string) => void;
 }
@@ -96,6 +99,7 @@ function renderRow(
 export default function ProgramSectionBlock({
   section,
   expanded,
+  loading,
   marks,
   onToggle,
 }: ProgramSectionBlockProps) {
@@ -118,6 +122,9 @@ export default function ProgramSectionBlock({
           {marks.section && <MarkTag mark={marks.section} />}
         </span>
       </button>
+      {expanded && loading && (
+        <p className={styles.sectionStatus}>{PROGRAM_LOADING_LABEL}</p>
+      )}
       {expanded &&
         section.rows.map((row, index) =>
           renderRow(row, index, marks.groups.get(index)),

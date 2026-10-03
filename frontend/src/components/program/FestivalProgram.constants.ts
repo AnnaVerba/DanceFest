@@ -8,7 +8,7 @@ export const PROGRAM_LOADING_LABEL = 'Завантаження…';
 export const PROGRAM_NOT_PUBLISHED_LABEL = 'Програма ще не опублікована.';
 export const SEARCH_PLACEHOLDER = 'Пошук за прізвищем або номером';
 export const SEARCH_NO_RESULTS_LABEL = 'Нічого не знайдено.';
-export const LOAD_MORE_LABEL = 'Показати ще';
+export const SEARCH_DEBOUNCE_MS = 300;
 export const EMPTY_ROUTINE_NAME = '—';
 export const LABEL_SEPARATOR = ' · ';
 

@@ -476,6 +476,51 @@ export class ScheduleController {
   }
 
   @ApiOperation({
+    summary: 'Public program outline — every section header, no performances',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'The program is not published yet.',
+  })
+  @Public()
+  @Get('program/outline')
+  publicProgramOutline(@Param('competitionId') competitionId: string) {
+    return this.publicationService.publishedOutline(competitionId);
+  }
+
+  @ApiOperation({
+    summary: 'Public program search — sections holding a matching performance',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'The program is not published yet.',
+  })
+  @Public()
+  @Get('program/search')
+  searchPublicProgram(
+    @Param('competitionId') competitionId: string,
+    @Query('q') q = '',
+  ) {
+    return this.publicationService.searchPublished(competitionId, q);
+  }
+
+  @ApiOperation({
+    summary: 'Public program — one published section with its performances',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'The program is not published, or has no such section.',
+  })
+  @Public()
+  @Get('program/sections/:sectionId')
+  publicProgramSection(
+    @Param('competitionId') competitionId: string,
+    @Param('sectionId') sectionId: string,
+  ) {
+    return this.publicationService.publishedSection(competitionId, sectionId);
+  }
+
+  @ApiOperation({
     summary: 'Live program preview — what publishing would show (staff only)',
   })
   @ApiBearerAuth()

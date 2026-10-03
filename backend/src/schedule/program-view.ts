@@ -14,6 +14,9 @@ export interface PublicProgramRow {
   dayId: string;
   dayDate: string | null;
   venueId: string | null;
+  // Set only on `section` rows: which section the rows below belong to, so
+  // the page can fetch one section's performances on demand.
+  sectionId?: string;
   // Set only on `section` rows: when the section's last position ends.
   endTime?: string;
   // Set only on `group` rows: the category's position within its section.
@@ -95,6 +98,43 @@ function overlaps(a: string[], b: Set<string>): boolean {
   return a.some((id) => b.has(id));
 }
 
+function sectionHeadRow(section: SectionView): PublicProgramRow {
+  return {
+    kind: 'section',
+    sectionId: section.id,
+    label: section.name,
+    time: section.startsAt,
+    dayId: section.dayId,
+    dayDate: section.dayDate,
+    venueId: section.venueId,
+    endTime: sectionEndTime(section),
+  };
+}
+
+// Every section's header row and nothing else: what the programme page
+// shows before any section is opened.
+export function buildProgramOutline(
+  sections: SectionView[],
+): PublicProgramRow[] {
+  return sections.map(sectionHeadRow);
+}
+
+// Search by performer (routine name is the performer's name) or participant
+// number; `needle` is already lower-cased.
+export function sectionMatchesNeedle(
+  section: SectionView,
+  needle: string,
+): boolean {
+  return section.items.some(
+    (item) =>
+      item.exit !== null &&
+      (item.exit.routineName.toLowerCase().includes(needle) ||
+        item.exit.participantNumbers.some(
+          (n) => n !== null && String(n).includes(needle),
+        )),
+  );
+}
+
 // The festival programme (docs/AppDescription.docx): section starts,
 // nomination-block headers with a clock time, every performance as an
 // `exit` row (participant number, routine, studio + coach, on-stage
@@ -106,15 +146,7 @@ export function buildPublicProgram(
   const rows: PublicProgramRow[] = [];
 
   for (const section of sections) {
-    rows.push({
-      kind: 'section',
-      label: section.name,
-      time: section.startsAt,
-      dayId: section.dayId,
-      dayDate: section.dayDate,
-      venueId: section.venueId,
-      endTime: sectionEndTime(section),
-    });
+    rows.push(sectionHeadRow(section));
 
     let runLabel: string | null = null;
     let categoryNumber = 0;
