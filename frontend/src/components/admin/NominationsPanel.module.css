@@ -62,6 +62,26 @@
   box-shadow: 0 0 0 3px rgba(123, 79, 196, 0.15);
 }
 
+.inputName {
+  flex: 1 1 280px;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--g-line);
+  border-radius: 7px;
+  background: var(--g-surface);
+  color: var(--g-ink);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.inputName:focus {
+  outline: none;
+  border-color: var(--g-accent);
+  box-shadow: 0 0 0 3px rgba(123, 79, 196, 0.15);
+}
+
 .inputSm:disabled {
   background: var(--g-field-off);
   color: var(--g-subtle);

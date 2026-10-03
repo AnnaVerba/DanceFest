@@ -40,6 +40,10 @@ import NominationAddForm from './NominationAddForm';
 import CompetitionStyleImprovisation from './CompetitionStyleImprovisation';
 import { queryKeys } from '../../lib/queryKeys';
 import { REFERENCE_STALE_TIME_MS } from '../../lib/queryClient.constants';
+import {
+  NOMINATION_NAME_REQUIRED_MESSAGE,
+  RENAME_NOMINATION_BUTTON,
+} from './nominationRename.constants';
 import styles from './NominationsPanel.module.css';
 
 // Stable reference so useMemo below doesn't see a "new" array on every
@@ -56,6 +60,7 @@ interface NominationsPanelProps {
 interface EditState {
   price: string;
   duration: string;
+  name: string;
 }
 
 export default function NominationsPanel({
@@ -69,6 +74,7 @@ export default function NominationsPanel({
   const [pendingDelete, setPendingDelete] = useState<Nomination | null>(null);
   const [editing, setEditing] = useState<Record<string, EditState>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
 
   const selection = useNominationSelection(COMPETITION_NOMINATIONS_PAGE_SIZE);
   const nominationsQuery = useNominationsPage(competitionId, selection);
@@ -168,6 +174,7 @@ export default function NominationsPanel({
     editing[nomination.id] ?? {
       price: nomination.price === null ? '' : String(nomination.price),
       duration: formatDuration(nomination.durationLimitSeconds),
+      name: nomination.name,
     };
 
   const patchEdit = (id: string, patch: Partial<EditState>, current: EditState) =>
@@ -186,6 +193,11 @@ export default function NominationsPanel({
       onError('Некоректна ціна.');
       return;
     }
+    const name = state.name.trim();
+    if (!name) {
+      onError(NOMINATION_NAME_REQUIRED_MESSAGE);
+      return;
+    }
 
     // A duration sent back unchanged would still mark it as set by hand and
     // stop league-timing changes from reaching this nomination (BUG-10).
@@ -198,8 +210,10 @@ export default function NominationsPanel({
         input: {
           price: state.price.trim() === '' ? undefined : Number(state.price),
           durationLimitSeconds: durationChanged ? (seconds ?? undefined) : undefined,
+          name: name !== nomination.name ? name : undefined,
         },
       });
+      setRenamingId(null);
       setEditing((prev) => {
         const next = { ...prev };
         delete next[nomination.id];
@@ -248,7 +262,19 @@ export default function NominationsPanel({
       <li key={nomination.id} className={styles.row}>
         <div className={styles.rowMain}>
           <div className={styles.rowName}>
-            {nomination.name}
+            {renamingId === nomination.id ? (
+              <input
+                className={styles.inputName}
+                aria-label={`Назва номінації ${nomination.name}`}
+                value={state.name}
+                autoFocus
+                onChange={(e) =>
+                  patchEdit(nomination.id, { name: e.target.value }, state)
+                }
+              />
+            ) : (
+              nomination.name
+            )}
             {nomination.isSpecial && (
               <span className={styles.badge}>
                 {nomination.exitMode === 'single'
@@ -334,6 +360,14 @@ export default function NominationsPanel({
                 patchEdit(nomination.id, { duration: e.target.value }, state)
               }
             />
+            <button
+              type="button"
+              className={styles.btnLink}
+              disabled={renamingId === nomination.id}
+              onClick={() => setRenamingId(nomination.id)}
+            >
+              {RENAME_NOMINATION_BUTTON}
+            </button>
             <button
               type="button"
               className={styles.btnLink}
