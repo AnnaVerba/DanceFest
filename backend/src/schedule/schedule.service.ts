@@ -87,6 +87,7 @@ import {
   ROW_NOT_FOUND_MESSAGE,
   ROW_NOT_MANUAL_MESSAGE,
   SECTION_NOT_FOUND_MESSAGE,
+  MERGED_BLOCK_KEY_SEPARATOR,
   SECTION_SET_MISMATCH_MESSAGE,
 } from './schedule.constants';
 import { AddExitsDto } from './dto/add-exits.dto';
@@ -1745,6 +1746,31 @@ export class ScheduleService {
       ...items.filter((i) => i.type === AWARD_ITEM).map((i) => i.id),
     ];
     await this.persistOrder(ordered, transaction);
+  }
+
+  // Every exit placed in the program, by entry id, with the merged block it
+  // runs in — null when its nomination runs on its own.
+  async placedExitBlocks(
+    competitionId: string,
+  ): Promise<Map<string, string | null>> {
+    const sectionIds = await this.competitionSectionIds(competitionId);
+    if (sectionIds.length === 0) return new Map();
+    const items = await this.itemModel.findAll({
+      where: {
+        sectionId: { [Op.in]: sectionIds },
+        type: PERFORMANCE_ITEM,
+        entryId: { [Op.ne]: null },
+      },
+      attributes: ['entryId', 'sectionId', 'mergedGroupLabel'],
+    });
+    return new Map(
+      items.map((item) => [
+        item.entryId as string,
+        item.mergedGroupLabel === null
+          ? null
+          : `${item.sectionId}${MERGED_BLOCK_KEY_SEPARATOR}${item.mergedGroupLabel}`,
+      ]),
+    );
   }
 
   async assignedEntryIds(competitionId: string): Promise<string[]> {

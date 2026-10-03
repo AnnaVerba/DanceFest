@@ -130,7 +130,8 @@ export class AwardsService {
   // Only exits placed in the program count — what really goes on stage.
   private async buildReport(competitionId: string): Promise<AwardsReport> {
     const settings = await this.settingsOf(competitionId);
-    const entryIds = await this.scheduleService.assignedEntryIds(competitionId);
+    const placed = await this.scheduleService.placedExitBlocks(competitionId);
+    const entryIds = [...placed.keys()];
     const entries =
       entryIds.length === 0
         ? []
@@ -160,7 +161,9 @@ export class AwardsService {
 
     const calculation = calculateAwards({
       awardSystem: settings.awardSystem,
-      performances: entries.map((entry) => resolver.resolve(entry)),
+      performances: entries.map((entry) =>
+        resolver.resolve(entry, placed.get(entry.id) ?? null),
+      ),
     });
 
     return {

@@ -22,13 +22,16 @@ export class AwardPerformanceResolver {
     this.allMedalLeagues = new Set(allMedalLeagues);
   }
 
-  resolve(entry: Entry): AwardPerformance {
+  // Nominations merged into one block in the program compete as one
+  // category, so `mergedBlockKey` (null when not merged) wins over the
+  // entry's own nomination.
+  resolve(entry: Entry, mergedBlockKey: string | null): AwardPerformance {
     const nomination = entry.nominationId
       ? this.nominationsById.get(entry.nominationId)
       : undefined;
 
     return {
-      categoryKey: entry.nominationId ?? entry.nomination,
+      categoryKey: mergedBlockKey ?? entry.nominationId ?? entry.nomination,
       participantsCount: Math.max(
         entry.participantsCount ?? (entry.participantIds ?? []).length,
         MIN_PARTICIPANTS_PER_ENTRY,

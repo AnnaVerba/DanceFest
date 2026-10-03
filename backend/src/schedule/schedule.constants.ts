@@ -4,6 +4,10 @@ export const SECTION_ITEMS_TABLE = 'section_items';
 // each style of the nomination is its own block in the running order.
 export const GROUP_KEY_PROGRAM_SEPARATOR = '::';
 
+// Joins a section id and a merged block's label into the block's key: the
+// nominations merged there compete as one category.
+export const MERGED_BLOCK_KEY_SEPARATOR = '::';
+
 // Rewrites a section's running order in one statement: each id in the bound
 // uuid[] gets its zero-based index as sortOrder.
 export const PERSIST_ORDER_SQL = `
