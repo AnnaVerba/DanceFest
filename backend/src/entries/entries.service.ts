@@ -795,7 +795,14 @@ export class EntriesService {
     );
 
     const entry = await this.loadEntry(competitionId, entryId);
-    await entry.destroy();
+    await this.entryModel.sequelize!.transaction(async (transaction) => {
+      await this.scheduleService.unscheduleEntry(
+        competitionId,
+        entry.id,
+        transaction,
+      );
+      await entry.destroy({ transaction });
+    });
   }
 
   // One entry with the dancers named on it — what the staff edit form

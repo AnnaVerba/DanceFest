@@ -44,7 +44,7 @@ export const NO_ENTRIES_FOR_SECTION_MESSAGE =
 export const EXITS_ALREADY_ASSIGNED_MESSAGE =
   'Частина виходів уже розподілена по відділеннях';
 export const ITEM_SET_MISMATCH_MESSAGE =
-  'Список позицій не збігається зі складом відділення — розклад змінив хтось інший';
+  'Розклад було змінено — перерахуйте його, щоб працювати з актуальними змінами';
 export const EXIT_NOT_IN_SCHEDULE_MESSAGE =
   'Цей вихід не розподілений у розклад';
 export const NOMINATION_NOT_IN_SCHEDULE_MESSAGE =

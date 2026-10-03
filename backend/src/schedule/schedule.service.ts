@@ -1310,6 +1310,24 @@ export class ScheduleService {
     });
   }
 
+  // A deleted entry leaves the program with it — a row left without its
+  // entry is hidden, yet still counted by every reorder of its section.
+  async unscheduleEntry(
+    competitionId: string,
+    entryId: string,
+    transaction: Transaction,
+  ): Promise<void> {
+    await this.competitionModel.findByPk(competitionId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    const item = await this.itemModel.findOne({
+      where: { entryId, type: PERFORMANCE_ITEM },
+      transaction,
+    });
+    if (item) await this.unschedule([item], transaction);
+  }
+
   private async appendWithin(
     competitionId: string,
     entries: Entry[],

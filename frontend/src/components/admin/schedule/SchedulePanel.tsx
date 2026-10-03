@@ -20,7 +20,10 @@ import ProgramPublicationBar from './ProgramPublicationBar';
 import NewEntriesNotice from './NewEntriesNotice';
 import VenueConflictsNotice from './VenueConflictsNotice';
 import type { BlockRename } from './blockRename.types';
-import { RENAME_BLOCK_FAILED_MESSAGE } from './schedulePanel.constants';
+import {
+  RENAME_BLOCK_FAILED_MESSAGE,
+  SCHEDULE_CHANGED_MESSAGE,
+} from './schedulePanel.constants';
 import { updateNomination } from '../../../lib/nominations';
 import { NEW_ENTRIES_PROBE } from './newEntriesNotice.constants';
 import { PROGRAM_FORMED_PROBE } from './programFormed.constants';
@@ -462,7 +465,7 @@ export default function SchedulePanel({
     } catch (error) {
       if (previous) queryClient.setQueryData(sectionsKey, previous);
       if (error instanceof ApiError && error.status === HTTP_BAD_REQUEST) {
-        onError('Розклад змінив хтось інший — оновлюю.');
+        onError(SCHEDULE_CHANGED_MESSAGE);
       } else {
         onError('Не вдалося змінити порядок.');
       }
