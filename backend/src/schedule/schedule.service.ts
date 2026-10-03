@@ -15,6 +15,7 @@ import {
   type Order,
   Transaction,
   UniqueConstraintError,
+  type WhereOptions,
 } from 'sequelize';
 import { Competition } from '../competitions/competition.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
@@ -840,7 +841,7 @@ export class ScheduleService {
       }
 
       for (const nominationId of nominationIds) {
-        const rows = await this.groupRows(
+        const rows = await this.nominationRows(
           competitionId,
           nominationId,
           transaction,
@@ -925,20 +926,51 @@ export class ScheduleService {
   }
 
   // Every performance row of one nomination group, in running order.
-  private async groupRows(
+  private groupRows(
     competitionId: string,
     groupKey: string,
+    transaction: Transaction,
+  ): Promise<SectionItem[]> {
+    return this.performanceRows(
+      competitionId,
+      { nominationGroupKey: groupKey },
+      undefined,
+      transaction,
+    );
+  }
+
+  // Every performance row of one nomination, in running order — all of its
+  // blocks, one per program of a per-program nomination.
+  private nominationRows(
+    competitionId: string,
+    nominationId: string,
+    transaction: Transaction,
+  ): Promise<SectionItem[]> {
+    return this.performanceRows(
+      competitionId,
+      {},
+      { nominationId },
+      transaction,
+    );
+  }
+
+  private async performanceRows(
+    competitionId: string,
+    itemWhere: WhereOptions<SectionItem>,
+    entryWhere: WhereOptions<Entry> | undefined,
     transaction: Transaction,
   ): Promise<SectionItem[]> {
     const position = await this.sectionPositions(competitionId, transaction);
     if (position.size === 0) return [];
     const rows = await this.itemModel.findAll({
       where: {
+        ...itemWhere,
         sectionId: { [Op.in]: [...position.keys()] },
         type: PERFORMANCE_ITEM,
-        nominationGroupKey: groupKey,
       },
-      include: [{ model: Entry, attributes: ['id', 'nominationId'] }],
+      include: [
+        { model: Entry, attributes: ['id', 'nominationId'], where: entryWhere },
+      ],
       transaction,
     });
     return rows.sort((a, b) => this.runningOrder(a, b, position));
@@ -1250,40 +1282,65 @@ export class ScheduleService {
     entries: Entry[],
   ): Promise<void> {
     if (entries.length === 0) return;
-    const rules = await this.rulesService.getRules(competitionId);
-    const limitCache = new LimitCache();
+    await this.sectionModel.sequelize!.transaction((transaction) =>
+      this.appendWithin(competitionId, entries, transaction),
+    );
+  }
 
+  // An entry moved to another nomination leaves its old block — it would
+  // run there under the old header while printing the new name. Its exit
+  // joins the end of the new nomination's block, or goes back to the
+  // unassigned pool when that block is not scheduled yet.
+  async followNominationChange(
+    competitionId: string,
+    entry: Entry,
+  ): Promise<void> {
     await this.sectionModel.sequelize!.transaction(async (transaction) => {
-      // Serializes concurrent submissions of one competition, so two late
-      // entries of the same block never read the same tail position.
       await this.competitionModel.findByPk(competitionId, {
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
-      const blockEnds = await this.lastBlockRows(
-        competitionId,
-        entries.map((entry) => this.nominationGroupKeyOf(entry)),
+      const item = await this.itemModel.findOne({
+        where: { entryId: entry.id, type: PERFORMANCE_ITEM },
         transaction,
-      );
-      const runs: ExitRun[] = [];
-      for (const group of this.groupByNomination(entries)) {
-        const blockEnd = blockEnds.get(group.key);
-        if (!blockEnd) continue;
-        runs.push({
-          sectionId: blockEnd.sectionId,
-          afterSortOrder: blockEnd.sortOrder,
-          opensBlocks: false,
-          mergedGroupLabel: blockEnd.mergedGroupLabel,
-          rows: await this.exitRows(
-            group.key,
-            group.entries,
-            rules,
-            limitCache,
-          ),
-        });
-      }
-      await this.insertRuns(runs, transaction);
+      });
+      if (!item) return;
+      await this.unschedule([item], transaction);
+      await this.appendWithin(competitionId, [entry], transaction);
     });
+  }
+
+  private async appendWithin(
+    competitionId: string,
+    entries: Entry[],
+    transaction: Transaction,
+  ): Promise<void> {
+    const rules = await this.rulesService.getRules(competitionId);
+    const limitCache = new LimitCache();
+    // Serializes concurrent submissions of one competition, so two late
+    // entries of the same block never read the same tail position.
+    await this.competitionModel.findByPk(competitionId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    const blockEnds = await this.lastBlockRows(
+      competitionId,
+      entries.map((entry) => this.nominationGroupKeyOf(entry)),
+      transaction,
+    );
+    const runs: ExitRun[] = [];
+    for (const group of this.groupByNomination(entries)) {
+      const blockEnd = blockEnds.get(group.key);
+      if (!blockEnd) continue;
+      runs.push({
+        sectionId: blockEnd.sectionId,
+        afterSortOrder: blockEnd.sortOrder,
+        opensBlocks: false,
+        mergedGroupLabel: blockEnd.mergedGroupLabel,
+        rows: await this.exitRows(group.key, group.entries, rules, limitCache),
+      });
+    }
+    await this.insertRuns(runs, transaction);
   }
 
   // nomination group key -> its block's last performance row in running

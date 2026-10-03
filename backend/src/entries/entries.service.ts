@@ -943,6 +943,9 @@ export class EntriesService {
         );
       },
     );
+    if (nominationChanged) {
+      await this.scheduleService.followNominationChange(competitionId, entry);
+    }
 
     return this.toStaffDetailsDto(entry);
   }

@@ -39,6 +39,7 @@ import {
 } from './category-source';
 import type { CategorySource } from './category-source';
 import { planNominationExits, DEFAULT_EXIT_MODE } from './nomination-exits';
+import { buildNominationLabel } from './nomination-naming';
 import type { NominationExit, NominationProgram } from './nomination-exits';
 import { isImprovisationNomination } from './is-improvisation-nomination';
 import { RECOMPUTE_ENTRIES_IMPROV_SQL } from './recompute-entries-improv.sql';
@@ -669,11 +670,24 @@ export class NominationsService {
     });
     // Entries keep a copy of the nomination's name, which the program,
     // start list and results print — a rename must reach them (TASK-15).
+    // A per-program exit keeps its style after the new name.
     if (renamed) {
-      await this.entryModel.update(
-        { nomination: nomination.name },
-        { where: { nominationId: nomination.id } },
-      );
+      const programs = await this.entryModel.findAll({
+        where: { nominationId: nomination.id },
+        attributes: ['program'],
+        group: ['program'],
+      });
+      for (const { program } of programs) {
+        await this.entryModel.update(
+          {
+            nomination: buildNominationLabel({
+              axisNames: [nomination.name],
+              programName: program,
+            }),
+          },
+          { where: { nominationId: nomination.id, program } },
+        );
+      }
     }
     if (venueChanged) {
       await this.scheduleService.relocateToVenue(
