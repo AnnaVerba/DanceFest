@@ -1,8 +1,17 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '../../lib/http';
-import { getMusicExportJob, queueMusicExport } from '../../lib/musicExport';
 import {
+  cancelMusicExport,
+  getMusicExportJob,
+  queueMusicExport,
+} from '../../lib/musicExport';
+import {
+  MUSIC_EXPORT_CANCELLED_MESSAGE,
+  MUSIC_EXPORT_CANCELLING_LABEL,
+  MUSIC_EXPORT_CANCEL_FAILED_MESSAGE,
+  MUSIC_EXPORT_CANCEL_LABEL,
+  MUSIC_EXPORT_MISSING_LABEL,
   MUSIC_EXPORT_POLL_INTERVAL_MS,
   MUSIC_EXPORT_QUEUE_FAILED_MESSAGE,
   MUSIC_EXPORT_STATUS_FAILED_MESSAGE,
@@ -36,7 +45,9 @@ export default function MusicExportPanel({
     refetchInterval: (query) => {
       if (query.state.status === 'error') return false;
       const status = query.state.data?.status;
-      return status === 'completed' || status === 'failed'
+      return status === 'completed' ||
+        status === 'failed' ||
+        status === 'cancelled'
         ? false
         : MUSIC_EXPORT_POLL_INTERVAL_MS;
     },
@@ -66,6 +77,25 @@ export default function MusicExportPanel({
       setJobId(newJobId);
     },
   });
+
+  const cancelMutation = useMutation({
+    mutationFn: (id: string) => cancelMusicExport(id),
+    onSuccess: (cancelled, id) => {
+      queryClient.setQueryData(queryKeys.zipJob(id), cancelled);
+    },
+  });
+
+  const handleCancel = async () => {
+    if (!jobId) return;
+    setError(null);
+    try {
+      await cancelMutation.mutateAsync(jobId);
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : MUSIC_EXPORT_CANCEL_FAILED_MESSAGE,
+      );
+    }
+  };
 
   const handleStart = async () => {
     setError(null);
@@ -105,7 +135,21 @@ export default function MusicExportPanel({
           <div className={styles.progressTrack}>
             <div className={styles.progressFill} style={{ width: `${job.progress}%` }} />
           </div>
+          <button
+            type="button"
+            className={styles.btnSecondary}
+            onClick={handleCancel}
+            disabled={cancelMutation.isPending}
+          >
+            {cancelMutation.isPending
+              ? MUSIC_EXPORT_CANCELLING_LABEL
+              : MUSIC_EXPORT_CANCEL_LABEL}
+          </button>
         </div>
+      )}
+
+      {job?.status === 'cancelled' && (
+        <p className={styles.note}>{MUSIC_EXPORT_CANCELLED_MESSAGE}</p>
       )}
 
       {job?.status === 'completed' && job.fileUrl && (
@@ -126,16 +170,9 @@ export default function MusicExportPanel({
       )}
 
       {job?.missing && job.missing.length > 0 && (
-        <div className={styles.missing}>
-          <p>Без музики ({job.missing.length}):</p>
-          <ul>
-            {job.missing.map((track) => (
-              <li key={track.number}>
-                №{track.number} — {track.dancerName}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <p className={styles.missing}>
+          {MUSIC_EXPORT_MISSING_LABEL} {job.missing.length}
+        </p>
       )}
 
       {error && <p className={styles.error}>{error}</p>}

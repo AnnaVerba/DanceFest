@@ -19,6 +19,9 @@ import { CompetitionParticipantNumbersService } from '../competition-participant
 import { isImprovisationEntry } from '../tracks/is-improvisation-entry';
 import { buildTrackFileName, buildTrackNumberLabel } from './build-track-filename';
 import { LazyS3ObjectStream } from './lazy-s3-object-stream';
+import { existingObjectKeys } from './existing-object-keys';
+import { ExportCancellation } from './export-cancellation';
+import { ExportCancelledError } from './export-cancelled.error';
 import {
   MUSIC_EXPORT_QUEUE_NAME,
   MUSIC_EXPORTS_KEY_PREFIX,
@@ -54,9 +57,20 @@ export class MusicExportProcessor extends WorkerHost {
     const exportJob = await this.exportJobModel.findByPk(job.data.exportJobId);
     if (!exportJob) return;
 
+    // Only a still-queued job starts: one cancelled while waiting is skipped,
+    // and the conditional update keeps a cancel from being overwritten.
+    const [started] = await this.exportJobModel.update(
+      { status: 'processing' },
+      { where: { id: exportJob.id, status: 'queued' } },
+    );
+    if (started === 0) return;
+    exportJob.status = 'processing';
+
+    const cancellation = new ExportCancellation(
+      this.exportJobModel,
+      exportJob.id,
+    );
     try {
-      exportJob.status = 'processing';
-      await exportJob.save();
 
       const entries = await this.loadEntries(
         exportJob.competitionId,
@@ -71,6 +85,15 @@ export class MusicExportProcessor extends WorkerHost {
           entries.flatMap((entry) => entry.participantIds ?? []),
         );
 
+      // A track whose file is gone from storage counts as missing too.
+      const storedKeys = await existingObjectKeys(
+        this.s3.getClient(),
+        this.requireBucket(),
+        [...tracksByEntryId.values()].map((track) => track.objectKey),
+      );
+
+      await cancellation.throwIfCancelled();
+
       const missing: MissingTrack[] = [];
       const items: ExportItem[] = [];
       for (const entry of entries) {
@@ -78,7 +101,7 @@ export class MusicExportProcessor extends WorkerHost {
         if (isImprovisationEntry(entry)) continue;
 
         const track = tracksByEntryId.get(entry.id);
-        if (!track) {
+        if (!track || !storedKeys.has(track.objectKey)) {
           missing.push({ number: entry.number, dancerName: entry.routineName });
           continue;
         }
@@ -98,6 +121,7 @@ export class MusicExportProcessor extends WorkerHost {
       const objectKey = await this.buildAndUploadArchive(
         exportJob,
         items,
+        cancellation,
         (progress) => {
           exportJob.progress = progress;
           void exportJob.save();
@@ -113,10 +137,14 @@ export class MusicExportProcessor extends WorkerHost {
       );
       await exportJob.save();
     } catch (err) {
+      // The row already says cancelled — nothing failed.
+      if (err instanceof ExportCancelledError) return;
       exportJob.status = 'failed';
       exportJob.errorMessage = err instanceof Error ? err.message : String(err);
       await exportJob.save();
       throw err;
+    } finally {
+      cancellation.stop();
     }
   }
 
@@ -231,6 +259,7 @@ export class MusicExportProcessor extends WorkerHost {
   private async buildAndUploadArchive(
     exportJob: ExportJob,
     items: ExportItem[],
+    cancellation: ExportCancellation,
     onProgress: (percent: number) => void,
   ): Promise<string> {
     const bucket = this.requireBucket();
@@ -259,6 +288,13 @@ export class MusicExportProcessor extends WorkerHost {
     archive.on('error', (err) => {
       archiveError = err;
     });
+    // archiver does not listen for its sources' errors: an unhandled one
+    // would take the whole process down, and finalize() would never settle.
+    let failSource: (err: Error) => void = () => {};
+    const sourceFailed = new Promise<never>((_, reject) => {
+      failSource = reject;
+    });
+    sourceFailed.catch(() => {});
 
     try {
       let processed = 0;
@@ -267,13 +303,17 @@ export class MusicExportProcessor extends WorkerHost {
           bucket,
           key: item.track.objectKey,
         });
+        stream.once('error', failSource);
         archive.append(stream, { name: item.fileName });
         processed++;
         // Last 10% reserved for finalize()/upload flushing after the loop.
         onProgress(Math.round((processed / Math.max(items.length, 1)) * 90));
       }
 
-      await archive.finalize();
+      const finalized = archive.finalize();
+      finalized.catch(() => {});
+      cancellation.watch();
+      await Promise.race([finalized, sourceFailed, cancellation.cancelled]);
       if (archiveError) throw archiveError;
       await uploadDone;
     } catch (err) {

@@ -17,7 +17,7 @@ import {
   STORAGE_NOT_CONFIGURED_MESSAGE,
   OCP_BUCKET_ENV_KEY,
 } from '../uploads/uploads.constants';
-import { ExportJob } from './export-job.model';
+import { CANCELLABLE_EXPORT_JOB_STATUSES, ExportJob } from './export-job.model';
 import { CreateMusicExportDto } from './dto/create-music-export.dto';
 import {
   MUSIC_EXPORT_QUEUE_NAME,
@@ -68,6 +68,27 @@ export class MusicExportService {
     jobId: string,
     user: AuthenticatedUser,
   ): Promise<JobStatusResult> {
+    return this.statusOf(await this.loadAuthorizedJob(jobId, user));
+  }
+
+  // Stops a queued or running export; the worker notices on its next check.
+  // A job that already finished is left as it is.
+  async cancel(
+    jobId: string,
+    user: AuthenticatedUser,
+  ): Promise<JobStatusResult> {
+    const job = await this.loadAuthorizedJob(jobId, user);
+    if (CANCELLABLE_EXPORT_JOB_STATUSES.includes(job.status)) {
+      job.status = 'cancelled';
+      await job.save();
+    }
+    return this.statusOf(job);
+  }
+
+  private async loadAuthorizedJob(
+    jobId: string,
+    user: AuthenticatedUser,
+  ): Promise<ExportJob> {
     const job = await this.exportJobModel.findByPk(jobId);
     if (!job) {
       throw new NotFoundException(EXPORT_JOB_NOT_FOUND_MESSAGE);
@@ -80,7 +101,10 @@ export class MusicExportService {
       user.id,
       user.accessLevel,
     );
+    return job;
+  }
 
+  private async statusOf(job: ExportJob): Promise<JobStatusResult> {
     let fileUrl: string | undefined;
     if (job.status === 'completed' && job.objectKey && this.notExpired(job)) {
       fileUrl = await this.presignArchiveUrl(job.objectKey);

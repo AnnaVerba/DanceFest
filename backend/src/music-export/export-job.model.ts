@@ -15,8 +15,15 @@ export const EXPORT_JOB_STATUSES = [
   'processing',
   'completed',
   'failed',
+  'cancelled',
 ] as const;
 export type ExportJobStatus = (typeof EXPORT_JOB_STATUSES)[number];
+
+// The statuses an organizer can still cancel from.
+export const CANCELLABLE_EXPORT_JOB_STATUSES: readonly ExportJobStatus[] = [
+  'queued',
+  'processing',
+];
 
 export interface MissingTrack {
   number: number;

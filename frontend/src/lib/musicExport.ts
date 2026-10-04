@@ -1,6 +1,11 @@
 import { apiRequest } from './http';
 
-export type MusicExportJobStatus = 'queued' | 'processing' | 'completed' | 'failed';
+export type MusicExportJobStatus =
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
 
 export interface MissingTrack {
   number: number;
@@ -27,4 +32,11 @@ export function queueMusicExport(
 
 export function getMusicExportJob(jobId: string): Promise<MusicExportJob> {
   return apiRequest<MusicExportJob>(`/jobs/${jobId}`);
+}
+
+// Stops a queued or running export; returns the job as it stands after.
+export function cancelMusicExport(jobId: string): Promise<MusicExportJob> {
+  return apiRequest<MusicExportJob>(`/jobs/${jobId}/cancel`, {
+    method: 'POST',
+  });
 }

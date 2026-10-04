@@ -1,4 +1,12 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -30,5 +38,21 @@ export class JobsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.musicExportService.getStatus(jobId, user);
+  }
+
+  @ApiOperation({ summary: 'Cancel a queued or running music-export job' })
+  @ApiResponse({
+    status: 200,
+    description: 'The job status after the cancel (unchanged if already done).',
+  })
+  @ApiResponse({ status: 403, description: 'Not the owner/team admin.' })
+  @ApiResponse({ status: 404, description: 'No such job.' })
+  @Post('cancel')
+  @HttpCode(HttpStatus.OK)
+  cancel(
+    @Param('jobId') jobId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.musicExportService.cancel(jobId, user);
   }
 }
