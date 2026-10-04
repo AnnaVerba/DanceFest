@@ -49,3 +49,7 @@ export const NOMINATION_ENTRY_FILTER_REQUIRED_MESSAGE =
 // вирішив би, що обмежень немає, і показав би заявнику не те.
 export const CATEGORIES_NOT_LOADED_MESSAGE =
   'Категорії номінації не завантажені: спершу викличте loadCategories';
+
+// A name search matches word by word: «Тріо Бебі» finds «Тріо · Бебі · …».
+// The label separator's dot counts as a space, so pasting a full name works.
+export const NOMINATION_SEARCH_WORD_SPLIT = /[\s·]+/u;

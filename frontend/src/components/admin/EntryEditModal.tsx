@@ -3,12 +3,11 @@ import type { ChangeEvent, FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import Modal from './Modal';
 import EntryParticipantsField from './EntryParticipantsField';
+import EntryNominationField from './EntryNominationField';
 import { getEntry, updateEntry, uploadEntryTrack } from '../../lib/entries';
 import { AUDIO_ACCEPT } from '../../lib/uploads.constants';
 import { queryKeys } from '../../lib/queryKeys';
 import type { Entry } from '../../lib/entries';
-import { getNominations } from '../../lib/nominations';
-import type { Nomination } from '../../lib/nominations';
 import type {
   EntryDetails,
   EntryParticipant,
@@ -48,6 +47,8 @@ interface EntryMusic {
 interface EntryForm {
   routineName: string;
   nominationId: string;
+  // Display only — the form saves the id.
+  nominationName: string;
   participants: EntryParticipant[];
   studioName: string;
   choreographer: string;
@@ -60,6 +61,7 @@ function toForm(entry: EntryDetails): EntryForm {
   return {
     routineName: entry.routineName,
     nominationId: entry.nominationId ?? '',
+    nominationName: entry.nomination,
     participants: entry.participants,
     studioName: entry.studioName ?? '',
     choreographer: entry.choreographer ?? '',
@@ -80,18 +82,14 @@ export default function EntryEditModal({
   const [music, setMusic] = useState<EntryMusic | null>(null);
   const [musicError, setMusicError] = useState<string | null>(null);
   const [uploadingMusic, setUploadingMusic] = useState(false);
-  const [nominations, setNominations] = useState<Nomination[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      getEntry(competitionId, entryId),
-      getNominations(competitionId),
-    ])
-      .then(([entry, noms]) => {
+    getEntry(competitionId, entryId)
+      .then((entry) => {
         if (cancelled) return;
         setForm(toForm(entry));
         setMusic({
@@ -99,7 +97,6 @@ export default function EntryEditModal({
           name: entry.musicName ?? null,
           url: entry.musicUrl ?? null,
         });
-        setNominations(noms);
       })
       .catch(() => {
         if (!cancelled) setLoadError(ENTRY_LOAD_FAILED_MESSAGE);
@@ -198,24 +195,16 @@ export default function EntryEditModal({
             />
           </div>
 
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="entry-nomination">
-              Номінація
-            </label>
-            <select
-              id="entry-nomination"
-              className={styles.input}
-              value={form.nominationId}
-              onChange={(e) => patch({ nominationId: e.target.value })}
-            >
-              {!form.nominationId && <option value="">—</option>}
-              {nominations.map((n) => (
-                <option key={n.id} value={n.id}>
-                  {n.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <EntryNominationField
+            competitionId={competitionId}
+            currentName={form.nominationName}
+            onPick={(nomination) =>
+              patch({
+                nominationId: nomination.id,
+                nominationName: nomination.name,
+              })
+            }
+          />
 
           <EntryParticipantsField
             selected={form.participants}

@@ -64,6 +64,7 @@ import {
   DEFAULT_NOMINATIONS_PAGE_SIZE,
   LIST_QUERY_SEPARATOR,
   MAX_NOMINATIONS_PAGE_SIZE,
+  NOMINATION_SEARCH_WORD_SPLIT,
   UNASSIGNED_VENUE_QUERY_VALUE,
 } from './nominations.constants';
 import {
@@ -128,9 +129,17 @@ export class NominationsService {
   async listPublic(competitionId: string, rawQuery?: string) {
     await this.assertCompetitionExists(competitionId);
     const q = rawQuery?.trim();
+    const words = (q ?? '')
+      .split(NOMINATION_SEARCH_WORD_SPLIT)
+      .filter((word) => word.length > 0);
     const nominations = await this.nominationModel.findAll({
       where: q
-        ? { competitionId, name: { [Op.iLike]: `%${q}%` } }
+        ? {
+            competitionId,
+            [Op.and]: words.map((word) => ({
+              name: { [Op.iLike]: `%${word}%` },
+            })),
+          }
         : { competitionId },
       order: [['createdAt', 'ASC']],
       limit: q ? TYPEAHEAD_LIMIT : undefined,
