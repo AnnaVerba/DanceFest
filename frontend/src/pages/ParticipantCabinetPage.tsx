@@ -3,6 +3,7 @@ import type { ChangeEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
 import CabinetLayout from '../components/CabinetLayout';
+import NoticeDialog from '../components/admin/NoticeDialog';
 import { getSession, getToken } from '../lib/auth';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import { getMyEntries, uploadEntryTrack } from '../lib/entries';
@@ -22,6 +23,8 @@ import {
   ENTRY_GRAND_TOTAL_LABEL,
   ENTRY_PARTICIPANT_TOTALS_LABEL,
   ENTRY_TOTAL_LABEL,
+  MUSIC_UPLOAD_FAILED_MESSAGE,
+  MUSIC_UPLOAD_FAILED_TITLE,
 } from './ParticipantCabinetPage.constants';
 import styles from './ParticipantCabinetPage.module.css';
 
@@ -61,9 +64,7 @@ export default function ParticipantCabinetPage() {
   });
   const myEntries = entriesQuery.data ?? null;
   const loading = entriesQuery.isLoading;
-  const error = entriesQuery.isError
-    ? 'Не вдалося завантажити заявки.'
-    : uploadError;
+  const error = entriesQuery.isError ? 'Не вдалося завантажити заявки.' : null;
 
   const groups = useMemo(
     () => groupByCompetition(myEntries ?? []),
@@ -97,7 +98,7 @@ export default function ParticipantCabinetPage() {
       }
     } catch (err) {
       setUploadError(
-        err instanceof Error ? err.message : 'Не вдалося зберегти музику.',
+        err instanceof Error ? err.message : MUSIC_UPLOAD_FAILED_MESSAGE,
       );
     }
   };
@@ -228,6 +229,12 @@ export default function ParticipantCabinetPage() {
           )}
         </section>
       </div>
+      <NoticeDialog
+        open={uploadError !== null}
+        title={MUSIC_UPLOAD_FAILED_TITLE}
+        message={uploadError ?? ''}
+        onClose={() => setUploadError(null)}
+      />
     </CabinetLayout>
   );
 }

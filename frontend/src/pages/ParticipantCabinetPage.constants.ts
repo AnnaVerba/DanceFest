@@ -15,3 +15,6 @@ export const ENTRY_COLUMN_COUNT_BEFORE_AMOUNT =
 export const ENTRY_TOTAL_LABEL = 'Разом';
 export const ENTRY_PARTICIPANT_TOTALS_LABEL = 'Сума по учасниках';
 export const ENTRY_GRAND_TOTAL_LABEL = 'Загальна сума';
+
+export const MUSIC_UPLOAD_FAILED_TITLE = 'Музику не збережено';
+export const MUSIC_UPLOAD_FAILED_MESSAGE = 'Не вдалося зберегти музику.';

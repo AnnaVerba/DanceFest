@@ -10,3 +10,9 @@ export const PDF_ACCEPT = 'application/pdf';
 // ALLOWED_TRACK_MIME_TYPES) keeps the picker usable there without widening what
 // other browsers offer.
 export const AUDIO_ACCEPT = '.mp3,.wav,audio/mpeg,audio/wav,audio/x-wav';
+
+// The backend's code for a track change after registration closed — only
+// the competition's organizer may change music then.
+export const MUSIC_LOCKED_CODE = 'MUSIC_LOCKED';
+export const MUSIC_LOCKED_MESSAGE =
+  'Реєстрацію завершено — змінити музику тепер може лише організатор конкурсу.';

@@ -3,6 +3,7 @@ import { authorizedFetch } from './auth';
 import { GENERIC_REQUEST_ERROR_MESSAGE } from './api.constants';
 import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
 import { publicRequest } from './http';
+import { MUSIC_LOCKED_CODE, MUSIC_LOCKED_MESSAGE } from './uploads.constants';
 import { withPageParams } from './pagination';
 import type { Paged } from './pagination';
 import type { EntryStats } from './entryStats.types';
@@ -197,8 +198,9 @@ export async function uploadEntryTrack(
     | null;
 
   if (!response.ok) {
+    const message = extractMessage(payload, GENERIC_REQUEST_ERROR_MESSAGE);
     throw new EntryApiError(
-      extractMessage(payload, GENERIC_REQUEST_ERROR_MESSAGE),
+      message === MUSIC_LOCKED_CODE ? MUSIC_LOCKED_MESSAGE : message,
       response.status,
     );
   }
