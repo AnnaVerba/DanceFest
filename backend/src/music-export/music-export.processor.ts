@@ -5,6 +5,7 @@ import { Job } from 'bullmq';
 import { Op } from 'sequelize';
 import { Upload } from '@aws-sdk/lib-storage';
 import { PassThrough } from 'stream';
+import { once } from 'events';
 import { Entry } from '../entries/entry.model';
 import { Nomination } from '../nominations/nomination.model';
 import { Category } from '../categories/category.model';
@@ -297,6 +298,7 @@ export class MusicExportProcessor extends WorkerHost {
     sourceFailed.catch(() => {});
 
     try {
+      cancellation.watch();
       let processed = 0;
       for (const item of items) {
         const stream = new LazyS3ObjectStream(this.s3.getClient(), {
@@ -304,7 +306,12 @@ export class MusicExportProcessor extends WorkerHost {
           key: item.track.objectKey,
         });
         stream.once('error', failSource);
+        // archiver pipes every appended stream at once, which would fire all
+        // GetObjects together and exhaust the S3 socket pool — so the next
+        // track is appended only after the previous one is fully zipped.
+        const entryWritten = once(archive, 'entry');
         archive.append(stream, { name: item.fileName });
+        await Promise.race([entryWritten, sourceFailed, cancellation.cancelled]);
         processed++;
         // Last 10% reserved for finalize()/upload flushing after the loop.
         onProgress(Math.round((processed / Math.max(items.length, 1)) * 90));
@@ -312,7 +319,6 @@ export class MusicExportProcessor extends WorkerHost {
 
       const finalized = archive.finalize();
       finalized.catch(() => {});
-      cancellation.watch();
       await Promise.race([finalized, sourceFailed, cancellation.cancelled]);
       if (archiveError) throw archiveError;
       await uploadDone;
