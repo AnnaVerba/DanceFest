@@ -15,6 +15,7 @@ import {
   ENTRIES_SERVER_PAGE,
   IMPROV_MUSIC_LABEL,
   MUSIC_COLUMN_COUNT,
+  NAME_COLLATION_LOCALE,
   NO_MUSIC_LABEL,
   NO_PAYMENT_METHOD_LABEL,
   PAGE_SIZE,
@@ -71,6 +72,8 @@ export default function EntriesPanel({
   const [ageCategory, setAgeCategory] = useState(ALL);
   const [league, setLeague] = useState(ALL);
   const [program, setProgram] = useState(ALL);
+  const [coach, setCoach] = useState(ALL);
+  const [studio, setStudio] = useState(ALL);
   const [sort, setSort] = useState<SortKey>('number');
   const [page, setPage] = useState(1);
 
@@ -158,6 +161,20 @@ export default function EntriesPanel({
     () => uniqueValues(entries ?? [], (e) => e.program),
     [entries],
   );
+  const coaches = useMemo(
+    () =>
+      uniqueValues(entries ?? [], (e) => e.choreographer).sort((a, b) =>
+        a.localeCompare(b, NAME_COLLATION_LOCALE),
+      ),
+    [entries],
+  );
+  const studios = useMemo(
+    () =>
+      uniqueValues(entries ?? [], (e) => e.studioName).sort((a, b) =>
+        a.localeCompare(b, NAME_COLLATION_LOCALE),
+      ),
+    [entries],
+  );
 
   const filtered = useMemo(() => {
     if (!entries) return [];
@@ -166,6 +183,8 @@ export default function EntriesPanel({
       if (ageCategory !== ALL && e.ageCategory !== ageCategory) return false;
       if (league !== ALL && e.league !== league) return false;
       if (program !== ALL && e.program !== program) return false;
+      if (coach !== ALL && e.choreographer !== coach) return false;
+      if (studio !== ALL && e.studioName !== studio) return false;
       if (!query) return true;
       return (
         e.routineName.toLowerCase().includes(query) ||
@@ -191,7 +210,7 @@ export default function EntriesPanel({
       sorted.sort((a, b) => a.number - b.number);
     }
     return sorted;
-  }, [entries, search, ageCategory, league, program, sort]);
+  }, [entries, search, ageCategory, league, program, coach, studio, sort]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -252,6 +271,32 @@ export default function EntriesPanel({
         >
           <option value={ALL}>Усі програми</option>
           {programs.map((v) => (
+            <option key={v} value={v}>
+              {v}
+            </option>
+          ))}
+        </select>
+        <select
+          className={styles.field}
+          aria-label="Тренер"
+          value={coach}
+          onChange={(e) => resetPage(setCoach)(e.target.value)}
+        >
+          <option value={ALL}>Усі тренери</option>
+          {coaches.map((v) => (
+            <option key={v} value={v}>
+              {v}
+            </option>
+          ))}
+        </select>
+        <select
+          className={styles.field}
+          aria-label="Студія"
+          value={studio}
+          onChange={(e) => resetPage(setStudio)(e.target.value)}
+        >
+          <option value={ALL}>Усі студії</option>
+          {studios.map((v) => (
             <option key={v} value={v}>
               {v}
             </option>

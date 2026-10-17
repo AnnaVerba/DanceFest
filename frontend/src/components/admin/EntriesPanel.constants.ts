@@ -22,6 +22,9 @@ export const MUSIC_COLUMN_COUNT = 1;
 export const IMPROV_MUSIC_LABEL = 'Імпровізація';
 export const NO_MUSIC_LABEL = '—';
 
+// Coach and studio dropdowns list names alphabetically in this locale.
+export const NAME_COLLATION_LOCALE = 'uk';
+
 export type SortKey = 'number' | 'name' | 'score' | 'newest';
 
 export const SORT_LABELS: Record<SortKey, string> = {
