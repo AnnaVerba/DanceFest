@@ -13,12 +13,13 @@ export interface ProgramNominationLine {
   name: string;
 }
 
-// One performance: participant numbers, performer and "студія керівник".
+// One performance: participant numbers, performer and their head / trainer.
+// The studio is left out of the programme (TASK-15).
 export interface ProgramPerformerLine {
   kind: typeof PROGRAM_LINE_KIND.PERFORMER;
   participantNumbers: string;
   performer: string;
-  studioLeader: string;
+  leaders: string;
 }
 
 export type ProgramSheetLine =

@@ -19,7 +19,6 @@ export interface PublicProgramRow {
   // Only on `exit` rows.
   participantNumbers?: (number | null)[];
   routineName?: string | null;
-  studioName?: string | null;
   choreographer?: string | null;
   instructorName?: string | null;
   durationSeconds?: number | null;

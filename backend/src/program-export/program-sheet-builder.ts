@@ -25,7 +25,7 @@ import {
   SHEET_NAME_SEPARATOR,
   SHEET_TIME_RANGE_SEPARATOR,
   LEADER_ROLE_LABEL,
-  STUDIO_LEADER_SEPARATOR,
+  LEADERS_SEPARATOR,
   TRAINER_ROLE_LABEL,
   VENUE_UNASSIGNED_LABEL,
 } from './program-excel.constants';
@@ -71,22 +71,14 @@ function participantNumbersOf(item: ExtendedProgramItem): string {
 function leadersOf(item: ExtendedProgramItem): string {
   const { choreographer: head, instructorName: trainer } = item;
   if (head && head === trainer) {
-    return `${LEADER_ROLE_LABEL}${STUDIO_LEADER_SEPARATOR}${TRAINER_ROLE_LABEL} ${head}`;
+    return `${LEADER_ROLE_LABEL}${LEADERS_SEPARATOR}${TRAINER_ROLE_LABEL} ${head}`;
   }
   return [
     head ? `${LEADER_ROLE_LABEL} ${head}` : null,
     trainer ? `${TRAINER_ROLE_LABEL} ${trainer}` : null,
   ]
     .filter(Boolean)
-    .join(STUDIO_LEADER_SEPARATOR);
-}
-
-// "Жасмин, керівник Анна Бондар, тренер Марія Шевченко" — the studio, then
-// its people with their roles; each part only when the entry has it.
-function studioLeaderOf(item: ExtendedProgramItem): string {
-  return [item.studioName, leadersOf(item)]
-    .filter(Boolean)
-    .join(STUDIO_LEADER_SEPARATOR);
+    .join(LEADERS_SEPARATOR);
 }
 
 // A section's lines in running order. Nominations are numbered per section
@@ -118,7 +110,7 @@ function linesOf(section: ExtendedProgramSection): ProgramSheetLine[] {
       kind: PROGRAM_LINE_KIND.PERFORMER,
       participantNumbers: participantNumbersOf(item),
       performer: item.routineName ?? EMPTY_CELL,
-      studioLeader: studioLeaderOf(item),
+      leaders: leadersOf(item),
     });
   }
   return lines;

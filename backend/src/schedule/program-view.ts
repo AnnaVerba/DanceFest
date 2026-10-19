@@ -22,11 +22,10 @@ export interface PublicProgramRow {
   // Set only on `group` rows: the category's position within its section.
   categoryNumber?: number;
   // Set only on `exit` rows — the program lists every performance with the
-  // participant number(s), the routine, the studio and coach, and its
-  // on-stage length (see docs/AppDescription.docx).
+  // participant number(s), the routine, its head and trainer, and its
+  // on-stage length. Which studio a dancer is from is not shown (TASK-15).
   participantNumbers?: (number | null)[];
   routineName?: string | null;
-  studioName?: string | null;
   choreographer?: string | null;
   instructorName?: string | null;
   durationSeconds?: number | null;
@@ -199,7 +198,6 @@ export function buildPublicProgram(
         venueId: section.venueId,
         participantNumbers: item.exit?.participantNumbers ?? [],
         routineName: item.exit?.routineName ?? null,
-        studioName: item.exit?.studioName ?? null,
         choreographer: item.exit?.choreographer ?? null,
         instructorName: item.exit?.instructorName ?? null,
         durationSeconds: item.durationSeconds,

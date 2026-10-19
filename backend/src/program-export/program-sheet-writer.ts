@@ -3,7 +3,7 @@ import {
   COLUMN_NOMINATION_NUMBER,
   COLUMN_PARTICIPANT_NUMBERS,
   COLUMN_PERFORMER,
-  COLUMN_STUDIO_LEADER,
+  COLUMN_LEADERS,
   EMPTY_CELL,
   PROGRAM_LINE_KIND,
   SHEET_BODY_FONT_SIZE,
@@ -135,7 +135,7 @@ export class ProgramSheetWriter {
       [COLUMN_NOMINATION_NUMBER, EMPTY_CELL],
       [COLUMN_PARTICIPANT_NUMBERS, line.participantNumbers],
       [COLUMN_PERFORMER, line.performer],
-      [COLUMN_STUDIO_LEADER, line.studioLeader],
+      [COLUMN_LEADERS, line.leaders],
     ];
     for (const [column, value] of values) {
       const cell = row.getCell(column);
@@ -147,7 +147,7 @@ export class ProgramSheetWriter {
       horizontal: 'right',
       vertical: 'middle',
     };
-    for (const column of [COLUMN_PERFORMER, COLUMN_STUDIO_LEADER]) {
+    for (const column of [COLUMN_PERFORMER, COLUMN_LEADERS]) {
       row.getCell(column).alignment = {
         horizontal: 'left',
         vertical: 'middle',

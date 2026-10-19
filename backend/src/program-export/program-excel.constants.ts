@@ -55,20 +55,21 @@ export const CLOCK_SEPARATOR = ':';
 export const CLOCK_PART_LENGTH = 2;
 export const CLOCK_PAD = '0';
 export const HOURS_PER_DAY = 24;
-// Studio and its people share one cell:
-// "Жасмин, керівник Анна Бондар, тренер Марія Шевченко".
-export const STUDIO_LEADER_SEPARATOR = ', ';
+// Head and trainer share one cell, each with their role:
+// "керівник Анна Бондар, тренер Марія Шевченко". The studio is left out of
+// the programme (TASK-15).
+export const LEADERS_SEPARATOR = ', ';
 export const LEADER_ROLE_LABEL = 'керівник';
 export const TRAINER_ROLE_LABEL = 'тренер';
 export const EMPTY_CELL = '';
 
-// Four columns: nomination №, participant №, performer, studio + leader.
+// Four columns: nomination №, participant №, performer, head / trainer.
 // Widths are in Excel character units; positions are 1-based.
 export const SHEET_COLUMN_WIDTHS = [7, 8, 42, 55];
 export const COLUMN_NOMINATION_NUMBER = 1;
 export const COLUMN_PARTICIPANT_NUMBERS = 2;
 export const COLUMN_PERFORMER = 3;
-export const COLUMN_STUDIO_LEADER = 4;
+export const COLUMN_LEADERS = 4;
 export const SHEET_FIRST_COLUMN = 'A';
 export const SHEET_LAST_COLUMN = 'D';
 export const SHEET_NOMINATION_FIRST_COLUMN = 'B';
