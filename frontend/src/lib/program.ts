@@ -21,6 +21,7 @@ export interface PublicProgramRow {
   routineName?: string | null;
   studioName?: string | null;
   choreographer?: string | null;
+  instructorName?: string | null;
   durationSeconds?: number | null;
 }
 
@@ -60,6 +61,7 @@ export interface ExtendedProgramItem {
   routineName: string | null;
   studioName: string | null;
   choreographer: string | null;
+  instructorName: string | null;
   effectiveDurationSeconds: number | null;
   overageSeconds: number;
   purchasedSeconds: number;
@@ -114,38 +116,6 @@ export function getPublicProgram(
 ): Promise<RowPaged<PublicProgramRow>> {
   return publicRequest<RowPaged<PublicProgramRow>>(
       programUrl(competitionId, 'program', query),
-  );
-}
-
-// Every published section's header row, no performances. Rejects with a
-// 404 until the program is published.
-export function getPublicProgramOutline(
-  competitionId: string,
-): Promise<PublicProgramRow[]> {
-  return publicRequest<PublicProgramRow[]>(
-    `/competitions/${competitionId}/program/outline`,
-  );
-}
-
-// One published section: its header row followed by its performances.
-export function getPublicProgramSection(
-  competitionId: string,
-  sectionId: string,
-): Promise<PublicProgramRow[]> {
-  return publicRequest<PublicProgramRow[]>(
-    `/competitions/${competitionId}/program/sections/${sectionId}`,
-  );
-}
-
-// Every published section holding a performer or number matching `query`,
-// in full.
-export function searchPublicProgram(
-  competitionId: string,
-  query: string,
-): Promise<PublicProgramRow[]> {
-  const params = new URLSearchParams({ q: query });
-  return publicRequest<PublicProgramRow[]>(
-    `/competitions/${competitionId}/program/search?${params.toString()}`,
   );
 }
 

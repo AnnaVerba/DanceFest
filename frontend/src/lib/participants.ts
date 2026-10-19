@@ -15,6 +15,21 @@ export interface Participant {
   updatedAt: string;
 }
 
+// A dancer of one of the studio's trainers, as their studio head sees them.
+export interface StudioDancer extends Participant {
+  trainerId: string | null;
+  trainerName: string | null;
+}
+
+// A trainer of the studio, as their studio head sees them.
+export interface StudioTrainer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string | null;
+}
+
 export interface NewParticipant {
   firstName: string;
   lastName: string;
@@ -74,6 +89,28 @@ export function getParticipants(query?: string): Promise<Participant[]> {
   const q = query?.trim();
   const suffix = q ? `?q=${encodeURIComponent(q)}` : '';
   return request<Participant[]>(`/users/participants${suffix}`);
+}
+
+// Who the apply form may enter: a coach's roster plus, for a studio
+// head, the trainers of their studio; for an organizer, a name search over
+// every participant.
+export function getApplicableParticipants(
+  query?: string,
+): Promise<Participant[]> {
+  const q = query?.trim();
+  const suffix = q ? `?q=${encodeURIComponent(q)}` : '';
+  return request<Participant[]>(`/users/participants/applicable${suffix}`);
+}
+
+// A studio head's read-only view of the dancers their studio's trainers
+// train.
+export function getStudioTrainersDancers(): Promise<StudioDancer[]> {
+  return request<StudioDancer[]>('/users/participants/studio');
+}
+
+// A studio head's list of their studio's trainers.
+export function getStudioTrainers(): Promise<StudioTrainer[]> {
+  return request<StudioTrainer[]>('/users/studio/trainers');
 }
 
 export function createParticipant(input: NewParticipant): Promise<Participant> {

@@ -8,6 +8,7 @@ import {
 } from 'sequelize-typescript';
 import { School } from '../schools/school.model';
 import { AccessLevel, ACCESS_LEVELS } from '../auth/access-level.enum';
+import { StudioRole, STUDIO_ROLES } from './studio-role.enum';
 
 @Table({ tableName: 'users' })
 export class User extends Model<User> {
@@ -64,6 +65,11 @@ export class User extends Model<User> {
   @ForeignKey(() => User)
   @Column({ type: DataType.UUID, allowNull: true })
   declare coachId: string | null;
+
+  // Head or trainer of `school`. Survives an upgrade to ORGANIZER, unlike
+  // the access level (see studioRoleAfter).
+  @Column({ type: DataType.ENUM(...STUDIO_ROLES), allowNull: true })
+  declare studioRole: StudioRole | null;
 
   @BelongsTo(() => School)
   declare school: School | null;

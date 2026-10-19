@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { SchoolsService } from './schools.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
+import { Public } from '../auth/public.decorator';
 
 @ApiTags('schools')
 @Controller('schools')
@@ -10,6 +11,8 @@ export class SchoolsController {
 
   @ApiOperation({ summary: 'Search schools by name (typeahead, needs q)' })
   @ApiResponse({ status: 200, description: 'Matching schools returned.' })
+  // Public: a trainer picks their studio on /register, before any session.
+  @Public()
   @Get()
   search(@Query('q') q?: string) {
     return this.schoolsService.search(q);
@@ -21,6 +24,7 @@ export class SchoolsController {
     status: 404,
     description: 'No school exists with the given id.',
   })
+  @Public()
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.schoolsService.findByIdOrFail(id);
@@ -36,6 +40,9 @@ export class SchoolsController {
     status: 409,
     description: 'A school with this name already exists.',
   })
+  // Public: a studio head adds a new studio on /register, before any
+  // session. A name already taken is refused.
+  @Public()
   @Post()
   create(@Body() dto: CreateSchoolDto) {
     return this.schoolsService.create(dto);

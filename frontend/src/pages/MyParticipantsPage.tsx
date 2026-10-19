@@ -1,8 +1,9 @@
 import { Navigate } from 'react-router-dom';
 import CabinetLayout from '../components/CabinetLayout';
 import CoachRoster from '../components/CoachRoster';
+import StudioTrainersRoster from '../components/StudioTrainersRoster';
 import { getSession, getToken } from '../lib/auth';
-import { ACCESS_LEVEL } from '../lib/roles';
+import { ACCESS_LEVEL, isStudioStaff } from '../lib/roles';
 import styles from './MyParticipantsPage.module.css';
 
 export default function MyParticipantsPage() {
@@ -11,7 +12,7 @@ export default function MyParticipantsPage() {
   if (!getToken() || !session) {
     return <Navigate to="/login" replace />;
   }
-  if (session.profile.accessLevel !== ACCESS_LEVEL.COACH) {
+  if (!isStudioStaff(session.profile.accessLevel)) {
     return <Navigate to="/profile" replace />;
   }
 
@@ -19,6 +20,11 @@ export default function MyParticipantsPage() {
     <CabinetLayout>
       <h1 className={styles.title}>Мої учасники</h1>
       <CoachRoster />
+      {session.profile.accessLevel === ACCESS_LEVEL.COACH && (
+        <div className={styles.studioRoster}>
+          <StudioTrainersRoster />
+        </div>
+      )}
     </CabinetLayout>
   );
 }

@@ -7,6 +7,9 @@ export const FINANCE_TOTAL_LABEL = 'Загальна сума по конкур�
 export const FINANCE_UNSPECIFIED_NAME = 'Не вказано';
 export const FINANCE_ENTRIES_COUNT_LABEL = 'Заявок';
 export const FINANCE_AMOUNT_LABEL = 'Сума';
+export const FINANCE_HEAD_OWN_DANCERS_NAME = 'Власні учні керівника';
+export const FINANCE_SHOW_TRAINERS_LABEL = 'Показати суми по тренерах';
+export const FINANCE_HIDE_TRAINERS_LABEL = 'Сховати суми по тренерах';
 
 // Name, Заявок, Сума — spans the "no matches" row across the table.
 export const FINANCE_COLUMN_COUNT = 3;

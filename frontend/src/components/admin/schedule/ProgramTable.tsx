@@ -5,6 +5,9 @@ import {
   EXIT_BLOCK_KEY_SEPARATOR,
   FOREIGN_VENUE_WARNING_HINT,
   FOREIGN_VENUE_WARNING_PREFIX,
+  MANUAL_ROW_LABEL_DRAFT_PREFIX,
+  MANUAL_ROW_LABEL_PLACEHOLDER,
+  MANUAL_ROW_LABEL_SEPARATOR,
   MERGED_BLOCK_KEY_PREFIX,
   VENUE_LIST_SEPARATOR,
 } from './programTable.constants';
@@ -30,6 +33,25 @@ import {
 } from '../../../lib/programNumbers.constants';
 import { formatMarkedNominationNumber } from '../../../lib/programNumbers';
 import DurationMarks from '../../program/DurationMarks';
+import { formatLeaders } from '../../../lib/programRowFormat';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import SortableBlockBody from './SortableBlockBody';
+import BlockDragHandle from './BlockDragHandle';
+import { BLOCK_DRAG_ACTIVATION_DISTANCE_PX } from './sortableBlock.constants';
 import styles from './program.module.css';
 
 interface ProgramTableProps {
@@ -130,6 +152,14 @@ export default function ProgramTable({
   const tech = view === 'tech';
   const needle = search.trim().toLowerCase();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const dragSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: BLOCK_DRAG_ACTIVATION_DISTANCE_PX },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
   const colCount = tech ? 8 : 6;
   const dayLabel = (id: string) => {
     const day = days.find((d) => d.id === id);
@@ -159,6 +189,7 @@ export default function ProgramTable({
       item.exit?.routineName,
       item.exit?.studioName,
       item.exit?.choreographer,
+      item.exit?.instructorName,
     ]
       .filter(Boolean)
       .join(' ')
@@ -177,21 +208,41 @@ export default function ProgramTable({
     onReorderItems(section.id, award ? [...ids, award.id] : ids);
   };
 
-  // Swaps a whole nomination block with the adjacent block (single row or
-  // another nomination) within the same section, one step at a time —
-  // same up/down convention as moveItem, applied to a contiguous block.
-  const moveBlock = (section: Section, blockItemIds: string[], dir: -1 | 1) => {
-    const movable = section.items.filter((i) => i.type !== 'award');
-    const groups = groupSectionItems(movable).map((items) =>
-      items.map((i) => i.id),
+  // A section's movable blocks (single rows or whole nominations) as item
+  // ids, the pinned award row left out.
+  const movableBlocks = (section: Section) =>
+    groupSectionItems(section.items.filter((i) => i.type !== 'award')).map(
+      (items) => items.map((i) => i.id),
     );
-    const from = groups.findIndex((ids) => ids[0] === blockItemIds[0]);
-    const to = from + dir;
-    if (from < 0 || to < 0 || to >= groups.length) return;
-    [groups[from], groups[to]] = [groups[to], groups[from]];
-    const ids = groups.flat();
+  const blockIndexOf = (section: Section, firstItemId: string) =>
+    movableBlocks(section).findIndex((ids) => ids[0] === firstItemId);
+
+  // Moves a whole block to another position within the same section; the
+  // award stays last.
+  const moveBlockTo = (section: Section, from: number, to: number) => {
+    const groups = movableBlocks(section);
+    if (from < 0 || to < 0 || to >= groups.length || from === to) return;
+    const ids = arrayMove(groups, from, to).flat();
     const award = section.items.find((i) => i.type === 'award');
     onReorderItems(section.id, award ? [...ids, award.id] : ids);
+  };
+
+  // Swaps a whole nomination block with the adjacent block, one step at a
+  // time — same up/down convention as moveItem.
+  const moveBlock = (section: Section, blockItemIds: string[], dir: -1 | 1) => {
+    const from = blockIndexOf(section, blockItemIds[0]);
+    moveBlockTo(section, from, from + dir);
+  };
+
+  // A block dropped onto another block's place in the same section.
+  const dropBlock = (section: Section, event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+    moveBlockTo(
+      section,
+      blockIndexOf(section, String(active.id)),
+      blockIndexOf(section, String(over.id)),
+    );
   };
 
   const rowActions = (buttons: React.ReactNode) =>
@@ -312,7 +363,6 @@ export default function ProgramTable({
             )}
           </tr>
         </thead>
-        <tbody>
           {sections.map((section, sectionIndex) => {
             // Walk items in running order so a break inserted between two
             // nomination groups renders at its real place, not at the end.
@@ -379,6 +429,7 @@ export default function ProgramTable({
 
             return (
               <Fragment key={section.id}>
+                <tbody>
                 {newProgram && (
                   <tr className={styles.dayRow}>
                     <td colSpan={colCount}>
@@ -456,25 +507,67 @@ export default function ProgramTable({
                     </td>
                   </tr>
                 )}
+                </tbody>
 
-                {!sectionCollapsed &&
-                  blocks.map((block, blockIndex) => {
+                {!sectionCollapsed && (
+                  <DndContext
+                    sensors={dragSensors}
+                    collisionDetection={closestCenter}
+                    // Its screen-reader texts are <div>s, which a table may
+                    // not hold — they go to the page body instead.
+                    accessibility={{ container: document.body }}
+                    onDragEnd={(event) => dropBlock(section, event)}
+                  >
+                  <SortableContext
+                    items={moveGroups.map((g) => g[0].id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                  {blocks.map((block) => {
                   if (block.kind === 'award') {
-                    return renderServiceRow({
-                      key: block.item.id,
-                      section,
-                      label: 'Нагородження',
-                      time: block.item.time,
-                    });
+                    return (
+                      <tbody key={block.item.id}>
+                        {renderServiceRow({
+                          key: block.item.id,
+                          section,
+                          label: 'Нагородження',
+                          time: block.item.time,
+                        })}
+                      </tbody>
+                    );
                   }
                   if (block.kind === 'manual') {
                     const item = block.item;
-                    return renderServiceRow({
+                    const typeLabel =
+                      ROW_TYPE_LABELS[item.type as 'break' | 'gala'];
+                    const labelKey = `${MANUAL_ROW_LABEL_DRAFT_PREFIX}${item.id}`;
+                    return (
+                      <SortableBlockBody key={item.id} id={item.id} disabled={!editing}>
+                      {renderServiceRow({
                       key: item.id,
                       section,
-                      label: `${
-                        ROW_TYPE_LABELS[item.type as 'break' | 'gala']
-                      }${item.label ? ` · ${item.label}` : ''}`,
+                      label: editing ? (
+                        <>
+                          {typeLabel}
+                          {MANUAL_ROW_LABEL_SEPARATOR}
+                          <input
+                            className={styles.titleInput}
+                            placeholder={MANUAL_ROW_LABEL_PLACEHOLDER}
+                            value={draft(labelKey, item.label ?? '')}
+                            onChange={(e) => setDraft(labelKey, e.target.value)}
+                            onBlur={() => {
+                              const label = draft(labelKey, item.label ?? '').trim();
+                              if (!label || label === item.label) return;
+                              onUpdateRow(section.id, item.id, { label });
+                            }}
+                          />
+                        </>
+                      ) : (
+                        `${typeLabel}${
+                          item.label
+                            ? `${MANUAL_ROW_LABEL_SEPARATOR}${item.label}`
+                            : ''
+                        }`
+                      ),
                       time: item.time,
                       durationSeconds: item.durationSeconds,
                       editableDurationItemId: item.id,
@@ -503,7 +596,9 @@ export default function ProgramTable({
                           </button>
                         </>
                       ),
-                    });
+                    })}
+                      </SortableBlockBody>
+                    );
                   }
                   const group = block;
                   categoryNumber += 1;
@@ -534,15 +629,20 @@ export default function ProgramTable({
                     (g) => g[0].id === group.items[0].id,
                   );
                   return (
-                    // A manual row can split one nomination group into two
-                    // blocks with the same group.key — index keeps them apart.
-                    <Fragment key={`${group.key}-${blockIndex}`}>
+                    // Keyed by its first item, so a block keeps its identity
+                    // (and its drag animation) as the order changes.
+                    <SortableBlockBody
+                      key={group.items[0].id}
+                      id={group.items[0].id}
+                      disabled={!editing}
+                    >
                       <tr className={styles.blockRow}>
                         <td className={styles.blockF}>
                           {formatMarkedNominationNumber(number)}
                         </td>
-                        <td className={styles.blockCell} colSpan={5}>
+                        <td className={styles.blockCell} colSpan={4}>
                           <div className={styles.blockHead}>
+                            {editing && <BlockDragHandle />}
                             <button
                               type="button"
                               className={styles.collapseBtn}
@@ -595,6 +695,9 @@ export default function ProgramTable({
                               </span>
                             )}
                           </div>
+                        </td>
+                        <td className={styles.blockCell}>
+                          {renderTime(section, group.items[0].time)}
                         </td>
                         {tech && (
                           <>
@@ -691,7 +794,7 @@ export default function ProgramTable({
                               {item.exit?.routineName ?? '—'}
                             </td>
                             <td className={styles.td}>
-                              {item.exit?.choreographer ?? '—'}
+                              {(item.exit && formatLeaders(item.exit)) || '—'}
                             </td>
                             <td className={styles.td}>
                               {item.exit?.studioName ?? '—'}
@@ -759,13 +862,15 @@ export default function ProgramTable({
                             )}
                           </tr>
                         ))}
-                    </Fragment>
+                    </SortableBlockBody>
                   );
                 })}
+                  </SortableContext>
+                  </DndContext>
+                )}
               </Fragment>
             );
           })}
-        </tbody>
       </table>
     </div>
   );

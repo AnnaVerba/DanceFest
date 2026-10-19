@@ -13,6 +13,7 @@ import { FinanceGroup } from './finance-group.enum';
 import { FinanceGroupAccumulator } from './finance-group-accumulator';
 import {
   DEFAULT_FINANCE_PAGE_SIZE,
+  HEAD_OWN_DANCERS_KEY,
   FINANCE_ENTRY_ATTRIBUTES,
   MAX_FINANCE_PAGE_SIZE,
   UNSPECIFIED_GROUP_KEY,
@@ -72,7 +73,10 @@ export class FinanceService {
     const search = rawSearch?.trim().toLocaleLowerCase() ?? '';
     const rows = (await this.aggregate(group, priced)).filter(
       (row) =>
-        !search || (row.name?.toLocaleLowerCase().includes(search) ?? false),
+        !search ||
+        [row, ...(row.trainers ?? [])].some(
+          (named) => named.name?.toLocaleLowerCase().includes(search) ?? false,
+        ),
     );
     return {
       rows: rows.slice(offset, offset + limit),
@@ -119,14 +123,7 @@ export class FinanceService {
         await this.addParticipants(groups, priced);
         break;
       case FinanceGroup.TRAINERS:
-        for (const { entry, amount } of priced) {
-          groups.add(
-            entry.choreographer ?? UNSPECIFIED_GROUP_KEY,
-            entry.choreographer,
-            amount,
-          );
-        }
-        break;
+        return this.aggregateTrainers(priced);
       case FinanceGroup.STUDIOS:
         for (const { entry, amount } of priced) {
           groups.add(
@@ -138,6 +135,33 @@ export class FinanceService {
         break;
     }
     return groups.toRows();
+  }
+
+  // Per head, with what each of the studio's trainers' dancers owe inside.
+  private aggregateTrainers(priced: PricedEntry[]): FinanceGroupRow[] {
+    const heads = new FinanceGroupAccumulator();
+    const trainersByHead = new Map<string, FinanceGroupAccumulator>();
+    const headsWithTrainers = new Set<string>();
+    for (const { entry, amount } of priced) {
+      const headKey = entry.choreographer ?? UNSPECIFIED_GROUP_KEY;
+      heads.add(headKey, entry.choreographer, amount);
+      const trainers =
+        trainersByHead.get(headKey) ?? new FinanceGroupAccumulator();
+      // A head who trains the dancers themself is named as their trainer
+      // too; those still count as the head's own dancers.
+      const trainerName =
+        entry.instructorId === entry.trainerId ? null : entry.instructorName;
+      trainers.add(trainerName ?? HEAD_OWN_DANCERS_KEY, trainerName, amount);
+      trainersByHead.set(headKey, trainers);
+      if (trainerName) headsWithTrainers.add(headKey);
+    }
+    return heads
+      .toRows()
+      .map((row) =>
+        headsWithTrainers.has(row.key)
+          ? { ...row, trainers: trainersByHead.get(row.key)!.toRows() }
+          : row,
+      );
   }
 
   // Every dancer is charged their own share of the number (see EntryCharge).

@@ -5,8 +5,13 @@ import CabinetLayout from '../components/CabinetLayout';
 import LevelUpgrade from '../components/LevelUpgrade';
 import MentorCoachField from '../components/MentorCoachField';
 import ProfileEditModal from '../components/ProfileEditModal';
+import StudioTrainersList from '../components/StudioTrainersList';
 import { getSession, getToken } from '../lib/auth';
-import { ACCESS_LEVEL_LABELS, canHaveMentorCoach } from '../lib/roles';
+import {
+  ACCESS_LEVEL,
+  ACCESS_LEVEL_LABELS,
+  canHaveMentorCoach,
+} from '../lib/roles';
 import { getMyProfile } from '../lib/users';
 import { formatContestDate } from '../lib/homeContests';
 import { queryKeys } from '../lib/queryKeys';
@@ -95,6 +100,10 @@ export default function ProfilePage() {
           )}
 
           <LevelUpgrade session={session} />
+
+          {profile.accessLevel === ACCESS_LEVEL.COACH && (
+            <StudioTrainersList />
+          )}
 
           {/* Keyed by coach id so it reloads after the coach is changed. */}
           {canHaveMentorCoach(profile.accessLevel) && (

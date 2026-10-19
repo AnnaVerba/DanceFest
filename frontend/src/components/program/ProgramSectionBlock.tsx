@@ -6,13 +6,11 @@ import {
   formatStudioAndLeader,
   formatTimeRange,
 } from '../../lib/programRowFormat';
+import { formatClock } from '../../lib/duration';
 import {
-  CHEVRON_COLLAPSED,
-  CHEVRON_EXPANDED,
   EMPTY_ROUTINE_NAME,
   LABEL_SEPARATOR,
   MINE_MARK_TAGS,
-  PROGRAM_LOADING_LABEL,
   SERVICE_ROW_LABELS,
 } from './FestivalProgram.constants';
 import { formatMarkedNominationNumber } from '../../lib/programNumbers';
@@ -20,11 +18,7 @@ import styles from './FestivalProgram.module.css';
 
 interface ProgramSectionBlockProps {
   section: ProgramSection;
-  expanded: boolean;
-  // Its performances have not arrived yet.
-  loading: boolean;
   marks: SectionMarks;
-  onToggle: (sectionId: string) => void;
 }
 
 // A colour and a tag, so the highlight survives both themes and a
@@ -63,6 +57,7 @@ function renderRow(
         )}
         <span className={styles.grow}>{row.label}</span>
         {mark && <MarkTag mark={mark} />}
+        <span className={styles.groupTime}>{formatClock(row.time)}</span>
       </div>
     );
   }
@@ -93,42 +88,25 @@ function renderRow(
   );
 }
 
-// One collapsible programme section: only its name and start – end time
-// show until it is opened. The viewer's nominations are highlighted, and so
-// is a section holding any, so they know which one to open.
+// One programme section, shown whole: its name and start – end time, then
+// every nomination with its clock time. The viewer's nominations are
+// highlighted, and so is a section holding any.
 export default function ProgramSectionBlock({
   section,
-  expanded,
-  loading,
   marks,
-  onToggle,
 }: ProgramSectionBlockProps) {
   return (
     <div id={section.id} className={styles.section}>
-      <button
-        type="button"
-        className={styles.sectionToggle}
-        aria-expanded={expanded}
-        onClick={() => onToggle(section.id)}
-      >
-        <span className={styles.sectionStart}>
-          <span className={styles.chevron} aria-hidden="true">
-            {expanded ? CHEVRON_EXPANDED : CHEVRON_COLLAPSED}
-          </span>
-          <span className={styles.sectionName}>{section.head.label}</span>
-        </span>
+      <div className={styles.sectionHead}>
+        <span className={styles.sectionName}>{section.head.label}</span>
         <span className={styles.sectionEnd}>
           <span className={styles.time}>{formatTimeRange(section.head)}</span>
           {marks.section && <MarkTag mark={marks.section} />}
         </span>
-      </button>
-      {expanded && loading && (
-        <p className={styles.sectionStatus}>{PROGRAM_LOADING_LABEL}</p>
+      </div>
+      {section.rows.map((row, index) =>
+        renderRow(row, index, marks.groups.get(index)),
       )}
-      {expanded &&
-        section.rows.map((row, index) =>
-          renderRow(row, index, marks.groups.get(index)),
-        )}
     </div>
   );
 }

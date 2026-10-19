@@ -15,7 +15,8 @@ export const PARTICIPANT_ALREADY_IN_NOMINATION_MESSAGE =
 export const NOMINATION_PARTICIPANT_KEY_SEPARATOR = '|';
 export const ASSIGN_STUDIO_TRAINER_FORBIDDEN_MESSAGE =
   'Студію й керівника може обирати лише організатор конкурсу або адміністратор';
-export const TRAINER_NOT_A_COACH_MESSAGE = 'Обраний користувач не є керівником';
+export const TRAINER_NOT_A_COACH_MESSAGE =
+  'Обраний користувач не є ні керівником, ні тренером';
 export const AGE_CATEGORY_MISMATCH_MESSAGE =
   'Вік учасника не відповідає віковій категорії номінації';
 export const DEFAULT_ENTRIES_PAGE_SIZE = 50;
@@ -30,6 +31,9 @@ export const NUMBER_ALLOCATION_UNIQUE_INDEXES: readonly string[] = [
   'entries_competition_id_number_idx',
   'competition_participant_numbers_competition_number_unique',
 ];
+// The staff entry list's studio filter lists studios by name in this locale.
+export const STUDIO_NAME_COLLATOR_LOCALE = 'uk';
+
 // A single person's entries across every competition — years of history,
 // still bounded.
 export const MAX_MY_ENTRIES = 1000;

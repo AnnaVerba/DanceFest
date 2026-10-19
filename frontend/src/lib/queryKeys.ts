@@ -4,6 +4,7 @@ import type { PublicProgramQuery } from './program';
 import type { PageRequest, UnassignedFilter } from './schedule';
 import type { NominationPageQuery, VenueSummaryGroupBy } from './nominations.types';
 import type { FinanceGroup, FinanceGroupQuery } from './finance.types';
+import type { MyEntriesPageQuery } from './myEntriesPage.types';
 
 // Single source of truth for React Query cache keys. Filters and search
 // terms are always part of the key — otherwise results from different
@@ -22,8 +23,16 @@ export const queryKeys = {
     competitionId: string,
     query: { page?: number; pageSize?: number } = {},
   ) => ['applications', competitionId, 'public', query] as const,
-  entries: (competitionId: string) => ['applications', competitionId, 'cabinet'] as const,
-  myEntries: () => ['applications', 'mine'] as const,
+  // Without a studio: every studio's list, for invalidation.
+  entries: (competitionId: string, studioId?: string) =>
+    studioId
+      ? (['applications', competitionId, 'cabinet', studioId] as const)
+      : (['applications', competitionId, 'cabinet'] as const),
+  // Without a query: every page of «Мої заявки», for invalidation.
+  myEntries: (query?: MyEntriesPageQuery) =>
+    query
+      ? (['applications', 'mine', query] as const)
+      : (['applications', 'mine'] as const),
   overages: (competitionId: string) => ['overages', competitionId] as const,
   financeSummary: (competitionId: string) =>
     ['finance', competitionId, 'summary'] as const,
@@ -42,6 +51,8 @@ export const queryKeys = {
   ) => ['category-template', id, 'nominations', query] as const,
 
   participants: (query?: string) => ['participants', query ?? ''] as const,
+  studioTrainersDancers: () => ['participants', 'studio'] as const,
+  studioTrainers: () => ['studio', 'trainers'] as const,
 
   judges: (competitionId: string) => ['judges', competitionId] as const,
   nominations: (competitionId: string, q?: string) =>

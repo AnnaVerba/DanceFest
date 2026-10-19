@@ -3,3 +3,10 @@
   letter-spacing: -0.02em;
   margin: 0 0 20px;
 }
+/* One card per trainer, spaced like the head's own roster above. */
+.studioRoster {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 20px;
+}

@@ -1,24 +1,27 @@
 import { useEffect, useState } from 'react';
-import { getMyMentorCoach } from '../lib/auth';
+import { getMyMentorCoaches } from '../lib/auth';
 import type { MentorCoach } from '../lib/auth';
 import {
   MENTOR_COACH_LOAD_FAILED_MESSAGE,
   MENTOR_COACH_RETRY_LABEL,
+  MENTOR_COACH_TITLE,
+  MENTOR_COACHES_TITLE,
 } from './MentorCoachField.constants';
 import styles from './MentorCoachField.module.css';
 
-// The user's mentor coach with contact details. Changing the coach
-// happens in the profile edit window.
+// The user's mentor coach with contact details — for a trainer, every
+// head of their studio. Changing the coach happens in the profile edit
+// window.
 export default function MentorCoachField() {
-  const [mentor, setMentor] = useState<MentorCoach | null>(null);
+  const [mentors, setMentors] = useState<MentorCoach[]>([]);
   const [loaded, setLoaded] = useState(false);
   // A failed request is not the same as "no coach": keep them apart.
   const [loadFailed, setLoadFailed] = useState(false);
 
   const fetchMentor = () => {
-    getMyMentorCoach()
-      .then((coach) => {
-        setMentor(coach);
+    getMyMentorCoaches()
+      .then((coaches) => {
+        setMentors(coaches);
         setLoadFailed(false);
       })
       .catch(() => setLoadFailed(true))
@@ -34,7 +37,9 @@ export default function MentorCoachField() {
 
   return (
     <section className={styles.card}>
-      <div className={styles.label}>Ваш керівник</div>
+      <div className={styles.label}>
+        {mentors.length > 1 ? MENTOR_COACHES_TITLE : MENTOR_COACH_TITLE}
+      </div>
 
       <div className={styles.view}>
         {!loaded && <span className={styles.muted}>Завантаження…</span>}
@@ -52,12 +57,12 @@ export default function MentorCoachField() {
           </div>
         )}
 
-        {loaded && !loadFailed && !mentor && (
+        {loaded && !loadFailed && mentors.length === 0 && (
           <span className={styles.muted}>Не вказано</span>
         )}
 
-        {loaded && !loadFailed && mentor && (
-          <dl className={styles.details}>
+        {loaded && !loadFailed && mentors.map((mentor) => (
+          <dl key={mentor.id} className={styles.details}>
             <div className={styles.row}>
               <dt>Керівник</dt>
               <dd>
@@ -78,7 +83,7 @@ export default function MentorCoachField() {
               </p>
             )}
           </dl>
-        )}
+        ))}
       </div>
     </section>
   );

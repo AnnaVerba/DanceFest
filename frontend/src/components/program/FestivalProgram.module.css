@@ -160,27 +160,15 @@
   color: var(--g-pill-ink);
 }
 
-/* Chevron and name on the left, times and the tag on the right. */
-.sectionToggle {
+/* Name on the left, times and the tag on the right. */
+.sectionHead {
   display: flex;
   justify-content: space-between;
   flex-wrap: wrap;
-  width: 100%;
   gap: 0.6rem;
   align-items: baseline;
   padding: 0.5rem 0;
-  border: 0;
   border-bottom: 2px solid var(--border, #e4e7ec);
-  background: none;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.sectionStart {
-  display: flex;
-  gap: 0.6rem;
-  align-items: baseline;
 }
 
 .sectionEnd {
@@ -189,16 +177,14 @@
   align-items: baseline;
 }
 
-.chevron {
-  width: 1rem;
-}
-
-.status {
+/* A nomination's start, on the right like its section's time range. */
+.groupTime {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
   color: var(--text-muted, #667085);
 }
 
-.sectionStatus {
-  padding: 0.4rem 0;
+.status {
   color: var(--text-muted, #667085);
 }
 

@@ -10,7 +10,7 @@ import type { AdminUser } from '../../lib/adminUsers.types';
 import {
   ACCESS_LEVEL,
   ACCESS_LEVEL_LABELS,
-  canHaveMentorCoach,
+  canPickMentorCoach,
   meetsLevel,
 } from '../../lib/roles';
 import type { AccessLevel } from '../../lib/roles';
@@ -101,8 +101,8 @@ export default function UserEditModal({
   const [mentor, setMentor] = useState<SetMentorCoachBody | null>(null);
   // Follow the level picked in this form: raising a user to coach opens
   // the school, making them an admin hides the coach.
-  const canEditSchool = meetsLevel(form.accessLevel, ACCESS_LEVEL.COACH);
-  const canEditCoach = canHaveMentorCoach(form.accessLevel);
+  const canEditSchool = meetsLevel(form.accessLevel, ACCESS_LEVEL.TRAINER);
+  const canEditCoach = canPickMentorCoach(form.accessLevel);
 
   const toggleCoachChange = () => {
     setChangingCoach((prev) => !prev);

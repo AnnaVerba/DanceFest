@@ -23,6 +23,11 @@
   display: grid;
   gap: 8px;
 }
+/* Several heads of a trainer's studio: a line between them. */
+.details + .details {
+  padding-top: 12px;
+  border-top: 1px solid var(--border, #eef0f3);
+}
 .row {
   display: flex;
   justify-content: space-between;

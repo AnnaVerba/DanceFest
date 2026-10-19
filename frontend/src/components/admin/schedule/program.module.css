@@ -621,3 +621,19 @@
   align-items: flex-start;
   margin: 2px 0 0;
 }
+
+/* The grip a category block is dragged by. */
+.dragHandle {
+  border: none;
+  background: none;
+  color: var(--g-ink-soft);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}

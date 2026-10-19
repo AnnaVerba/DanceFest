@@ -18,9 +18,16 @@ import PhoneField from '../components/PhoneField';
 import PasswordField from '../components/PasswordField';
 import OtpStep from '../components/OtpStep';
 import ProjectLogo from '../components/ProjectLogo';
+import SchoolPicker from '../components/SchoolPicker';
 import { PROJECT_LOGO_LABEL } from '../components/ProjectLogo.constants';
-import { ACCESS_LEVEL } from '../lib/roles';
+import { ACCESS_LEVEL, isStudioStaff } from '../lib/roles';
 import type { AccessLevel } from '../lib/roles';
+import {
+  HEAD_STUDIO_HINT,
+  HEAD_STUDIO_REQUIRED_MESSAGE,
+  TRAINER_STUDIO_HINT,
+  TRAINER_STUDIO_REQUIRED_MESSAGE,
+} from './RegisterPage.constants';
 import styles from './LoginPage.module.css';
 
 export default function RegisterPage() {
@@ -33,6 +40,10 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState<AccessLevel>(ACCESS_LEVEL.PARTICIPANT);
+  // The studio of a trainer (ties them to its heads) or of a head.
+  const [schoolId, setSchoolId] = useState('');
+  const isTrainer = role === ACCESS_LEVEL.TRAINER;
+  const needsStudio = isStudioStaff(role);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<RegisterFieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
@@ -48,6 +59,7 @@ export default function RegisterPage() {
     password,
     birthDate,
     role,
+    ...(needsStudio && schoolId ? { schoolId } : {}),
   });
 
   // The account is created only here, after the SMS code is confirmed.
@@ -79,6 +91,14 @@ export default function RegisterPage() {
     });
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
+      return;
+    }
+    if (needsStudio && !schoolId) {
+      setError(
+        isTrainer
+          ? TRAINER_STUDIO_REQUIRED_MESSAGE
+          : HEAD_STUDIO_REQUIRED_MESSAGE,
+      );
       return;
     }
 
@@ -149,8 +169,29 @@ export default function RegisterPage() {
                 >
                   Керівник
                 </button>
+                <button
+                  type="button"
+                  className={isTrainer ? styles.roleOn : styles.roleOff}
+                  onClick={() => setRole(ACCESS_LEVEL.TRAINER)}
+                >
+                  Тренер
+                </button>
               </div>
             </div>
+
+            {needsStudio && (
+              <div className={styles.field}>
+                {/* A trainer joins an existing studio; a head may add theirs. */}
+                <SchoolPicker
+                  value={schoolId}
+                  onChange={setSchoolId}
+                  allowCreate={!isTrainer}
+                />
+                <p className={styles.hint}>
+                  {isTrainer ? TRAINER_STUDIO_HINT : HEAD_STUDIO_HINT}
+                </p>
+              </div>
+            )}
 
             <div className={styles.row}>
               <div className={styles.field}>

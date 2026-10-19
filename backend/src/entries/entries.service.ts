@@ -19,7 +19,11 @@ import { SchoolsService } from '../schools/schools.service';
 import { CompetitionParticipantNumbersService } from '../competition-participant-numbers/competition-participant-numbers.service';
 import { ScheduleService } from '../schedule/schedule.service';
 import { ParticipantNumberLookup } from '../competition-participant-numbers/participant-number-lookup';
-import { AccessLevel, meetsLevel } from '../auth/access-level.enum';
+import {
+  AccessLevel,
+  isStudioStaff,
+  meetsLevel,
+} from '../auth/access-level.enum';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Entry } from './entry.model';
 import { isNumberAllocationRace } from './number-allocation-race';
@@ -29,14 +33,27 @@ import type { EntryCharge } from './pricing/entry-charge';
 import { EntryChargeService } from './pricing/entry-charge.service';
 import { Score } from './score.model';
 import { User } from '../users/user.model';
+import { StudioRole } from '../users/studio-role.enum';
 import { CreateEntryDto } from './dto/create-entry.dto';
 import { UpdateEntryDto } from './dto/update-entry.dto';
 import type { EntryParticipant } from './entry-participant.interface';
+import type { EntriesStudioOption } from './entries-studio-option.interface';
+import type { MyEntriesQueryDto } from './dto/my-entries-query.dto';
+import { buildMyEntriesPage } from './my-entries-page';
+import {
+  ALL_FILTER_VALUE,
+  DEFAULT_MY_ENTRIES_PAGE_SIZE,
+  DEFAULT_MY_ENTRIES_SORT,
+  ISO_DATE_LENGTH,
+  MAX_MY_ENTRIES_PAGE_SIZE,
+  MY_ENTRIES_SEARCH_MIN_CHARS,
+} from './my-entries.constants';
 import type { ParticipantAmount } from './participant-amount.interface';
+import type { StudioLeaders } from './studio-leaders.interface';
 import { UpdateEntryExtraTimeDto } from './dto/update-entry-extra-time.dto';
 import { QuoteEntriesDto } from './dto/quote-entries.dto';
 import type { EntriesQuote } from './entries-quote.interface';
-import { resolvePage } from '../common/pagination';
+import { resolvePage, resolveTypeahead } from '../common/pagination';
 import { isImprovisationEntry } from '../tracks/is-improvisation-entry';
 import {
   AGE_CATEGORY_MISMATCH_MESSAGE,
@@ -49,6 +66,7 @@ import {
   DEFAULT_ENTRIES_PAGE_SIZE,
   MAX_ENTRIES_PAGE_SIZE,
   MAX_MY_ENTRIES,
+  STUDIO_NAME_COLLATOR_LOCALE,
   COMPETITION_OVER_APPLY_MESSAGE,
   REGISTRATION_CLOSED_APPLY_MESSAGE,
   PARTICIPANT_ALREADY_IN_NOMINATION_MESSAGE,
@@ -72,16 +90,12 @@ import {
 import { buildEntryStats } from './build-entry-stats';
 import type { EntryStats } from './entry-stats.interface';
 
-interface SubmitterContext {
+interface SubmitterContext extends StudioLeaders {
   participantId: string | null;
   participantIds: string[];
   participantsCount: number | null;
   birthDates: (string | null)[];
   routineName: string | null;
-  studioId: string | null;
-  studioName: string | null;
-  trainerId: string | null;
-  choreographer: string | null;
 }
 
 interface PreparedEntry {
@@ -124,6 +138,7 @@ export class EntriesService {
     requesterLevel: AccessLevel,
     rawPage?: string,
     rawPageSize?: string,
+    studioId?: string,
   ) {
     const competition = await this.competitionModel.findByPk(competitionId);
     if (!competition) {
@@ -147,7 +162,7 @@ export class EntriesService {
       MAX_ENTRIES_PAGE_SIZE,
     );
     const { rows, count } = await this.entryModel.findAndCountAll({
-      where: { competitionId },
+      where: { competitionId, ...(studioId ? { studioId } : {}) },
       include: [Score],
       order: [['number', 'ASC']],
       limit,
@@ -169,7 +184,30 @@ export class EntriesService {
       total: count,
       page,
       pageSize,
+      studios: await this.listEntryStudios(competitionId),
     };
+  }
+
+  // Every studio the competition's entries are filed under, by name — the
+  // studio filter's options, whatever page or studio is shown.
+  private async listEntryStudios(
+    competitionId: string,
+  ): Promise<EntriesStudioOption[]> {
+    const rows = await this.entryModel.findAll({
+      attributes: ['studioId', 'studioName'],
+      where: { competitionId, studioId: { [Op.ne]: null } },
+      group: ['studioId', 'studioName'],
+      raw: true,
+    });
+    const byId = new Map<string, EntriesStudioOption>();
+    for (const row of rows) {
+      if (row.studioId && !byId.has(row.studioId)) {
+        byId.set(row.studioId, { id: row.studioId, name: row.studioName });
+      }
+    }
+    return [...byId.values()].sort((a, b) =>
+      (a.name ?? '').localeCompare(b.name ?? '', STUDIO_NAME_COLLATOR_LOCALE),
+    );
   }
 
   // Public, read-only counterpart to `list`: no login required, no
@@ -301,7 +339,10 @@ export class EntriesService {
     entries: Entry[],
   ): Promise<void> {
     try {
-      await this.scheduleService.appendToScheduledBlocks(competitionId, entries);
+      await this.scheduleService.appendToScheduledBlocks(
+        competitionId,
+        entries,
+      );
     } catch (err) {
       this.logger.warn(
         `${PROGRAM_PLACEMENT_FAILED_MESSAGE} ${competitionId}`,
@@ -500,7 +541,8 @@ export class EntriesService {
     changedBirthDates: (string | null)[] | undefined,
     changedAgeRange: AgeCategoryRange | null | undefined,
   ): Promise<void> {
-    if (changedBirthDates === undefined && changedAgeRange === undefined) return;
+    if (changedBirthDates === undefined && changedAgeRange === undefined)
+      return;
 
     const birthDates =
       changedBirthDates ??
@@ -580,7 +622,8 @@ export class EntriesService {
 
   // Those who may apply for others (canApplyForOthers) may file the entry
   // under any studio and trainer instead of the dancer's own.
-  // A trainer picked without a studio brings their own studio along.
+  // A trainer picked without a studio brings their own studio along; a
+  // studio trainer (тренер) also brings their studio's head along.
   private async applyStudioAndTrainer(
     competition: Competition,
     dto: CreateEntryDto,
@@ -596,24 +639,66 @@ export class EntriesService {
     const trainer = dto.trainerId
       ? await this.usersService.findByIdOrFail(dto.trainerId)
       : null;
-    if (trainer && !meetsLevel(trainer.accessLevel, AccessLevel.COACH)) {
+    if (trainer && !meetsLevel(trainer.accessLevel, AccessLevel.TRAINER)) {
       throw new BadRequestException(TRAINER_NOT_A_COACH_MESSAGE);
     }
-    const studioId =
-      dto.studioId ?? (trainer ? trainer.schoolId : submitter.studioId);
-    const studio = studioId
-      ? await this.schoolsService.findByIdOrFail(studioId)
-      : null;
+    const leaders = trainer ? await this.studioLeadersFor(trainer) : submitter;
+    if (!dto.studioId) return { ...submitter, ...leaders };
 
+    const studio = await this.schoolsService.findByIdOrFail(dto.studioId);
     return {
       ...submitter,
-      studioId: studio?.id ?? null,
-      studioName: studio?.name ?? null,
-      trainerId: trainer?.id ?? submitter.trainerId,
-      choreographer: trainer
-        ? `${trainer.firstName} ${trainer.lastName}`.trim()
-        : submitter.choreographer,
+      ...leaders,
+      studioId: studio.id,
+      studioName: studio.name,
     };
+  }
+
+  // Whom an entry of a dancer trained by `coach` is filed under. A studio
+  // trainer's dancers go under the trainer's studio and its head, with the
+  // trainer named next to the head; anyone else's under the coach themself.
+  private async studioLeadersFor(coach: User | null): Promise<StudioLeaders> {
+    const school = coach?.schoolId
+      ? await this.schoolsService.findByIdOrFail(coach.schoolId)
+      : null;
+    const studio = {
+      studioId: school?.id ?? null,
+      studioName: school?.name ?? null,
+    };
+    if (!coach) {
+      return {
+        ...studio,
+        trainerId: null,
+        choreographer: null,
+        instructorId: null,
+        instructorName: null,
+      };
+    }
+    if (coach.studioRole !== StudioRole.TRAINER) {
+      // A studio head who trains the dancers themself is their trainer too.
+      const trainsThemself = coach.studioRole === StudioRole.HEAD;
+      return {
+        ...studio,
+        trainerId: coach.id,
+        choreographer: this.personName(coach),
+        instructorId: trainsThemself ? coach.id : null,
+        instructorName: trainsThemself ? this.personName(coach) : null,
+      };
+    }
+    const head = school
+      ? await this.usersService.findStudioHead(school.id)
+      : null;
+    return {
+      ...studio,
+      trainerId: head?.id ?? null,
+      choreographer: head ? this.personName(head) : null,
+      instructorId: coach.id,
+      instructorName: this.personName(coach),
+    };
+  }
+
+  private personName(person: User): string {
+    return `${person.firstName} ${person.lastName}`.trim();
   }
 
   private buildRow(
@@ -642,6 +727,8 @@ export class EntriesService {
       trainerId: submitter.trainerId,
       studioName: dto.studioName?.trim() || submitter.studioName,
       choreographer: dto.choreographer?.trim() || submitter.choreographer,
+      instructorId: submitter.instructorId,
+      instructorName: submitter.instructorName,
       city: dto.city?.trim() || null,
       improv: exit.isImprovisation,
       paymentMethod: dto.paymentMethod ?? null,
@@ -651,10 +738,10 @@ export class EntriesService {
   }
 
   // The participant ids the user may act on: themselves plus, for a coach,
-  // their whole roster.
+  // their whole roster and, for a studio head, the studio's trainers.
   private async ownParticipantIds(user: AuthenticatedUser): Promise<string[]> {
     const ids = new Set<string>([user.id]);
-    const roster = await this.usersService.listRosterByCoach(user.id);
+    const roster = await this.usersService.listApplicableRoster(user.id);
     roster.forEach((r) => ids.add(r.id));
     return [...ids];
   }
@@ -691,20 +778,72 @@ export class EntriesService {
       if (!(err instanceof ForbiddenException)) throw err;
     }
     if (
-      entry.submittedByUserId !== user.id &&
-      entry.trainerId !== user.id &&
-      !this.entryBelongsTo(entry, await this.ownParticipantIds(user))
+      !this.managesTrackAsMember(
+        entry,
+        user,
+        await this.ownParticipantIds(user),
+      )
     ) {
       throw new ForbiddenException(NOT_OWN_PARTICIPANT_MESSAGE);
     }
     return false;
   }
 
+  // The non-staff half of assertCanManageTrack. A studio head only looks at
+  // the entries of their trainers' dancers: an entry with a trainer
+  // (instructorId) is that trainer's to manage, not the head's.
+  private managesTrackAsMember(
+    entry: Entry,
+    user: AuthenticatedUser,
+    ownIds: string[],
+  ): boolean {
+    const filedUnderUser = entry.instructorId
+      ? entry.instructorId === user.id
+      : entry.trainerId === user.id;
+    return (
+      entry.submittedByUserId === user.id ||
+      filedUnderUser ||
+      this.entryBelongsTo(entry, ownIds)
+    );
+  }
+
   // Entries the current user is involved in — their own performances and,
-  // if they coach, every performance one of their roster dancers is in, and
-  // every performance filed under them as trainer, whoever submitted it.
-  async listForUser(user: AuthenticatedUser) {
-    const ids = await this.ownParticipantIds(user);
+  // if they coach, every performance one of their roster dancers is in,
+  // every performance filed under them as head or trainer, whoever submitted
+  // it, and, for a studio head, the performances of their trainers' dancers
+  // (read-only: canManageTrack is false for those). One page of them,
+  // filtered and sorted; only a studio head's entries split by trainer.
+  async listForUser(user: AuthenticatedUser, query: MyEntriesQueryDto) {
+    const pageParams = resolvePage(
+      query.page,
+      query.pageSize,
+      DEFAULT_MY_ENTRIES_PAGE_SIZE,
+      MAX_MY_ENTRIES_PAGE_SIZE,
+    );
+    const headUserId = user.accessLevel === AccessLevel.COACH ? user.id : null;
+    return buildMyEntriesPage(
+      await this.loadMyEntries(user),
+      {
+        q: resolveTypeahead(query.q, MY_ENTRIES_SEARCH_MIN_CHARS) ?? '',
+        competitionId: query.competitionId ?? ALL_FILTER_VALUE,
+        year: query.year ?? ALL_FILTER_VALUE,
+        month: query.month ?? ALL_FILTER_VALUE,
+        sort: query.sort ?? DEFAULT_MY_ENTRIES_SORT,
+      },
+      headUserId,
+      pageParams,
+      new Date().toISOString().slice(0, ISO_DATE_LENGTH),
+    );
+  }
+
+  private async loadMyEntries(user: AuthenticatedUser) {
+    const ownIds = await this.ownParticipantIds(user);
+    const ids = [
+      ...ownIds,
+      ...(await this.usersService.listStudioTrainersRoster(user.id)).map(
+        (dancer) => dancer.id,
+      ),
+    ];
 
     const entries = await this.entryModel.findAll({
       where: {
@@ -712,6 +851,7 @@ export class EntriesService {
           { participantIds: { [Op.overlap]: ids } },
           { participantId: { [Op.in]: ids } },
           { trainerId: user.id },
+          { instructorId: user.id },
         ],
       },
       include: [Score],
@@ -731,7 +871,7 @@ export class EntriesService {
     );
 
     const charges = await this.entryChargeService.withDancerHistory(entries);
-    const seesFullCost = meetsLevel(user.accessLevel, AccessLevel.COACH);
+    const seesFullCost = meetsLevel(user.accessLevel, AccessLevel.TRAINER);
 
     const people = await this.usersService.findManyByIds([
       ...new Set(allParticipantIds),
@@ -749,13 +889,20 @@ export class EntriesService {
           lastName: p.lastName,
         }));
       const charge = charges.get(entry.id) as EntryCharge;
+      // A coach pays for the whole number; a dancer sees only their part.
+      const amount = seesFullCost ? charge.amount : charge.shareOf(user.id);
+      // The extra-time fee for a track over the limit, part of amount.
+      const musicFee = seesFullCost ? charge.extraFee : charge.extraFeeShare;
       return {
         ...this.toDto(entry, numbers),
         competitionId: entry.competitionId,
         competitionName: competition?.name ?? null,
         competitionDateFrom: competition?.dateFrom ?? null,
-        // A coach pays for the whole number; a dancer sees only their part.
-        amount: seesFullCost ? charge.amount : charge.shareOf(user.id),
+        competitionDateTo: competition?.dateTo ?? null,
+        amount,
+        musicFee,
+        // The nomination alone, without the music fee.
+        baseAmount: roundMoney(amount - musicFee),
         participants,
         participantAmounts: this.sharesPerParticipant(
           participants,
@@ -763,6 +910,7 @@ export class EntriesService {
           user,
           seesFullCost,
         ),
+        canManageTrack: this.managesTrackAsMember(entry, user, ownIds),
       };
     });
   }
@@ -1127,20 +1275,12 @@ export class EntriesService {
         participantsCount: null,
         birthDates: [],
         routineName: null,
-        studioId: null,
-        studioName: null,
-        trainerId: null,
-        choreographer: null,
+        ...(await this.studioLeadersFor(null)),
       };
     }
 
     const [first] = participants;
-    const coach = first.coachId
-      ? await this.usersService.findById(first.coachId)
-      : null;
-    const school = coach?.schoolId
-      ? await this.schoolsService.findByIdOrFail(coach.schoolId)
-      : null;
+    const coach = await this.coachOfPerformer(first);
 
     return {
       participantId: first.id,
@@ -1148,13 +1288,20 @@ export class EntriesService {
       participantsCount: participants.length,
       birthDates: participants.map((p) => p.birthDate),
       routineName: this.routineNameFor(participants),
-      studioId: school?.id ?? null,
-      studioName: school?.name ?? null,
-      trainerId: coach?.id ?? null,
-      choreographer: coach
-        ? `${coach.firstName} ${coach.lastName}`.trim()
-        : null,
+      ...(await this.studioLeadersFor(coach)),
     };
+  }
+
+  // Whose dancer a performer counts as: a studio trainer performing
+  // themself is their studio head's, anyone else their coach's.
+  private async coachOfPerformer(performer: User): Promise<User | null> {
+    if (performer.studioRole === StudioRole.TRAINER && performer.schoolId) {
+      const head = await this.usersService.findStudioHead(performer.schoolId);
+      if (head) return head;
+    }
+    return performer.coachId
+      ? this.usersService.findById(performer.coachId)
+      : null;
   }
 
   private routineNameFor(participants: User[]): string {
@@ -1177,14 +1324,12 @@ export class EntriesService {
         this.usersService.findByIdOrFail(participantId),
       ),
     );
-    if (user.accessLevel === AccessLevel.COACH) {
-      for (const participant of participants) {
-        // A coach may enter their own roster dancers and themselves.
-        const ownRosterDancer = participant.coachId === user.id;
-        const isSelf = participant.id === user.id;
-        if (!ownRosterDancer && !isSelf) {
-          throw new ForbiddenException(NOT_OWN_PARTICIPANT_MESSAGE);
-        }
+    if (isStudioStaff(user.accessLevel)) {
+      // A coach or trainer may enter their own roster dancers and
+      // themselves; a studio head also the studio's trainers.
+      const allowed = new Set(await this.ownParticipantIds(user));
+      if (participants.some((participant) => !allowed.has(participant.id))) {
+        throw new ForbiddenException(NOT_OWN_PARTICIPANT_MESSAGE);
       }
     }
     return participants;
@@ -1292,6 +1437,8 @@ export class EntriesService {
       studioName: entry.studioName,
       trainerId: entry.trainerId,
       choreographer: entry.choreographer,
+      instructorId: entry.instructorId,
+      instructorName: entry.instructorName,
       city: entry.city,
       improv: entry.improv,
       trackNotNeeded: isImprovisationEntry(entry),

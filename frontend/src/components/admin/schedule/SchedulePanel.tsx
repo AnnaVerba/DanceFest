@@ -16,6 +16,7 @@ import ProgramTable from './ProgramTable';
 import type { SectionCollapse } from './sectionCollapse.types';
 import { sectionsCollapsed, toggleSection } from './sectionCollapse';
 import ProgramPoster from './ProgramPoster';
+import ProgramExcelButton from './ProgramExcelButton';
 import SectionPager from './SectionPager';
 import type { SectionPageNavigator } from './sectionPager.types';
 import ProgramPublicationBar from './ProgramPublicationBar';
@@ -63,7 +64,9 @@ import type {
   UnassignedFacets,
 } from '../../../lib/schedule';
 import type { RowPaged } from '../../../lib/pagination';
-import { getProgramPreview, getPublicProgram } from '../../../lib/program';
+import { fetchWholeProgram } from '../../../lib/wholeProgram';
+import { PreviewProgramSource } from '../../../lib/PreviewProgramSource';
+import { PublishedProgramSource } from '../../../lib/PublishedProgramSource';
 import type { PublicProgramRow } from '../../../lib/program';
 import { getVenues } from '../../../lib/venues';
 import { formatClock } from '../../../lib/duration';
@@ -134,7 +137,6 @@ export default function SchedulePanel({
     canManage && (canBuildAnytime || !registrationOpen || programFormed);
   const queryClient = useQueryClient();
   const [sectionsPage, setSectionsPage] = useState(0);
-  const [posterPage, setPosterPage] = useState(0);
   const [poolPage, setPoolPage] = useState(0);
   const [poolLeague, setPoolLeague] = useState('');
   const [poolAge, setPoolAge] = useState('');
@@ -252,13 +254,10 @@ export default function SchedulePanel({
   }
 
   // The read-only poster: a viewer always needs it, a manager only in the
-  // «Публічна» view. Paged like the editor, so a big festival is never
-  // loaded at once.
+  // «Публічна» view. Shown whole, as one list — never paged.
   const posterFilter = {
     dayId: dayId || undefined,
     venueId: venueId || undefined,
-    page: posterPage,
-    pageSize: SECTIONS_PAGE_ROWS,
   };
 
   // A manager previews the live running order; everyone else reads the
@@ -268,26 +267,17 @@ export default function SchedulePanel({
       ? queryKeys.programPreview(competitionId, posterFilter)
       : queryKeys.publicProgram(competitionId, posterFilter),
     queryFn: () =>
-      canManage
-        ? getProgramPreview(competitionId, posterFilter)
-        : getPublicProgram(competitionId, posterFilter),
+      fetchWholeProgram(
+        canManage
+          ? new PreviewProgramSource(competitionId)
+          : new PublishedProgramSource(competitionId),
+        posterFilter,
+      ),
     enabled: daysReady && (!canManage || view === 'public'),
     staleTime: TIMING_STALE_TIME_MS,
   });
-  // The server clamps an out-of-range page — follow it, as for sections.
-  if (posterQuery.data && posterQuery.data.page !== posterPage) {
-    setPosterPage(posterQuery.data.page);
-  }
   // Failure is silent — the editor still renders without the poster.
-  const poster = posterQuery.data?.rows ?? EMPTY_POSTER;
-  const posterNavigator: SectionPageNavigator = {
-    page: posterPage,
-    pageCount: posterQuery.data?.pageCount ?? 0,
-    rangeStart: posterQuery.data?.rangeStart ?? 0,
-    rangeEnd: posterQuery.data?.rangeEnd ?? 0,
-    totalSections: posterQuery.data?.totalSections ?? 0,
-    goTo: setPosterPage,
-  };
+  const poster = posterQuery.data ?? EMPTY_POSTER;
 
   // The unassigned pool is only shown while building.
   const poolFilter = {
@@ -387,12 +377,10 @@ export default function SchedulePanel({
   const changeDay = (id: string) => {
     setDayId(id);
     setSectionsPage(0);
-    setPosterPage(0);
   };
   const changeVenue = (id: string) => {
     setVenueId(id);
     setSectionsPage(0);
-    setPosterPage(0);
   };
 
   // The public endpoint has no day param, so scope its rows to the pill
@@ -777,7 +765,6 @@ export default function SchedulePanel({
             ))}
           </div>
         )}
-        <SectionPager navigator={posterNavigator} />
         <ProgramPoster rows={posterRows} days={days} venues={venues} />
       </div>
     );
@@ -837,6 +824,13 @@ export default function SchedulePanel({
           </>
         )}
         <div className={styles.spacer} />
+        <ProgramExcelButton
+          competitionId={competitionId}
+          competitionName={competition.name}
+          days={days}
+          venues={venues}
+          onError={onError}
+        />
         <button
           type="button"
           className={`${styles.seg} ${styles.segLeft} ${view === 'tech' ? styles.segOn : ''}`}
@@ -953,7 +947,6 @@ export default function SchedulePanel({
 
       {view === 'public' ? (
         <>
-          <SectionPager navigator={posterNavigator} />
           <ProgramPoster rows={posterRows} days={days} venues={venues} />
         </>
       ) : building ? (
