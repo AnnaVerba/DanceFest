@@ -9,6 +9,8 @@ import type { Paged } from './pagination';
 import type { EntryStats } from './entryStats.types';
 import type { EntriesQuote, EntriesQuoteInput } from './entriesQuote.types';
 import type { EntryParticipantAmount } from './entryAmount.types';
+import type { MyEntriesPage, MyEntriesPageQuery } from './myEntriesPage.types';
+import { ALL_FILTER_VALUE } from './myEntriesFilter.constants';
 import type {
   EntryDetails,
   EntryParticipant,
@@ -36,6 +38,9 @@ export interface Entry {
   studioName: string | null;
   trainerId?: string | null;
   choreographer: string | null;
+  // The studio trainer, named after the head (choreographer).
+  instructorId?: string | null;
+  instructorName?: string | null;
   city?: string | null;
   improv?: boolean;
   // Improvisation entries take no track (the organizer plays the music).
@@ -136,15 +141,19 @@ export interface PagedEntries {
   total: number;
   page: number;
   pageSize: number;
+  // Every studio of the competition's entries — the studio filter's options.
+  studios: { id: string; name: string | null }[];
 }
 
+// The staff entry list; `studioId` narrows it to one studio on the server.
 export function getEntries(
   competitionId: string,
-  query: { page?: number; pageSize?: number } = {},
+  query: { page?: number; pageSize?: number; studioId?: string } = {},
 ): Promise<PagedEntries> {
   const params = new URLSearchParams();
   if (query.page != null) params.set('page', String(query.page));
   if (query.pageSize != null) params.set('pageSize', String(query.pageSize));
+  if (query.studioId) params.set('studioId', query.studioId);
   const suffix = params.toString() ? `?${params}` : '';
   return request<PagedEntries>(
     `/competitions/${competitionId}/entries${suffix}`,
@@ -155,13 +164,32 @@ export interface MyEntry extends Entry {
   competitionId: string;
   competitionName: string | null;
   competitionDateFrom: string | null;
+  competitionDateTo: string | null;
   amount: number;
+  // The extra-time fee for a track over the limit — part of amount.
+  musicFee: number;
+  // amount without musicFee — the nomination alone.
+  baseAmount: number;
   participants: EntryParticipant[];
   participantAmounts: EntryParticipantAmount[];
+  // False for an entry a studio head only follows — their trainer's dancer.
+  canManageTrack: boolean;
 }
 
-export function getMyEntries(): Promise<MyEntry[]> {
-  return request<MyEntry[]>('/me/entries');
+// One page of «Мої заявки», filtered and sorted (nearest first) by the server. Filters left
+// at their «all» value are not sent.
+export function getMyEntries(query: MyEntriesPageQuery): Promise<MyEntriesPage> {
+  const { filter } = query;
+  const params = withPageParams(
+    new URLSearchParams(),
+    query.page,
+    query.pageSize,
+  );
+  const q = filter.query.trim();
+  if (q) params.set('q', q);
+  if (filter.year !== ALL_FILTER_VALUE) params.set('year', filter.year);
+  if (filter.month !== ALL_FILTER_VALUE) params.set('month', filter.month);
+  return request<MyEntriesPage>(`/me/entries?${params.toString()}`);
 }
 
 export interface TrackUploadResult {

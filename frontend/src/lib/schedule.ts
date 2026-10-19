@@ -34,6 +34,8 @@ export interface SectionExit {
   improv: boolean;
   studioName: string | null;
   choreographer: string | null;
+  // The studio trainer, shown after the head.
+  instructorName: string | null;
   participantId: string | null;
   participantIds: string[];
   musicName: string | null;

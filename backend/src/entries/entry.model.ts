@@ -94,6 +94,17 @@ export class Entry extends Model<Entry> {
   @Column({ type: DataType.UUID, allowNull: true })
   declare trainerId: string | null;
 
+  // The trainer (тренер) when the dancers train under one of the studio's
+  // trainers rather than its head; null otherwise. The head stays in
+  // trainerId / choreographer, so the program reads "керівник …, тренер …".
+  // A trainer sees every entry carrying their instructorId.
+  @ForeignKey(() => User)
+  @Column({ type: DataType.UUID, allowNull: true })
+  declare instructorId: string | null;
+
+  @Column({ type: DataType.STRING, allowNull: true })
+  declare instructorName: string | null;
+
   @Column({ type: DataType.STRING, allowNull: true })
   declare city: string | null;
 

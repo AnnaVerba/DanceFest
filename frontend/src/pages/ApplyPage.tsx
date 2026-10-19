@@ -32,7 +32,7 @@ import type { Entry } from '../lib/entries';
 import {
   ParticipantApiError,
   createParticipant,
-  getParticipants,
+  getApplicableParticipants,
 } from '../lib/participants';
 import type { Participant } from '../lib/participants';
 import {
@@ -56,7 +56,13 @@ import { refreshProgram } from '../lib/programCache';
 import MentorCoachPicker from '../components/MentorCoachPicker';
 import SchoolPicker from '../components/SchoolPicker';
 import CategoryDescriptionList from '../components/CategoryDescriptionList';
-import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
+import { ACCESS_LEVEL, isStudioStaff, meetsLevel } from '../lib/roles';
+import {
+  ENTRY_HEAD_LABEL,
+  ENTRY_TRAINER_LABEL,
+  NOMINATIONS_BY_STYLES_LABEL,
+  NOMINATIONS_LABEL,
+} from './ApplyPage.constants';
 import {
   ageCategoriesFittingAges,
   participantAges,
@@ -178,6 +184,8 @@ export default function ApplyPage() {
     SelectableParticipant[]
   >([]);
   const [participantQuery, setParticipantQuery] = useState('');
+  // The picker's options show only while the search field has focus.
+  const [participantListOpen, setParticipantListOpen] = useState(false);
   const [searchResults, setSearchResults] = useState<Participant[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -186,9 +194,6 @@ export default function ApplyPage() {
   // filled through the pickers below, saved to the profile on submit.
   const [coachName, setCoachName] = useState<string | null>(null);
   const [mentor, setMentor] = useState<SetMentorCoachBody | null>(null);
-  const [mentorSchoolId, setMentorSchoolId] = useState(
-    session?.profile.schoolId ?? '',
-  );
   // Organizer/admin only: the studio and trainer the entry is filed under,
   // instead of the dancer's own. Left empty, the server keeps the dancer's.
   const [assignedStudioId, setAssignedStudioId] = useState('');
@@ -227,7 +232,7 @@ export default function ApplyPage() {
   const [createdCount, setCreatedCount] = useState(0);
 
   const isCoach = session
-    ? meetsLevel(session.profile.accessLevel, ACCESS_LEVEL.COACH)
+    ? meetsLevel(session.profile.accessLevel, ACCESS_LEVEL.TRAINER)
     : false;
   // A coach never picks: the server files their dancers under them. An
   // organizer or admin may name a coach, or leave the dancer without one.
@@ -262,20 +267,28 @@ export default function ApplyPage() {
     };
   }, [id]);
 
+  // Studio staff file entries under their own studio and themselves — the
+  // server fills both in, so there is nothing to pick. They also see their
+  // own dancers (and a head — the studio's trainers) before typing; the
+  // server caps that list. An organizer searches everyone, so types first.
+  const isStaffSubmitter =
+    !!session && isStudioStaff(session.profile.accessLevel);
+
   // Name search over the roster — never loads every participant at once.
   useEffect(() => {
     if (!isCoach) return;
     const q = participantQuery.trim();
     let cancelled = false;
     const handle = setTimeout(() => {
-      if (q.length < PARTICIPANT_SEARCH_MIN_CHARS) {
+      const browsing = isStaffSubmitter && q.length === 0;
+      if (!browsing && q.length < PARTICIPANT_SEARCH_MIN_CHARS) {
         setSearchResults([]);
         setSearching(false);
         setSearchError(null);
         return;
       }
       setSearching(true);
-      getParticipants(q)
+      getApplicableParticipants(q)
         .then((people) => {
           if (!cancelled) {
             setSearchResults(people);
@@ -293,7 +306,7 @@ export default function ApplyPage() {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [participantQuery, isCoach]);
+  }, [participantQuery, isCoach, isStaffSubmitter]);
 
   // Coach typeahead for the new-participant form. getSelectableCoaches
   // answers with an empty list until the query is long enough.
@@ -385,6 +398,10 @@ export default function ApplyPage() {
     () => (axes?.[STYLE_CATEGORY_TYPE] ?? []).map((value) => value.name),
     [axes],
   );
+  // A competition whose nominations carry no style skips the style step:
+  // its nominations are listed straight after league and age.
+  const hasStyles = styleOptions.length > 0;
+  const stylesChosen = !hasStyles || selectedStyles.length > 0;
 
   const ageCategories = useMemo<NominationCategoryRange[]>(
     () =>
@@ -497,7 +514,7 @@ export default function ApplyPage() {
   // Номінації приходять уже відфільтровані сервером — рівно ті, у яких цей
   // склад учасників може виступити.
   useEffect(() => {
-    if (!id || pickedCount === 0 || styleIds.length === 0 || !leagueId) {
+    if (!id || pickedCount === 0 || !stylesChosen || !leagueId) {
       setEntryNominations([]);
       setRowsError(null);
       return;
@@ -517,7 +534,7 @@ export default function ApplyPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, leagueId, pickedCount, styleIds, entryFilter]);
+  }, [id, leagueId, pickedCount, stylesChosen, entryFilter]);
 
   // Спецномінації звужує той самий сервер і за тими самими правилами:
   // стилю в них немає, але ліга, вік, а подекуди й склад є. Доки учасників і ліги
@@ -638,6 +655,11 @@ export default function ApplyPage() {
     : coachName ?? '—';
 
   const studioLabel = studioName ?? '—';
+
+  const leaderLabel =
+    session?.profile.accessLevel === ACCESS_LEVEL.TRAINER
+      ? ENTRY_TRAINER_LABEL
+      : ENTRY_HEAD_LABEL;
 
   const toggleStyle = (style: string) => {
     setSubmitError(null);
@@ -765,20 +787,13 @@ export default function ApplyPage() {
       setSubmitError('Оберіть хоча б одну номінацію.');
       return;
     }
-    if (mentor && isCoach && !mentorSchoolId.trim()) {
-      setSubmitError('Оберіть школу, щоб зберегти керівника.');
-      return;
-    }
-
     setSubmitting(true);
     try {
       // A picked/typed coach is saved to the profile first; the backend
       // then resolves the entry's studio and choreographer from it.
       if (mentor) {
         try {
-          await completeProfile(
-            isCoach ? { ...mentor, schoolId: mentorSchoolId.trim() } : mentor,
-          );
+          await completeProfile(mentor);
           await refreshSession();
           setMentor(null);
         } catch (err) {
@@ -1021,6 +1036,8 @@ export default function ApplyPage() {
                   placeholder="Почніть вводити прізвище учасника…"
                   value={participantQuery}
                   onChange={(e) => setParticipantQuery(e.target.value)}
+                  onFocus={() => setParticipantListOpen(true)}
+                  onBlur={() => setParticipantListOpen(false)}
                 />
 
                 {participantQuery.trim().length > 0 &&
@@ -1032,8 +1049,14 @@ export default function ApplyPage() {
                 {searching && <p className={styles.hint}>Пошук…</p>}
                 {searchError && <p className={styles.error}>{searchError}</p>}
 
-                {searchOptions.length > 0 && (
-                  <div className={styles.nomList}>
+                {participantListOpen && searchOptions.length > 0 && (
+                  // mousedown would blur the input and close the list before
+                  // the click lands; keeping focus also leaves it open for
+                  // picking several dancers in a row.
+                  <div
+                    className={styles.nomList}
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
                     {searchOptions.map((p) => (
                       <button
                         key={p.id}
@@ -1047,7 +1070,8 @@ export default function ApplyPage() {
                     ))}
                   </div>
                 )}
-                {!searching &&
+                {participantListOpen &&
+                  !searching &&
                   !searchError &&
                   participantQuery.trim().length >=
                     PARTICIPANT_SEARCH_MIN_CHARS &&
@@ -1277,39 +1301,43 @@ export default function ApplyPage() {
           </div>
 
           <div>
-            <label className={styles.label}>
-              Стилі <span className={styles.req}>*</span>
-            </label>
-            <div
-              className={`${styles.chips} ${
-                nominationsInvalid && selectedStyles.length === 0
-                  ? styles.chipsInvalid
-                  : ''
-              }`}
-            >
-              {styleOptions.map((style) => {
-                const on = selectedStyles.includes(style);
-                return (
-                  <button
-                    key={style}
-                    type="button"
-                    className={`${styles.chip} ${on ? styles.chipOn : ''}`}
-                    onClick={() => toggleStyle(style)}
-                  >
-                    {style}
-                  </button>
-                );
-              })}
-            </div>
-            <p className={styles.hint}>
-              Доступні стилі з шаблону, за яким створено конкурс. Можна обрати
-              кілька — заявка буде подана в кожну номінацію. Номінації, що є
-              імпровізацією, подаються без треку.
-            </p>
-            <CategoryDescriptionList
-              values={chosenStyleValues}
-              className={styles.hint}
-            />
+            {hasStyles && (
+              <>
+                <label className={styles.label}>
+                  Стилі <span className={styles.req}>*</span>
+                </label>
+                <div
+                  className={`${styles.chips} ${
+                    nominationsInvalid && selectedStyles.length === 0
+                      ? styles.chipsInvalid
+                      : ''
+                  }`}
+                >
+                  {styleOptions.map((style) => {
+                    const on = selectedStyles.includes(style);
+                    return (
+                      <button
+                        key={style}
+                        type="button"
+                        className={`${styles.chip} ${on ? styles.chipOn : ''}`}
+                        onClick={() => toggleStyle(style)}
+                      >
+                        {style}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className={styles.hint}>
+                  Доступні стилі з шаблону, за яким створено конкурс. Можна
+                  обрати кілька — заявка буде подана в кожну номінацію.
+                  Номінації, що є імпровізацією, подаються без треку.
+                </p>
+                <CategoryDescriptionList
+                  values={chosenStyleValues}
+                  className={styles.hint}
+                />
+              </>
+            )}
             {noNominations && (
               <p className={styles.error}>
                 Для цього конкурсу ще не згенеровано номінацій.
@@ -1317,9 +1345,11 @@ export default function ApplyPage() {
             )}
           </div>
 
-          {selectedStyles.length > 0 && (
+          {(hasStyles ? selectedStyles.length > 0 : !!leagueId) && (
             <div>
-              <label className={styles.label}>Номінації за обраними стилями</label>
+              <label className={styles.label}>
+                {hasStyles ? NOMINATIONS_BY_STYLES_LABEL : NOMINATIONS_LABEL}
+              </label>
               {styleRows.length === 0 ? (
                 <p className={styles.hint}>
                   {rowsError ??
@@ -1436,25 +1466,19 @@ export default function ApplyPage() {
 
           {activeParticipants.length > 0 &&
             !canPickCoach &&
-            (session.profile.coachId ? (
+            (session.profile.coachId || isStaffSubmitter ? (
               <div className={styles.two}>
                 <div>
                   <label className={styles.label}>Студія</label>
                   <div className={styles.readonlyBox}>{studioLabel}</div>
                 </div>
                 <div>
-                  <label className={styles.label}>Керівник</label>
+                  <label className={styles.label}>{leaderLabel}</label>
                   <div className={styles.readonlyBox}>{coachLabel}</div>
                 </div>
               </div>
             ) : (
               <div>
-                {isCoach && (
-                  <SchoolPicker
-                    value={mentorSchoolId}
-                    onChange={setMentorSchoolId}
-                  />
-                )}
                 <label className={styles.label}>Керівник</label>
                 <MentorCoachPicker onChange={setMentor} />
                 <p className={styles.hint}>

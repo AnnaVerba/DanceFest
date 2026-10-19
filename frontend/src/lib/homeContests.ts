@@ -1,6 +1,9 @@
 import type { Competition } from './competitions';
 
 const DATE_LOCALE = 'uk-UA';
+// Makes a month a parseable first-of-month date; the year only anchors it.
+const MONTH_KEY_FIRST_DAY_SUFFIX = '-01';
+const MONTH_NAME_REFERENCE_YEAR = '2000';
 
 export const HOME_STATUS_FILTER_ID = {
   ALL: 'all',
@@ -78,6 +81,14 @@ export function formatContestDateRange(dateFrom: string, dateTo: string): string
     return `${from.getDate()}${DAY_RANGE_DASH}${dayMonthOf(to)} ${to.getFullYear()}`;
   }
   return `${dayMonthOf(from)}${DATE_RANGE_DASH}${dayMonthOf(to)} ${to.getFullYear()}`;
+}
+
+// «жовтень» for a month number '01'–'12'.
+export function formatMonthNumber(month: string): string {
+  const date = new Date(
+    `${MONTH_NAME_REFERENCE_YEAR}-${month}${MONTH_KEY_FIRST_DAY_SUFFIX}`,
+  );
+  return date.toLocaleDateString(DATE_LOCALE, { month: 'long' });
 }
 
 export function groupContestsByMonth(competitions: Competition[]): MonthGroup[] {

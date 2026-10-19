@@ -28,6 +28,7 @@ export interface PublicProgramRow {
   routineName?: string | null;
   studioName?: string | null;
   choreographer?: string | null;
+  instructorName?: string | null;
   durationSeconds?: number | null;
 }
 
@@ -67,6 +68,7 @@ export interface ExtendedProgramItem {
   routineName: string | null;
   studioName: string | null;
   choreographer: string | null;
+  instructorName: string | null;
   effectiveDurationSeconds: number | null;
   overageSeconds: number;
   purchasedSeconds: number;
@@ -199,6 +201,7 @@ export function buildPublicProgram(
         routineName: item.exit?.routineName ?? null,
         studioName: item.exit?.studioName ?? null,
         choreographer: item.exit?.choreographer ?? null,
+        instructorName: item.exit?.instructorName ?? null,
         durationSeconds: item.durationSeconds,
       });
     }
@@ -284,6 +287,7 @@ export function buildExtendedProgram(
       routineName: item.exit?.routineName ?? null,
       studioName: item.exit?.studioName ?? null,
       choreographer: item.exit?.choreographer ?? null,
+      instructorName: item.exit?.instructorName ?? null,
       effectiveDurationSeconds: item.durationSeconds,
       overageSeconds: item.overageSeconds,
       purchasedSeconds: item.exit?.purchasedExtraSeconds ?? 0,

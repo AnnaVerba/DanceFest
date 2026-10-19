@@ -1,3 +1,4 @@
-// Poster rows carry no section id, so a section is known by its day, venue,
-// name and start, joined with this.
-export const POSTER_SECTION_KEY_SEPARATOR = '|';
+import type { SectionMarks } from '../../../lib/programHighlight.types';
+
+// The organizer's preview highlights no one's nominations.
+export const POSTER_NO_MARKS: SectionMarks = { section: null, groups: new Map() };

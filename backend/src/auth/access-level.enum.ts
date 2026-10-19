@@ -2,6 +2,8 @@
 // below them can. Replaces the old disjoint Role set.
 export enum AccessLevel {
   PARTICIPANT = 'PARTICIPANT',
+  // Works in a studio under its head (COACH) and trains their own dancers.
+  TRAINER = 'TRAINER',
   COACH = 'COACH',
   ORGANIZER = 'ORGANIZER',
   ADMIN = 'ADMIN',
@@ -9,6 +11,7 @@ export enum AccessLevel {
 
 export const ACCESS_LEVELS = [
   AccessLevel.PARTICIPANT,
+  AccessLevel.TRAINER,
   AccessLevel.COACH,
   AccessLevel.ORGANIZER,
   AccessLevel.ADMIN,
@@ -16,9 +19,10 @@ export const ACCESS_LEVELS = [
 
 const RANK: Record<AccessLevel, number> = {
   [AccessLevel.PARTICIPANT]: 1,
-  [AccessLevel.COACH]: 2,
-  [AccessLevel.ORGANIZER]: 3,
-  [AccessLevel.ADMIN]: 4,
+  [AccessLevel.TRAINER]: 2,
+  [AccessLevel.COACH]: 3,
+  [AccessLevel.ORGANIZER]: 4,
+  [AccessLevel.ADMIN]: 5,
 };
 
 export function meetsLevel(have: AccessLevel, need: AccessLevel): boolean {
@@ -35,3 +39,14 @@ export const SELF_UPGRADABLE_LEVELS = [
   AccessLevel.COACH,
   AccessLevel.ORGANIZER,
 ];
+
+// Studio staff — a trainer and a studio head. They belong to one studio and
+// work only with their own roster; organizers and admins reach everyone.
+const STUDIO_STAFF_LEVELS: AccessLevel[] = [
+  AccessLevel.TRAINER,
+  AccessLevel.COACH,
+];
+
+export function isStudioStaff(level: AccessLevel): boolean {
+  return STUDIO_STAFF_LEVELS.includes(level);
+}

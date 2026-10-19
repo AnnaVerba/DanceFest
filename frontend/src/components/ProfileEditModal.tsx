@@ -6,7 +6,7 @@ import MentorCoachPicker from './MentorCoachPicker';
 import { updateMyProfile } from '../lib/users';
 import type { MyProfile } from '../lib/users';
 import type { SetMentorCoachBody } from '../lib/auth';
-import { ACCESS_LEVEL, canHaveMentorCoach, meetsLevel } from '../lib/roles';
+import { ACCESS_LEVEL, canPickMentorCoach, meetsLevel } from '../lib/roles';
 import { toProfileForm, validateProfileForm } from '../lib/profileForm';
 import type {
   ProfileErrorField,
@@ -47,8 +47,8 @@ export default function ProfileEditModal({
   const [changingCoach, setChangingCoach] = useState(false);
   const [mentor, setMentor] = useState<SetMentorCoachBody | null>(null);
   const maxBirthDate = new Date().toISOString().slice(0, 10);
-  const canEditSchool = meetsLevel(profile.accessLevel, ACCESS_LEVEL.COACH);
-  const canEditCoach = canHaveMentorCoach(profile.accessLevel);
+  const canEditSchool = meetsLevel(profile.accessLevel, ACCESS_LEVEL.TRAINER);
+  const canEditCoach = canPickMentorCoach(profile.accessLevel);
 
   const clearError = (field: ProfileErrorField) => {
     setErrors((prev) => ({ ...prev, [field]: undefined }));

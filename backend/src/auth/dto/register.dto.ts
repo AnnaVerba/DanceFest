@@ -19,11 +19,16 @@ import { IsE164Phone } from '../../common/validation/is-e164-phone.validator';
 import { IsValidBirthDate } from '../../common/validation/is-valid-birth-date.validator';
 import { NormalizeEmail } from '../../common/validation/normalize-email.transform';
 
-const REGISTRABLE_ROLES = [AccessLevel.PARTICIPANT, AccessLevel.COACH];
+const REGISTRABLE_ROLES = [
+  AccessLevel.PARTICIPANT,
+  AccessLevel.TRAINER,
+  AccessLevel.COACH,
+];
 
-// Everyone registers as PARTICIPANT or COACH. A coach also sends the
-// school id (the UI creates the school first when it is new). ORGANIZER is
-// reached later through an admin-approved request.
+// Everyone registers as PARTICIPANT, TRAINER or COACH. A trainer and a
+// coach (studio head) must send the school id — a trainer joins that
+// studio's heads, a head runs it (the UI creates the school first when it
+// is new). ORGANIZER is reached later through an admin-approved request.
 export class RegisterDto {
   @ApiProperty({ example: 'Іван' })
   @IsNotEmpty()
@@ -54,11 +59,11 @@ export class RegisterDto {
 
   @ApiProperty({ enum: REGISTRABLE_ROLES, example: AccessLevel.PARTICIPANT })
   @IsIn(REGISTRABLE_ROLES)
-  role: AccessLevel.PARTICIPANT | AccessLevel.COACH;
+  role: AccessLevel.PARTICIPANT | AccessLevel.TRAINER | AccessLevel.COACH;
 
   @ApiProperty({
     required: false,
-    description: 'Required when role is COACH.',
+    description: 'Required when role is TRAINER or COACH.',
   })
   @IsOptional()
   @IsUUID()

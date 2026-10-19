@@ -127,7 +127,8 @@ export class ProgramPublicationService {
     userId: string,
   ): Promise<MineProgram> {
     const snapshot = await this.publishedSnapshot(competitionId);
-    const roster = await this.usersService.listRosterByCoach(userId);
+    // A studio head also follows the dancers of their studio's trainers.
+    const roster = await this.usersService.listVisibleRoster(userId);
     return buildMineProgram(snapshot, {
       ownIds: [userId],
       studentIds: roster.map((r) => r.id),

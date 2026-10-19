@@ -24,6 +24,16 @@ export class EntryCharge {
     return roundMoney(price * payers + extraFee);
   }
 
+  // The extra-time fee for a track over the limit — already in amount.
+  get extraFee(): number {
+    return roundMoney(this.parts.extraFee);
+  }
+
+  // One dancer's equal share of the extra-time fee — already in shareOf.
+  get extraFeeShare(): number {
+    return roundMoney(this.parts.extraFee / this.parts.dancerCount);
+  }
+
   // One dancer's part: the price if they pay it on this entry, plus an equal
   // share of the extra-time fee. A user not named on the entry is priced as a
   // payer — only a dancer who already paid elsewhere gets the price waived.

@@ -21,7 +21,7 @@ import * as bcrypt from 'bcrypt';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MinLevelGuard } from '../auth/min-level.guard';
 import { MinLevel } from '../auth/min-level.decorator';
-import { AccessLevel } from '../auth/access-level.enum';
+import { AccessLevel, isStudioStaff } from '../auth/access-level.enum';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { SALT_ROUNDS } from '../auth/auth.constants';
@@ -40,6 +40,8 @@ import {
 } from './users.constants';
 import { User } from './user.model';
 import { ParticipantSummary } from './participant-summary.interface';
+import { StudioDancerSummary } from './studio-dancer-summary.interface';
+import { StudioTrainerSummary } from './studio-trainer-summary.interface';
 import { CoachSummary } from './coach-summary.interface';
 import { OrganizerSummary } from './organizer-summary.interface';
 import { MentorCoach } from './mentor-coach.interface';
@@ -90,17 +92,70 @@ export class UsersController {
       "List a coach's roster; for an organizer, search participants by name",
   })
   @ApiResponse({ status: 200, description: 'Participants returned.' })
-  @MinLevel(AccessLevel.COACH)
+  @MinLevel(AccessLevel.TRAINER)
   @Get('participants')
   async findRoster(
     @CurrentUser() user: AuthenticatedUser,
     @Query('q') q?: string,
   ): Promise<ParticipantSummary[]> {
-    const participants =
-      user.accessLevel === AccessLevel.COACH
-        ? await this.usersService.searchRoster(user.id, q)
-        : await this.usersService.searchParticipants(q ?? '');
+    const participants = isStudioStaff(user.accessLevel)
+      ? await this.usersService.searchRoster(user.id, q)
+      : await this.usersService.searchParticipants(q ?? '');
     return participants.map((participant) => this.toSummary(participant));
+  }
+
+  @ApiOperation({
+    summary:
+      "Who the apply form may enter: a coach's roster plus, for a studio head, the studio's trainers; for an organizer, search participants by name",
+  })
+  @ApiResponse({ status: 200, description: 'Participants returned.' })
+  @MinLevel(AccessLevel.TRAINER)
+  @Get('participants/applicable')
+  async findApplicable(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('q') q?: string,
+  ): Promise<ParticipantSummary[]> {
+    const participants = isStudioStaff(user.accessLevel)
+      ? await this.usersService.searchApplicableRoster(user.id, q)
+      : await this.usersService.searchParticipants(q ?? '');
+    return participants.map((participant) => this.toSummary(participant));
+  }
+
+  @ApiOperation({
+    summary:
+      "A studio head's read-only list of the dancers their studio's trainers train",
+  })
+  @ApiResponse({ status: 200, description: 'Dancers returned.' })
+  @MinLevel(AccessLevel.COACH)
+  @Get('participants/studio')
+  async findStudioTrainersRoster(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<StudioDancerSummary[]> {
+    const dancers = await this.usersService.listStudioTrainersRoster(user.id);
+    return dancers.map((dancer) => ({
+      ...this.toSummary(dancer),
+      trainerId: dancer.coachId,
+      trainerName: dancer.coach
+        ? `${dancer.coach.lastName} ${dancer.coach.firstName}`.trim()
+        : null,
+    }));
+  }
+
+  @ApiOperation({ summary: "A studio head's list of their studio's trainers" })
+  @ApiResponse({ status: 200, description: 'Trainers returned.' })
+  @MinLevel(AccessLevel.COACH)
+  @Get('studio/trainers')
+  async findStudioTrainers(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<StudioTrainerSummary[]> {
+    const trainers = await this.usersService.listStudioTrainers(user.id);
+    return trainers.map((trainer) => ({
+      id: trainer.id,
+      firstName: trainer.firstName,
+      lastName: trainer.lastName,
+      phone: trainer.phone,
+      email: trainer.email,
+    }));
   }
 
   @ApiOperation({
@@ -108,7 +163,7 @@ export class UsersController {
       'Add a dancer to the roster (coach: under themselves; organizer: under a coach)',
   })
   @ApiResponse({ status: 201, description: 'Participant created.' })
-  @MinLevel(AccessLevel.COACH)
+  @MinLevel(AccessLevel.TRAINER)
   @Post('participants')
   async createRoster(
     @CurrentUser() user: AuthenticatedUser,
@@ -139,14 +194,14 @@ export class UsersController {
     description: 'A coach tried to remove someone off their own roster.',
   })
   @ApiResponse({ status: 404, description: 'Participant not found.' })
-  @MinLevel(AccessLevel.COACH)
+  @MinLevel(AccessLevel.TRAINER)
   @Delete('participants/:id')
   async removeFromRoster(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ): Promise<{ id: string }> {
     const participant = await this.usersService.findByIdOrFail(id);
-    if (user.accessLevel === AccessLevel.COACH && participant.coachId !== user.id) {
+    if (isStudioStaff(user.accessLevel) && participant.coachId !== user.id) {
       throw new ForbiddenException(NOT_YOUR_ROSTER_MESSAGE);
     }
     await this.usersService.updateFields(id, { coachId: null });
@@ -220,6 +275,19 @@ export class UsersController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<MentorCoach | null> {
     return this.usersService.getMentorCoach(user.id);
+  }
+
+  @ApiOperation({
+    summary:
+      'Everyone you train under: every head of a trainer\'s studio, else your mentor coach',
+  })
+  @ApiResponse({ status: 200, description: 'Mentor coaches returned.' })
+  @MinLevel(AccessLevel.PARTICIPANT)
+  @Get('me/coaches')
+  getMyCoaches(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MentorCoach[]> {
+    return this.usersService.getMentorCoaches(user.id);
   }
 
   @ApiOperation({ summary: 'Coaches you can pick as your own mentor' })
@@ -383,7 +451,7 @@ export class UsersController {
     user: AuthenticatedUser,
     dto: CreateRosterParticipantDto,
   ): string | null {
-    if (user.accessLevel === AccessLevel.COACH) {
+    if (isStudioStaff(user.accessLevel)) {
       return user.id;
     }
     return dto.coachId ?? null;

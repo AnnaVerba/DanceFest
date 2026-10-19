@@ -7,3 +7,7 @@ export const SCHOOL_CREATE_FAILED_MESSAGE = 'Не вдалося створит�
 export const SCHOOL_TYPEAHEAD_MIN_CHARS = 3;
 
 export const SCHOOL_REQUIRED_MESSAGE = 'Оберіть або створіть школу';
+
+// Shown by a picker that only picks — a trainer joins an existing studio.
+export const SCHOOL_NOT_FOUND_MESSAGE =
+  'Нічого не знайдено. Перевірте назву студії.';

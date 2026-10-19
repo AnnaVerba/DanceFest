@@ -11,7 +11,8 @@ export const PASSWORD_TOO_SHORT_MESSAGE = `Пароль має містити щ
 
 // Registration password: at least one letter (any alphabet), one digit and
 // one special symbol — anything that is not a letter, digit or whitespace.
-export const PASSWORD_STRENGTH_REGEX = /^(?=.*\p{L})(?=.*\d)(?=.*[^\p{L}\d\s]).*$/u;
+export const PASSWORD_STRENGTH_REGEX =
+  /^(?=.*\p{L})(?=.*\d)(?=.*[^\p{L}\d\s]).*$/u;
 export const PASSWORD_TOO_WEAK_MESSAGE =
   'Пароль має містити хоча б одну літеру, одну цифру та один спецсимвол';
 
@@ -26,3 +27,5 @@ export const FINGERPRINT_MISMATCH_MESSAGE =
   'Сесія прив’язана до іншого пристрою';
 export const LEAGUE_NOT_ALLOWED_ON_REGISTER_MESSAGE =
   'Лігу не можна вказувати при реєстрації';
+export const STUDIO_REQUIRED_MESSAGE =
+  'Тренеру та керівнику потрібно вказати студію';

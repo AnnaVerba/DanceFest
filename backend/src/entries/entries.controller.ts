@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  ParseUUIDPipe,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -53,6 +54,8 @@ export class EntriesController {
     @CurrentUser() admin: AuthenticatedAdmin,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('studioId', new ParseUUIDPipe({ optional: true }))
+    studioId?: string,
   ) {
     return this.entriesService.list(
       competitionId,
@@ -60,6 +63,7 @@ export class EntriesController {
       admin.accessLevel,
       page,
       pageSize,
+      studioId,
     );
   }
 

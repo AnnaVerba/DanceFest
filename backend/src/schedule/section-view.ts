@@ -25,6 +25,8 @@ export interface SectionExitView {
   improv: boolean;
   studioName: string | null;
   choreographer: string | null;
+  // The studio trainer, shown after the head: "керівник …, тренер …".
+  instructorName: string | null;
   participantId: string | null;
   participantIds: string[];
   musicName: string | null;
@@ -111,6 +113,7 @@ function toExitView(
     improv: entry.improv,
     studioName: entry.studioName,
     choreographer: entry.choreographer,
+    instructorName: entry.instructorName,
     participantId: entry.participantId,
     participantIds: entry.participantIds ?? [],
     musicName: entry.musicName,

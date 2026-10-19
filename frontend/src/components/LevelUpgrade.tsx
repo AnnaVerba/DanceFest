@@ -14,7 +14,9 @@ type Mode = 'idle' | 'coach';
 
 export default function LevelUpgrade({ session }: LevelUpgradeProps) {
   const { accessLevel } = session.profile;
-  const canBeCoach = !meetsLevel(accessLevel, ACCESS_LEVEL.COACH);
+  // Only a participant becomes a studio head here — a trainer already
+  // works under one.
+  const canBeCoach = accessLevel === ACCESS_LEVEL.PARTICIPANT;
   const canRequestOrganizer = !meetsLevel(accessLevel, ACCESS_LEVEL.ORGANIZER);
 
   const [mode, setMode] = useState<Mode>('idle');

@@ -9,6 +9,10 @@ export interface FinanceGroupRow {
   name: string | null;
   entriesCount: number;
   amount: number;
+  // Trainer (head) rows only: what the head's own dancers (null name) and
+  // each studio trainer's dancers owe. Absent when the head has no trainer
+  // in the competition.
+  trainers?: FinanceGroupRow[];
 }
 
 // Trainer, studio and dancer rows each add up to `total`.
