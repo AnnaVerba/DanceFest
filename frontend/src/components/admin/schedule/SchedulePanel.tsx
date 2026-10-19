@@ -14,7 +14,11 @@ import type { NominationToMove } from './nominationToMove.types';
 import MergeGroupsModal from './MergeGroupsModal';
 import ProgramTable from './ProgramTable';
 import type { SectionCollapse } from './sectionCollapse.types';
-import { sectionsCollapsed, toggleSection } from './sectionCollapse';
+import {
+  expandSection,
+  sectionsCollapsed,
+  toggleSection,
+} from './sectionCollapse';
 import ProgramPoster from './ProgramPoster';
 import ProgramExcelButton from './ProgramExcelButton';
 import SectionPager from './SectionPager';
@@ -164,6 +168,8 @@ export default function SchedulePanel({
     sectionsCollapsed(true),
   );
   const [newRowType, setNewRowType] = useState<'break' | 'gala'>('break');
+  // A break / gala just added — its name field takes the focus once.
+  const [focusRowId, setFocusRowId] = useState<string | null>(null);
 
   const daysQuery = useQuery({
     queryKey: queryKeys.days(competitionId),
@@ -681,12 +687,19 @@ export default function SchedulePanel({
       return;
     }
     try {
+      const known = new Set(target.items.map((item) => item.id));
       const updated = await addRow(competitionId, target.id, {
         type: newRowType,
         label: newRowType === 'break' ? 'Перерва' : 'Гала-шоу',
         durationSeconds: 600,
       });
       replaceSections([updated]);
+      // Open its section and put the cursor in the new row's name, so the
+      // organizer sees where it landed and can rename it right away.
+      setSectionCollapse((prev) => expandSection(prev, target.id));
+      setFocusRowId(
+        updated.items.find((item) => !known.has(item.id))?.id ?? null,
+      );
     } catch {
       onError('Не вдалося додати рядок.');
     }
@@ -827,8 +840,6 @@ export default function SchedulePanel({
         <ProgramExcelButton
           competitionId={competitionId}
           competitionName={competition.name}
-          days={days}
-          venues={venues}
           onError={onError}
         />
         <button
@@ -1071,6 +1082,8 @@ export default function SchedulePanel({
             collapsed={collapsed}
             onToggleCollapse={toggleCollapse}
             sectionCollapse={sectionCollapse}
+            focusRowId={focusRowId}
+            onRowFocused={() => setFocusRowId(null)}
             onToggleSection={toggleSectionCollapse}
             onReorderItems={handleReorder}
             onReorderSection={handleReorderSection}

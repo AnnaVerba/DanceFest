@@ -637,3 +637,17 @@
 .dragHandle:active {
   cursor: grabbing;
 }
+
+/* Next to a break's name while it has unsaved changes. */
+.saveLabelBtn {
+  margin-left: 8px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--g-accent);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}

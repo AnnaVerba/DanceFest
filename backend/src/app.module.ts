@@ -10,6 +10,7 @@ import { VenuesModule } from './venues/venues.module';
 import { EntriesModule } from './entries/entries.module';
 import { TracksModule } from './tracks/tracks.module';
 import { MusicExportModule } from './music-export/music-export.module';
+import { ProgramExportModule } from './program-export/program-export.module';
 import { NominationsModule } from './nominations/nominations.module';
 import { CategoriesModule } from './categories/categories.module';
 import { CategoryTemplatesModule } from './category-templates/category-templates.module';
@@ -82,6 +83,7 @@ import {
     EntriesModule,
     TracksModule,
     MusicExportModule,
+    ProgramExportModule,
     NominationsModule,
     CategoriesModule,
     CategoryTemplatesModule,

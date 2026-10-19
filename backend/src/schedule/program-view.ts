@@ -90,7 +90,7 @@ function groupLabelOf(item: SectionItemView): string {
 
 // The clock time a section's last position finishes; an empty section ends
 // where it starts.
-function sectionEndTime(section: SectionView): string {
+export function sectionEndTime(section: SectionView): string {
   const last = section.items[section.items.length - 1];
   if (!last) return `${section.startTime}:00`;
   return formatHhMmSs(last.startTimeSeconds + (last.durationSeconds ?? 0));

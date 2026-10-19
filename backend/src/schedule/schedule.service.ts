@@ -1614,6 +1614,38 @@ export class ScheduleService {
     return buildExtendedProgram(sections);
   }
 
+  // The Excel export's walk over the program: every section id in running
+  // order, competition staff only. The sections themselves are read a few
+  // at a time through sectionViewsByIds, never all at once.
+  async programSectionIds(
+    competitionId: string,
+    requester: AuthenticatedUser,
+  ): Promise<string[]> {
+    try {
+      await this.assertAccess(competitionId, requester);
+    } catch {
+      throw new ForbiddenException(EXTENDED_PROGRAM_FORBIDDEN_MESSAGE);
+    }
+    const ordered = await this.sectionModel.findAll({
+      where: this.sectionWhere(competitionId, {}),
+      include: SECTION_ORDER_INCLUDES,
+      order: this.sectionOrder,
+      attributes: ['id'],
+    });
+    return ordered.map((section) => section.id);
+  }
+
+  // One chunk of the program: these sections, in running order, as views.
+  async sectionViewsByIds(sectionIds: string[]): Promise<SectionView[]> {
+    if (sectionIds.length === 0) return [];
+    const sections = await this.sectionModel.findAll({
+      where: { id: { [Op.in]: sectionIds } },
+      include: SECTION_ORDER_INCLUDES,
+      order: this.sectionOrder,
+    });
+    return this.toSectionViews(sections);
+  }
+
   // --- internals ---------------------------------------------------
 
   private async viewOf(

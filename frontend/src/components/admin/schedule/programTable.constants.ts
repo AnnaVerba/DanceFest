@@ -19,3 +19,8 @@ export const FOREIGN_VENUE_WARNING_HINT =
 export const MANUAL_ROW_LABEL_DRAFT_PREFIX = 'l-';
 export const MANUAL_ROW_LABEL_PLACEHOLDER = 'Назва';
 export const MANUAL_ROW_LABEL_SEPARATOR = ' · ';
+// Shown while the typed name differs from the saved one; Enter saves too,
+// Escape puts the saved name back.
+export const MANUAL_ROW_LABEL_SAVE = 'Зберегти';
+export const KEY_ENTER = 'Enter';
+export const KEY_ESCAPE = 'Escape';
