@@ -296,6 +296,7 @@ export class AuthService {
         email: user.email,
         birthDate: user.birthDate,
         accessLevel: user.accessLevel,
+        studioRole: user.studioRole ?? null,
         schoolId: user.schoolId,
         coachId: user.coachId,
       },

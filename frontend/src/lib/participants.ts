@@ -1,6 +1,10 @@
 import { authorizedFetch } from './auth';
 import { GENERIC_REQUEST_ERROR_MESSAGE } from './api.constants';
 import { CANNOT_CONNECT_TO_SERVER_MESSAGE } from './auth.constants';
+import {
+  ROSTER_SCOPE_MINE,
+  ROSTER_SCOPE_PARAM,
+} from './participants.constants';
 
 export interface Participant {
   id: string;
@@ -89,6 +93,14 @@ export function getParticipants(query?: string): Promise<Participant[]> {
   const q = query?.trim();
   const suffix = q ? `?q=${encodeURIComponent(q)}` : '';
   return request<Participant[]>(`/users/participants${suffix}`);
+}
+
+// The caller's own roster — also for an organizer who still trains
+// (TASK-16), whose plain getParticipants is a search over everyone.
+export function getMyRoster(): Promise<Participant[]> {
+  return request<Participant[]>(
+    `/users/participants?${ROSTER_SCOPE_PARAM}=${ROSTER_SCOPE_MINE}`,
+  );
 }
 
 // Who the apply form may enter: a coach's roster plus, for a studio

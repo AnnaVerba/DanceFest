@@ -1,6 +1,11 @@
 import { NavLink } from 'react-router-dom';
 import { getSession } from '../lib/auth';
-import { ACCESS_LEVEL, isStudioStaff, meetsLevel } from '../lib/roles';
+import {
+  ACCESS_LEVEL,
+  hasStudioRole,
+  isStudioHead,
+  meetsLevel,
+} from '../lib/roles';
 import {
   HEAD_ENTRIES_NAV_LABEL,
   MY_ENTRIES_NAV_LABEL,
@@ -27,13 +32,13 @@ export default function CabinetSidebar() {
     {
       to: '/my-participants',
       label: 'Мої учасники',
-      show: level ? isStudioStaff(level) : false,
+      show: session ? hasStudioRole(session.profile) : false,
     },
     // An admin manages other people's entries, never their own.
     {
       to: '/my-entries',
       label:
-        level === ACCESS_LEVEL.COACH
+        session && isStudioHead(session.profile)
           ? HEAD_ENTRIES_NAV_LABEL
           : MY_ENTRIES_NAV_LABEL,
       show: !isAdmin,

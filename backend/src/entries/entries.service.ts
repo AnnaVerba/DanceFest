@@ -34,6 +34,7 @@ import { EntryChargeService } from './pricing/entry-charge.service';
 import { Score } from './score.model';
 import { User } from '../users/user.model';
 import { StudioRole } from '../users/studio-role.enum';
+import { isStudioHead } from '../users/studio-role';
 import { CreateEntryDto } from './dto/create-entry.dto';
 import { UpdateEntryDto } from './dto/update-entry.dto';
 import type { EntryParticipant } from './entry-participant.interface';
@@ -820,7 +821,7 @@ export class EntriesService {
       DEFAULT_MY_ENTRIES_PAGE_SIZE,
       MAX_MY_ENTRIES_PAGE_SIZE,
     );
-    const headUserId = user.accessLevel === AccessLevel.COACH ? user.id : null;
+    const headUserId = isStudioHead(user) ? user.id : null;
     return buildMyEntriesPage(
       await this.loadMyEntries(user),
       {

@@ -7,11 +7,7 @@ import MentorCoachField from '../components/MentorCoachField';
 import ProfileEditModal from '../components/ProfileEditModal';
 import StudioTrainersList from '../components/StudioTrainersList';
 import { getSession, getToken } from '../lib/auth';
-import {
-  ACCESS_LEVEL,
-  ACCESS_LEVEL_LABELS,
-  canHaveMentorCoach,
-} from '../lib/roles';
+import { canHaveMentorCoach, isStudioHead, roleLabel } from '../lib/roles';
 import { getMyProfile } from '../lib/users';
 import { formatContestDate } from '../lib/homeContests';
 import { queryKeys } from '../lib/queryKeys';
@@ -51,7 +47,7 @@ export default function ProfilePage() {
     ? [
         { label: 'Імʼя', value: profile.firstName },
         { label: 'Прізвище', value: profile.lastName },
-        { label: 'Роль', value: ACCESS_LEVEL_LABELS[profile.accessLevel] },
+        { label: 'Роль', value: roleLabel(profile) },
         { label: 'Дата народження', value: formatBirthDate(profile.birthDate) },
         { label: 'Телефон', value: profile.phone },
         { label: 'Email', value: profile.email ?? '—' },
@@ -101,7 +97,7 @@ export default function ProfilePage() {
 
           <LevelUpgrade session={session} />
 
-          {profile.accessLevel === ACCESS_LEVEL.COACH && (
+          {isStudioHead(profile) && (
             <StudioTrainersList />
           )}
 

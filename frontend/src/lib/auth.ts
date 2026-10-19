@@ -2,6 +2,7 @@ import { API_BASE_URL } from './api';
 import type { AuthorizedFetchOptions } from './authorizedFetch.types';
 import { ACCESS_LEVEL, meetsLevel } from './roles';
 import type { AccessLevel } from './roles';
+import type { StudioRole } from './studioRole.types';
 import {
   SESSION_STORAGE_KEY,
   UNEXPECTED_SERVER_RESPONSE_MESSAGE,
@@ -32,6 +33,9 @@ export interface UserProfile {
   email: string | null;
   birthDate: string | null;
   accessLevel: AccessLevel;
+  // Trainer or studio head, kept when they become an organizer; missing
+  // from sessions saved before it was added.
+  studioRole?: StudioRole | null;
   schoolId: string | null;
   coachId: string | null;
 }

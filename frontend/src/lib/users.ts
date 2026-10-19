@@ -1,6 +1,7 @@
 import { authorizedFetch, getSession, refreshSession } from './auth';
 import type { SetMentorCoachBody } from './auth';
 import type { AccessLevel } from './roles';
+import type { StudioRole } from './studioRole.types';
 import type { OrganizerSummary } from './organizerSummary';
 import type { OrganizerOption } from './organizerOption';
 import { GENERIC_REQUEST_ERROR_MESSAGE } from './api.constants';
@@ -16,6 +17,8 @@ export interface MyProfile {
   phone: string;
   birthDate: string | null;
   accessLevel: AccessLevel;
+  // Trainer or studio head — kept when they become an organizer.
+  studioRole: StudioRole | null;
   schoolId: string | null;
   schoolName: string | null;
   coachId: string | null;

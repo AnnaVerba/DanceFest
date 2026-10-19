@@ -1,3 +1,10 @@
+import {
+  ROLE_LABEL_JOINER,
+  STUDIO_ROLE,
+  STUDIO_ROLE_LABELS,
+} from './studioRole.constants';
+import type { StudioMember } from './studioRole.types';
+
 // A single capability ladder. Higher levels can do everything below them.
 export const ACCESS_LEVEL = {
   PARTICIPANT: 'PARTICIPANT',
@@ -56,4 +63,28 @@ export const SELF_UPGRADABLE_LEVELS: AccessLevel[] = [ACCESS_LEVEL.COACH];
 // own dancers («Мої учасники»).
 export function isStudioStaff(level: AccessLevel): boolean {
   return level === ACCESS_LEVEL.TRAINER || level === ACCESS_LEVEL.COACH;
+}
+
+// Works in a studio whatever the level: a trainer or head who became an
+// organizer keeps their dancers and their «Мої учасники» (TASK-16).
+export function hasStudioRole(member: StudioMember): boolean {
+  return isStudioStaff(member.accessLevel) || !!member.studioRole;
+}
+
+// Heads a studio — also once they are an organizer.
+export function isStudioHead(member: StudioMember): boolean {
+  return member.studioRole === STUDIO_ROLE.HEAD;
+}
+
+// Trains in a studio under its head — also once they are an organizer.
+export function isStudioTrainer(member: StudioMember): boolean {
+  return member.studioRole === STUDIO_ROLE.TRAINER;
+}
+
+// «Тренер · Організатор» for an organizer who still trains; the plain level
+// name for everyone else (a trainer is already «Тренер»).
+export function roleLabel(member: StudioMember): string {
+  const level = ACCESS_LEVEL_LABELS[member.accessLevel];
+  if (!member.studioRole || isStudioStaff(member.accessLevel)) return level;
+  return `${STUDIO_ROLE_LABELS[member.studioRole]}${ROLE_LABEL_JOINER}${level}`;
 }

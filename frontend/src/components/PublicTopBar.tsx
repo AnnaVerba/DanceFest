@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { clearSession, getSession } from '../lib/auth';
-import { ACCESS_LEVEL_LABELS } from '../lib/roles';
+import { roleLabel } from '../lib/roles';
 import { HOME_PATH } from './PublicTopBar.constants';
 import styles from './PublicTopBar.module.css';
 
@@ -54,7 +54,7 @@ export default function PublicTopBar() {
                   {session.profile.firstName}
                 </span>
                 <span className={styles.userRole}>
-                  {ACCESS_LEVEL_LABELS[session.profile.accessLevel]}
+                  {roleLabel(session.profile)}
                 </span>
               </span>
             </Link>
