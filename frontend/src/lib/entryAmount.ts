@@ -5,8 +5,8 @@ import {
 } from './entryAmount.constants';
 import type { ParticipantAmount, PricedEntry } from './entryAmount.types';
 import {
+  formatEntryPerformers,
   formatParticipantName,
-  formatParticipants,
 } from './entryParticipants';
 
 // "700 грн" for a set price, a dash when there is none (an unpriced
@@ -33,7 +33,7 @@ export function sumAmountsByParticipant(
   const kopiykasByKey = new Map<string, ParticipantAmount>();
   for (const entry of entries) {
     if (entry.participantAmounts.length === 0) {
-      const label = formatParticipants(entry.participants);
+      const label = formatEntryPerformers(entry);
       addTo(kopiykasByKey, label, label, entry.amount);
       continue;
     }

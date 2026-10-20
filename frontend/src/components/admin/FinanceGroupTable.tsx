@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import Pager from './Pager';
+import FinanceGroupRowView from './FinanceGroupRowView';
 import { FIRST_PAGE } from './Pager.constants';
 import { getFinanceGroup } from '../../lib/finance';
 import type { FinanceGroupQuery } from '../../lib/finance.types';
-import { formatEntryAmount } from '../../lib/entryAmount';
 import { queryKeys } from '../../lib/queryKeys';
 import { FINANCE_STALE_TIME_MS } from '../../lib/queryClient.constants';
 import {
@@ -15,7 +15,6 @@ import {
   FINANCE_NO_MATCHES_MESSAGE,
   FINANCE_PAGE_SIZE,
   FINANCE_SEARCH_DEBOUNCE_MS,
-  FINANCE_UNSPECIFIED_NAME,
 } from './FinancePanel.constants';
 import type { FinanceSectionConfig } from './FinancePanel.types';
 import styles from './FinancePanel.module.css';
@@ -131,15 +130,7 @@ export default function FinanceGroupTable({
                       </tr>
                     )}
                     {rows.map((row) => (
-                      <tr key={row.key}>
-                        <td className={row.name ? styles.name : styles.unspecified}>
-                          {row.name ?? FINANCE_UNSPECIFIED_NAME}
-                        </td>
-                        <td className={styles.numCol}>{row.entriesCount}</td>
-                        <td className={`${styles.numCol} ${styles.amount}`}>
-                          {formatEntryAmount(row.amount)}
-                        </td>
-                      </tr>
+                      <FinanceGroupRowView key={row.key} row={row} />
                     ))}
                   </tbody>
                 </table>

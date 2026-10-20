@@ -3,6 +3,7 @@ import { createSchool, getSchool, searchSchools } from '../lib/schools';
 import type { School } from '../lib/schools';
 import {
   SCHOOLS_LOAD_FAILED_MESSAGE,
+  SCHOOL_NOT_FOUND_MESSAGE,
   SCHOOL_TYPEAHEAD_MIN_CHARS,
 } from '../lib/schools.constants';
 import styles from './SchoolPicker.module.css';
@@ -10,11 +11,17 @@ import styles from './SchoolPicker.module.css';
 interface SchoolPickerProps {
   value: string;
   onChange: (schoolId: string) => void;
+  // False hides "Додати": creating a school needs a session.
+  allowCreate?: boolean;
 }
 
 // Typeahead over schools: type a couple of letters, pick a match, or type
 // a new name and create it. The parent only ever receives a real id.
-export default function SchoolPicker({ value, onChange }: SchoolPickerProps) {
+export default function SchoolPicker({
+  value,
+  onChange,
+  allowCreate = true,
+}: SchoolPickerProps) {
   const [selected, setSelected] = useState<School | null>(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<School[]>([]);
@@ -122,16 +129,18 @@ export default function SchoolPicker({ value, onChange }: SchoolPickerProps) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
-            <button
-              type="button"
-              className={styles.createBtn}
-              disabled={
-                creating || query.trim().length < SCHOOL_TYPEAHEAD_MIN_CHARS
-              }
-              onClick={handleCreate}
-            >
-              {creating ? '…' : 'Додати'}
-            </button>
+            {allowCreate && (
+              <button
+                type="button"
+                className={styles.createBtn}
+                disabled={
+                  creating || query.trim().length < SCHOOL_TYPEAHEAD_MIN_CHARS
+                }
+                onClick={handleCreate}
+              >
+                {creating ? '…' : 'Додати'}
+              </button>
+            )}
           </div>
           {query.trim().length < SCHOOL_TYPEAHEAD_MIN_CHARS && (
             <p className={styles.hint}>
@@ -159,7 +168,9 @@ export default function SchoolPicker({ value, onChange }: SchoolPickerProps) {
               )}
               {!searching && !error && results.length === 0 && (
                 <p className={styles.comboEmpty}>
-                  Нічого не знайдено. Натисніть «Додати», щоб створити нову.
+                  {allowCreate
+                    ? 'Нічого не знайдено. Натисніть «Додати», щоб створити нову.'
+                    : SCHOOL_NOT_FOUND_MESSAGE}
                 </p>
               )}
             </>

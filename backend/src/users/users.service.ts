@@ -14,6 +14,7 @@ import {
 import {
   AccessLevel,
   isHigherLevel,
+  isStudioStaff,
   meetsLevel,
 } from '../auth/access-level.enum';
 import { SchoolsService } from '../schools/schools.service';
@@ -24,6 +25,9 @@ import { MentorCoach } from './mentor-coach.interface';
 import { MentorCoachSelection } from './mentor-coach-selection.interface';
 import { CompleteProfileInput } from './complete-profile-input.interface';
 import { isProfileComplete } from './profile-completeness';
+import { StudioRole } from './studio-role.enum';
+import { studioRoleAfter } from './studio-role';
+import { uniqueById } from './unique-users';
 import {
   PARTICIPANT_SEARCH_LIMIT,
   PARTICIPANT_SEARCH_MIN_CHARS,
@@ -132,7 +136,10 @@ export class UsersService {
   }
 
   create(data: CreateUserData): Promise<User> {
-    return this.userModel.create(data as CreationAttributes<User>);
+    return this.userModel.create({
+      ...data,
+      studioRole: studioRoleAfter(data.accessLevel, null),
+    } as CreationAttributes<User>);
   }
 
   async updateFields(
@@ -220,7 +227,17 @@ export class UsersService {
     userId: string,
     fields: LinkRegistrationFields,
   ): Promise<User> {
-    await this.userModel.update(fields, { where: { id: userId } });
+    const stub = await this.findByIdOrFail(userId);
+    await this.userModel.update(
+      {
+        ...fields,
+        studioRole: studioRoleAfter(
+          fields.accessLevel ?? stub.accessLevel,
+          stub.studioRole,
+        ),
+      },
+      { where: { id: userId } },
+    );
     return this.findByIdOrFail(userId);
   }
 
@@ -269,13 +286,13 @@ export class UsersService {
   }
 
   // Fill in the fields a user must have before using the app: a mentor
-  // coach for everyone, plus the school for a coach.
+  // coach for everyone, plus the school for a coach or trainer.
   async completeProfile(
     userId: string,
     accessLevel: AccessLevel,
     input: CompleteProfileInput,
   ): Promise<{ schoolId: string | null; coachId: string }> {
-    const requiresSchool = accessLevel === AccessLevel.COACH;
+    const requiresSchool = isStudioStaff(accessLevel);
     if (requiresSchool && !input.schoolId) {
       throw new BadRequestException(SCHOOL_REQUIRED_FOR_COACH_MESSAGE);
     }
@@ -294,16 +311,32 @@ export class UsersService {
     };
   }
 
-  // The coach this user trains under, with contact details, or null.
+  // The coach this user trains under, with contact details, or null. For
+  // a trainer in a studio with several heads — the earliest of them.
   async getMentorCoach(userId: string): Promise<MentorCoach | null> {
+    const [first] = await this.getMentorCoaches(userId);
+    return first ?? null;
+  }
+
+  // Everyone this user trains under, with contact details: every head of
+  // a trainer's studio, else the one mentor the user picked.
+  async getMentorCoaches(userId: string): Promise<MentorCoach[]> {
     const user = await this.findByIdOrFail(userId);
-    if (!user.coachId) {
-      return null;
+    const coaches = await this.findMentorsOf(user);
+    return Promise.all(coaches.map((coach) => this.toMentorCoach(coach)));
+  }
+
+  // A trainer works under their studio's heads, found through the studio,
+  // so a head who joins later shows up too. Everyone else picks theirs.
+  private async findMentorsOf(user: User): Promise<User[]> {
+    if (user.studioRole === StudioRole.TRAINER) {
+      return user.schoolId ? this.findStudioHeads(user.schoolId) : [];
     }
-    const coach = await this.findById(user.coachId);
-    if (!coach) {
-      return null;
-    }
+    const coach = user.coachId ? await this.findById(user.coachId) : null;
+    return coach ? [coach] : [];
+  }
+
+  private async toMentorCoach(coach: User): Promise<MentorCoach> {
     const school = coach.schoolId
       ? await this.schoolsService.findByIdOrFail(coach.schoolId)
       : null;
@@ -317,7 +350,7 @@ export class UsersService {
     };
   }
 
-  // Coaches a user may pick as their own mentor: rows at COACH level or
+  // Coaches a user may pick as their own mentor: rows at TRAINER level or
   // above, matched on first or last name. Unconfirmed rows are included so
   // a coach added earlier via "add manually" (createPlaceholderCoach, which
   // stores confirmed: false) can be found and reused instead of duplicated.
@@ -331,6 +364,7 @@ export class UsersService {
         ...NOT_DELETED,
         accessLevel: {
           [Op.in]: [
+            AccessLevel.TRAINER,
             AccessLevel.COACH,
             AccessLevel.ORGANIZER,
             AccessLevel.ADMIN,
@@ -377,7 +411,11 @@ export class UsersService {
       await this.schoolsService.findByIdOrFail(schoolId);
     }
     await this.userModel.update(
-      { accessLevel: level, ...(schoolId ? { schoolId } : {}) },
+      {
+        accessLevel: level,
+        studioRole: studioRoleAfter(level, user.studioRole),
+        ...(schoolId ? { schoolId } : {}),
+      },
       { where: { id: userId } },
     );
     return this.findByIdOrFail(userId);
@@ -385,9 +423,12 @@ export class UsersService {
 
   // ADMIN-only: set any level, including down or up to ADMIN.
   async setLevel(userId: string, level: AccessLevel): Promise<User> {
-    await this.findByIdOrFail(userId);
+    const user = await this.findByIdOrFail(userId);
     await this.userModel.update(
-      { accessLevel: level },
+      {
+        accessLevel: level,
+        studioRole: studioRoleAfter(level, user.studioRole),
+      },
       { where: { id: userId } },
     );
     return this.findByIdOrFail(userId);
@@ -450,6 +491,9 @@ export class UsersService {
           }),
           ...(dto.lastName !== undefined && { lastName: dto.lastName.trim() }),
           ...(dto.phone !== undefined && { phone: dto.phone.trim() }),
+          ...(dto.accessLevel !== undefined && {
+            studioRole: studioRoleAfter(dto.accessLevel, user.studioRole),
+          }),
         },
         { transaction },
       );
@@ -473,7 +517,7 @@ export class UsersService {
     await this.editProfile(userId, dto);
   }
 
-  // Shared by the own and the admin edit. The school needs coach level —
+  // Shared by the own and the admin edit. The school needs trainer level —
   // the level being set in the same edit, if any, else the current one.
   private async editProfile(
     userId: string,
@@ -489,7 +533,7 @@ export class UsersService {
     if (schoolId !== undefined) {
       const user = await this.findByIdOrFail(userId);
       const level = contact.accessLevel ?? user.accessLevel;
-      if (!meetsLevel(level, AccessLevel.COACH)) {
+      if (!meetsLevel(level, AccessLevel.TRAINER)) {
         throw new BadRequestException(SCHOOL_ONLY_FOR_COACH_MESSAGE);
       }
       await this.schoolsService.findByIdOrFail(schoolId);
@@ -532,6 +576,104 @@ export class UsersService {
       order: [['lastName', 'ASC']],
       limit: MAX_ROSTER,
     });
+  }
+
+  // The head of a studio: the earliest of its heads. Null for a studio
+  // nobody heads yet.
+  findStudioHead(schoolId: string): Promise<User | null> {
+    return this.userModel.findOne({
+      where: {
+        ...NOT_DELETED,
+        schoolId,
+        studioRole: StudioRole.HEAD,
+      },
+      order: [['createdAt', 'ASC']],
+    });
+  }
+
+  // Every head of a studio, earliest first.
+  findStudioHeads(schoolId: string): Promise<User[]> {
+    return this.userModel.findAll({
+      where: {
+        ...NOT_DELETED,
+        schoolId,
+        studioRole: StudioRole.HEAD,
+      },
+      order: [['createdAt', 'ASC']],
+    });
+  }
+
+  // The trainers of the studio a user heads, by last name, optionally
+  // narrowed to a typed name. Empty for anyone who heads no studio.
+  async listStudioTrainers(
+    headUserId: string,
+    query?: string,
+  ): Promise<User[]> {
+    const head = await this.findByIdOrFail(headUserId);
+    if (!head.schoolId || head.studioRole !== StudioRole.HEAD) {
+      return [];
+    }
+    return this.userModel.findAll({
+      where: {
+        ...NOT_DELETED,
+        schoolId: head.schoolId,
+        studioRole: StudioRole.TRAINER,
+        ...nameWhere(query),
+      },
+      order: [['lastName', 'ASC']],
+    });
+  }
+
+  // Everyone a coach may enter in a competition besides themself: their
+  // roster and, for a studio head, the studio's trainers.
+  async listApplicableRoster(coachUserId: string): Promise<User[]> {
+    const [roster, trainers] = await Promise.all([
+      this.listRosterByCoach(coachUserId),
+      this.listStudioTrainers(coachUserId),
+    ]);
+    return uniqueById([...roster, ...trainers]);
+  }
+
+  // The apply form's participant picker over listApplicableRoster: the
+  // first matches by last name, or the first of all with no query.
+  async searchApplicableRoster(
+    coachUserId: string,
+    query?: string,
+  ): Promise<User[]> {
+    const [roster, trainers] = await Promise.all([
+      this.searchRoster(coachUserId, query),
+      this.listStudioTrainers(coachUserId, query),
+    ]);
+    return uniqueById([...roster, ...trainers])
+      .sort((a, b) => a.lastName.localeCompare(b.lastName))
+      .slice(0, TYPEAHEAD_LIMIT);
+  }
+
+  // A studio head's view of the dancers their studio's trainers train,
+  // each with their trainer (the coach association) loaded. Empty for
+  // anyone who heads no studio. Sanity-capped like the own roster.
+  async listStudioTrainersRoster(headUserId: string): Promise<User[]> {
+    const trainers = await this.listStudioTrainers(headUserId);
+    if (trainers.length === 0) return [];
+    return this.userModel.findAll({
+      where: {
+        ...NOT_DELETED,
+        coachId: { [Op.in]: trainers.map((t) => t.id) },
+      },
+      include: [{ model: User, as: COACH_ASSOCIATION }],
+      order: [['lastName', 'ASC']],
+      limit: MAX_ROSTER,
+    });
+  }
+
+  // Everyone whose performances the user follows: their own roster plus,
+  // for a studio head, the dancers of the studio's trainers.
+  async listVisibleRoster(userId: string): Promise<User[]> {
+    const [own, trainers] = await Promise.all([
+      this.listRosterByCoach(userId),
+      this.listStudioTrainersRoster(userId),
+    ]);
+    return [...own, ...trainers];
   }
 
   // The picker: first 10 of the roster, or the first 10 matching a typed

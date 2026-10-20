@@ -8,18 +8,25 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
+  MaxLength,
   Min,
 } from 'class-validator';
+import {
+  MAX_ENTRY_PARTICIPANTS,
+  ROUTINE_NAME_MAX_LENGTH,
+} from '../entries.constants';
 
 export class CreateEntryDto {
   @ApiPropertyOptional({
     example: 'Beautiful Life',
     description:
-      'Routine name. Optional when `participantId` is given — the server then uses the participant name.',
+      'Routine name. Optional when `participantId` is given — the server then uses the participant name. A group submitted by headcount carries its own name here.',
   })
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(ROUTINE_NAME_MAX_LENGTH)
   routineName?: string;
 
   @ApiPropertyOptional({
@@ -61,10 +68,15 @@ export class CreateEntryDto {
   @IsNotEmpty()
   nomination?: string;
 
-  @ApiPropertyOptional({ example: 1 })
+  @ApiPropertyOptional({
+    example: 1,
+    description:
+      'Headcount of the number. For a group submitted without `participantIds` this is the only record of its size.',
+  })
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(MAX_ENTRY_PARTICIPANTS)
   participantsCount?: number;
 
   @ApiPropertyOptional({ example: 'StarFamily' })

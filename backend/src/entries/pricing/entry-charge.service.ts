@@ -54,19 +54,25 @@ export class EntryChargeService {
   }
 
   // Prices entries that do not exist yet: the dancers' saved entries in this
-  // competition come first, then the proposed rows, oldest to newest.
+  // competition come first, then the proposed rows, oldest to newest. A group
+  // submitted by headcount names nobody — `headcount` alone sizes it, and it
+  // has no saved entries to count.
   async quote(
     competitionId: string,
     participantIds: string[],
     nominationIds: string[],
+    headcount?: number,
   ): Promise<number[]> {
-    const history = await this.entryModel.findAll({
-      where: {
-        competitionId,
-        participantIds: { [Op.overlap]: participantIds },
-      },
-      attributes: CHARGE_ENTRY_ATTRIBUTES,
-    });
+    const history =
+      participantIds.length === 0
+        ? []
+        : await this.entryModel.findAll({
+            where: {
+              competitionId,
+              participantIds: { [Op.overlap]: participantIds },
+            },
+            attributes: CHARGE_ENTRY_ATTRIBUTES,
+          });
     const submittedAt = Date.now();
     const proposed: ChargeableEntry[] = nominationIds.map(
       (nominationId, index) => ({
@@ -74,7 +80,7 @@ export class EntryChargeService {
         createdAt: new Date(submittedAt + index),
         nominationId,
         participantIds,
-        participantsCount: participantIds.length,
+        participantsCount: headcount ?? participantIds.length,
         extraFee: 0,
       }),
     );

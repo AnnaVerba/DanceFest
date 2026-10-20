@@ -348,7 +348,20 @@ export async function getMyMentorCoach(): Promise<MentorCoach | null> {
   if (!response.ok) {
     throw new AuthError(UNEXPECTED_SERVER_RESPONSE_MESSAGE);
   }
-  return response.json() as Promise<MentorCoach | null>;
+  // No mentor comes back as an empty body (Nest sends nothing for null),
+  // which response.json() would reject.
+  const body = await response.text();
+  return body ? (JSON.parse(body) as MentorCoach) : null;
+}
+
+// Everyone the user trains under: every head of a trainer's studio, else
+// the one mentor coach they picked. Empty when there is none.
+export async function getMyMentorCoaches(): Promise<MentorCoach[]> {
+  const response = await authorizedFetch('/users/me/coaches');
+  if (!response.ok) {
+    throw new AuthError(UNEXPECTED_SERVER_RESPONSE_MESSAGE);
+  }
+  return response.json() as Promise<MentorCoach[]>;
 }
 
 export function saveSession(session: Session) {

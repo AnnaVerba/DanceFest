@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query';
 import type { InfiniteData } from '@tanstack/react-query';
 import ConfirmDialog from './ConfirmDialog';
 import EntryEditModal from './EntryEditModal';
@@ -20,6 +25,7 @@ import {
   PAGE_SIZE,
   PAYMENT_METHOD_COLUMN_COUNT,
   SORT_LABELS,
+  UNNAMED_STUDIO_LABEL,
 } from './EntriesPanel.constants';
 import type { SortKey } from './EntriesPanel.constants';
 import { PAYMENT_METHOD_LABELS } from './EntryEditModal.constants';
@@ -71,13 +77,22 @@ export default function EntriesPanel({
   const [ageCategory, setAgeCategory] = useState(ALL);
   const [league, setLeague] = useState(ALL);
   const [program, setProgram] = useState(ALL);
+  // A studio id — the server narrows the list to it.
+  const [studio, setStudio] = useState(ALL);
   const [sort, setSort] = useState<SortKey>('number');
   const [page, setPage] = useState(1);
 
+  const studioId = studio === ALL ? undefined : studio;
+  const entriesKey = queryKeys.entries(competitionId, studioId);
   const entriesQuery = useInfiniteQuery({
-    queryKey: queryKeys.entries(competitionId),
+    queryKey: entriesKey,
     queryFn: ({ pageParam }) =>
-      getEntries(competitionId, { page: pageParam, pageSize: ENTRIES_SERVER_PAGE }),
+      getEntries(competitionId, {
+        page: pageParam,
+        pageSize: ENTRIES_SERVER_PAGE,
+        studioId,
+      }),
+    placeholderData: keepPreviousData,
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((sum, p) => sum + p.rows.length, 0);
@@ -103,7 +118,7 @@ export default function EntriesPanel({
     onSuccess: (_data, entryId) => {
       // Instant feedback: drop the row from whichever loaded page has it.
       queryClient.setQueryData<InfiniteData<PagedEntries>>(
-        queryKeys.entries(competitionId),
+        entriesKey,
         (old) =>
           old && {
             ...old,
@@ -136,7 +151,7 @@ export default function EntriesPanel({
 
   const handleSaved = (saved: Entry) => {
     queryClient.setQueryData<InfiniteData<PagedEntries>>(
-      queryKeys.entries(competitionId),
+      entriesKey,
       (old) =>
         old && {
           ...old,
@@ -158,6 +173,8 @@ export default function EntriesPanel({
     () => uniqueValues(entries ?? [], (e) => e.program),
     [entries],
   );
+  // From the server, sorted there: every studio, not just the loaded ones.
+  const studios = entriesQuery.data?.pages[0]?.studios ?? [];
 
   const filtered = useMemo(() => {
     if (!entries) return [];
@@ -254,6 +271,19 @@ export default function EntriesPanel({
           {programs.map((v) => (
             <option key={v} value={v}>
               {v}
+            </option>
+          ))}
+        </select>
+        <select
+          className={styles.field}
+          aria-label="Студія"
+          value={studio}
+          onChange={(e) => resetPage(setStudio)(e.target.value)}
+        >
+          <option value={ALL}>Усі студії</option>
+          {studios.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.name ?? UNNAMED_STUDIO_LABEL}
             </option>
           ))}
         </select>

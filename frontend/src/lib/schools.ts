@@ -1,9 +1,11 @@
 import { authorizedFetch } from './auth';
+import { publicRequest } from './http';
 import {
-  SCHOOLS_LOAD_FAILED_MESSAGE,
   SCHOOL_CREATE_FAILED_MESSAGE,
+  SCHOOL_HEAD_TYPEAHEAD_MIN_CHARS,
   SCHOOL_TYPEAHEAD_MIN_CHARS,
 } from './schools.constants';
+import type { SchoolHead } from './schoolHead.types';
 
 export interface School {
   id: string;
@@ -23,21 +25,22 @@ function extractMessage(payload: ErrorPayload | null, fallback: string): string 
 export async function searchSchools(q: string): Promise<School[]> {
   const query = q.trim();
   if (query.length < SCHOOL_TYPEAHEAD_MIN_CHARS) return [];
-  const response = await authorizedFetch(
-    `/schools?q=${encodeURIComponent(query)}`,
+  // Public: the register page searches before there is a session.
+  return publicRequest<School[]>(`/schools?q=${encodeURIComponent(query)}`);
+}
+
+// Typeahead over studio heads by name; [] until the caller sends enough letters.
+export async function searchSchoolHeads(q: string): Promise<SchoolHead[]> {
+  const query = q.trim();
+  if (query.length < SCHOOL_HEAD_TYPEAHEAD_MIN_CHARS) return [];
+  // Public: the register page searches before there is a session.
+  return publicRequest<SchoolHead[]>(
+    `/schools/heads?q=${encodeURIComponent(query)}`,
   );
-  if (!response.ok) {
-    throw new Error(SCHOOLS_LOAD_FAILED_MESSAGE);
-  }
-  return response.json() as Promise<School[]>;
 }
 
 export async function getSchool(id: string): Promise<School> {
-  const response = await authorizedFetch(`/schools/${id}`);
-  if (!response.ok) {
-    throw new Error(SCHOOLS_LOAD_FAILED_MESSAGE);
-  }
-  return response.json() as Promise<School>;
+  return publicRequest<School>(`/schools/${id}`);
 }
 
 export async function createSchool(name: string): Promise<School> {

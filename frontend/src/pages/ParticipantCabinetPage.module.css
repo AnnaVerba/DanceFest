@@ -65,10 +65,26 @@
   border-bottom: 0;
 }
 
+/* Each competition opens with its name, large and centred in the
+   catalog's violet, so the eye finds where one competition ends. */
 .groupName {
-  padding: 14px 22px 8px;
-  font-weight: 700;
+  padding: 22px 22px 16px;
+  background: var(--g-violet-bg-soft);
+  border-bottom: 1px solid var(--g-gold-border);
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  text-align: center;
+  color: var(--g-gold);
+}
+
+/* When the competition runs, under its name. */
+.groupDate {
+  margin-top: 4px;
   font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--g-muted);
 }
 
 .tableScroll {
@@ -128,29 +144,48 @@
   color: var(--g-muted);
 }
 
-.participantTotal,
-.grandTotal {
+.participantTotal {
   display: flex;
   justify-content: space-between;
   gap: 16px;
   padding: 3px 0;
 }
 
-.grandTotal {
-  padding: 14px 22px;
+/* The shared Pager, centred under the list with breathing room below. */
+.pagerWrap {
+  padding: 22px 22px 26px;
   border-top: 1px solid var(--g-line);
-  font-weight: 800;
+}
+
+.pagerWrap nav {
+  margin-top: 0;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .totalRow td {
   font-weight: 700;
 }
 
+/* A studio head's own entries, or one trainer's, within a competition —
+   a tinted band with an accent bar, so each part is found at a glance. */
+.blockName {
+  margin-top: 10px;
+  padding: 12px 22px;
+  border-top: 1px solid var(--g-line);
+  border-left: 4px solid var(--g-accent);
+  background: var(--g-accent-bg-soft);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--g-accent);
+}
+
 /* Too narrow for the table: each entry becomes a card of «label — value»
    lines, laid out in as many columns as fit. */
 @container (max-width: 920px) {
   .tableHead,
-  .groupName {
+  .groupName,
+  .blockName {
     padding-left: 16px;
     padding-right: 16px;
   }
@@ -228,7 +263,7 @@
   }
 
   .participantTotals,
-  .grandTotal {
+  .pagerWrap {
     padding-left: 16px;
     padding-right: 16px;
   }

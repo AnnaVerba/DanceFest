@@ -1,6 +1,12 @@
 import { NavLink } from 'react-router-dom';
 import { getSession } from '../lib/auth';
-import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
+import { ACCESS_LEVEL, isStudioStaff, meetsLevel } from '../lib/roles';
+import {
+  HEAD_ENTRIES_NAV_LABEL,
+  HEAD_PARTICIPANTS_NAV_LABEL,
+  MY_ENTRIES_NAV_LABEL,
+  MY_PARTICIPANTS_NAV_LABEL,
+} from './CabinetSidebar.constants';
 import styles from './CabinetSidebar.module.css';
 
 interface NavItem {
@@ -22,11 +28,21 @@ export default function CabinetSidebar() {
     { to: '/', label: 'Конкурси', show: true, end: true },
     {
       to: '/my-participants',
-      label: 'Мої учасники',
-      show: level === ACCESS_LEVEL.COACH,
+      label:
+        level === ACCESS_LEVEL.COACH
+          ? HEAD_PARTICIPANTS_NAV_LABEL
+          : MY_PARTICIPANTS_NAV_LABEL,
+      show: level ? isStudioStaff(level) : false,
     },
     // An admin manages other people's entries, never their own.
-    { to: '/my-entries', label: 'Мої заявки', show: !isAdmin },
+    {
+      to: '/my-entries',
+      label:
+        level === ACCESS_LEVEL.COACH
+          ? HEAD_ENTRIES_NAV_LABEL
+          : MY_ENTRIES_NAV_LABEL,
+      show: !isAdmin,
+    },
     {
       to: '/category-templates',
       label: 'Шаблони категорій',

@@ -13,9 +13,13 @@ export const REGISTRATION_CLOSED_APPLY_MESSAGE =
 export const PARTICIPANT_ALREADY_IN_NOMINATION_MESSAGE =
   'Учасник уже виступає в номінації';
 export const NOMINATION_PARTICIPANT_KEY_SEPARATOR = '|';
+// A collective's name is already used in the competition.
+export const GROUP_NAME_TAKEN_MESSAGE =
+  'Колектив з такою назвою вже зареєстровано';
 export const ASSIGN_STUDIO_TRAINER_FORBIDDEN_MESSAGE =
   'Студію й керівника може обирати лише організатор конкурсу або адміністратор';
-export const TRAINER_NOT_A_COACH_MESSAGE = 'Обраний користувач не є керівником';
+export const TRAINER_NOT_A_COACH_MESSAGE =
+  'Обраний користувач не є ні керівником, ні тренером';
 export const AGE_CATEGORY_MISMATCH_MESSAGE =
   'Вік учасника не відповідає віковій категорії номінації';
 export const DEFAULT_ENTRIES_PAGE_SIZE = 50;
@@ -30,12 +34,23 @@ export const NUMBER_ALLOCATION_UNIQUE_INDEXES: readonly string[] = [
   'entries_competition_id_number_idx',
   'competition_participant_numbers_competition_number_unique',
 ];
+// The staff entry list's studio filter lists studios by name in this locale.
+export const STUDIO_NAME_COLLATOR_LOCALE = 'uk';
+
 // A single person's entries across every competition — years of history,
 // still bounded.
 export const MAX_MY_ENTRIES = 1000;
 
-// A group number's dancers in one quote request.
-export const MAX_QUOTE_PARTICIPANTS = 200;
+// The most dancers one number can put on stage — a group's typed-in headcount
+// and the dancers of one quote request alike.
+export const MAX_ENTRY_PARTICIPANTS = 200;
+export const MAX_QUOTE_PARTICIPANTS = MAX_ENTRY_PARTICIPANTS;
+// A quote prices either named dancers or a bare headcount — with neither
+// there is nobody to price.
+export const QUOTE_PARTICIPANTS_REQUIRED_MESSAGE =
+  'Вкажіть учасників або їх кількість';
+// The routine name column is a plain STRING (varchar 255).
+export const ROUTINE_NAME_MAX_LENGTH = 255;
 
 // An entry typed in by hand without dancers still puts one person on stage.
 export const MIN_PARTICIPANTS_PER_ENTRY = 1;

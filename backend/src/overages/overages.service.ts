@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import { Entry } from '../entries/entry.model';
+import { dancerCount } from '../entries/entry-amount';
 import { Track } from '../tracks/track.model';
 import { CompetitionsService } from '../competitions/competitions.service';
 import { CompetitionRulesService } from '../competition-rules/competition-rules.service';
@@ -65,6 +66,7 @@ export class OveragesService {
         overageSec,
         purchasedSec: entry.purchasedExtraSeconds,
         extraFee: Number(entry.extraFee),
+        dancers: dancerCount(entry),
       });
     }
 

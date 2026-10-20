@@ -188,3 +188,20 @@
 .amount {
   font-weight: 700;
 }
+
+.trainersToggle {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--g-line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--g-muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.trainerName {
+  padding-left: 24px !important;
+  color: var(--g-muted);
+}

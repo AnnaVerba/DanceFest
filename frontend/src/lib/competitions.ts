@@ -9,6 +9,7 @@ import {
 } from './competitions.constants';
 import type { CompetitionStatus } from './competitionStatus';
 import type { PaymentDetails } from './paymentDetails';
+import type { LineupMode } from './groupApply.types';
 
 export interface CompetitionOwner {
   id: string;
@@ -20,6 +21,8 @@ export interface Competition {
   id: string;
   image: string | null;
   regulationsUrl: string | null;
+  // How a group registers: by headcount alone, or by naming every dancer.
+  groupLineupMode: LineupMode;
   name: string;
   description: string;
   location: string;
@@ -120,6 +123,7 @@ export async function getCompetition(id: string): Promise<Competition> {
 export interface CompetitionInput {
   image?: string;
   regulationsUrl?: string;
+  groupLineupMode?: LineupMode;
   name: string;
   description: string;
   location: string;

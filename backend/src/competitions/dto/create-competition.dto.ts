@@ -4,6 +4,7 @@ import {
   IsArray,
   IsDateString,
   IsEmail,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -11,6 +12,8 @@ import {
   IsUUID,
   Matches,
 } from 'class-validator';
+
+import { GROUP_LINEUP_MODES } from '../competitions.constants';
 
 const PHONE_REGEX = /^\+?[0-9()\-\s]{7,20}$/;
 
@@ -24,6 +27,15 @@ export class CreateCompetitionDto {
   @IsOptional()
   @IsUrl()
   regulationsUrl?: string;
+
+  @ApiPropertyOptional({
+    enum: GROUP_LINEUP_MODES,
+    description:
+      'How a group registers: by headcount alone (count) or by naming every dancer (named).',
+  })
+  @IsOptional()
+  @IsIn(GROUP_LINEUP_MODES)
+  groupLineupMode?: (typeof GROUP_LINEUP_MODES)[number];
 
   @ApiProperty({ example: 'Зірки Танцполу 2026' })
   @IsString()

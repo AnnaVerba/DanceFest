@@ -14,6 +14,7 @@ import {
   PHONE_INVALID_MESSAGE,
 } from '../lib/validation.constants';
 import { queryKeys } from '../lib/queryKeys';
+import { formatBirthDate } from '../lib/birthDate';
 import { PARTICIPANTS_STALE_TIME_MS } from '../lib/queryClient.constants';
 import styles from './CoachRoster.module.css';
 
@@ -23,12 +24,6 @@ const EMPTY_DRAFT: NewParticipant = {
   phone: '',
   birthDate: '',
 };
-
-function formatBirthDate(iso: string): string {
-  if (!iso) return '—';
-  const [y, m, d] = iso.split('-');
-  return d && m && y ? `${d}.${m}.${y}` : iso;
-}
 
 export default function CoachRoster() {
   const queryClient = useQueryClient();

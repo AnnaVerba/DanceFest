@@ -25,6 +25,8 @@ import {
   REGULATIONS_UPLOAD_LABEL,
   REGULATIONS_UPLOADING_LABEL,
 } from '../lib/competitionRegulations.constants';
+import GroupLineupModeField from '../components/GroupLineupModeField';
+import { LINEUP_MODE } from '../lib/groupApply.constants';
 import { isValidEmail, isValidPhone } from '../lib/validation';
 import { queryKeys } from '../lib/queryKeys';
 import {
@@ -53,6 +55,7 @@ interface PaymentForm {
 const EMPTY_FORM: CompetitionInput = {
   image: '',
   regulationsUrl: '',
+  groupLineupMode: LINEUP_MODE.COUNT,
   name: '',
   description: '',
   location: '',
@@ -124,6 +127,7 @@ export default function CompetitionEditPage() {
         setForm({
           image: c.image ?? '',
           regulationsUrl: c.regulationsUrl ?? '',
+          groupLineupMode: c.groupLineupMode,
           name: c.name,
           description: c.description,
           location: c.location,
@@ -509,6 +513,14 @@ export default function CompetitionEditPage() {
                       required
                       value={form.registrationTo}
                       onChange={update('registrationTo')}
+                    />
+                  </div>
+                  <div className={`${styles.field} ${styles.fullWidth}`}>
+                    <GroupLineupModeField
+                      value={form.groupLineupMode ?? LINEUP_MODE.COUNT}
+                      onChange={(mode) =>
+                        setForm((prev) => ({ ...prev, groupLineupMode: mode }))
+                      }
                     />
                   </div>
                 </div>

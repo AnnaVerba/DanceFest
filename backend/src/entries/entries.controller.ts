@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  ParseUUIDPipe,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -28,6 +29,7 @@ import { BulkCreateEntriesDto } from './dto/bulk-create-entries.dto';
 import { UpdateEntryDto } from './dto/update-entry.dto';
 import { UpdateEntryExtraTimeDto } from './dto/update-entry-extra-time.dto';
 import { QuoteEntriesDto } from './dto/quote-entries.dto';
+import { GroupNameCheckQueryDto } from './dto/group-name-check-query.dto';
 
 @ApiTags('entries')
 @Controller('competitions/:competitionId/entries')
@@ -53,6 +55,8 @@ export class EntriesController {
     @CurrentUser() admin: AuthenticatedAdmin,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('studioId', new ParseUUIDPipe({ optional: true }))
+    studioId?: string,
   ) {
     return this.entriesService.list(
       competitionId,
@@ -60,6 +64,7 @@ export class EntriesController {
       admin.accessLevel,
       page,
       pageSize,
+      studioId,
     );
   }
 
@@ -212,6 +217,21 @@ export class EntriesController {
     @Body() dto: QuoteEntriesDto,
   ) {
     return this.entriesService.quote(competitionId, dto, user);
+  }
+
+  @ApiOperation({
+    summary: 'Is a group name already used in the competition',
+  })
+  @ApiResponse({ status: 200, description: 'Whether the name is taken.' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token.' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get('group-name-taken')
+  checkGroupName(
+    @Param('competitionId') competitionId: string,
+    @Query() query: GroupNameCheckQueryDto,
+  ) {
+    return this.entriesService.checkGroupName(competitionId, query.name);
   }
 
   @ApiOperation({ summary: 'Remove an entry from a competition' })

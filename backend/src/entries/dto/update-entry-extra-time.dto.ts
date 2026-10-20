@@ -14,7 +14,11 @@ export class UpdateEntryExtraTimeDto {
   @IsIn(EXTRA_TIME_SECONDS_OPTIONS)
   purchasedSec: ExtraTimeSeconds;
 
-  @ApiProperty({ example: 150, description: 'Fee charged for the extra time.' })
+  @ApiProperty({
+    example: 150,
+    description:
+      'Fee charged for the extra time, per dancer — the entry owes it for everyone on stage.',
+  })
   @IsNumber()
   @Min(0)
   fee: number;

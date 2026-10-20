@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/user.model';
-import { AccessLevel, isHigherLevel } from './access-level.enum';
+import { isHigherLevel, isStudioStaff } from './access-level.enum';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterConfirmDto } from './dto/register-confirm.dto';
 import { LoginDto } from './dto/login.dto';
@@ -32,6 +32,7 @@ import {
   PASSWORD_TOO_SHORT_MESSAGE,
   REFRESH_TOKEN_REVOKED_MESSAGE,
   SALT_ROUNDS,
+  STUDIO_REQUIRED_MESSAGE,
 } from './auth.constants';
 import { AuthResult } from './auth-result.interface';
 
@@ -48,6 +49,7 @@ export class AuthService {
   // Registration step 1: make sure the form can become an account, then
   // text a code to the phone. Nothing is stored until step 2.
   async startRegistration(dto: RegisterDto): Promise<{ phone: string }> {
+    this.assertStudioForStaff(dto);
     const phone = dto.phone.trim();
     await this.assertRegistrable(phone, dto.email);
     await this.otpService.start(phone);
@@ -60,7 +62,7 @@ export class AuthService {
     dto: RegisterConfirmDto,
     ctx: ClientContext,
   ): Promise<AuthResult> {
-    // A coach names their school later, on /complete-profile.
+    this.assertStudioForStaff(dto);
     const phone = dto.phone.trim();
     // Re-checked: another account may have taken the phone or email
     // between the two steps.
@@ -83,10 +85,9 @@ export class AuthService {
         passwordHash,
         birthDate: dto.birthDate,
         accessLevel,
-        schoolId:
-          dto.role === AccessLevel.COACH
-            ? (dto.schoolId ?? byPhone.schoolId)
-            : byPhone.schoolId,
+        schoolId: isStudioStaff(dto.role)
+          ? (dto.schoolId ?? byPhone.schoolId)
+          : byPhone.schoolId,
         confirmed: true,
       });
       return this.issueSession(linked, ctx);
@@ -100,11 +101,19 @@ export class AuthService {
       passwordHash,
       birthDate: dto.birthDate,
       accessLevel: dto.role,
-      schoolId: dto.role === AccessLevel.COACH ? (dto.schoolId ?? null) : null,
+      schoolId: isStudioStaff(dto.role) ? (dto.schoolId ?? null) : null,
       coachId: null,
       confirmed: true,
     });
     return this.issueSession(user, ctx);
+  }
+
+  // Studio staff register into a studio: a trainer joins its heads
+  // through it, a head runs it.
+  private assertStudioForStaff(dto: RegisterDto): void {
+    if (isStudioStaff(dto.role) && !dto.schoolId) {
+      throw new BadRequestException(STUDIO_REQUIRED_MESSAGE);
+    }
   }
 
   // Throws when the phone or email already belongs to a real account.

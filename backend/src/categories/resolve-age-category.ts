@@ -91,6 +91,29 @@ export function ageCategoriesFittingAges<T extends AgeCategoryRange>(
 }
 
 /**
+ * Вікові категорії, що підходять ХОЧА Б ОДНОМУ з переданих віків: номер
+ * зі змішаним віком реєструють за старшим учасником, тож заявнику
+ * показуються категорії кожного з учасників, а ті, що не підходять нікому,
+ * відкидаються.
+ *
+ * Порожній список віків не звужує нічого — перевіряти нема чого.
+ */
+export function ageCategoriesFittingAnyAge<T extends AgeCategoryRange>(
+  ages: number[],
+  categories: T[],
+): T[] {
+  const bounded = categories.filter(hasLowerBound);
+  if (ages.length === 0) return bounded;
+  return bounded.filter((category) =>
+    ages.some(
+      (age) =>
+        age >= category.rangeFrom &&
+        (category.rangeTo === null || age <= category.rangeTo),
+    ),
+  );
+}
+
+/**
  * Вікова категорія рахується на **дату початку конкурсу**, а не на «сьогодні»:
  * інакше та сама дитина потрапляла б у різні категорії залежно від того, коли
  * подали заявку.

@@ -32,8 +32,16 @@ export function participantAges(
 
 // Only a lower bound is required: an empty upper bound means "N and older",
 // the same as the server's age matching.
-function hasLowerBound(category: NominationCategoryRange): boolean {
+export function hasLowerBound(category: NominationCategoryRange): boolean {
   return category.rangeFrom !== null;
+}
+
+// One dancer's age is inside the category (needs a category with a lower bound).
+export function fitsAge(age: number, category: NominationCategoryRange): boolean {
+  return (
+    age >= category.rangeFrom! &&
+    (category.rangeTo === null || age <= category.rangeTo)
+  );
 }
 
 // A category fits a line-up only when every dancer's age is inside it — the
@@ -56,15 +64,26 @@ export function nominationFitsAges(
   return bounded.some((c) => fitsAllAges(ages, c));
 }
 
-// Age categories that fit every dancer, each name once — ranges may overlap,
-// so several can fit and the coach picks one.
-export function ageCategoriesFittingAges(
+// A category fits a line-up when at least one dancer's age is inside it.
+function fitsSomeAge(ages: number[], category: NominationCategoryRange): boolean {
+  return ages.some(
+    (age) =>
+      age >= category.rangeFrom! &&
+      (category.rangeTo === null || age <= category.rangeTo),
+  );
+}
+
+// Age categories that fit at least one dancer, each name once — a mixed-age
+// line-up registers by its eldest, so every dancer's category is offered and
+// the coach picks one; a category that fits nobody is left out. The same rule
+// as the server's ageCategoriesFittingAnyAge.
+export function ageCategoriesFittingAnyAge(
   ages: number[],
   categories: NominationCategoryRange[],
 ): NominationCategoryRange[] {
-  const fitting = categories
-    .filter(hasLowerBound)
-    .filter((c) => fitsAllAges(ages, c));
+  const bounded = categories.filter(hasLowerBound);
+  const fitting =
+    ages.length === 0 ? bounded : bounded.filter((c) => fitsSomeAge(ages, c));
   return fitting.filter(
     (c, index) => fitting.findIndex((other) => other.name === c.name) === index,
   );

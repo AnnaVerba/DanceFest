@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getOverages } from '../../lib/overages';
+import { formatOverageFeeTotal, getOverages } from '../../lib/overages';
 import type { OverageEntry } from '../../lib/overages';
 import {
   updateEntryExtraTime,
@@ -12,6 +12,7 @@ import { formatDuration } from '../../lib/duration';
 import { queryKeys } from '../../lib/queryKeys';
 import { OVERAGES_STALE_TIME_MS } from '../../lib/queryClient.constants';
 import {
+  OVERAGE_FEE_COLUMN_LABEL,
   CLEAR_EXTRA_TIME_LABEL,
   CLEARING_EXTRA_TIME_LABEL,
   CLEAR_EXTRA_TIME_ERROR_MESSAGE,
@@ -166,7 +167,7 @@ export default function OveragesPanel({
                 {canManage && (
                   <>
                     <th scope="col">Докуплено</th>
-                    <th scope="col">Доплата, грн</th>
+                    <th scope="col">{OVERAGE_FEE_COLUMN_LABEL}</th>
                     <th scope="col" className={styles.colActions}>
                       <span hidden>Дії</span>
                     </th>
@@ -240,6 +241,14 @@ export default function OveragesPanel({
                             disabled={isBusy}
                             onChange={(e) => setDraft(item, { fee: e.target.value })}
                           />
+                          {Number(draft.fee) > 0 && (
+                            <span className={styles.feeTotal}>
+                              {formatOverageFeeTotal(
+                                Number(draft.fee),
+                                item.dancers,
+                              )}
+                            </span>
+                          )}
                         </td>
                         <td className={styles.colActions}>
                           <div className={styles.actions}>

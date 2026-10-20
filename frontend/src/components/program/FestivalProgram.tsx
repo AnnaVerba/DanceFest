@@ -1,22 +1,28 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { getMyProgram, hasSession } from '../../lib/program';
-import type { MineProgram } from '../../lib/program';
+import type { MineProgram, PublicProgramRow } from '../../lib/program';
 import { getVenues } from '../../lib/venues';
 import type { Venue } from '../../lib/venues';
+import { ApiError } from '../../lib/http';
+import { HTTP_STATUS_NOT_FOUND } from '../../lib/api.constants';
+import { queryKeys } from '../../lib/queryKeys';
+import { fetchWholeProgram } from '../../lib/wholeProgram';
+import { PublishedProgramSource } from '../../lib/PublishedProgramSource';
 import {
+  groupProgramSections,
   groupSectionsByVenue,
   indexMineSections,
   markMineGroups,
+  sectionMatchesQuery,
 } from '../../lib/programSections';
 import ProgramSectionBlock from './ProgramSectionBlock';
-import { useLazyProgram } from './useLazyProgram';
 import {
-  COLLAPSE_ALL_LABEL,
-  EXPAND_ALL_LABEL,
   JUMP_TO_SECTION_LABEL,
   NO_VENUE_KEY,
   PROGRAM_LOADING_LABEL,
+  PROGRAM_LOAD_ERROR,
   PROGRAM_NOT_PUBLISHED_LABEL,
   PROGRAM_SUBTITLE,
   SEARCH_NO_RESULTS_LABEL,
@@ -29,18 +35,33 @@ interface FestivalProgramProps {
   competitionId: string;
 }
 
+// The published programme, whole; an unpublished one reads as empty.
+async function fetchPublishedProgram(
+  competitionId: string,
+): Promise<PublicProgramRow[]> {
+  try {
+    return await fetchWholeProgram(new PublishedProgramSource(competitionId));
+  } catch (error) {
+    if (error instanceof ApiError && error.status === HTTP_STATUS_NOT_FOUND) {
+      return [];
+    }
+    throw error;
+  }
+}
+
 // The read-only festival programme for everyone who does not edit it: one
-// tab per venue, each section collapsed until opened — and its performances
-// fetched only then. A signed-in dancer or coach sees the nominations they
-// (or their students) perform in highlighted.
+// tab per venue, every section in one list with each nomination's time. A
+// signed-in dancer or coach sees the nominations they (or their students)
+// perform in highlighted.
 export default function FestivalProgram({ competitionId }: FestivalProgramProps) {
   const [venues, setVenues] = useState<Venue[]>([]);
   const [mine, setMine] = useState<MineProgram | null>(null);
   const [query, setQuery] = useState('');
   const [activeVenueIndex, setActiveVenueIndex] = useState(0);
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const program = useLazyProgram(competitionId, query);
-  const { outline, loadError, sections, matchedIds } = program;
+  const programQuery = useQuery({
+    queryKey: queryKeys.publicProgram(competitionId),
+    queryFn: () => fetchPublishedProgram(competitionId),
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -68,21 +89,21 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
     };
   }, [competitionId]);
 
+  const rows = programQuery.data;
   const venuePrograms = useMemo(
-    () => groupSectionsByVenue(sections, venues),
-    [sections, venues],
+    () => groupSectionsByVenue(groupProgramSections(rows ?? []), venues),
+    [rows, venues],
   );
 
-  const searching = query.trim().length > 0;
-  const searchPending = searching && matchedIds === null;
+  const needle = query.trim().toLowerCase();
   const activeVenue =
     venuePrograms[Math.min(activeVenueIndex, venuePrograms.length - 1)];
   const visibleSections = useMemo(
     () =>
       (activeVenue?.sections ?? []).filter(
-        (section) => !searching || (matchedIds?.has(section.id) ?? false),
+        (section) => !needle || sectionMatchesQuery(section, needle),
       ),
-    [activeVenue, searching, matchedIds],
+    [activeVenue, needle],
   );
 
   const showDayHeadings =
@@ -93,47 +114,18 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
     [mine],
   );
 
-  if (loadError) {
-    return <p className={styles.status}>{loadError}</p>;
+  if (programQuery.isError) {
+    return <p className={styles.status}>{PROGRAM_LOAD_ERROR}</p>;
   }
 
-  if (!outline) {
+  if (!rows) {
     return <p className={styles.status}>{PROGRAM_LOADING_LABEL}</p>;
   }
-
-  // A search opens every section it matched, so the hit is visible at once.
-  const isExpanded = (sectionId: string) =>
-    searching || expandedIds.has(sectionId);
-
-  // As a list, so it goes straight to loadSections; empty if not shown.
-  const sectionsWithId = (sectionId: string) =>
-    visibleSections.filter((section) => section.id === sectionId);
-
-  const toggleSection = (sectionId: string) => {
-    if (!expandedIds.has(sectionId)) program.loadSections(sectionsWithId(sectionId));
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (!next.delete(sectionId)) next.add(sectionId);
-      return next;
-    });
-  };
-
-  const setAllExpanded = (expanded: boolean) => {
-    if (expanded) program.loadSections(visibleSections);
-    setExpandedIds(
-      expanded ? new Set(visibleSections.map((s) => s.id)) : new Set(),
-    );
-  };
 
   const jumpToSection = (event: ChangeEvent<HTMLSelectElement>) => {
     const sectionId = event.target.value;
     if (!sectionId) return;
-    program.loadSections(sectionsWithId(sectionId));
-    setExpandedIds((prev) => new Set(prev).add(sectionId));
-    // The section body mounts on the next render; scroll once it has.
-    requestAnimationFrame(() =>
-      document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' }),
-    );
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
     event.target.value = '';
   };
 
@@ -141,7 +133,7 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
     <div>
       <p className={styles.subtitle}>{PROGRAM_SUBTITLE}</p>
 
-      {outline.length === 0 && (
+      {rows.length === 0 && (
         <p className={styles.status}>{PROGRAM_NOT_PUBLISHED_LABEL}</p>
       )}
 
@@ -162,7 +154,7 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
         </div>
       )}
 
-      {outline.length > 0 && (
+      {rows.length > 0 && (
         <div className={styles.toolbar}>
           <input
             className={styles.search}
@@ -170,20 +162,6 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <button
-            type="button"
-            className={styles.toolbarButton}
-            onClick={() => setAllExpanded(true)}
-          >
-            {EXPAND_ALL_LABEL}
-          </button>
-          <button
-            type="button"
-            className={styles.toolbarButton}
-            onClick={() => setAllExpanded(false)}
-          >
-            {COLLAPSE_ALL_LABEL}
-          </button>
           <select
             className={styles.toolbarButton}
             defaultValue=""
@@ -200,11 +178,7 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
         </div>
       )}
 
-      {searchPending && (
-        <p className={styles.status}>{PROGRAM_LOADING_LABEL}</p>
-      )}
-
-      {searching && !searchPending && visibleSections.length === 0 && (
+      {needle && visibleSections.length === 0 && (
         <p className={styles.status}>{SEARCH_NO_RESULTS_LABEL}</p>
       )}
 
@@ -219,10 +193,7 @@ export default function FestivalProgram({ competitionId }: FestivalProgramProps)
             )}
             <ProgramSectionBlock
               section={section}
-              expanded={isExpanded(section.id)}
-              loading={!program.isLoaded(section)}
               marks={markMineGroups(section, mineByKey)}
-              onToggle={toggleSection}
             />
           </div>
         );
