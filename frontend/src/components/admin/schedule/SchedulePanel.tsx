@@ -16,7 +16,6 @@ import ProgramTable from './ProgramTable';
 import type { SectionCollapse } from './sectionCollapse.types';
 import { sectionsCollapsed, toggleSection } from './sectionCollapse';
 import ProgramPoster from './ProgramPoster';
-import ProgramExcelButton from './ProgramExcelButton';
 import SectionPager from './SectionPager';
 import type { SectionPageNavigator } from './sectionPager.types';
 import ProgramPublicationBar from './ProgramPublicationBar';
@@ -824,13 +823,6 @@ export default function SchedulePanel({
           </>
         )}
         <div className={styles.spacer} />
-        <ProgramExcelButton
-          competitionId={competitionId}
-          competitionName={competition.name}
-          days={days}
-          venues={venues}
-          onError={onError}
-        />
         <button
           type="button"
           className={`${styles.seg} ${styles.segLeft} ${view === 'tech' ? styles.segOn : ''}`}
