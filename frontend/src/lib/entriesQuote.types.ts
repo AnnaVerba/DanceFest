@@ -1,5 +1,7 @@
 export interface EntriesQuoteInput {
-  participantIds: string[];
+  // Absent for a group submitted by headcount only.
+  participantIds?: string[];
+  participantsCount?: number;
   nominationIds: string[];
 }
 

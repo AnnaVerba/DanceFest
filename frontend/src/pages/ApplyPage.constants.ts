@@ -7,3 +7,6 @@ export const ENTRY_HEAD_LABEL = 'Керівник';
 // list when the competition's nominations carry no style at all.
 export const NOMINATIONS_BY_STYLES_LABEL = 'Номінації за обраними стилями';
 export const NOMINATIONS_LABEL = 'Номінації';
+
+export const PARTICIPANTS_REQUIRED_MESSAGE =
+  'Оберіть або створіть щонайменше одного учасника.';

@@ -23,7 +23,10 @@ import {
 } from '../categories/category.model';
 import type { CategoryType } from '../categories/category.model';
 import type { AgeCategoryRange } from '../categories/resolve-age-category';
-import { ageCategoriesFittingAges } from '../categories/resolve-age-category';
+import {
+  ageCategoriesFittingAges,
+  ageCategoriesFittingAnyAge,
+} from '../categories/resolve-age-category';
 import { PRICED_AXES, isPricedAxis } from '../categories/priced-axes';
 import { Venue } from '../venues/venue.model';
 import { Entry } from '../entries/entry.model';
@@ -242,7 +245,7 @@ export class NominationsService {
   /**
    * Номінації під конкретну заявку: ліга мусить збігатися, склад — вміщати
    * кількість учасників, стиль — будь-який з обраних, вік — підходити
-   * кожному учаснику номера.
+   * хоча б одному учаснику номера.
    *
    * Без жодного фільтра вибірка дорівнює всьому конкурсу, тож вона
    * відхиляється: форма заявки завжди знає хоча б стиль, а тихо віддати
@@ -294,8 +297,8 @@ export class NominationsService {
   }
 
   /**
-   * Номінація проходить за віком, коли її вікова категорія вміщує кожного
-   * учасника номера. Категорії без нижньої межі у підборі не беруть участі —
+   * Номінація проходить за віком, коли її вікова категорія вміщує хоча б
+   * одного учасника номера (змішаний склад реєструють за старшим). Категорії без нижньої межі у підборі не беруть участі —
    * порівнювати з ними нема чого; порожня верхня межа означає «і старші».
    */
   private ageCondition(
@@ -305,7 +308,7 @@ export class NominationsService {
     const bounded = categories
       .filter((category) => category.type === AGE_CATEGORY_TYPE)
       .filter((category) => category.rangeFrom !== null);
-    const fitting = ageCategoriesFittingAges(ages, bounded);
+    const fitting = ageCategoriesFittingAnyAge(ages, bounded);
     return this.axisOrMissingCondition(
       bounded.map((category) => category.id),
       fitting.map((category) => category.id),

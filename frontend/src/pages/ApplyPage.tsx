@@ -29,16 +29,6 @@ import {
   uploadEntryTrack,
 } from '../lib/entries';
 import type { Entry } from '../lib/entries';
-import {
-  ParticipantApiError,
-  createParticipant,
-  getApplicableParticipants,
-} from '../lib/participants';
-import type { Participant } from '../lib/participants';
-import {
-  PARTICIPANT_SEARCH_DEBOUNCE_MS,
-  PARTICIPANT_SEARCH_MIN_CHARS,
-} from '../lib/participants.constants';
 import { getSchool } from '../lib/schools';
 import { formatEntryAmount } from '../lib/entryAmount';
 import { useEntriesQuote } from '../lib/useEntriesQuote';
@@ -46,30 +36,56 @@ import { SPECIAL_PAID_ONCE_LABEL } from '../lib/entriesQuote.constants';
 import {
   createCoach,
   getMyMentorCoach,
-  getSelectableCoaches,
   getSession,
   refreshSession,
 } from '../lib/auth';
-import type { CoachSummary, SetMentorCoachBody } from '../lib/auth';
+import type { SetMentorCoachBody } from '../lib/auth';
 import { completeProfile } from '../lib/users';
 import { refreshProgram } from '../lib/programCache';
 import MentorCoachPicker from '../components/MentorCoachPicker';
 import SchoolPicker from '../components/SchoolPicker';
 import CategoryDescriptionList from '../components/CategoryDescriptionList';
+import ApplyAgeField from './apply/ApplyAgeField';
+import ApplyLeagueField from './apply/ApplyLeagueField';
+import ApplyTabs from './apply/ApplyTabs';
+import GroupLineupFields from './apply/GroupLineupFields';
+import LineupModeToggle from './apply/LineupModeToggle';
+import ParticipantPicker from './apply/ParticipantPicker';
 import { ACCESS_LEVEL, isStudioStaff, meetsLevel } from '../lib/roles';
 import {
   ENTRY_HEAD_LABEL,
   ENTRY_TRAINER_LABEL,
   NOMINATIONS_BY_STYLES_LABEL,
   NOMINATIONS_LABEL,
+  PARTICIPANTS_REQUIRED_MESSAGE,
 } from './ApplyPage.constants';
 import {
-  ageCategoriesFittingAges,
+  APPLY_TAB,
+  INDIVIDUAL_MAX_PARTICIPANTS,
+  INDIVIDUAL_MAX_PARTICIPANTS_MESSAGE,
+} from '../lib/applyTabs.constants';
+import type { ApplyTab } from '../lib/applyTabs.types';
+import type { SelectableParticipant } from '../lib/applyParticipants.types';
+import { NO_HINT } from '../lib/participantPicker.constants';
+import {
+  GROUP_HEADCOUNT_REQUIRED_MESSAGE,
+  GROUP_EMPTY_VALUE_LABEL,
+  GROUP_LINEUP_VALUE,
+  GROUP_NAME_REQUIRED_MESSAGE,
+  GROUP_NOMINATIONS_NONE_SELECTED_HINT,
+  GROUP_PARTICIPANTS_LABEL,
+  GROUP_PARTICIPANTS_REQUIRED_MESSAGE,
+  LINEUP_MODE,
+  NO_GROUP_NOMINATIONS_MESSAGE,
+  NO_HEADCOUNT,
+} from '../lib/groupApply.constants';
+import type { LineupMode } from '../lib/groupApply.types';
+import { isGroupSize, parseHeadcount } from '../lib/groupApply';
+import {
+  ageCategoriesFittingAnyAge,
   participantAges,
 } from '../lib/ageEligibility';
 import {
-  AGE_CATEGORY_PLACEHOLDER,
-  NO_COMMON_AGE_CATEGORY_HINT,
   NO_NOMINATIONS_FOR_AGE_MESSAGE,
 } from '../lib/applyAge.constants';
 import {
@@ -92,22 +108,10 @@ interface NominationRow {
   price: number | null;
 }
 
-interface SelectableParticipant {
-  id: string;
-  firstName: string;
-  lastName: string;
-  birthDate: string;
-}
-
 const MY_ENTRIES_PATH = '/my-entries';
 
 function fullName(p: { lastName: string; firstName: string }): string {
   return `${p.lastName} ${p.firstName}`.trim();
-}
-
-function coachOptionLabel(coach: CoachSummary): string {
-  const name = fullName(coach);
-  return coach.schoolName ? `${name} — ${coach.schoolName}` : name;
 }
 
 // Mirrors the server's resolveLineup: Соло / Дуо / Тріо / Група by count.
@@ -177,18 +181,19 @@ export default function ApplyPage() {
   const [specialsError, setSpecialsError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const [activeTab, setActiveTab] = useState<ApplyTab>(APPLY_TAB.INDIVIDUAL);
   // Picked dancers are held as full objects: a coach searches the roster by
   // name and a match may no longer be in the current results by the time
   // the form is submitted.
   const [selectedParticipants, setSelectedParticipants] = useState<
     SelectableParticipant[]
   >([]);
-  const [participantQuery, setParticipantQuery] = useState('');
-  // The picker's options show only while the search field has focus.
-  const [participantListOpen, setParticipantListOpen] = useState(false);
-  const [searchResults, setSearchResults] = useState<Participant[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
+  // Set when a pick was refused for going over the solo/duo/trio limit.
+  const [participantLimitHit, setParticipantLimitHit] = useState(false);
+  // A group is registered by its name and either a headcount or named dancers.
+  const [groupName, setGroupName] = useState('');
+  const [headcountInput, setHeadcountInput] = useState('');
+  const [lineupMode, setLineupMode] = useState<LineupMode>(LINEUP_MODE.COUNT);
   const [studioName, setStudioName] = useState<string | null>(null);
   // Coach + studio for an applicant whose profile has no mentor coach yet:
   // filled through the pickers below, saved to the profile on submit.
@@ -209,23 +214,6 @@ export default function ApplyPage() {
   const [musicFileByKey, setMusicFileByKey] = useState<Record<string, File>>(
     {},
   );
-
-  const [showNewParticipant, setShowNewParticipant] = useState(false);
-  const [newParticipant, setNewParticipant] = useState({
-    firstName: '',
-    lastName: '',
-    phone: '',
-    birthDate: '',
-  });
-  const [newParticipantError, setNewParticipantError] = useState<string | null>(
-    null,
-  );
-  // The coach a new dancer is filed under. Only an organizer or admin picks
-  // one — the server files a coach's own dancers under the coach.
-  const [newParticipantCoach, setNewParticipantCoach] =
-    useState<CoachSummary | null>(null);
-  const [coachQuery, setCoachQuery] = useState('');
-  const [coachOptions, setCoachOptions] = useState<CoachSummary[]>([]);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -274,60 +262,6 @@ export default function ApplyPage() {
   const isStaffSubmitter =
     !!session && isStudioStaff(session.profile.accessLevel);
 
-  // Name search over the roster — never loads every participant at once.
-  useEffect(() => {
-    if (!isCoach) return;
-    const q = participantQuery.trim();
-    let cancelled = false;
-    const handle = setTimeout(() => {
-      const browsing = isStaffSubmitter && q.length === 0;
-      if (!browsing && q.length < PARTICIPANT_SEARCH_MIN_CHARS) {
-        setSearchResults([]);
-        setSearching(false);
-        setSearchError(null);
-        return;
-      }
-      setSearching(true);
-      getApplicableParticipants(q)
-        .then((people) => {
-          if (!cancelled) {
-            setSearchResults(people);
-            setSearchError(null);
-          }
-        })
-        .catch(() => {
-          if (!cancelled) setSearchError('Не вдалося виконати пошук.');
-        })
-        .finally(() => {
-          if (!cancelled) setSearching(false);
-        });
-    }, PARTICIPANT_SEARCH_DEBOUNCE_MS);
-    return () => {
-      cancelled = true;
-      clearTimeout(handle);
-    };
-  }, [participantQuery, isCoach, isStaffSubmitter]);
-
-  // Coach typeahead for the new-participant form. getSelectableCoaches
-  // answers with an empty list until the query is long enough.
-  useEffect(() => {
-    if (!canPickCoach || !showNewParticipant || newParticipantCoach) return;
-    let cancelled = false;
-    const handle = setTimeout(() => {
-      getSelectableCoaches(coachQuery)
-        .then((coaches) => {
-          if (!cancelled) setCoachOptions(coaches);
-        })
-        .catch(() => {
-          if (!cancelled) setCoachOptions([]);
-        });
-    }, PARTICIPANT_SEARCH_DEBOUNCE_MS);
-    return () => {
-      cancelled = true;
-      clearTimeout(handle);
-    };
-  }, [coachQuery, canPickCoach, showNewParticipant, newParticipantCoach]);
-
   useEffect(() => {
     if (!coachSchoolId) return;
     let cancelled = false;
@@ -358,34 +292,17 @@ export default function ApplyPage() {
     };
   }, [session]);
 
-  // Rows offered under the search box: the coach themselves (always
-  // available, no search needed) plus whatever the current query matched,
-  // minus anyone already picked.
-  const searchOptions: SelectableParticipant[] = useMemo(() => {
-    const pickedIds = new Set(selectedParticipants.map((p) => p.id));
-    const matches = searchResults
-      .filter((p) => !pickedIds.has(p.id))
-      .map((p) => ({
-        id: p.id,
-        firstName: p.firstName,
-        lastName: p.lastName,
-        birthDate: p.birthDate,
-      }));
-    const self =
-      selfAsOption && !pickedIds.has(selfAsOption.id) ? [selfAsOption] : [];
-    return [...self, ...matches];
-  }, [searchResults, selectedParticipants, selfAsOption]);
+  const isGroupTab = activeTab === APPLY_TAB.GROUP;
+  // Every number names its dancers, except a group that gives only its size.
+  const namesDancers = !isGroupTab || lineupMode === LINEUP_MODE.NAMED;
 
   // A participant applies for themselves; a coach picks one (solo) or
   // several (group number) from the roster.
-  const effectiveParticipantIds = selfParticipant
-    ? [selfParticipant.id]
-    : selectedParticipants.map((p) => p.id);
-
-  const activeParticipants = useMemo(
-    () => (selfParticipant ? [selfParticipant] : selectedParticipants),
-    [selfParticipant, selectedParticipants],
-  );
+  const activeParticipants = useMemo(() => {
+    if (!namesDancers) return [];
+    return selfParticipant ? [selfParticipant] : selectedParticipants;
+  }, [namesDancers, selfParticipant, selectedParticipants]);
+  const effectiveParticipantIds = activeParticipants.map((p) => p.id);
 
   // Вісь ліги рахується й по спецномінаціях, тож ліга, яка трапляється
   // лише в них, у списку теж є — і має id, за яким її можна відфільтрувати.
@@ -413,10 +330,17 @@ export default function ApplyPage() {
     [axes],
   );
 
-  const pickedCount = selfParticipant ? 1 : selectedParticipants.length;
+  // How many dancers the number puts on stage: the named ones, or the
+  // headcount a group typed. A group counts only once its size is one the
+  // server accepts, so a smaller one means nothing is chosen yet.
+  const headcount = namesDancers
+    ? effectiveParticipantIds.length
+    : parseHeadcount(headcountInput);
+  const pickedCount =
+    isGroupTab && !isGroupSize(headcount) ? NO_HEADCOUNT : headcount;
 
-  // Counted on the competition's start date; a category is offered only when
-  // every picked dancer fits it — the same rule the server enforces on submit.
+  // Counted on the competition's start date; a category is offered when at
+  // least one picked dancer fits it — the same rule the server enforces on submit.
   const ages = useMemo(
     () =>
       competition
@@ -430,7 +354,7 @@ export default function ApplyPage() {
   const participantAge = ages.length === 1 ? ages[0] : null;
 
   const ageCategoryOptions = useMemo(
-    () => ageCategoriesFittingAges(ages, ageCategories),
+    () => ageCategoriesFittingAnyAge(ages, ageCategories),
     [ages, ageCategories],
   );
 
@@ -512,9 +436,15 @@ export default function ApplyPage() {
   );
 
   // Номінації приходять уже відфільтровані сервером — рівно ті, у яких цей
-  // склад учасників може виступити.
+  // склад учасників може виступити. Група бачить їх одразу, щойно має склад:
+  // ліга їх лише звужує.
   useEffect(() => {
-    if (!id || pickedCount === 0 || !stylesChosen || !leagueId) {
+    if (
+      !id ||
+      pickedCount === 0 ||
+      !stylesChosen ||
+      (!isGroupTab && !leagueId)
+    ) {
       setEntryNominations([]);
       setRowsError(null);
       return;
@@ -534,7 +464,7 @@ export default function ApplyPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, leagueId, pickedCount, stylesChosen, entryFilter]);
+  }, [id, leagueId, pickedCount, stylesChosen, isGroupTab, entryFilter]);
 
   // Спецномінації звужує той самий сервер і за тими самими правилами:
   // стилю в них немає, але ліга, вік, а подекуди й склад є. Доки учасників і ліги
@@ -618,10 +548,12 @@ export default function ApplyPage() {
   }, [allRows]);
 
   const selectedRows = allRows.filter((r) => selectedKeys.includes(r.key));
+  // A group that gives only its size is priced by that size alone.
   const quote = useEntriesQuote(
     id,
     effectiveParticipantIds,
     selectedRows.map((r) => r.nominationId),
+    namesDancers || pickedCount === NO_HEADCOUNT ? undefined : pickedCount,
   );
   const quoteAmountByKey = new Map(
     quote.status === 'ready'
@@ -633,8 +565,11 @@ export default function ApplyPage() {
 
   // Which required field to highlight red — mirrors the checks in
   // handleSubmit, so the invalid one stays marked until it's actually fixed.
-  const participantsInvalid =
-    submitError != null && effectiveParticipantIds.length === 0;
+  const lineupInvalid = submitError != null && pickedCount === NO_HEADCOUNT;
+  const participantsInvalid = lineupInvalid && namesDancers;
+  const headcountInvalid = lineupInvalid && !namesDancers;
+  const groupNameInvalid =
+    submitError != null && isGroupTab && !groupName.trim();
   const leagueInvalid = submitError != null && !league;
   const nominationsInvalid = submitError != null && selectedRows.length === 0;
 
@@ -679,13 +614,19 @@ export default function ApplyPage() {
 
   const addParticipant = (person: SelectableParticipant) => {
     setSubmitError(null);
-    setSelectedParticipants((prev) =>
-      prev.some((p) => p.id === person.id) ? prev : [...prev, person],
-    );
+    if (selectedParticipants.some((p) => p.id === person.id)) return;
+    // Past three dancers it is a group, which has its own tab.
+    if (!isGroupTab && selectedParticipants.length >= INDIVIDUAL_MAX_PARTICIPANTS) {
+      setParticipantLimitHit(true);
+      return;
+    }
+    setParticipantLimitHit(false);
+    setSelectedParticipants((prev) => [...prev, person]);
   };
 
   const removeParticipant = (pid: string) => {
     setSubmitError(null);
+    setParticipantLimitHit(false);
     setSelectedParticipants((prev) => prev.filter((p) => p.id !== pid));
   };
 
@@ -695,58 +636,52 @@ export default function ApplyPage() {
     setMusicFileByKey((prev) => ({ ...prev, [key]: file }));
   };
 
-  const handleCreateParticipant = async () => {
-    setNewParticipantError(null);
-    const { firstName, lastName, phone, birthDate } = newParticipant;
-    if (!firstName.trim() || !lastName.trim()) {
-      setNewParticipantError('Вкажіть імʼя та прізвище.');
-      return;
-    }
-    if (!phone.trim()) {
-      setNewParticipantError('Телефон обовʼязковий.');
-      return;
-    }
-    if (!birthDate) {
-      setNewParticipantError('Вкажіть дату народження.');
-      return;
-    }
-    try {
-      const created = await createParticipant({
-        firstName,
-        lastName,
-        phone,
-        birthDate,
-        ...(newParticipantCoach ? { coachId: newParticipantCoach.id } : {}),
-      });
-      addParticipant({
-        id: created.id,
-        firstName: created.firstName,
-        lastName: created.lastName,
-        birthDate: created.birthDate,
-      });
-      setNewParticipant({
-        firstName: '',
-        lastName: '',
-        phone: '',
-        birthDate: '',
-      });
-      setNewParticipantCoach(null);
-      setCoachQuery('');
-      setCoachOptions([]);
-      setShowNewParticipant(false);
-    } catch (err) {
-      setNewParticipantError(
-        err instanceof ParticipantApiError
-          ? err.message
-          : 'Не вдалося створити учасника.',
-      );
-    }
+  // Each tab starts from a clean pick: the dancers, styles, nominations and
+  // music chosen for one kind of number mean nothing for the other. League,
+  // city, payment and studio carry over.
+  const handleTabChange = (tab: ApplyTab) => {
+    if (tab === activeTab) return;
+    setActiveTab(tab);
+    setSelectedParticipants([]);
+    setParticipantLimitHit(false);
+    setPickedAgeCategory('');
+    setSelectedStyles([]);
+    setSelectedKeys([]);
+    setMusicFileByKey({});
+    setSubmitError(null);
+  };
+
+  const handleLineupModeChange = (mode: LineupMode) => {
+    setSubmitError(null);
+    setLineupMode(mode);
+  };
+
+  const handleGroupNameChange = (name: string) => {
+    setSubmitError(null);
+    setGroupName(name);
+  };
+
+  const handleHeadcountChange = (headcountText: string) => {
+    setSubmitError(null);
+    setHeadcountInput(headcountText);
+  };
+
+  const handleAgeCategoryChange = (ageCategory: string) => {
+    setSubmitError(null);
+    setPickedAgeCategory(ageCategory);
+  };
+
+  const handleLeagueChange = (nextLeague: string) => {
+    setSubmitError(null);
+    setLeague(nextLeague);
   };
 
   const resetForm = () => {
     setSelectedParticipants([]);
-    setParticipantQuery('');
-    setSearchResults([]);
+    setParticipantLimitHit(false);
+    setGroupName('');
+    setHeadcountInput('');
+    setLineupMode(LINEUP_MODE.COUNT);
     setLeague('');
     setPickedAgeCategory('');
     setSelectedStyles([]);
@@ -770,12 +705,24 @@ export default function ApplyPage() {
     return (await createCoach(assignedTrainer.newCoach)).id;
   };
 
+  // What to tell the applicant while the number has no usable line-up.
+  const missingLineupMessage = (): string => {
+    if (!isGroupTab) return PARTICIPANTS_REQUIRED_MESSAGE;
+    return namesDancers
+      ? GROUP_PARTICIPANTS_REQUIRED_MESSAGE
+      : GROUP_HEADCOUNT_REQUIRED_MESSAGE;
+  };
+
   const handleSubmit = async () => {
     if (!id) return;
     setSubmitError(null);
 
-    if (effectiveParticipantIds.length === 0) {
-      setSubmitError('Оберіть або створіть щонайменше одного учасника.');
+    if (isGroupTab && !groupName.trim()) {
+      setSubmitError(GROUP_NAME_REQUIRED_MESSAGE);
+      return;
+    }
+    if (pickedCount === NO_HEADCOUNT) {
+      setSubmitError(missingLineupMessage());
       return;
     }
     if (!league) {
@@ -808,10 +755,16 @@ export default function ApplyPage() {
       const trainerId = canPickCoach
         ? await resolveAssignedTrainerId()
         : undefined;
+      // A group carries its own name; one that gives only its size names
+      // nobody, so the headcount is the only record of how many dance.
+      const groupFields = isGroupTab
+        ? { routineName: groupName.trim(), participantsCount: pickedCount }
+        : {};
       const created = await createEntriesBulk(
         id,
         rows.map((r) => ({
-          participantIds: effectiveParticipantIds,
+          ...groupFields,
+          participantIds: namesDancers ? effectiveParticipantIds : undefined,
           studioId: canPickCoach ? assignedStudioId || undefined : undefined,
           trainerId,
           nominationId: r.nominationId,
@@ -986,6 +939,47 @@ export default function ApplyPage() {
   const noNominations =
     axes[LEAGUE_CATEGORY_TYPE].length === 0 && specials.length === 0;
 
+  // A group lists its nominations once it has a size and a style (when the
+  // competition has styles); everyone else once the league and a style are
+  // picked.
+  const showNominationRows = isGroupTab
+    ? pickedCount > 0 && stylesChosen
+    : hasStyles
+      ? selectedStyles.length > 0
+      : !!leagueId;
+  const nominationsLabel =
+    hasStyles ? NOMINATIONS_BY_STYLES_LABEL : NOMINATIONS_LABEL;
+  // The studio and trainer show once there is a number to file under them: a
+  // group is one from the start, the rest once a dancer is picked.
+  const noCommonAgeCategory =
+    ages.length > 0 && ageCategories.length > 0 && ageCategoryOptions.length === 0;
+  const lineupChosen = isGroupTab || activeParticipants.length > 0;
+
+  // The headcount as the form shows it: typed in, or counted from the named
+  // dancers (a dash while there are none).
+  const groupHeadcountText = !namesDancers
+    ? headcountInput
+    : effectiveParticipantIds.length > NO_HEADCOUNT
+      ? String(effectiveParticipantIds.length)
+      : GROUP_EMPTY_VALUE_LABEL;
+
+  const participantPicker = (
+    <ParticipantPicker
+      selected={selectedParticipants}
+      selfParticipant={selfParticipant}
+      selfAsOption={selfAsOption}
+      isCoach={isCoach}
+      canPickCoach={canPickCoach}
+      isStaffSubmitter={isStaffSubmitter}
+      invalid={participantsInvalid}
+      label={isGroupTab ? GROUP_PARTICIPANTS_LABEL : undefined}
+      hint={isGroupTab ? NO_HINT : undefined}
+      notice={participantLimitHit ? INDIVIDUAL_MAX_PARTICIPANTS_MESSAGE : null}
+      onAdd={addParticipant}
+      onRemove={removeParticipant}
+    />
+  );
+
   return (
     <main className={styles.main}>
       <div className={styles.card}>
@@ -999,306 +993,90 @@ export default function ApplyPage() {
           ← До сторінки конкурсу
         </Link>
 
+        {isCoach && (
+          <ApplyTabs activeTab={activeTab} onChange={handleTabChange} />
+        )}
+
         {submitError && <p className={styles.error}>{submitError}</p>}
 
         <div className={styles.grid}>
-          <div>
-            <label className={styles.label}>
-              Учасники <span className={styles.req}>*</span>
-            </label>
-
-            {selfParticipant ? (
-              <div className={styles.readonlyBox}>
-                {fullName(selfParticipant)}
-              </div>
-            ) : (
-              <>
-                {selectedParticipants.length > 0 && (
-                  <div className={styles.chips}>
-                    {selectedParticipants.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        className={`${styles.chip} ${styles.chipOn}`}
-                        onClick={() => removeParticipant(p.id)}
-                      >
-                        {fullName(p)} ✕
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                <input
-                  className={`${styles.textInput} ${
-                    participantsInvalid ? styles.invalid : ''
-                  }`}
-                  type="text"
-                  placeholder="Почніть вводити прізвище учасника…"
-                  value={participantQuery}
-                  onChange={(e) => setParticipantQuery(e.target.value)}
-                  onFocus={() => setParticipantListOpen(true)}
-                  onBlur={() => setParticipantListOpen(false)}
+          {isGroupTab ? (
+            <div className={styles.stack}>
+              <GroupLineupFields
+                name={groupName}
+                nameInvalid={groupNameInvalid}
+                headcount={groupHeadcountText}
+                headcountEditable={!namesDancers}
+                headcountInvalid={headcountInvalid}
+                lineup={GROUP_LINEUP_VALUE}
+                lineupDescriptions={chosenLineupValues}
+                onNameChange={handleGroupNameChange}
+                onHeadcountChange={handleHeadcountChange}
+              />
+              <div className={styles.pair}>
+                <ApplyLeagueField
+                  value={league}
+                  options={leagueOptions}
+                  invalid={leagueInvalid}
+                  descriptions={chosenLeagueValues}
+                  onChange={handleLeagueChange}
                 />
-
-                {participantQuery.trim().length > 0 &&
-                  participantQuery.trim().length < PARTICIPANT_SEARCH_MIN_CHARS && (
-                    <p className={styles.hint}>
-                      Введіть щонайменше {PARTICIPANT_SEARCH_MIN_CHARS} літери.
-                    </p>
-                  )}
-                {searching && <p className={styles.hint}>Пошук…</p>}
-                {searchError && <p className={styles.error}>{searchError}</p>}
-
-                {participantListOpen && searchOptions.length > 0 && (
-                  // mousedown would blur the input and close the list before
-                  // the click lands; keeping focus also leaves it open for
-                  // picking several dancers in a row.
-                  <div
-                    className={styles.nomList}
-                    onMouseDown={(e) => e.preventDefault()}
-                  >
-                    {searchOptions.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        className={styles.nomRow}
-                        onClick={() => addParticipant(p)}
-                      >
-                        <span className={styles.nomCheck} />
-                        <span className={styles.nomLabel}>{fullName(p)}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {participantListOpen &&
-                  !searching &&
-                  !searchError &&
-                  participantQuery.trim().length >=
-                    PARTICIPANT_SEARCH_MIN_CHARS &&
-                  searchOptions.length === 0 && (
-                    <div className={styles.nomEmpty}>Нікого не знайдено.</div>
-                  )}
-                <p className={styles.hint}>
-                  Оберіть одного для сольного номера або кількох для групового.
-                </p>
-              </>
-            )}
-
-            {isCoach && !showNewParticipant && (
-              <button
-                type="button"
-                className={styles.linkBtn}
-                onClick={() => {
-                  setShowNewParticipant(true);
-                  setNewParticipantError(null);
-                }}
-              >
-                + Немає потрібного учасника — створити
-              </button>
-            )}
-
-            {isCoach && showNewParticipant && (
-              <div className={styles.subForm}>
-                <div className={styles.subTitle}>Новий учасник</div>
-                <div className={styles.subGrid}>
-                  <input
-                    className={styles.subInput}
-                    placeholder="Імʼя"
-                    value={newParticipant.firstName}
-                    onChange={(e) =>
-                      setNewParticipant((p) => ({
-                        ...p,
-                        firstName: e.target.value,
-                      }))
-                    }
-                  />
-                  <input
-                    className={styles.subInput}
-                    placeholder="Прізвище"
-                    value={newParticipant.lastName}
-                    onChange={(e) =>
-                      setNewParticipant((p) => ({
-                        ...p,
-                        lastName: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <div className={styles.subGrid}>
-                  <input
-                    className={styles.subInput}
-                    placeholder="+380 63 700 10 11"
-                    value={newParticipant.phone}
-                    onChange={(e) =>
-                      setNewParticipant((p) => ({
-                        ...p,
-                        phone: e.target.value,
-                      }))
-                    }
-                  />
-                  <input
-                    className={styles.subInput}
-                    type="date"
-                    value={newParticipant.birthDate}
-                    onChange={(e) =>
-                      setNewParticipant((p) => ({
-                        ...p,
-                        birthDate: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                {canPickCoach &&
-                  (newParticipantCoach ? (
-                    <div className={styles.chips}>
-                      <button
-                        type="button"
-                        className={`${styles.chip} ${styles.chipOn}`}
-                        onClick={() => {
-                          setNewParticipantCoach(null);
-                          setCoachQuery('');
-                        }}
-                      >
-                        {coachOptionLabel(newParticipantCoach)} ✕
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <input
-                        className={styles.subInput}
-                        placeholder="Керівник — необовʼязково"
-                        value={coachQuery}
-                        onChange={(e) => setCoachQuery(e.target.value)}
-                      />
-                      {coachOptions.length > 0 && (
-                        <div className={styles.nomList}>
-                          {coachOptions.map((coach) => (
-                            <button
-                              key={coach.id}
-                              type="button"
-                              className={styles.nomRow}
-                              onClick={() => {
-                                setNewParticipantCoach(coach);
-                                setCoachOptions([]);
-                              }}
-                            >
-                              <span className={styles.nomLabel}>
-                                {coachOptionLabel(coach)}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  ))}
-                {newParticipantError && (
-                  <p className={styles.error}>{newParticipantError}</p>
-                )}
-                <div className={styles.subActions}>
-                  <button
-                    type="button"
-                    className={styles.btnPrimarySm}
-                    onClick={handleCreateParticipant}
-                  >
-                    Додати й обрати
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.btnGhostSm}
-                    onClick={() => {
-                      setShowNewParticipant(false);
-                      setNewParticipantError(null);
-                    }}
-                  >
-                    Скасувати
-                  </button>
-                </div>
+                <ApplyAgeField
+                  options={ageCategoryOptions}
+                  value={chosenAgeCategory}
+                  descriptions={ageDescriptionByName}
+                  fallbackLabel={ageLabel}
+                  noCommonCategory={noCommonAgeCategory}
+                  onChange={handleAgeCategoryChange}
+                />
               </div>
-            )}
+              <LineupModeToggle
+                mode={lineupMode}
+                onChange={handleLineupModeChange}
+              />
+              {namesDancers && <div>{participantPicker}</div>}
+            </div>
+          ) : (
+            <div>
+              {participantPicker}
 
-            {activeParticipants.length > 0 && (
-              <div className={styles.two}>
-                <div>
-                  <label className={styles.label}>
-                    Ліга <span className={styles.req}>*</span>
-                  </label>
-                  <select
-                    className={`${styles.select} ${
-                      leagueInvalid ? styles.invalid : ''
-                    }`}
+              {activeParticipants.length > 0 && (
+                <div className={styles.two}>
+                  <ApplyLeagueField
                     value={league}
-                    onChange={(e) => {
-                      setLeague(e.target.value);
-                      setSubmitError(null);
-                    }}
-                  >
-                    <option value="">Оберіть лігу…</option>
-                    {leagueOptions.map((l) => (
-                      <option key={l} value={l}>
-                        {l}
-                      </option>
-                    ))}
-                  </select>
+                    options={leagueOptions}
+                    invalid={leagueInvalid}
+                    descriptions={chosenLeagueValues}
+                    onChange={handleLeagueChange}
+                  />
+                  <ApplyAgeField
+                    options={ageCategoryOptions}
+                    value={chosenAgeCategory}
+                    descriptions={ageDescriptionByName}
+                    fallbackLabel={ageLabel}
+                    noCommonCategory={noCommonAgeCategory}
+                    onChange={handleAgeCategoryChange}
+                  />
+                </div>
+              )}
+
+              {activeParticipants.length > 0 && (
+                <div>
+                  <label className={styles.label}>Склад</label>
+                  <div className={styles.readonlyBox} data-testid="lineup-value">
+                    {lineupLabel(effectiveParticipantIds.length)}
+                  </div>
                   <p className={styles.hint}>
-                    Ліга обирається окремо для кожної заявки.
+                    Визначається автоматично за кількістю обраних учасників.
                   </p>
                   <CategoryDescriptionList
-                    values={chosenLeagueValues}
+                    values={chosenLineupValues}
                     className={styles.hint}
                   />
                 </div>
-                <div>
-                  <label className={styles.label}>Вік / вікова категорія</label>
-                  {ageCategoryOptions.length > 0 ? (
-                    <select
-                      className={styles.select}
-                      value={chosenAgeCategory}
-                      onChange={(e) => {
-                        setPickedAgeCategory(e.target.value);
-                        setSubmitError(null);
-                      }}
-                    >
-                      {ageCategoryOptions.length > 1 && (
-                        <option value="">{AGE_CATEGORY_PLACEHOLDER}</option>
-                      )}
-                      {ageCategoryOptions.map((c) => {
-                        const description = ageDescriptionByName.get(c.name);
-                        return (
-                          <option key={c.name} value={c.name}>
-                            {c.name} ({c.rangeFrom}–{c.rangeTo})
-                            {description ? ` — ${description}` : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  ) : (
-                    <div className={styles.readonlyBox}>{ageLabel}</div>
-                  )}
-                  {ages.length > 0 &&
-                    ageCategories.length > 0 &&
-                    ageCategoryOptions.length === 0 && (
-                      <p className={styles.hint}>{NO_COMMON_AGE_CATEGORY_HINT}</p>
-                    )}
-                </div>
-              </div>
-            )}
-
-            {activeParticipants.length > 0 && (
-              <div>
-                <label className={styles.label}>Склад</label>
-                <div className={styles.readonlyBox} data-testid="lineup-value">
-                  {lineupLabel(effectiveParticipantIds.length)}
-                </div>
-                <p className={styles.hint}>
-                  Визначається автоматично за кількістю обраних учасників.
-                </p>
-                <CategoryDescriptionList
-                  values={chosenLineupValues}
-                  className={styles.hint}
-                />
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           <div>
             {hasStyles && (
@@ -1345,17 +1123,25 @@ export default function ApplyPage() {
             )}
           </div>
 
-          {(hasStyles ? selectedStyles.length > 0 : !!leagueId) && (
+          {showNominationRows && (
             <div>
               <label className={styles.label}>
-                {hasStyles ? NOMINATIONS_BY_STYLES_LABEL : NOMINATIONS_LABEL}
+                {nominationsLabel}
+                {isGroupTab && (
+                  <>
+                    {' '}
+                    <span className={styles.req}>*</span>
+                  </>
+                )}
               </label>
               {styleRows.length === 0 ? (
                 <p className={styles.hint}>
                   {rowsError ??
-                    (ages.length === 0
-                      ? 'Немає номінацій для цього поєднання ліги та стилів.'
-                      : NO_NOMINATIONS_FOR_AGE_MESSAGE)}
+                    (isGroupTab
+                      ? NO_GROUP_NOMINATIONS_MESSAGE
+                      : ages.length === 0
+                        ? 'Немає номінацій для цього поєднання ліги та стилів.'
+                        : NO_NOMINATIONS_FOR_AGE_MESSAGE)}
                 </p>
               ) : (
                 <div
@@ -1385,6 +1171,11 @@ export default function ApplyPage() {
                     );
                   })}
                 </div>
+              )}
+              {isGroupTab && selectedRows.length === 0 && (
+                <p className={styles.hint}>
+                  {GROUP_NOMINATIONS_NONE_SELECTED_HINT}
+                </p>
               )}
             </div>
           )}
@@ -1443,7 +1234,7 @@ export default function ApplyPage() {
             </p>
           )}
 
-          {activeParticipants.length > 0 &&
+          {lineupChosen &&
             canPickCoach && (
               <div>
                 <SchoolPicker
@@ -1464,7 +1255,7 @@ export default function ApplyPage() {
               </div>
             )}
 
-          {activeParticipants.length > 0 &&
+          {lineupChosen &&
             !canPickCoach &&
             (session.profile.coachId || isStaffSubmitter ? (
               <div className={styles.two}>
