@@ -56,7 +56,12 @@ import { refreshProgram } from '../lib/programCache';
 import MentorCoachPicker from '../components/MentorCoachPicker';
 import SchoolPicker from '../components/SchoolPicker';
 import CategoryDescriptionList from '../components/CategoryDescriptionList';
-import { ACCESS_LEVEL, isStudioStaff, meetsLevel } from '../lib/roles';
+import {
+  ACCESS_LEVEL,
+  hasStudioRole,
+  isStudioTrainer,
+  meetsLevel,
+} from '../lib/roles';
 import {
   ENTRY_HEAD_LABEL,
   ENTRY_TRAINER_LABEL,
@@ -272,7 +277,7 @@ export default function ApplyPage() {
   // own dancers (and a head — the studio's trainers) before typing; the
   // server caps that list. An organizer searches everyone, so types first.
   const isStaffSubmitter =
-    !!session && isStudioStaff(session.profile.accessLevel);
+    !!session && hasStudioRole(session.profile);
 
   // Name search over the roster — never loads every participant at once.
   useEffect(() => {
@@ -657,7 +662,7 @@ export default function ApplyPage() {
   const studioLabel = studioName ?? '—';
 
   const leaderLabel =
-    session?.profile.accessLevel === ACCESS_LEVEL.TRAINER
+    session && isStudioTrainer(session.profile)
       ? ENTRY_TRAINER_LABEL
       : ENTRY_HEAD_LABEL;
 

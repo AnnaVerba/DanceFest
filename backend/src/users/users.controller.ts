@@ -22,6 +22,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MinLevelGuard } from '../auth/min-level.guard';
 import { MinLevel } from '../auth/min-level.decorator';
 import { AccessLevel, isStudioStaff } from '../auth/access-level.enum';
+import { hasStudioRole } from './studio-role';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { SALT_ROUNDS } from '../auth/auth.constants';
@@ -37,6 +38,7 @@ import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import {
   CANNOT_DELETE_SELF_MESSAGE,
   NOT_YOUR_ROSTER_MESSAGE,
+  ROSTER_SCOPE_MINE,
 } from './users.constants';
 import { User } from './user.model';
 import { ParticipantSummary } from './participant-summary.interface';
@@ -89,7 +91,7 @@ export class UsersController {
 
   @ApiOperation({
     summary:
-      "List a coach's roster; for an organizer, search participants by name",
+      "List a coach's roster; for an organizer, search participants by name — or, with scope=mine, an organizer-trainer's own roster",
   })
   @ApiResponse({ status: 200, description: 'Participants returned.' })
   @MinLevel(AccessLevel.TRAINER)
@@ -97,8 +99,12 @@ export class UsersController {
   async findRoster(
     @CurrentUser() user: AuthenticatedUser,
     @Query('q') q?: string,
+    @Query('scope') scope?: string,
   ): Promise<ParticipantSummary[]> {
-    const participants = isStudioStaff(user.accessLevel)
+    const ownRoster =
+      isStudioStaff(user.accessLevel) ||
+      (hasStudioRole(user) && scope === ROSTER_SCOPE_MINE);
+    const participants = ownRoster
       ? await this.usersService.searchRoster(user.id, q)
       : await this.usersService.searchParticipants(q ?? '');
     return participants.map((participant) => this.toSummary(participant));
@@ -115,9 +121,13 @@ export class UsersController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('q') q?: string,
   ): Promise<ParticipantSummary[]> {
-    const participants = isStudioStaff(user.accessLevel)
-      ? await this.usersService.searchApplicableRoster(user.id, q)
-      : await this.usersService.searchParticipants(q ?? '');
+    // An organizer who also trains sees their own dancers before typing,
+    // then searches everyone like any organizer.
+    const browsingOwn = hasStudioRole(user) && !q?.trim();
+    const participants =
+      isStudioStaff(user.accessLevel) || browsingOwn
+        ? await this.usersService.searchApplicableRoster(user.id, q)
+        : await this.usersService.searchParticipants(q ?? '');
     return participants.map((participant) => this.toSummary(participant));
   }
 
@@ -454,7 +464,9 @@ export class UsersController {
     if (isStudioStaff(user.accessLevel)) {
       return user.id;
     }
-    return dto.coachId ?? null;
+    // An organizer who also trains files a new dancer under themself unless
+    // they name another coach.
+    return dto.coachId ?? (hasStudioRole(user) ? user.id : null);
   }
 
   private toSummary(participant: User): ParticipantSummary {

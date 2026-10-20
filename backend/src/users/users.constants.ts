@@ -31,3 +31,7 @@ export const DELETED_CONTACT_SUFFIX = '_deleted';
 export const COACH_ASSOCIATION = 'coach';
 export const COACH_CANNOT_BE_SELF_MESSAGE =
   'Користувач не може бути власним тренером';
+
+// GET /users/participants?scope=mine — an organizer who is also a trainer or
+// a studio head asks for their own roster instead of a search over everyone.
+export const ROSTER_SCOPE_MINE = 'mine';

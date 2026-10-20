@@ -13,14 +13,6 @@ interface LeaderNames {
   instructorName?: string | null;
 }
 
-// "Шехеризада, керівник Білошкап Анастасія, тренер Іваненко Олена"; each
-// part only when the entry has it, nothing when it has none.
-export function formatStudioAndLeader(row: PublicProgramRow): string {
-  return [row.studioName, formatLeaders(row)]
-    .filter(Boolean)
-    .join(STUDIO_LEADER_SEPARATOR);
-}
-
 // "керівник Білошкап Анастасія, тренер Іваненко Олена" — the studio head
 // and the dancers' trainer. A head who trains the dancers themself is named
 // once: "керівник, тренер Коваль Ольга".

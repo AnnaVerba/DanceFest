@@ -160,6 +160,7 @@ export class UsersService {
     phone: string;
     birthDate: string | null;
     accessLevel: AccessLevel;
+    studioRole: StudioRole | null;
     schoolId: string | null;
     schoolName: string | null;
     coachId: string | null;
@@ -177,6 +178,7 @@ export class UsersService {
       phone: user.phone,
       birthDate: user.birthDate,
       accessLevel: user.accessLevel,
+      studioRole: user.studioRole ?? null,
       schoolId: user.schoolId,
       schoolName: school?.name ?? null,
       coachId: user.coachId,

@@ -7,6 +7,9 @@ import {
   FOREIGN_VENUE_WARNING_PREFIX,
   MANUAL_ROW_LABEL_DRAFT_PREFIX,
   MANUAL_ROW_LABEL_PLACEHOLDER,
+  MANUAL_ROW_LABEL_SAVE,
+  KEY_ENTER,
+  KEY_ESCAPE,
   MANUAL_ROW_LABEL_SEPARATOR,
   MERGED_BLOCK_KEY_PREFIX,
   VENUE_LIST_SEPARATOR,
@@ -69,6 +72,10 @@ interface ProgramTableProps {
   onToggleCollapse: (key: string) => void;
   sectionCollapse: SectionCollapse;
   onToggleSection: (sectionId: string) => void;
+  // A break / gala row just added: its name field is scrolled to and
+  // focused once, then onRowFocused clears it.
+  focusRowId: string | null;
+  onRowFocused: () => void;
   onReorderItems: (sectionId: string, itemIds: string[]) => void;
   onReorderSection: (sectionId: string, dir: -1 | 1) => void;
   onSectionTime: (sectionId: string, startTime: string) => void;
@@ -137,6 +144,8 @@ export default function ProgramTable({
   onToggleCollapse,
   sectionCollapse,
   onToggleSection,
+  focusRowId,
+  onRowFocused,
   onReorderItems,
   onReorderSection,
   onSectionTime,
@@ -152,6 +161,15 @@ export default function ProgramTable({
   const tech = view === 'tech';
   const needle = search.trim().toLowerCase();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // The new row's name: brought into view with its text selected, so typing
+  // replaces the default "Перерва" at once.
+  const focusNewRowName = (input: HTMLInputElement | null) => {
+    if (!input) return;
+    input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    input.focus({ preventScroll: true });
+    input.select();
+    onRowFocused();
+  };
   const dragSensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: BLOCK_DRAG_ACTIVATION_DISTANCE_PX },
@@ -175,6 +193,16 @@ export default function ProgramTable({
   const draft = (key: string, fallback: string) => drafts[key] ?? fallback;
   const setDraft = (key: string, value: string) =>
     setDrafts((prev) => ({ ...prev, [key]: value }));
+
+  // A break's / gala's typed name, when it differs from the saved one.
+  const changedRowLabel = (item: SectionItem, key: string): string | null => {
+    const label = draft(key, item.label ?? '').trim();
+    return label && label !== item.label ? label : null;
+  };
+  const saveRowLabel = (sectionId: string, item: SectionItem, key: string) => {
+    const label = changedRowLabel(item, key);
+    if (label) onUpdateRow(sectionId, item.id, { label });
+  };
 
   // Display filter only. Reorder logic always uses the full section.items,
   // so a filtered-out row never drops out of the itemIds we send back.
@@ -550,16 +578,37 @@ export default function ProgramTable({
                           {typeLabel}
                           {MANUAL_ROW_LABEL_SEPARATOR}
                           <input
+                            ref={
+                              item.id === focusRowId ? focusNewRowName : undefined
+                            }
                             className={styles.titleInput}
                             placeholder={MANUAL_ROW_LABEL_PLACEHOLDER}
                             value={draft(labelKey, item.label ?? '')}
                             onChange={(e) => setDraft(labelKey, e.target.value)}
-                            onBlur={() => {
-                              const label = draft(labelKey, item.label ?? '').trim();
-                              if (!label || label === item.label) return;
-                              onUpdateRow(section.id, item.id, { label });
+                            onKeyDown={(e) => {
+                              if (e.key === KEY_ENTER) {
+                                saveRowLabel(section.id, item, labelKey);
+                              } else if (e.key === KEY_ESCAPE) {
+                                setDraft(labelKey, item.label ?? '');
+                              }
                             }}
+                            // Leaving the field keeps what was typed.
+                            onBlur={() => saveRowLabel(section.id, item, labelKey)}
                           />
+                          {changedRowLabel(item, labelKey) && (
+                            <button
+                              type="button"
+                              className={styles.saveLabelBtn}
+                              // Keeps the field focused, so the click saves once
+                              // instead of the blur saving first.
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() =>
+                                saveRowLabel(section.id, item, labelKey)
+                              }
+                            >
+                              {MANUAL_ROW_LABEL_SAVE}
+                            </button>
+                          )}
                         </>
                       ) : (
                         `${typeLabel}${

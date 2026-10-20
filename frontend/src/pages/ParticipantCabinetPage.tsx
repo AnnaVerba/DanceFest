@@ -9,7 +9,7 @@ import { Navigate } from 'react-router-dom';
 import CabinetLayout from '../components/CabinetLayout';
 import NoticeDialog from '../components/admin/NoticeDialog';
 import { getSession, getToken } from '../lib/auth';
-import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
+import { ACCESS_LEVEL, isStudioHead, meetsLevel } from '../lib/roles';
 import { getMyEntries, uploadEntryTrack } from '../lib/entries';
 import { formatParticipants } from '../lib/entryParticipants';
 import { formatParticipantNumbers } from '../lib/participantNumbers';
@@ -162,7 +162,7 @@ export default function ParticipantCabinetPage() {
 
   const isCoach = meetsLevel(session.profile.accessLevel, ACCESS_LEVEL.TRAINER);
   // Only a studio head's entries split by trainer.
-  const isHead = session.profile.accessLevel === ACCESS_LEVEL.COACH;
+  const isHead = isStudioHead(session.profile);
   const displayName = `${session.profile.firstName} ${session.profile.lastName}`;
   const title = isHead
     ? HEAD_ENTRIES_TITLE

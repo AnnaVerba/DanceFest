@@ -3,7 +3,7 @@ import type { ProgramSection } from '../../lib/programSections.types';
 import type { MineMark, SectionMarks } from '../../lib/programHighlight.types';
 import { formatMarkedParticipantNumbers } from '../../lib/participantNumbers';
 import {
-  formatStudioAndLeader,
+  formatLeaders,
   formatTimeRange,
 } from '../../lib/programRowFormat';
 import { formatClock } from '../../lib/duration';
@@ -62,7 +62,9 @@ function renderRow(
     );
   }
   if (row.kind === 'exit') {
-    const studioAndLeader = formatStudioAndLeader(row);
+    // Head and trainer only — which studio a dancer is from stays out of
+    // the programme (TASK-15).
+    const leaders = formatLeaders(row);
     return (
       <div key={index} className={styles.exitRow}>
         <span className={styles.num}>
@@ -70,7 +72,7 @@ function renderRow(
         </span>
         <span className={styles.grow}>
           {row.routineName ?? EMPTY_ROUTINE_NAME}
-          {studioAndLeader ? `${LABEL_SEPARATOR}${studioAndLeader}` : ''}
+          {leaders ? `${LABEL_SEPARATOR}${leaders}` : ''}
         </span>
       </div>
     );

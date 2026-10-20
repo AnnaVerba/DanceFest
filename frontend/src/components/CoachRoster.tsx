@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createParticipant,
-  getParticipants,
+  getMyRoster,
   removeParticipant,
 } from '../lib/participants';
 import type { NewParticipant, Participant } from '../lib/participants';
@@ -36,7 +36,7 @@ export default function CoachRoster() {
 
   const participantsQuery = useQuery({
     queryKey: queryKeys.participants(),
-    queryFn: () => getParticipants(),
+    queryFn: () => getMyRoster(),
     staleTime: PARTICIPANTS_STALE_TIME_MS,
   });
   const participants = participantsQuery.data ?? null;
