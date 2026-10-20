@@ -38,8 +38,16 @@ export const STUDIO_NAME_COLLATOR_LOCALE = 'uk';
 // still bounded.
 export const MAX_MY_ENTRIES = 1000;
 
-// A group number's dancers in one quote request.
-export const MAX_QUOTE_PARTICIPANTS = 200;
+// The most dancers one number can put on stage — a group's typed-in headcount
+// and the dancers of one quote request alike.
+export const MAX_ENTRY_PARTICIPANTS = 200;
+export const MAX_QUOTE_PARTICIPANTS = MAX_ENTRY_PARTICIPANTS;
+// A quote prices either named dancers or a bare headcount — with neither
+// there is nobody to price.
+export const QUOTE_PARTICIPANTS_REQUIRED_MESSAGE =
+  'Вкажіть учасників або їх кількість';
+// The routine name column is a plain STRING (varchar 255).
+export const ROUTINE_NAME_MAX_LENGTH = 255;
 
 // An entry typed in by hand without dancers still puts one person on stage.
 export const MIN_PARTICIPANTS_PER_ENTRY = 1;

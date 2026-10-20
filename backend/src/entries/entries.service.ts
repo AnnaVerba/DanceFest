@@ -78,6 +78,7 @@ import {
   ASSIGN_STUDIO_TRAINER_FORBIDDEN_MESSAGE,
   TRAINER_NOT_A_COACH_MESSAGE,
   PROGRAM_PLACEMENT_FAILED_MESSAGE,
+  QUOTE_PARTICIPANTS_REQUIRED_MESSAGE,
   NO_EXTRA_TIME_SECONDS,
   NO_EXTRA_FEE,
   EXTRA_TIME_ORGANIZER_ONLY_MESSAGE,
@@ -1165,16 +1166,21 @@ export class EntriesService {
     if (!competition) {
       throw new NotFoundException(COMPETITION_NOT_FOUND_MESSAGE);
     }
+    const participantIds = dto.participantIds ?? [];
+    if (participantIds.length === 0 && dto.participantsCount === undefined) {
+      throw new BadRequestException(QUOTE_PARTICIPANTS_REQUIRED_MESSAGE);
+    }
     if (!(await this.canApplyForOthers(competition, user))) {
       const own = new Set(await this.ownParticipantIds(user));
-      if (dto.participantIds.some((id) => !own.has(id))) {
+      if (participantIds.some((id) => !own.has(id))) {
         throw new ForbiddenException(NOT_OWN_PARTICIPANT_MESSAGE);
       }
     }
     const amounts = await this.entryChargeService.quote(
       competitionId,
-      dto.participantIds,
+      participantIds,
       dto.nominationIds,
+      dto.participantsCount,
     );
     return {
       amounts,
@@ -1260,9 +1266,10 @@ export class EntriesService {
     };
   }
 
-  // The apply form always sends `participantIds` (one for a solo, many for
-  // a group); an ADMIN/ORGANIZER adding an entry by hand may omit them and
-  // pass `routineName` directly.
+  // The apply form sends `participantIds` (one for a solo, many for a group);
+  // an ADMIN/ORGANIZER adding an entry by hand, or a studio head/trainer
+  // submitting a group by headcount, may omit them and pass `routineName`
+  // (and `participantsCount`) directly.
   private async resolveSubmitter(
     dto: CreateEntryDto,
     user: AuthenticatedUser,
@@ -1275,7 +1282,9 @@ export class EntriesService {
         participantsCount: null,
         birthDates: [],
         routineName: null,
-        ...(await this.studioLeadersFor(null)),
+        ...(await this.studioLeadersFor(
+          await this.leaderOfUnnamedDancers(user),
+        )),
       };
     }
 
@@ -1290,6 +1299,17 @@ export class EntriesService {
       routineName: this.routineNameFor(participants),
       ...(await this.studioLeadersFor(coach)),
     };
+  }
+
+  // Dancers who are not named give the entry no coach to take the studio
+  // from: a studio head or trainer files it under themself, while an
+  // organizer or admin names the studio and trainer (or leaves them empty).
+  private async leaderOfUnnamedDancers(
+    user: AuthenticatedUser,
+  ): Promise<User | null> {
+    return isStudioStaff(user.accessLevel)
+      ? this.usersService.findByIdOrFail(user.id)
+      : null;
   }
 
   // Whose dancer a performer counts as: a studio trainer performing
