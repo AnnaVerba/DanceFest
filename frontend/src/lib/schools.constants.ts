@@ -6,6 +6,11 @@ export const SCHOOL_CREATE_FAILED_MESSAGE = 'Не вдалося створит�
 // stricter to keep the dropdown meaningful.
 export const SCHOOL_TYPEAHEAD_MIN_CHARS = 3;
 
+// The heads search starts at this many letters; the server enforces the same.
+export const SCHOOL_HEAD_TYPEAHEAD_MIN_CHARS = 3;
+export const SCHOOL_HEADS_LOAD_FAILED_MESSAGE =
+  'Не вдалося завантажити список керівників';
+
 export const SCHOOL_REQUIRED_MESSAGE = 'Оберіть або створіть школу';
 
 // Shown by a picker that only picks — a trainer joins an existing studio.

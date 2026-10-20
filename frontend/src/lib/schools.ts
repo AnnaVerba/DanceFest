@@ -2,8 +2,10 @@ import { authorizedFetch } from './auth';
 import { publicRequest } from './http';
 import {
   SCHOOL_CREATE_FAILED_MESSAGE,
+  SCHOOL_HEAD_TYPEAHEAD_MIN_CHARS,
   SCHOOL_TYPEAHEAD_MIN_CHARS,
 } from './schools.constants';
+import type { SchoolHead } from './schoolHead.types';
 
 export interface School {
   id: string;
@@ -25,6 +27,16 @@ export async function searchSchools(q: string): Promise<School[]> {
   if (query.length < SCHOOL_TYPEAHEAD_MIN_CHARS) return [];
   // Public: the register page searches before there is a session.
   return publicRequest<School[]>(`/schools?q=${encodeURIComponent(query)}`);
+}
+
+// Typeahead over studio heads by name; [] until the caller sends enough letters.
+export async function searchSchoolHeads(q: string): Promise<SchoolHead[]> {
+  const query = q.trim();
+  if (query.length < SCHOOL_HEAD_TYPEAHEAD_MIN_CHARS) return [];
+  // Public: the register page searches before there is a session.
+  return publicRequest<SchoolHead[]>(
+    `/schools/heads?q=${encodeURIComponent(query)}`,
+  );
 }
 
 export async function getSchool(id: string): Promise<School> {

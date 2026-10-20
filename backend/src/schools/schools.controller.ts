@@ -18,6 +18,16 @@ export class SchoolsController {
     return this.schoolsService.search(q);
   }
 
+  @ApiOperation({ summary: 'Search studio heads by name (typeahead, needs q)' })
+  @ApiResponse({ status: 200, description: 'Matching heads returned.' })
+  // Public: a trainer names their head on /register, before any session.
+  // Declared before ':id' so 'heads' is not read as a school id.
+  @Public()
+  @Get('heads')
+  searchHeads(@Query('q') q?: string) {
+    return this.schoolsService.searchHeads(q);
+  }
+
   @ApiOperation({ summary: 'Get a school by id' })
   @ApiResponse({ status: 200, description: 'School returned.' })
   @ApiResponse({

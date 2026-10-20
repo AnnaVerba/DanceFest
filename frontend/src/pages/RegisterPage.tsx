@@ -19,12 +19,15 @@ import PasswordField from '../components/PasswordField';
 import OtpStep from '../components/OtpStep';
 import ProjectLogo from '../components/ProjectLogo';
 import SchoolPicker from '../components/SchoolPicker';
+import StudioHeadPicker from '../components/StudioHeadPicker';
+import type { SchoolHead } from '../lib/schoolHead.types';
 import { PROJECT_LOGO_LABEL } from '../components/ProjectLogo.constants';
 import { ACCESS_LEVEL, isStudioStaff } from '../lib/roles';
 import type { AccessLevel } from '../lib/roles';
 import {
   HEAD_STUDIO_HINT,
   HEAD_STUDIO_REQUIRED_MESSAGE,
+  TRAINER_HEAD_HINT,
   TRAINER_STUDIO_HINT,
   TRAINER_STUDIO_REQUIRED_MESSAGE,
 } from './RegisterPage.constants';
@@ -42,6 +45,8 @@ export default function RegisterPage() {
   const [role, setRole] = useState<AccessLevel>(ACCESS_LEVEL.PARTICIPANT);
   // The studio of a trainer (ties them to its heads) or of a head.
   const [schoolId, setSchoolId] = useState('');
+  // The head a trainer named; choosing one fills in their studio.
+  const [head, setHead] = useState<SchoolHead | null>(null);
   const isTrainer = role === ACCESS_LEVEL.TRAINER;
   const needsStudio = isStudioStaff(role);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +55,17 @@ export default function RegisterPage() {
   const [stage, setStage] = useState<'form' | 'otp'>('form');
   const [maskedPhone, setMaskedPhone] = useState('');
   const maxBirthDate = new Date().toISOString().slice(0, 10);
+
+  const handleHeadChange = (picked: SchoolHead | null) => {
+    setHead(picked);
+    if (picked) setSchoolId(picked.schoolId);
+  };
+
+  // A studio other than the named head's makes that head the wrong one.
+  const handleSchoolChange = (nextSchoolId: string) => {
+    setSchoolId(nextSchoolId);
+    if (head && head.schoolId !== nextSchoolId) setHead(null);
+  };
 
   const toPayload = (): RegisterPayload => ({
     firstName: firstName.trim(),
@@ -179,12 +195,19 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            {isTrainer && (
+              <div className={styles.field}>
+                <StudioHeadPicker value={head} onChange={handleHeadChange} />
+                <p className={styles.hint}>{TRAINER_HEAD_HINT}</p>
+              </div>
+            )}
+
             {needsStudio && (
               <div className={styles.field}>
                 {/* A trainer joins an existing studio; a head may add theirs. */}
                 <SchoolPicker
                   value={schoolId}
-                  onChange={setSchoolId}
+                  onChange={handleSchoolChange}
                   allowCreate={!isTrainer}
                 />
                 <p className={styles.hint}>

@@ -61,7 +61,8 @@
   cursor: pointer;
 }
 .comboItem:hover:not(:disabled) {
-  background: var(--g-hover, #f2f4f7);
+  background: var(--g-field-off);
+  color: var(--g-ink);
 }
 .comboItem:disabled {
   opacity: 0.5;
