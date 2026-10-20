@@ -9,7 +9,10 @@ export interface OverageEntryView {
   durationSec: number;
   overageSec: number;
   purchasedSec: number;
+  // The fee is per dancer: the entry owes it for each of them.
   extraFee: number;
+  // How many dance in the number.
+  dancers: number;
 }
 
 export interface OveragesResponse {

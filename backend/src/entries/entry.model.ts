@@ -137,7 +137,8 @@ export class Entry extends Model<Entry> {
 
   // Additional on-stage time bought for this performance because it ran
   // over its league/duration limit (+30/+60 sec — see
-  // EXTRA_TIME_SECONDS_OPTIONS) and the fee charged for it. Recorded by the
+  // EXTRA_TIME_SECONDS_OPTIONS) and the fee charged for it — per dancer: the
+  // entry owes the fee for everyone on stage. Recorded by the
   // organizer via EntriesService.updateExtraTime; an overage without this
   // stays a warning and never blocks the performance.
   @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0 })

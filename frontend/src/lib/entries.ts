@@ -53,8 +53,8 @@ export interface Entry {
   scoresCount?: number;
   purchasedExtraSeconds?: number;
   extraFee?: number;
-  // What the entry costs: nomination price × dancers + extraFee. Staff
-  // payload only.
+  // What the entry costs: nomination price × dancers + extraFee × dancers —
+  // the surcharge is per dancer. Staff payload only.
   amount?: number;
   createdAt: string;
 }

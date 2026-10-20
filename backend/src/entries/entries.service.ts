@@ -30,7 +30,7 @@ import { isNumberAllocationRace } from './number-allocation-race';
 import { normalizeGroupName } from './group-name';
 import type { GroupNameCheck } from './group-name-check.interface';
 import { isGroupLineup, resolveLineup } from './lineup';
-import { roundMoney } from './entry-amount';
+import { dancerCount, roundMoney } from './entry-amount';
 import type { EntryCharge } from './pricing/entry-charge';
 import { EntryChargeService } from './pricing/entry-charge.service';
 import { Score } from './score.model';
@@ -1318,7 +1318,8 @@ export class EntriesService {
     );
     return {
       entry: this.toDto(entry, numbers),
-      totalDue: Number(entry.extraFee),
+      // The fee is each dancer's: the number owes it for everyone on stage.
+      totalDue: roundMoney(Number(entry.extraFee) * dancerCount(entry)),
     };
   }
 
