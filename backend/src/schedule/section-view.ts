@@ -1,5 +1,6 @@
 import { LINEUP_LABELS } from '../entries/lineup';
 import { Entry } from '../entries/entry.model';
+import { dancerCount } from '../entries/entry-amount';
 import { Section } from './section.model';
 import { SectionItem } from './section-item.model';
 import { PERFORMANCE_ITEM, isManualRow } from './section-item-type';
@@ -19,6 +20,9 @@ export interface SectionExitView {
   participantNumbers: (number | null)[];
   nomination: string;
   routineName: string;
+  // How many dance in the number — a group registered by headcount names no
+  // dancers, so this is its only record.
+  participantsCount: number;
   ageCategory: string | null;
   league: string | null;
   lineup: string | null;
@@ -107,6 +111,7 @@ function toExitView(
     participantNumbers,
     nomination: entry.nomination,
     routineName: entry.routineName,
+    participantsCount: dancerCount(entry),
     ageCategory: entry.ageCategory,
     league: entry.league,
     lineup: entry.lineup,

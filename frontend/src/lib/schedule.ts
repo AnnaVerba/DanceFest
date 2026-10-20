@@ -28,6 +28,8 @@ export interface SectionExit {
   participantNumbers: (number | null)[];
   nomination: string;
   routineName: string;
+  // How many dance in the number.
+  participantsCount: number;
   ageCategory: string | null;
   league: string | null;
   lineup: string | null;

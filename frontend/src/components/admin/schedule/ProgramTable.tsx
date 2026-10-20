@@ -9,6 +9,11 @@ import {
   MANUAL_ROW_LABEL_PLACEHOLDER,
   MANUAL_ROW_LABEL_SEPARATOR,
   MERGED_BLOCK_KEY_PREFIX,
+  PARTICIPANTS_COUNT_LABEL,
+  PUBLIC_COLUMN_COUNT,
+  PUBLIC_LABEL_SPAN,
+  TECH_COLUMN_COUNT,
+  TECH_LABEL_SPAN,
   VENUE_LIST_SEPARATOR,
 } from './programTable.constants';
 import type { BlockRename } from './blockRename.types';
@@ -160,7 +165,8 @@ export default function ProgramTable({
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
-  const colCount = tech ? 8 : 6;
+  const colCount = tech ? TECH_COLUMN_COUNT : PUBLIC_COLUMN_COUNT;
+  const labelSpan = tech ? TECH_LABEL_SPAN : PUBLIC_LABEL_SPAN;
   const dayLabel = (id: string) => {
     const day = days.find((d) => d.id === id);
     return day ? (day.label ?? day.date) : '';
@@ -281,7 +287,7 @@ export default function ProgramTable({
   }) => (
     <tr key={opts.key} className={styles.serviceRow}>
       <td className={styles.serviceCell} />
-      <td className={styles.serviceLabel} colSpan={4}>
+      <td className={styles.serviceLabel} colSpan={labelSpan}>
         {opts.label}
       </td>
       <td className={styles.serviceCell}>
@@ -344,6 +350,11 @@ export default function ProgramTable({
             <th className={styles.th} style={{ minWidth: 170 }}>
               Прізвище Імʼя
             </th>
+            {tech && (
+              <th className={styles.th} style={{ width: 96 }}>
+                {PARTICIPANTS_COUNT_LABEL}
+              </th>
+            )}
             <th className={styles.th} style={{ minWidth: 150 }}>
               Керівник
             </th>
@@ -640,7 +651,7 @@ export default function ProgramTable({
                         <td className={styles.blockF}>
                           {formatMarkedNominationNumber(number)}
                         </td>
-                        <td className={styles.blockCell} colSpan={4}>
+                        <td className={styles.blockCell} colSpan={labelSpan}>
                           <div className={styles.blockHead}>
                             {editing && <BlockDragHandle />}
                             <button
@@ -793,6 +804,11 @@ export default function ProgramTable({
                             <td className={`${styles.td} ${styles.tdName}`}>
                               {item.exit?.routineName ?? '—'}
                             </td>
+                            {tech && (
+                              <td className={`${styles.td} ${styles.tdNum}`}>
+                                {item.exit?.participantsCount ?? ''}
+                              </td>
+                            )}
                             <td className={styles.td}>
                               {(item.exit && formatLeaders(item.exit)) || '—'}
                             </td>
