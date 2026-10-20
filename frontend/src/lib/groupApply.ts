@@ -1,6 +1,6 @@
 import {
   GROUP_MAX_PARTICIPANTS,
-  GROUP_MIN_PARTICIPANTS,
+  GROUP_MIN_HEADCOUNT,
   NO_HEADCOUNT,
 } from './groupApply.constants';
 
@@ -13,5 +13,5 @@ export function parseHeadcount(raw: string): number {
 
 // Whether this many dancers make a «Група» the server accepts.
 export function isGroupSize(count: number): boolean {
-  return count >= GROUP_MIN_PARTICIPANTS && count <= GROUP_MAX_PARTICIPANTS;
+  return count >= GROUP_MIN_HEADCOUNT && count <= GROUP_MAX_PARTICIPANTS;
 }

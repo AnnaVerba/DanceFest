@@ -19,6 +19,8 @@ export interface MyEntryView {
   musicFee: number;
   // amount without musicFee — the nomination alone.
   baseAmount: number;
+  // The number's own name — all that names a group registered by headcount.
+  routineName: string;
   participants: EntryParticipant[];
   participantAmounts: ParticipantAmount[];
 }
@@ -30,6 +32,7 @@ export interface PricedEntryView {
   musicFee: number;
   // amount without musicFee — the nomination alone.
   baseAmount: number;
+  routineName: string;
   participants: EntryParticipant[];
   participantAmounts: ParticipantAmount[];
 }

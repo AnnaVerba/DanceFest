@@ -7,6 +7,8 @@ export interface EntryParticipantAmount {
 }
 
 export interface PricedEntry {
+  // All that names a group registered by headcount.
+  routineName: string;
   participants: EntryParticipant[];
   amount: number;
   participantAmounts: EntryParticipantAmount[];

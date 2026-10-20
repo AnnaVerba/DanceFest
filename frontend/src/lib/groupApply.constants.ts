@@ -8,9 +8,8 @@ export const LINEUP_MODE_LABEL = {
   [LINEUP_MODE.NAMED]: 'Внести учасників',
 } as const;
 
-// The smallest number of dancers the server calls a «Група» (resolveLineup);
-// fewer is a solo, duo or trio and is registered on the other tab.
-export const GROUP_MIN_PARTICIPANTS = 4;
+// A group has no minimum size of its own — one dancer is the least a number has.
+export const GROUP_MIN_HEADCOUNT = 1;
 // The server's cap on the dancers of one number (MAX_ENTRY_PARTICIPANTS).
 export const GROUP_MAX_PARTICIPANTS = 200;
 // The server's cap on a number's name (the routineName column).
@@ -34,5 +33,7 @@ export const NO_GROUP_NOMINATIONS_MESSAGE =
   'Немає номінацій для цієї кількості учасників.';
 
 export const GROUP_NAME_REQUIRED_MESSAGE = 'Вкажіть назву колективу.';
-export const GROUP_HEADCOUNT_REQUIRED_MESSAGE = `Вкажіть кількість учасників — не менше ${GROUP_MIN_PARTICIPANTS}.`;
-export const GROUP_PARTICIPANTS_REQUIRED_MESSAGE = `Оберіть щонайменше ${GROUP_MIN_PARTICIPANTS} учасників.`;
+export const GROUP_NAME_TAKEN_MESSAGE =
+  'Колектив з такою назвою вже існує в цьому конкурсі.';
+export const GROUP_HEADCOUNT_REQUIRED_MESSAGE = `Вкажіть кількість учасників.`;
+export const GROUP_PARTICIPANTS_REQUIRED_MESSAGE = `Оберіть хоча б одного учасника.`;

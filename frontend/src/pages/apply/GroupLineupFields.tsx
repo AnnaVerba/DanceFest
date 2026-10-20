@@ -4,7 +4,7 @@ import {
   GROUP_LINEUP_HINT,
   GROUP_LINEUP_LABEL,
   GROUP_MAX_PARTICIPANTS,
-  GROUP_MIN_PARTICIPANTS,
+  GROUP_MIN_HEADCOUNT,
   GROUP_NAME_LABEL,
   GROUP_NAME_MAX_LENGTH,
   GROUP_NAME_PLACEHOLDER,
@@ -15,6 +15,8 @@ import styles from '../ApplyPage.module.css';
 interface GroupLineupFieldsProps {
   name: string;
   nameInvalid: boolean;
+  // Why the name cannot be used, shown under the field.
+  nameError: string | null;
   // The headcount as shown: typed by the applicant, or — while the dancers
   // are named — counted from them and not editable.
   headcount: string;
@@ -25,6 +27,8 @@ interface GroupLineupFieldsProps {
   // What the admin wrote about the line-up the headcount falls in.
   lineupDescriptions: NominationAxisValue[];
   onNameChange: (name: string) => void;
+  // Fired when the field loses focus — the name is checked then.
+  onNameBlur: () => void;
   onHeadcountChange: (headcount: string) => void;
 }
 
@@ -33,12 +37,14 @@ interface GroupLineupFieldsProps {
 export default function GroupLineupFields({
   name,
   nameInvalid,
+  nameError,
   headcount,
   headcountEditable,
   headcountInvalid,
   lineup,
   lineupDescriptions,
   onNameChange,
+  onNameBlur,
   onHeadcountChange,
 }: GroupLineupFieldsProps) {
   return (
@@ -54,7 +60,9 @@ export default function GroupLineupFields({
           placeholder={GROUP_NAME_PLACEHOLDER}
           value={name}
           onChange={(e) => onNameChange(e.target.value)}
+          onBlur={onNameBlur}
         />
+        {nameError && <p className={styles.error}>{nameError}</p>}
       </div>
 
       <div className={styles.pair}>
@@ -69,7 +77,7 @@ export default function GroupLineupFields({
               }`}
               type="number"
               inputMode="numeric"
-              min={GROUP_MIN_PARTICIPANTS}
+              min={GROUP_MIN_HEADCOUNT}
               max={GROUP_MAX_PARTICIPANTS}
               step={1}
               value={headcount}

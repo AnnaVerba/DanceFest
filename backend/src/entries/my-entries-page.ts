@@ -40,6 +40,7 @@ function blockKeyOf(entry: MyEntryView, headUserId: string | null): string {
 function searchTextOf(entry: MyEntryView): string {
   return [
     ...entry.participants.map((p) => `${p.lastName} ${p.firstName}`),
+    entry.routineName,
     entry.instructorName,
     entry.choreographer,
     entry.competitionName,
@@ -221,6 +222,7 @@ export function buildMyEntriesPage<T extends MyEntryView>(
         amount: entry.amount,
         musicFee: entry.musicFee,
         baseAmount: entry.baseAmount,
+        routineName: entry.routineName,
         participants: entry.participants,
         participantAmounts: entry.participantAmounts,
       })),

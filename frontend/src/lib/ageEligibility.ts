@@ -32,8 +32,16 @@ export function participantAges(
 
 // Only a lower bound is required: an empty upper bound means "N and older",
 // the same as the server's age matching.
-function hasLowerBound(category: NominationCategoryRange): boolean {
+export function hasLowerBound(category: NominationCategoryRange): boolean {
   return category.rangeFrom !== null;
+}
+
+// One dancer's age is inside the category (needs a category with a lower bound).
+export function fitsAge(age: number, category: NominationCategoryRange): boolean {
+  return (
+    age >= category.rangeFrom! &&
+    (category.rangeTo === null || age <= category.rangeTo)
+  );
 }
 
 // A category fits a line-up only when every dancer's age is inside it — the

@@ -363,6 +363,10 @@
   gap: 16px;
 }
 
+.spaced {
+  margin-top: 12px;
+}
+
 .pair {
   display: grid;
   grid-template-columns: 1fr 1fr;

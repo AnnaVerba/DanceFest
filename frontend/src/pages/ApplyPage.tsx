@@ -26,6 +26,7 @@ import { exitsAreAllImprovisation } from '../lib/improvisationProgram';
 import {
   EntryApiError,
   createEntriesBulk,
+  isGroupNameTaken,
   uploadEntryTrack,
 } from '../lib/entries';
 import type { Entry } from '../lib/entries';
@@ -71,6 +72,7 @@ import {
   GROUP_EMPTY_VALUE_LABEL,
   GROUP_LINEUP_VALUE,
   GROUP_NAME_REQUIRED_MESSAGE,
+  GROUP_NAME_TAKEN_MESSAGE,
   GROUP_NOMINATIONS_NONE_SELECTED_HINT,
   GROUP_PARTICIPANTS_LABEL,
   GROUP_PARTICIPANTS_REQUIRED_MESSAGE,
@@ -83,6 +85,7 @@ import {
   ageCategoriesFittingAnyAge,
   participantAges,
 } from '../lib/ageEligibility';
+import { resolveGroupAgeCategory } from '../lib/groupAge';
 import {
   NO_NOMINATIONS_FOR_AGE_MESSAGE,
 } from '../lib/applyAge.constants';
@@ -190,6 +193,9 @@ export default function ApplyPage() {
   const [participantLimitHit, setParticipantLimitHit] = useState(false);
   // A group is registered by its name and either a headcount or named dancers.
   const [groupName, setGroupName] = useState('');
+  // The name the server last reported as taken; it counts only while the field
+  // still holds exactly that name.
+  const [takenGroupName, setTakenGroupName] = useState<string | null>(null);
   const [headcountInput, setHeadcountInput] = useState('');
   const [studioName, setStudioName] = useState<string | null>(null);
   // Coach + studio for an applicant whose profile has no mentor coach yet:
@@ -357,10 +363,19 @@ export default function ApplyPage() {
     [ages, ageCategories],
   );
 
+  // A group of named dancers does not pick: its category follows from their
+  // ages (half or more of them, the older one when several qualify).
+  const automaticAge = isGroupTab && namesDancers;
+  const automaticAgeCategory = useMemo(
+    () => (automaticAge ? resolveGroupAgeCategory(ages, ageCategories) : null),
+    [automaticAge, ages, ageCategories],
+  );
+
   // A single fitting category needs no choice; with several (overlapping
   // ranges) the coach's pick is used, and a pick that stopped fitting is ignored.
-  const chosenAgeCategory =
-    ageCategoryOptions.length === 1
+  const chosenAgeCategory = automaticAgeCategory
+    ? automaticAgeCategory.name
+    : ageCategoryOptions.length === 1
       ? ageCategoryOptions[0].name
       : ageCategoryOptions.some((c) => c.name === pickedAgeCategory)
         ? pickedAgeCategory
@@ -567,8 +582,9 @@ export default function ApplyPage() {
   const lineupInvalid = submitError != null && pickedCount === NO_HEADCOUNT;
   const participantsInvalid = lineupInvalid && namesDancers;
   const headcountInvalid = lineupInvalid && !namesDancers;
+  const groupNameTaken = takenGroupName !== null && takenGroupName === groupName.trim();
   const groupNameInvalid =
-    submitError != null && isGroupTab && !groupName.trim();
+    groupNameTaken || (submitError != null && isGroupTab && !groupName.trim());
   const leagueInvalid = submitError != null && !league;
   const nominationsInvalid = submitError != null && selectedRows.length === 0;
 
@@ -655,6 +671,20 @@ export default function ApplyPage() {
     setGroupName(name);
   };
 
+  // Leaving the field asks the server at once, so a taken name is flagged
+  // before the rest of the form is filled in.
+  const handleGroupNameBlur = async () => {
+    const name = groupName.trim();
+    if (!id || !name) return;
+    try {
+      const taken = await isGroupNameTaken(id, name);
+      setTakenGroupName(taken ? name : null);
+    } catch {
+      // The same check runs on submit, so a failed lookup blocks nothing.
+      setTakenGroupName(null);
+    }
+  };
+
   const handleHeadcountChange = (headcountText: string) => {
     setSubmitError(null);
     setHeadcountInput(headcountText);
@@ -712,6 +742,10 @@ export default function ApplyPage() {
 
     if (isGroupTab && !groupName.trim()) {
       setSubmitError(GROUP_NAME_REQUIRED_MESSAGE);
+      return;
+    }
+    if (isGroupTab && groupNameTaken) {
+      setSubmitError(GROUP_NAME_TAKEN_MESSAGE);
       return;
     }
     if (pickedCount === NO_HEADCOUNT) {
@@ -942,11 +976,8 @@ export default function ApplyPage() {
       : !!leagueId;
   const nominationsLabel =
     hasStyles ? NOMINATIONS_BY_STYLES_LABEL : NOMINATIONS_LABEL;
-  // The studio and trainer show once there is a number to file under them: a
-  // group is one from the start, the rest once a dancer is picked.
   const noCommonAgeCategory =
     ages.length > 0 && ageCategories.length > 0 && ageCategoryOptions.length === 0;
-  const lineupChosen = isGroupTab || activeParticipants.length > 0;
 
   // The headcount as the form shows it: typed in, or counted from the named
   // dancers (a dash while there are none).
@@ -998,12 +1029,14 @@ export default function ApplyPage() {
               <GroupLineupFields
                 name={groupName}
                 nameInvalid={groupNameInvalid}
+                nameError={groupNameTaken ? GROUP_NAME_TAKEN_MESSAGE : null}
                 headcount={groupHeadcountText}
                 headcountEditable={!namesDancers}
                 headcountInvalid={headcountInvalid}
                 lineup={GROUP_LINEUP_VALUE}
                 lineupDescriptions={chosenLineupValues}
                 onNameChange={handleGroupNameChange}
+                onNameBlur={handleGroupNameBlur}
                 onHeadcountChange={handleHeadcountChange}
               />
               <div className={styles.pair}>
@@ -1020,6 +1053,7 @@ export default function ApplyPage() {
                   descriptions={ageDescriptionByName}
                   fallbackLabel={ageLabel}
                   noCommonCategory={noCommonAgeCategory}
+                  automatic={automaticAge}
                   onChange={handleAgeCategoryChange}
                 />
               </div>
@@ -1029,41 +1063,39 @@ export default function ApplyPage() {
             <div>
               {participantPicker}
 
-              {activeParticipants.length > 0 && (
-                <div className={styles.two}>
-                  <ApplyLeagueField
-                    value={league}
-                    options={leagueOptions}
-                    invalid={leagueInvalid}
-                    descriptions={chosenLeagueValues}
-                    onChange={handleLeagueChange}
-                  />
-                  <ApplyAgeField
-                    options={ageCategoryOptions}
-                    value={chosenAgeCategory}
-                    descriptions={ageDescriptionByName}
-                    fallbackLabel={ageLabel}
-                    noCommonCategory={noCommonAgeCategory}
-                    onChange={handleAgeCategoryChange}
-                  />
-                </div>
-              )}
+              <div className={styles.two}>
+                <ApplyLeagueField
+                  value={league}
+                  options={leagueOptions}
+                  invalid={leagueInvalid}
+                  descriptions={chosenLeagueValues}
+                  onChange={handleLeagueChange}
+                />
+                <ApplyAgeField
+                  options={ageCategoryOptions}
+                  value={chosenAgeCategory}
+                  descriptions={ageDescriptionByName}
+                  fallbackLabel={ageLabel}
+                  noCommonCategory={noCommonAgeCategory}
+                  onChange={handleAgeCategoryChange}
+                />
+              </div>
 
-              {activeParticipants.length > 0 && (
-                <div>
-                  <label className={styles.label}>Склад</label>
-                  <div className={styles.readonlyBox} data-testid="lineup-value">
-                    {lineupLabel(effectiveParticipantIds.length)}
-                  </div>
-                  <p className={styles.hint}>
-                    Визначається автоматично за кількістю обраних учасників.
-                  </p>
-                  <CategoryDescriptionList
-                    values={chosenLineupValues}
-                    className={styles.hint}
-                  />
+              <div className={styles.spaced}>
+                <label className={styles.label}>Склад</label>
+                <div className={styles.readonlyBox} data-testid="lineup-value">
+                  {effectiveParticipantIds.length > 0
+                    ? lineupLabel(effectiveParticipantIds.length)
+                    : GROUP_EMPTY_VALUE_LABEL}
                 </div>
-              )}
+                <p className={styles.hint}>
+                  Визначається автоматично за кількістю обраних учасників.
+                </p>
+                <CategoryDescriptionList
+                  values={chosenLineupValues}
+                  className={styles.hint}
+                />
+              </div>
             </div>
           )}
 
@@ -1223,8 +1255,7 @@ export default function ApplyPage() {
             </p>
           )}
 
-          {lineupChosen &&
-            canPickCoach && (
+          {canPickCoach && (
               <div>
                 <SchoolPicker
                   value={assignedStudioId}
@@ -1244,8 +1275,7 @@ export default function ApplyPage() {
               </div>
             )}
 
-          {lineupChosen &&
-            !canPickCoach &&
+          {!canPickCoach &&
             (session.profile.coachId || isStaffSubmitter ? (
               <div className={styles.two}>
                 <div>

@@ -3,6 +3,7 @@ import {
   AGE_CATEGORY_PLACEHOLDER,
   NO_COMMON_AGE_CATEGORY_HINT,
 } from '../../lib/applyAge.constants';
+import { GROUP_AGE_AUTOMATIC_HINT } from '../../lib/groupAge.constants';
 import type { NominationCategoryRange } from '../../lib/nominations';
 import styles from '../ApplyPage.module.css';
 
@@ -16,6 +17,8 @@ interface ApplyAgeFieldProps {
   fallbackLabel: string;
   // Dancers are named, yet no category fits all of them.
   noCommonCategory: boolean;
+  // The category follows from the dancers' ages — shown, not picked.
+  automatic?: boolean;
   onChange: (ageCategory: string) => void;
 }
 
@@ -26,8 +29,26 @@ export default function ApplyAgeField({
   descriptions,
   fallbackLabel,
   noCommonCategory,
+  automatic = false,
   onChange,
 }: ApplyAgeFieldProps) {
+  const decided = options.find((category) => category.name === value);
+  if (automatic) {
+    return (
+      <div>
+        <label className={styles.label}>{AGE_CATEGORY_LABEL}</label>
+        <div className={styles.readonlyBox}>
+          {decided
+            ? `${decided.name} (${decided.rangeFrom}–${decided.rangeTo})`
+            : fallbackLabel}
+        </div>
+        <p className={styles.hint}>{GROUP_AGE_AUTOMATIC_HINT}</p>
+        {noCommonCategory && (
+          <p className={styles.hint}>{NO_COMMON_AGE_CATEGORY_HINT}</p>
+        )}
+      </div>
+    );
+  }
   return (
     <div>
       <label className={styles.label}>{AGE_CATEGORY_LABEL}</label>

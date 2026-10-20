@@ -315,6 +315,19 @@ export function getEntriesQuote(
   });
 }
 
+// Is the name already used in this competition? The check ignores letter case
+// and stray spaces.
+export async function isGroupNameTaken(
+  competitionId: string,
+  name: string,
+): Promise<boolean> {
+  const params = new URLSearchParams({ name });
+  const check = await request<{ taken: boolean }>(
+    `/competitions/${competitionId}/entries/group-name-taken?${params.toString()}`,
+  );
+  return check.taken;
+}
+
 export function deleteEntry(competitionId: string, entryId: string): Promise<void> {
   return request(`/competitions/${competitionId}/entries/${entryId}`, {
     method: 'DELETE',

@@ -11,7 +11,7 @@ import NoticeDialog from '../components/admin/NoticeDialog';
 import { getSession, getToken } from '../lib/auth';
 import { ACCESS_LEVEL, meetsLevel } from '../lib/roles';
 import { getMyEntries, uploadEntryTrack } from '../lib/entries';
-import { formatParticipants } from '../lib/entryParticipants';
+import { formatEntryPerformers } from '../lib/entryParticipants';
 import { formatParticipantNumbers } from '../lib/participantNumbers';
 import {
   formatEntryAmount,
@@ -224,7 +224,7 @@ export default function ParticipantCabinetPage() {
                     {block.rows.map((entry) => (
                       <tr key={entry.id}>
                         <td data-label={ENTRY_COLUMN_LABEL.PARTICIPANT} className={styles.fullRowCell}>
-                          {formatParticipants(entry.participants)}
+                          {formatEntryPerformers(entry)}
                         </td>
                         <td data-label={ENTRY_COLUMN_LABEL.PARTICIPANT_NUMBERS}>
                           {formatParticipantNumbers(entry.participantNumbers)}

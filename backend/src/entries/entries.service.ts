@@ -27,6 +27,8 @@ import {
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
 import { Entry } from './entry.model';
 import { isNumberAllocationRace } from './number-allocation-race';
+import { normalizeGroupName } from './group-name';
+import type { GroupNameCheck } from './group-name-check.interface';
 import { isGroupLineup, resolveLineup } from './lineup';
 import { roundMoney } from './entry-amount';
 import type { EntryCharge } from './pricing/entry-charge';
@@ -70,6 +72,7 @@ import {
   COMPETITION_OVER_APPLY_MESSAGE,
   REGISTRATION_CLOSED_APPLY_MESSAGE,
   PARTICIPANT_ALREADY_IN_NOMINATION_MESSAGE,
+  GROUP_NAME_TAKEN_MESSAGE,
   NOMINATION_PARTICIPANT_KEY_SEPARATOR,
   ENTRY_STATS_ATTRIBUTES,
   MAX_ENTRY_STATS_ROWS,
@@ -417,6 +420,54 @@ export class EntriesService {
     return existing !== null;
   }
 
+  // A collective is known by its name, so one name belongs to one group of a
+  // competition — letter case and stray spaces do not make a new name. Only a
+  // name the applicant typed counts: a group of any size, even a duo, is named
+  // on the form, while the others take their dancers' names. One submission
+  // may still put the same group into several nominations under its name.
+  private async assertGroupNamesAvailable(
+    competitionId: string,
+    prepared: PreparedEntry[],
+    transaction: Transaction,
+  ): Promise<void> {
+    const groups = prepared.filter((entry) => entry.dto.routineName?.trim());
+    if (groups.length === 0) return;
+
+    const usedNames = await this.usedRoutineNames(competitionId, transaction);
+    for (const entry of groups) {
+      if (usedNames.has(normalizeGroupName(entry.routineName))) {
+        throw new ConflictException(
+          `${GROUP_NAME_TAKEN_MESSAGE} «${entry.routineName}»`,
+        );
+      }
+    }
+  }
+
+  // Every name already used in the competition, in its normalized form.
+  private async usedRoutineNames(
+    competitionId: string,
+    transaction?: Transaction,
+  ): Promise<Set<string>> {
+    const existing = await this.entryModel.findAll({
+      where: { competitionId },
+      attributes: ['routineName'],
+      transaction,
+    });
+    return new Set(
+      existing.map((entry) => normalizeGroupName(entry.routineName)),
+    );
+  }
+
+  // The form asks while the name is typed, before anything is submitted:
+  // does a group of this competition already carry it?
+  async checkGroupName(
+    competitionId: string,
+    name: string,
+  ): Promise<GroupNameCheck> {
+    const usedNames = await this.usedRoutineNames(competitionId);
+    return { taken: usedNames.has(normalizeGroupName(name)) };
+  }
+
   private alreadyInNomination(nominationName: string): ConflictException {
     return new ConflictException(
       `${PARTICIPANT_ALREADY_IN_NOMINATION_MESSAGE} «${nominationName}»`,
@@ -451,6 +502,11 @@ export class EntriesService {
             });
 
             await this.assertNotAlreadyInNominations(
+              competitionId,
+              prepared,
+              transaction,
+            );
+            await this.assertGroupNamesAvailable(
               competitionId,
               prepared,
               transaction,

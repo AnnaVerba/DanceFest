@@ -13,6 +13,9 @@ export const REGISTRATION_CLOSED_APPLY_MESSAGE =
 export const PARTICIPANT_ALREADY_IN_NOMINATION_MESSAGE =
   'Учасник уже виступає в номінації';
 export const NOMINATION_PARTICIPANT_KEY_SEPARATOR = '|';
+// A collective's name is already used in the competition.
+export const GROUP_NAME_TAKEN_MESSAGE =
+  'Колектив з такою назвою вже зареєстровано';
 export const ASSIGN_STUDIO_TRAINER_FORBIDDEN_MESSAGE =
   'Студію й керівника може обирати лише організатор конкурсу або адміністратор';
 export const TRAINER_NOT_A_COACH_MESSAGE =
