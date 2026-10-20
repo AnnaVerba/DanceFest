@@ -2,6 +2,7 @@
 // `data-label`, which the phone layout shows beside the value.
 export const ENTRY_COLUMN_LABEL = {
   PARTICIPANT: 'Учасник',
+  PARTICIPANTS_COUNT: 'Кількість учасників',
   PARTICIPANT_NUMBERS: '№ учасника',
   NOMINATION: 'Номінація',
   MUSIC: 'Музика',

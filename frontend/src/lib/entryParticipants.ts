@@ -3,6 +3,7 @@ import {
   ENTRY_PARTICIPANTS_EMPTY_PLACEHOLDER,
   ENTRY_PARTICIPANTS_SEPARATOR,
   GROUP_NAME_DANCERS_SEPARATOR,
+  MIN_ENTRY_PARTICIPANTS,
   SOLO_LINEUP_LABEL,
 } from './entryParticipants.constants';
 
@@ -35,6 +36,18 @@ export function formatEntryPerformers(
     return formatParticipants(entry.participants);
   }
   return `${entry.routineName}${GROUP_NAME_DANCERS_SEPARATOR}${formatParticipants(entry.participants)}`;
+}
+
+// How many dance in the number: its recorded headcount — the only record for
+// a group registered by headcount — or, without one, the dancers named on it.
+export function countEntryParticipants(entry: {
+  participantsCount: number | null;
+  participants: EntryParticipant[];
+}): number {
+  return Math.max(
+    entry.participantsCount ?? entry.participants.length,
+    MIN_ENTRY_PARTICIPANTS,
+  );
 }
 
 // What the server calls a number made of several dancers when nobody named it.
