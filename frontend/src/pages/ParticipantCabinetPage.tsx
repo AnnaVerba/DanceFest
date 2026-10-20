@@ -224,7 +224,7 @@ export default function ParticipantCabinetPage() {
                     {block.rows.map((entry) => (
                       <tr key={entry.id}>
                         <td data-label={ENTRY_COLUMN_LABEL.PARTICIPANT} className={styles.fullRowCell}>
-                          {formatEntryPerformers(entry)}
+                          {formatEntryPerformers(entry, isCoach)}
                         </td>
                         <td data-label={ENTRY_COLUMN_LABEL.PARTICIPANT_NUMBERS}>
                           {formatParticipantNumbers(entry.participantNumbers)}
