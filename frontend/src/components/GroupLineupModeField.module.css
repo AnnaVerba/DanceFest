@@ -1,0 +1,80 @@
+.field {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.label {
+  display: block;
+  padding: 0;
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g-ink);
+}
+
+.options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.options .option {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid var(--g-line);
+  border-radius: 10px;
+  background: var(--g-surface);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.options .option:hover {
+  border-color: var(--g-line-strong);
+}
+
+.options .option strong {
+  display: block;
+  font-size: 14px;
+  color: var(--g-ink);
+}
+
+.options .option em {
+  display: block;
+  font-style: normal;
+  font-size: 12.5px;
+  color: var(--g-muted);
+}
+
+.options .optionOn {
+  border-color: var(--g-gold);
+  background: var(--g-gold-bg);
+}
+
+/* The radio stays for keyboards and screen readers; the card is the target. */
+.options .option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.options .option:focus-within {
+  box-shadow: 0 0 0 3px var(--g-teal-focus);
+}
+
+.hint {
+  margin: 7px 0 0;
+  font-size: 12.5px;
+  color: var(--g-muted);
+}
+
+@media (max-width: 560px) {
+  .options {
+    grid-template-columns: 1fr;
+  }
+}

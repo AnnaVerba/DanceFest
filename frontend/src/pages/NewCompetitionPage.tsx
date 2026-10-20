@@ -58,6 +58,9 @@ import {
   REGULATIONS_UPLOAD_LABEL,
   REGULATIONS_UPLOADING_LABEL,
 } from '../lib/competitionRegulations.constants';
+import GroupLineupModeField from '../components/GroupLineupModeField';
+import { LINEUP_MODE } from '../lib/groupApply.constants';
+import type { LineupMode } from '../lib/groupApply.types';
 import { isValidEmail, isValidPhone } from '../lib/validation';
 import { queryKeys } from '../lib/queryKeys';
 import { REFERENCE_STALE_TIME_MS } from '../lib/queryClient.constants';
@@ -155,6 +158,10 @@ export default function NewCompetitionPage() {
   const [regulationsUrl, setRegulationsUrl] = useState<string | null>(null);
   const [regulationsUploading, setRegulationsUploading] = useState(false);
   const [regulationsError, setRegulationsError] = useState<string | null>(null);
+  // How groups register: by headcount alone, or by naming every dancer.
+  const [groupLineupMode, setGroupLineupMode] = useState<LineupMode>(
+    LINEUP_MODE.COUNT,
+  );
 
   const [contactNumber, setContactNumber] = useState('');
   const [contactEmail, setContactEmail] = useState('');
@@ -563,6 +570,7 @@ export default function NewCompetitionPage() {
       const competition = await createCompetition({
         image: bannerUrl ?? undefined,
         regulationsUrl: regulationsUrl ?? undefined,
+        groupLineupMode,
         name: name.trim(),
         description: description.trim(),
         location: location.trim(),
@@ -1072,6 +1080,12 @@ export default function NewCompetitionPage() {
                     <p className={styles.fieldError}>{fieldErrors.registrationTo}</p>
                   )}
                 </div>
+              </div>
+              <div className={styles.field}>
+                <GroupLineupModeField
+                  value={groupLineupMode}
+                  onChange={setGroupLineupMode}
+                />
               </div>
             </div>
           )}

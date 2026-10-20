@@ -27,7 +27,6 @@ export const GROUP_LINEUP_VALUE = 'Група';
 export const GROUP_EMPTY_VALUE_LABEL = '—';
 export const GROUP_LINEUP_HINT =
   'Визначається автоматично за кількістю учасників.';
-export const GROUP_LINEUP_MODE_LABEL = 'Як подати склад';
 export const GROUP_PARTICIPANTS_LABEL = 'Учасники колективу';
 
 export const GROUP_NOMINATIONS_NONE_SELECTED_HINT = 'Номінації не обрані.';

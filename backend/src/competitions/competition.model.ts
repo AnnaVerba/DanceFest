@@ -12,6 +12,8 @@ import { User } from '../users/user.model';
 import { CompetitionAdmin } from '../team/competition-admin.model';
 import { Invitation } from '../team/invitation.model';
 import { PaymentDetails } from '../payment-details/payment-details.model';
+import { DEFAULT_GROUP_LINEUP_MODE } from './competitions.constants';
+import type { GroupLineupMode } from './competitions.constants';
 
 @Table({ tableName: 'competitions' })
 export class Competition extends Model<Competition> {
@@ -28,6 +30,14 @@ export class Competition extends Model<Competition> {
   // Public URL of the single regulations PDF («положення фестивалю»).
   @Column({ type: DataType.STRING, allowNull: true })
   declare regulationsUrl: string | null;
+
+  // How a group registers: by headcount alone, or by naming every dancer.
+  @Column({
+    type: DataType.STRING,
+    allowNull: false,
+    defaultValue: DEFAULT_GROUP_LINEUP_MODE,
+  })
+  declare groupLineupMode: GroupLineupMode;
 
   @Column({ type: DataType.STRING, allowNull: false })
   declare name: string;

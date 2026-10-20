@@ -49,7 +49,6 @@ import ApplyAgeField from './apply/ApplyAgeField';
 import ApplyLeagueField from './apply/ApplyLeagueField';
 import ApplyTabs from './apply/ApplyTabs';
 import GroupLineupFields from './apply/GroupLineupFields';
-import LineupModeToggle from './apply/LineupModeToggle';
 import ParticipantPicker from './apply/ParticipantPicker';
 import { ACCESS_LEVEL, isStudioStaff, meetsLevel } from '../lib/roles';
 import {
@@ -79,7 +78,6 @@ import {
   NO_GROUP_NOMINATIONS_MESSAGE,
   NO_HEADCOUNT,
 } from '../lib/groupApply.constants';
-import type { LineupMode } from '../lib/groupApply.types';
 import { isGroupSize, parseHeadcount } from '../lib/groupApply';
 import {
   ageCategoriesFittingAnyAge,
@@ -193,7 +191,6 @@ export default function ApplyPage() {
   // A group is registered by its name and either a headcount or named dancers.
   const [groupName, setGroupName] = useState('');
   const [headcountInput, setHeadcountInput] = useState('');
-  const [lineupMode, setLineupMode] = useState<LineupMode>(LINEUP_MODE.COUNT);
   const [studioName, setStudioName] = useState<string | null>(null);
   // Coach + studio for an applicant whose profile has no mentor coach yet:
   // filled through the pickers below, saved to the profile on submit.
@@ -293,6 +290,8 @@ export default function ApplyPage() {
   }, [session]);
 
   const isGroupTab = activeTab === APPLY_TAB.GROUP;
+  // The organizer decides how groups register: by headcount alone, or named.
+  const lineupMode = competition?.groupLineupMode ?? LINEUP_MODE.COUNT;
   // Every number names its dancers, except a group that gives only its size.
   const namesDancers = !isGroupTab || lineupMode === LINEUP_MODE.NAMED;
 
@@ -651,11 +650,6 @@ export default function ApplyPage() {
     setSubmitError(null);
   };
 
-  const handleLineupModeChange = (mode: LineupMode) => {
-    setSubmitError(null);
-    setLineupMode(mode);
-  };
-
   const handleGroupNameChange = (name: string) => {
     setSubmitError(null);
     setGroupName(name);
@@ -681,7 +675,6 @@ export default function ApplyPage() {
     setParticipantLimitHit(false);
     setGroupName('');
     setHeadcountInput('');
-    setLineupMode(LINEUP_MODE.COUNT);
     setLeague('');
     setPickedAgeCategory('');
     setSelectedStyles([]);
@@ -1030,10 +1023,6 @@ export default function ApplyPage() {
                   onChange={handleAgeCategoryChange}
                 />
               </div>
-              <LineupModeToggle
-                mode={lineupMode}
-                onChange={handleLineupModeChange}
-              />
               {namesDancers && <div>{participantPicker}</div>}
             </div>
           ) : (

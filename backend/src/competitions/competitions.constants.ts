@@ -1,3 +1,9 @@
+// How a group registers for a competition: by headcount alone, or by naming
+// every dancer. The organizer picks one when creating the competition.
+export const GROUP_LINEUP_MODES = ['count', 'named'] as const;
+export type GroupLineupMode = (typeof GROUP_LINEUP_MODES)[number];
+export const DEFAULT_GROUP_LINEUP_MODE: GroupLineupMode = GROUP_LINEUP_MODES[0];
+
 export const COMPETITION_NOT_FOUND_MESSAGE = 'Конкурс не знайдено';
 export const NO_COMPETITION_ACCESS_MESSAGE = 'Немає доступу до цього конкурсу';
 export const COMPETITION_OWNER_ONLY_MESSAGE =
