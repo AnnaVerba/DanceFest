@@ -774,6 +774,7 @@ export class EntriesService {
       participantIds: submitter.participantIds,
       number,
       routineName: entry.routineName,
+      routineTitle: dto.routineTitle?.trim() || null,
       nomination: exit.label,
       ageCategory: entry.ageCategory,
       league: entry.league,
@@ -1093,6 +1094,9 @@ export class EntriesService {
 
     if (dto.routineName !== undefined) {
       changes.routineName = dto.routineName.trim();
+    }
+    if (dto.routineTitle !== undefined) {
+      changes.routineTitle = dto.routineTitle.trim() || null;
     }
     if (dto.studioName !== undefined) {
       changes.studioName = dto.studioName.trim() || null;
@@ -1504,6 +1508,7 @@ export class EntriesService {
       participantNumbers: numbers.numbersForEntry(entry),
       number: entry.number,
       routineName: entry.routineName,
+      routineTitle: entry.routineTitle,
       nomination: entry.nomination,
       ageCategory: entry.ageCategory,
       league: entry.league,
