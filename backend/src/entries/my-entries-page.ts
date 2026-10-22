@@ -41,6 +41,7 @@ function searchTextOf(entry: MyEntryView): string {
   return [
     ...entry.participants.map((p) => `${p.lastName} ${p.firstName}`),
     entry.routineName,
+    entry.routineTitle,
     entry.instructorName,
     entry.choreographer,
     entry.competitionName,

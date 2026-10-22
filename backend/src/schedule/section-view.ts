@@ -1,6 +1,7 @@
 import { LINEUP_LABELS } from '../entries/lineup';
 import { Entry } from '../entries/entry.model';
 import { dancerCount } from '../entries/entry-amount';
+import { withRoutineTitle } from '../entries/routine-title';
 import { Section } from './section.model';
 import { SectionItem } from './section-item.model';
 import { PERFORMANCE_ITEM, isManualRow } from './section-item-type';
@@ -110,7 +111,7 @@ function toExitView(
     nominationId: entry.nominationId,
     participantNumbers,
     nomination: entry.nomination,
-    routineName: entry.routineName,
+    routineName: withRoutineTitle(entry),
     participantsCount: dancerCount(entry),
     ageCategory: entry.ageCategory,
     league: entry.league,

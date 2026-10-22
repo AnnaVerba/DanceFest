@@ -30,6 +30,16 @@ export class CreateEntryDto {
   routineName?: string;
 
   @ApiPropertyOptional({
+    example: 'Beautiful Life',
+    description:
+      'Optional title of a solo, duo or trio number. The program shows it in quotes after the dancers’ names.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(ROUTINE_NAME_MAX_LENGTH)
+  routineTitle?: string;
+
+  @ApiPropertyOptional({
     example: 'e7c1a2b4-5d6f-4a8b-9c0d-1e2f3a4b5c6d',
     description:
       'Single participant the entry is for. Fallback for `participantIds`; a coach may only pass a participant they own.',
