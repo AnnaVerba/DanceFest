@@ -3,6 +3,5 @@
 // service decoupled from the Entry model itself.
 export interface EntryLimitInput {
   league: string | null;
-  lineup: string | null;
   nominationId: string | null;
 }

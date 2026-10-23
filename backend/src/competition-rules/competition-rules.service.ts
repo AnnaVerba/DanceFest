@@ -14,7 +14,11 @@ import {
   UniqueConstraintError,
   literal,
 } from 'sequelize';
-import { Category, LEAGUE_CATEGORY_TYPE } from '../categories/category.model';
+import {
+  Category,
+  LEAGUE_CATEGORY_TYPE,
+  LINEUP_CATEGORY_TYPE,
+} from '../categories/category.model';
 import type { CategoryType } from '../categories/category.model';
 import { Competition } from '../competitions/competition.model';
 import { Nomination } from '../nominations/nomination.model';
@@ -351,12 +355,17 @@ export class CompetitionRulesService {
       if (manual !== null) return manual;
     }
 
-    // lineupLimits outranks leagueLimits: a lineup value (Дуо, Тріо…) set
-    // by the organizer wins over the league whatever it says.
-    const lineupKey = entry.lineup?.trim();
-    const lineupLimit = lineupKey ? rules.lineupLimits?.[lineupKey] : undefined;
-    if (typeof lineupLimit === 'number' && lineupLimit > 0) {
-      return lineupLimit;
+    // lineupLimits outranks leagueLimits: a lineup value (Mega Crew, Дуо…)
+    // set by the organizer wins over the league whatever it says. The keys
+    // are the names of the nomination's own lineup categories.
+    const lineupNames = entry.nominationId
+      ? await this.lineupNamesOf(entry.nominationId, limitCache)
+      : [];
+    for (const lineupName of lineupNames) {
+      const lineupLimit = rules.lineupLimits?.[lineupName];
+      if (typeof lineupLimit === 'number' && lineupLimit > 0) {
+        return lineupLimit;
+      }
     }
 
     // leagueLimits/lineupLimits keys are stored trimmed (see sanitizeLimits).
@@ -401,6 +410,33 @@ export class CompetitionRulesService {
     const rounds = Math.max(row?.styles ?? 0, MIN_IMPROVISATION_ROUNDS);
     limitCache.rounds.set(entry.nominationId, rounds);
     return rounds;
+  }
+
+  // Trimmed names of the lineup categories on the nomination — the keys of
+  // CompetitionRule.lineupLimits.
+  private async lineupNamesOf(
+    nominationId: string,
+    limitCache: LimitCache,
+  ): Promise<string[]> {
+    const cached = limitCache.lineupNames.get(nominationId);
+    if (cached !== undefined) return cached;
+    const nomination = await this.nominationModel.findByPk(nominationId, {
+      attributes: ['id'],
+      include: [
+        {
+          model: Category,
+          attributes: ['name'],
+          where: { type: LINEUP_CATEGORY_TYPE },
+          required: false,
+          through: { attributes: [] },
+        },
+      ],
+    });
+    const names = (nomination?.categories ?? []).map((category) =>
+      category.name.trim(),
+    );
+    limitCache.lineupNames.set(nominationId, names);
+    return names;
   }
 
   // A duration an admin set on the nomination by hand; null when it follows
