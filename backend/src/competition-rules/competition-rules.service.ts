@@ -12,7 +12,6 @@ import {
   Op,
   QueryTypes,
   UniqueConstraintError,
-  literal,
 } from 'sequelize';
 import {
   Category,
@@ -32,8 +31,9 @@ import { UpdateCompetitionRuleDto } from './dto/update-competition-rule.dto';
 import { DurationLimit, DEFAULT_DURATION_ROUND } from './duration-limit.model';
 import type { DurationRound } from './duration-limit.model';
 import { OverlimitTariff } from './overlimit-tariff.model';
-import { resolveLeagueDurationSeconds } from './resolve-league-duration';
-import { IMPROVISATION_NOMINATION_IDS_SQL } from '../nominations/recompute-entries-improv.sql';
+import { resolveNominationDurationSeconds } from './resolve-nomination-duration';
+import { AUTOMATIC_NOMINATION_AXES_SQL } from './automatic-nomination-axes.sql';
+import type { AutomaticNominationAxesRow } from './automatic-nomination-axes-row.interface';
 import type { EntryLimitInput } from './entry-limit-input.interface';
 import { LimitCache } from './limit-cache';
 import type { ImprovisationRoundsInput } from './improvisation-rounds-input.interface';
@@ -122,7 +122,6 @@ export class CompetitionRulesService {
   ): Promise<CompetitionRule> {
     await this.loadCompetitionAndAssertAccess(competitionId, requester);
     const rules = await this.getRules(competitionId);
-    const previousLeagueLimits = rules.leagueLimits;
     if (dto.leagueLimits !== undefined) {
       dto.leagueLimits = sanitizeLimits(dto.leagueLimits);
     }
@@ -130,61 +129,37 @@ export class CompetitionRulesService {
       dto.lineupLimits = sanitizeLimits(dto.lineupLimits);
     }
     const updated = await rules.update(dto);
-    if (dto.leagueLimits !== undefined) {
-      await this.applyLeagueDurationChanges(
-        competitionId,
-        previousLeagueLimits,
-        updated.leagueLimits,
-      );
+    if (dto.leagueLimits !== undefined || dto.lineupLimits !== undefined) {
+      await this.applyAxisDurationChanges(competitionId, updated);
     }
     return updated;
   }
 
-  // A league's duration is a knob on CompetitionRule, but nominations keep
-  // their own durationLimitSeconds (TASK-07) so the schedule/admin views
-  // don't need to re-resolve it on every read. Changing the knob (BUG-10)
-  // must therefore push the new value onto every nomination of that league —
-  // except ones an admin already set by hand (durationOverridden).
-  private async applyLeagueDurationChanges(
+  // League and lineup durations are knobs on CompetitionRule, but nominations
+  // keep their own durationLimitSeconds (TASK-07) so the schedule/admin views
+  // don't need to re-resolve it on every read. Changing a knob (BUG-10) must
+  // therefore push the new value onto every nomination that follows the
+  // rules — except ones an admin already set by hand (durationOverridden)
+  // and improvisations.
+  private async applyAxisDurationChanges(
     competitionId: string,
-    previous: Record<string, number>,
-    next: Record<string, number>,
+    rules: CompetitionRule,
   ): Promise<void> {
-    const changedLeagueNames = [
-      ...new Set([...Object.keys(previous), ...Object.keys(next)]),
-    ].filter((name) => previous[name] !== next[name]);
-    if (changedLeagueNames.length === 0) return;
-
-    const leagueCategories = await this.categoryModel.findAll({
-      where: { type: LEAGUE_CATEGORY_TYPE, name: { [Op.in]: changedLeagueNames } },
-    });
-
-    for (const category of leagueCategories) {
+    const rows = await this.nominationModel.sequelize!.query<AutomaticNominationAxesRow>(
+      AUTOMATIC_NOMINATION_AXES_SQL,
+      { bind: [competitionId], type: QueryTypes.SELECT },
+    );
+    const idsBySeconds = new Map<number | null, string[]>();
+    for (const row of rows) {
+      const seconds = resolveNominationDurationSeconds(rules, row);
+      const ids = idsBySeconds.get(seconds);
+      if (ids) ids.push(row.id);
+      else idsBySeconds.set(seconds, [row.id]);
+    }
+    for (const [seconds, ids] of idsBySeconds) {
       await this.nominationModel.update(
-        {
-          durationLimitSeconds: resolveLeagueDurationSeconds(next, category.name),
-        },
-        {
-          where: {
-            competitionId,
-            // Осі — у таблиці зв'язку, тож добір іде підзапитом по її
-            // індексу, а не переглядом масиву в кожному рядку.
-            id: {
-              [Op.in]: literal(
-                `(SELECT "nominationId" FROM nomination_categories
-                    WHERE "categoryId" = '${category.id}')`,
-              ),
-            },
-            // An improvisation runs for the improvisation duration, not
-            // its league's (the flag is derived from its styles).
-            [Op.and]: [
-              {
-                id: { [Op.notIn]: literal(IMPROVISATION_NOMINATION_IDS_SQL) },
-              },
-            ],
-            durationOverridden: false,
-          },
-        },
+        { durationLimitSeconds: seconds },
+        { where: { id: { [Op.in]: ids } } },
       );
     }
   }
