@@ -33,7 +33,7 @@ import { Entry } from '../entries/entry.model';
 import { ScheduleService } from '../schedule/schedule.service';
 import { CompetitionRulesService } from '../competition-rules/competition-rules.service';
 import { CompetitionRule } from '../competition-rules/competition-rule.model';
-import { resolveLeagueDurationSeconds } from '../competition-rules/resolve-league-duration';
+import { resolveNominationDurationSeconds } from '../competition-rules/resolve-nomination-duration';
 import { Nomination } from './nomination.model';
 import { NominationCategory } from './nomination-category.model';
 import {
@@ -1278,10 +1278,12 @@ export class NominationsService {
       .map((c) => this.toProgram(c));
     if (isImprovisationNomination(programs)) return null;
     const league = axes.find((c) => c.type === LEAGUE_CATEGORY_TYPE);
-    return resolveLeagueDurationSeconds(
-      rules.leagueLimits,
-      league?.name ?? null,
-    );
+    return resolveNominationDurationSeconds(rules, {
+      leagueName: league?.name ?? null,
+      lineupNames: axes
+        .filter((c) => c.type === LINEUP_CATEGORY_TYPE)
+        .map((c) => c.name),
+    });
   }
 
   // category id -> category, in one query for any number of nominations.
