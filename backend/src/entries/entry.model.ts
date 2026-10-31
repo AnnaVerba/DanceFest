@@ -32,6 +32,11 @@ export class Entry extends Model<Entry> {
   @Column({ type: DataType.STRING, allowNull: false })
   declare routineName: string;
 
+  // Optional title of a solo, duo or trio number; the program shows it after
+  // the dancers' names (see withRoutineTitle).
+  @Column({ type: DataType.STRING, allowNull: true })
+  declare routineTitle: string | null;
+
   @ForeignKey(() => Nomination)
   @Column({ type: DataType.UUID, allowNull: true })
   declare nominationId: string | null;

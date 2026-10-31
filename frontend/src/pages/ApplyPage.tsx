@@ -51,6 +51,7 @@ import ApplyLeagueField from './apply/ApplyLeagueField';
 import ApplyTabs from './apply/ApplyTabs';
 import GroupLineupFields from './apply/GroupLineupFields';
 import ParticipantPicker from './apply/ParticipantPicker';
+import RoutineTitleField from './apply/RoutineTitleField';
 import { ACCESS_LEVEL, isStudioStaff, meetsLevel } from '../lib/roles';
 import {
   ENTRY_HEAD_LABEL,
@@ -191,6 +192,8 @@ export default function ApplyPage() {
   >([]);
   // Set when a pick was refused for going over the solo/duo/trio limit.
   const [participantLimitHit, setParticipantLimitHit] = useState(false);
+  // Optional title of a solo, duo or trio number.
+  const [routineTitle, setRoutineTitle] = useState('');
   // A group is registered by its name and either a headcount or named dancers.
   const [groupName, setGroupName] = useState('');
   // The name the server last reported as taken; it counts only while the field
@@ -659,6 +662,7 @@ export default function ApplyPage() {
     setActiveTab(tab);
     setSelectedParticipants([]);
     setParticipantLimitHit(false);
+    setRoutineTitle('');
     setPickedAgeCategory('');
     setSelectedStyles([]);
     setSelectedKeys([]);
@@ -786,7 +790,7 @@ export default function ApplyPage() {
       // nobody, so the headcount is the only record of how many dance.
       const groupFields = isGroupTab
         ? { routineName: groupName.trim(), participantsCount: pickedCount }
-        : {};
+        : { routineTitle: routineTitle.trim() || undefined };
       const created = await createEntriesBulk(
         id,
         rows.map((r) => ({
@@ -1062,6 +1066,11 @@ export default function ApplyPage() {
           ) : (
             <div>
               {participantPicker}
+
+              <RoutineTitleField
+                value={routineTitle}
+                onChange={setRoutineTitle}
+              />
 
               <div className={styles.two}>
                 <ApplyLeagueField

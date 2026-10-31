@@ -4,6 +4,8 @@ import {
   ENTRY_PARTICIPANTS_SEPARATOR,
   GROUP_NAME_DANCERS_SEPARATOR,
   MIN_ENTRY_PARTICIPANTS,
+  ROUTINE_TITLE_CLOSE_QUOTE,
+  ROUTINE_TITLE_OPEN_QUOTE,
   SOLO_LINEUP_LABEL,
 } from './entryParticipants.constants';
 
@@ -18,14 +20,27 @@ export function formatParticipantName(participant: EntryParticipant): string {
 // is for a coach or head who keeps the roster: a group then shows its name and
 // who dances in it, and a solo, duo or trio named after its dancers lists them
 // in full. A group registered by headcount names no dancers, so its name is
-// all there is.
+// all there is. A solo, duo or trio's title follows in quotes, as in the
+// program.
 export function formatEntryPerformers(
+  entry: {
+    participants: EntryParticipant[];
+    routineName: string;
+    routineTitle?: string | null;
+    lineup?: string | null;
+  },
+  showDancers = false,
+): string {
+  return withRoutineTitle(performersOf(entry, showDancers), entry.routineTitle);
+}
+
+function performersOf(
   entry: {
     participants: EntryParticipant[];
     routineName: string;
     lineup?: string | null;
   },
-  showDancers = false,
+  showDancers: boolean,
 ): string {
   if (!showDancers || entry.participants.length === 0) {
     return entry.routineName;
@@ -36,6 +51,16 @@ export function formatEntryPerformers(
     return formatParticipants(entry.participants);
   }
   return `${entry.routineName}${GROUP_NAME_DANCERS_SEPARATOR}${formatParticipants(entry.participants)}`;
+}
+
+function withRoutineTitle(
+  performers: string,
+  routineTitle: string | null | undefined,
+): string {
+  const title = routineTitle?.trim();
+  return title
+    ? `${performers} ${ROUTINE_TITLE_OPEN_QUOTE}${title}${ROUTINE_TITLE_CLOSE_QUOTE}`
+    : performers;
 }
 
 // How many dance in the number: its recorded headcount — the only record for

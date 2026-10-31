@@ -28,6 +28,8 @@ export interface Entry {
   participantNumbers: (number | null)[];
   number: number;
   routineName: string;
+  // Optional title of a solo, duo or trio number.
+  routineTitle: string | null;
   nomination: string;
   ageCategory: string | null;
   league: string | null;
@@ -75,6 +77,7 @@ export interface ExtraTimeResult {
 
 export interface EntryInput {
   routineName?: string;
+  routineTitle?: string;
   nominationId: string;
   participantId?: string;
   participantIds?: string[];

@@ -21,6 +21,8 @@ export interface MyEntryView {
   baseAmount: number;
   // The number's own name — all that names a group registered by headcount.
   routineName: string;
+  // Optional title of a solo, duo or trio number.
+  routineTitle: string | null;
   participants: EntryParticipant[];
   participantAmounts: ParticipantAmount[];
 }
