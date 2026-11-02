@@ -20,7 +20,6 @@ export const NOMINATION_SEARCH_PLACEHOLDER =
   'Почніть вводити назву номінації, щоб змінити…';
 export const NOMINATION_SEARCHING_LABEL = 'Пошук…';
 export const NOMINATION_NOT_FOUND_LABEL = 'Нічого не знайдено.';
-export const ROUTINE_NAME_REQUIRED_MESSAGE = 'Вкажіть назву номеру';
 export const MUSIC_LABEL = 'Музика';
 export const MUSIC_REPLACE_LABEL = 'Змінити';
 export const MUSIC_ADD_LABEL = 'Додати';

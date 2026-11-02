@@ -12,6 +12,7 @@ import { deleteEntry, getEntries } from '../../lib/entries';
 import type { Entry, PagedEntries } from '../../lib/entries';
 import { formatParticipantNumbers } from '../../lib/participantNumbers';
 import { formatEntryAmount } from '../../lib/entryAmount';
+import { formatEntryNameWithTitle } from '../../lib/entryParticipants';
 import {
   ACTIONS_COLUMN_COUNT,
   ALL,
@@ -185,7 +186,7 @@ export default function EntriesPanel({
       if (program !== ALL && e.program !== program) return false;
       if (!query) return true;
       return (
-        e.routineName.toLowerCase().includes(query) ||
+        formatEntryNameWithTitle(e).toLowerCase().includes(query) ||
         (e.studioName?.toLowerCase().includes(query) ?? false) ||
         (e.choreographer?.toLowerCase().includes(query) ?? false)
       );
@@ -357,7 +358,9 @@ export default function EntriesPanel({
                   <tr key={entry.id}>
                     <td className={styles.num}>{entry.number}</td>
                     <td>{formatParticipantNumbers(entry.participantNumbers)}</td>
-                    <td className={styles.name}>{entry.routineName}</td>
+                    <td className={styles.name}>
+                      {formatEntryNameWithTitle(entry)}
+                    </td>
                     <td>{entry.nomination}</td>
                     <td>{entry.program}</td>
                     <td>{entry.participantsCount ?? ''}</td>
