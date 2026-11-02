@@ -7,5 +7,7 @@ export const GROUP_NAME_DANCERS_SEPARATOR = ' — ';
 // Quotes around a number's title after its dancers: Прізвище Ім'я «Назва».
 export const ROUTINE_TITLE_OPEN_QUOTE = '«';
 export const ROUTINE_TITLE_CLOSE_QUOTE = '»';
+// Between a number's title and its dancers in the entries table: «Назва» - Прізвища.
+export const ROUTINE_TITLE_DANCERS_SEPARATOR = ' - ';
 // The only line-up that is not a group number (the server's LINEUP_LABELS.SOLO).
 export const SOLO_LINEUP_LABEL = 'Соло';

@@ -5,6 +5,7 @@ import {
   GROUP_NAME_DANCERS_SEPARATOR,
   MIN_ENTRY_PARTICIPANTS,
   ROUTINE_TITLE_CLOSE_QUOTE,
+  ROUTINE_TITLE_DANCERS_SEPARATOR,
   ROUTINE_TITLE_OPEN_QUOTE,
   SOLO_LINEUP_LABEL,
 } from './entryParticipants.constants';
@@ -51,6 +52,18 @@ function performersOf(
     return formatParticipants(entry.participants);
   }
   return `${entry.routineName}${GROUP_NAME_DANCERS_SEPARATOR}${formatParticipants(entry.participants)}`;
+}
+
+// The entries table's name column: the number's title first, then its dancers
+// — «Назва» - Прізвища — or just the dancers when no title was given.
+export function formatEntryNameWithTitle(entry: {
+  routineName: string;
+  routineTitle?: string | null;
+}): string {
+  const title = entry.routineTitle?.trim();
+  return title
+    ? `${ROUTINE_TITLE_OPEN_QUOTE}${title}${ROUTINE_TITLE_CLOSE_QUOTE}${ROUTINE_TITLE_DANCERS_SEPARATOR}${entry.routineName}`
+    : entry.routineName;
 }
 
 function withRoutineTitle(

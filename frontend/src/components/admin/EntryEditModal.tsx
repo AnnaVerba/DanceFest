@@ -25,8 +25,16 @@ import {
   MUSIC_UPLOAD_FAILED_MESSAGE,
   NO_PAYMENT_METHOD,
   PAYMENT_METHOD_LABELS,
-  ROUTINE_NAME_REQUIRED_MESSAGE,
 } from './EntryEditModal.constants';
+import {
+  GROUP_LINEUP_VALUE,
+  GROUP_NAME_LABEL,
+  GROUP_NAME_REQUIRED_MESSAGE,
+} from '../../lib/groupApply.constants';
+import {
+  ROUTINE_TITLE_LABEL,
+  ROUTINE_TITLE_MAX_LENGTH,
+} from '../../lib/applyRoutineTitle.constants';
 import styles from './EditForm.module.css';
 
 interface EntryEditModalProps {
@@ -45,7 +53,11 @@ interface EntryMusic {
 }
 
 interface EntryForm {
+  // A group is named by its routineName; a solo, duo or trio by the dancers'
+  // names, with the optional routineTitle after them.
+  isGroup: boolean;
   routineName: string;
+  routineTitle: string;
   nominationId: string;
   // Display only — the form saves the id.
   nominationName: string;
@@ -59,7 +71,9 @@ interface EntryForm {
 
 function toForm(entry: EntryDetails): EntryForm {
   return {
+    isGroup: entry.lineup === GROUP_LINEUP_VALUE,
     routineName: entry.routineName,
+    routineTitle: entry.routineTitle ?? '',
     nominationId: entry.nominationId ?? '',
     nominationName: entry.nomination,
     participants: entry.participants,
@@ -142,15 +156,17 @@ export default function EntryEditModal({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!form || submitting) return;
-    if (!form.routineName.trim()) {
-      setSaveError(ROUTINE_NAME_REQUIRED_MESSAGE);
+    if (form.isGroup && !form.routineName.trim()) {
+      setSaveError(GROUP_NAME_REQUIRED_MESSAGE);
       return;
     }
     setSubmitting(true);
     setSaveError(null);
     try {
       const saved = await updateEntry(competitionId, entryId, {
-        routineName: form.routineName.trim(),
+        ...(form.isGroup
+          ? { routineName: form.routineName.trim() }
+          : { routineTitle: form.routineTitle.trim() }),
         ...(form.nominationId && { nominationId: form.nominationId }),
         ...(form.participants.length > 0 && {
           participantIds: form.participants.map((p) => p.id),
@@ -185,13 +201,20 @@ export default function EntryEditModal({
         <form className={styles.form} onSubmit={handleSubmit} noValidate>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="entry-routine-name">
-              Назва номеру
+              {form.isGroup ? GROUP_NAME_LABEL : ROUTINE_TITLE_LABEL}
             </label>
             <input
               id="entry-routine-name"
               className={styles.input}
-              value={form.routineName}
-              onChange={(e) => patch({ routineName: e.target.value })}
+              maxLength={form.isGroup ? undefined : ROUTINE_TITLE_MAX_LENGTH}
+              value={form.isGroup ? form.routineName : form.routineTitle}
+              onChange={(e) =>
+                patch(
+                  form.isGroup
+                    ? { routineName: e.target.value }
+                    : { routineTitle: e.target.value },
+                )
+              }
             />
           </div>
 

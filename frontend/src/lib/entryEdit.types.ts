@@ -17,6 +17,7 @@ export interface EntryDetails extends Entry {
 // Only the fields sent change; `participantIds` replaces the whole lineup.
 export interface EntryUpdateInput {
   routineName?: string;
+  routineTitle?: string;
   nominationId?: string;
   participantIds?: string[];
   studioName?: string;
