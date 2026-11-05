@@ -21,7 +21,7 @@ import { useNominationAxes } from '../../lib/useNominationAxes';
 import type { Entry } from '../../lib/entries';
 import type {
   EntryDetails,
-  EntryParticipant,
+  StaffEntryParticipant,
   PaymentMethod,
 } from '../../lib/entryEdit.types';
 import type { EntryCategoryChoice } from './entryCategoryChoice.types';
@@ -101,7 +101,7 @@ interface EntryForm {
   nominationId: string;
   // Display only — the form saves the id.
   nominationName: string;
-  participants: EntryParticipant[];
+  participants: StaffEntryParticipant[];
   // The studio the entry is filed under; saved only when it is changed.
   studioId: string;
   initialStudioId: string;
@@ -198,7 +198,7 @@ export default function EntryEditModal({
   // from their ages, as in the apply form.
   const ageAutomatic = !!form?.isGroup && namesDancers;
 
-  const autoAgeCategory = (people: EntryParticipant[]): string | undefined => {
+  const autoAgeCategory = (people: StaffEntryParticipant[]): string | undefined => {
     if (!competition || !axes) return undefined;
     const birthDates = people.flatMap((p) => (p.birthDate ? [p.birthDate] : []));
     const ranges = (axes[AGE_CATEGORY_TYPE] ?? []).map(
@@ -224,7 +224,7 @@ export default function EntryEditModal({
 
   // A new line-up can move a group into another age category, and the
   // nomination chosen for the old one then has to be chosen again.
-  const changeParticipants = (people: EntryParticipant[]) => {
+  const changeParticipants = (people: StaffEntryParticipant[]) => {
     if (
       form &&
       !form.isGroup &&

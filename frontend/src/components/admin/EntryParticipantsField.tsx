@@ -4,7 +4,7 @@ import {
   PARTICIPANT_SEARCH_DEBOUNCE_MS,
   PARTICIPANT_SEARCH_MIN_CHARS,
 } from '../../lib/participants.constants';
-import type { EntryParticipant } from '../../lib/entryEdit.types';
+import type { StaffEntryParticipant } from '../../lib/entryEdit.types';
 import {
   PARTICIPANTS_LABEL,
   PARTICIPANT_SEARCH_FAILED_MESSAGE,
@@ -15,12 +15,12 @@ interface EntryParticipantsFieldProps {
   label?: string;
   // Why the last pick was refused, shown under the field.
   notice?: string | null;
-  selected: EntryParticipant[];
-  onAdd: (participant: EntryParticipant) => void;
+  selected: StaffEntryParticipant[];
+  onAdd: (participant: StaffEntryParticipant) => void;
   onRemove: (participantId: string) => void;
 }
 
-function fullName(person: EntryParticipant): string {
+function fullName(person: StaffEntryParticipant): string {
   return `${person.lastName} ${person.firstName}`.trim();
 }
 
@@ -34,7 +34,7 @@ export default function EntryParticipantsField({
   onRemove,
 }: EntryParticipantsFieldProps) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<EntryParticipant[]>([]);
+  const [results, setResults] = useState<StaffEntryParticipant[]>([]);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
