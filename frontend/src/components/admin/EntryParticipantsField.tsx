@@ -5,10 +5,16 @@ import {
   PARTICIPANT_SEARCH_MIN_CHARS,
 } from '../../lib/participants.constants';
 import type { EntryParticipant } from '../../lib/entryEdit.types';
-import { PARTICIPANT_SEARCH_FAILED_MESSAGE } from './EntryEditModal.constants';
+import {
+  PARTICIPANTS_LABEL,
+  PARTICIPANT_SEARCH_FAILED_MESSAGE,
+} from './EntryEditModal.constants';
 import styles from './EditForm.module.css';
 
 interface EntryParticipantsFieldProps {
+  label?: string;
+  // Why the last pick was refused, shown under the field.
+  notice?: string | null;
   selected: EntryParticipant[];
   onAdd: (participant: EntryParticipant) => void;
   onRemove: (participantId: string) => void;
@@ -21,6 +27,8 @@ function fullName(person: EntryParticipant): string {
 // The dancers of an entry: chips for the current lineup plus a name search
 // over every participant to add more.
 export default function EntryParticipantsField({
+  label = PARTICIPANTS_LABEL,
+  notice = null,
   selected,
   onAdd,
   onRemove,
@@ -66,7 +74,7 @@ export default function EntryParticipantsField({
   return (
     <div className={styles.field}>
       <label className={styles.label} htmlFor="entry-participant-search">
-        Учасники
+        {label}
       </label>
       {selected.length > 0 && (
         <div className={styles.chips}>
@@ -91,6 +99,7 @@ export default function EntryParticipantsField({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
+      {notice && <p className={styles.error}>{notice}</p>}
       {searching && <p className={styles.hint}>Пошук…</p>}
       {error && <p className={styles.error}>{error}</p>}
       {options.length > 0 && (

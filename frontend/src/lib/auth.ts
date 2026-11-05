@@ -518,3 +518,10 @@ export async function authorizedFetch(
     throw new AuthError(SESSION_EXPIRED_MESSAGE);
   }
 }
+
+// The id of the coach a picker chose; a coach typed in by hand is registered
+// first, so the id is always a real one.
+export async function resolveCoachId(body: SetMentorCoachBody): Promise<string> {
+  if ('coachId' in body) return body.coachId;
+  return (await createCoach(body.newCoach)).id;
+}

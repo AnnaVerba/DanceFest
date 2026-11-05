@@ -20,13 +20,10 @@ import { COMPETITION_NOT_FOUND_MESSAGE } from '../competitions/competitions.cons
 import { CompetitionRulesService } from '../competition-rules/competition-rules.service';
 import { OcpS3ClientFactory } from '../uploads/ocp-s3-client.factory';
 import { buildContentDisposition } from '../uploads/content-disposition';
-import { buildPublicObjectUrl } from '../uploads/build-public-object-url';
-import { resolveAudioKeyPrefix } from '../uploads/resolve-ocp-key-prefix';
+import { buildTrackObjectKey, buildTrackPublicUrl } from './track-object-keys';
 import {
   STORAGE_NOT_CONFIGURED_MESSAGE,
   OCP_BUCKET_ENV_KEY,
-  OCP_PUBLIC_URL_ENV_KEY,
-  OCP_ENDPOINT_ENV_KEY,
   PUBLIC_READ_ACL,
 } from '../uploads/uploads.constants';
 import type { AuthenticatedUser } from '../auth/authenticated-user.interface';
@@ -39,7 +36,6 @@ import {
   TRACK_MIME_EXTENSIONS,
   MAX_TRACK_SIZE_BYTES,
   TRACK_METADATA_PARSE_OPTIONS,
-  ENTRY_TRACKS_KEY_PREFIX,
   UNSUPPORTED_TRACK_FORMAT_MESSAGE,
   TRACK_TOO_LARGE_MESSAGE,
   DURATION_READ_FAILED_MESSAGE,
@@ -100,8 +96,12 @@ export class TracksService {
       entry,
       extension,
     );
-    const audioPrefix = resolveAudioKeyPrefix(this.config);
-    const objectKey = `${audioPrefix}/${ENTRY_TRACKS_KEY_PREFIX}_${competition.id}_${entryId}_${Date.now()}_${displayFileName}`;
+    const objectKey = buildTrackObjectKey(
+      this.config,
+      competition.id,
+      entryId,
+      displayFileName,
+    );
 
     const existing = await this.trackModel.findOne({
       where: { performanceId: entryId },
@@ -117,7 +117,7 @@ export class TracksService {
         ACL: PUBLIC_READ_ACL,
       }),
     );
-    const publicUrl = this.buildPublicUrl(bucket, objectKey);
+    const publicUrl = buildTrackPublicUrl(this.config, bucket, objectKey);
     const attrs = {
       originalFileName: file.originalname,
       objectKey,
@@ -171,7 +171,7 @@ export class TracksService {
     return {
       musicUrl:
         track.publicUrl ??
-        this.buildPublicUrl(this.requireBucket(), track.objectKey),
+        buildTrackPublicUrl(this.config, this.requireBucket(), track.objectKey),
     };
   }
 
@@ -293,15 +293,6 @@ export class TracksService {
       throw new BadRequestException(STORAGE_NOT_CONFIGURED_MESSAGE);
     }
     return bucket;
-  }
-
-  private buildPublicUrl(bucket: string, objectKey: string): string {
-    return buildPublicObjectUrl(
-      objectKey,
-      bucket,
-      this.config.get<string>(OCP_PUBLIC_URL_ENV_KEY) ?? null,
-      this.config.get<string>(OCP_ENDPOINT_ENV_KEY) ?? null,
-    );
   }
 
   // Best-effort cleanup for the replaced object on upload — the new track
