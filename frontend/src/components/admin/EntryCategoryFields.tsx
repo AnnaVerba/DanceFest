@@ -1,23 +1,24 @@
-import type { ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getNominationsForEntry } from '../../lib/nominations';
-import type { Nomination } from '../../lib/nominations';
-import { useNominationAxes } from '../../lib/useNominationAxes';
+import type { ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getNominationsForEntry } from "../../lib/nominations";
+import type { Nomination } from "../../lib/nominations";
+import { useNominationAxes } from "../../lib/useNominationAxes";
 import {
   AGE_CATEGORY_TYPE,
   LEAGUE_CATEGORY_TYPE,
   STYLE_CATEGORY_TYPE,
-} from '../../lib/categories';
-import { GROUP_AGE_AUTOMATIC_HINT } from '../../lib/groupAge.constants';
-import { GROUP_EMPTY_VALUE_LABEL } from '../../lib/groupApply.constants';
-import { queryKeys } from '../../lib/queryKeys';
-import { formatEntryAmount } from '../../lib/entryAmount';
-import { LEAGUE_LABEL, LEAGUE_PLACEHOLDER } from '../../lib/applyLeague.constants';
+} from "../../lib/categories";
+import { queryKeys } from "../../lib/queryKeys";
+import { formatEntryAmount } from "../../lib/entryAmount";
+import {
+  LEAGUE_LABEL,
+  LEAGUE_PLACEHOLDER,
+} from "../../lib/applyLeague.constants";
 import {
   AGE_CATEGORY_LABEL,
   AGE_CATEGORY_PLACEHOLDER,
-} from '../../lib/applyAge.constants';
-import { NOMINATIONS_LOAD_FAILED_MESSAGE } from '../../lib/applyNominations.constants';
+} from "../../lib/applyAge.constants";
+import { NOMINATIONS_LOAD_FAILED_MESSAGE } from "../../lib/applyNominations.constants";
 import {
   CURRENT_NOMINATION_LABEL,
   EMPTY_CHOICE,
@@ -29,16 +30,14 @@ import {
   NO_NOMINATION_ROWS_MESSAGE,
   STYLES_HINT,
   STYLES_LABEL,
-} from './EntryCategoryFields.constants';
-import type { EntryCategoryChoice } from './entryCategoryChoice.types';
-import styles from './EditForm.module.css';
+} from "./EntryCategoryFields.constants";
+import type { EntryCategoryChoice } from "./entryCategoryChoice.types";
+import styles from "./EditForm.module.css";
 
 interface EntryCategoryFieldsProps {
   competitionId: string;
   // How many dancers the number puts on stage — the nominations that fit it.
   headcount: number;
-  // The age follows from the named dancers — shown, not picked.
-  ageAutomatic: boolean;
   choice: EntryCategoryChoice;
   nominationId: string;
   // The nomination the entry holds now, shown above the list.
@@ -55,7 +54,6 @@ interface EntryCategoryFieldsProps {
 export default function EntryCategoryFields({
   competitionId,
   headcount,
-  ageAutomatic,
   choice,
   nominationId,
   nominationName,
@@ -77,7 +75,9 @@ export default function EntryCategoryFields({
   const styleId = styleValues.find((v) => v.name === choice.style)?.id;
 
   const canListRows =
-    leagueId !== undefined && (!hasStyles || styleId !== undefined) && headcount > 0;
+    leagueId !== undefined &&
+    (!hasStyles || styleId !== undefined) &&
+    headcount > 0;
   const rows = useQuery({
     queryKey: [
       ...queryKeys.nominationAxes(competitionId),
@@ -123,31 +123,19 @@ export default function EntryCategoryFields({
           <label className={styles.label} htmlFor="entry-age">
             {AGE_CATEGORY_LABEL}
           </label>
-          {ageAutomatic ? (
-            <>
-              <input
-                id="entry-age"
-                className={styles.input}
-                readOnly
-                value={choice.ageCategory || GROUP_EMPTY_VALUE_LABEL}
-              />
-              <p className={styles.hint}>{GROUP_AGE_AUTOMATIC_HINT}</p>
-            </>
-          ) : (
-            <select
-              id="entry-age"
-              className={styles.input}
-              value={choice.ageCategory}
-              onChange={(e) => onChoiceChange({ ageCategory: e.target.value })}
-            >
-              <option value={EMPTY_CHOICE}>{AGE_CATEGORY_PLACEHOLDER}</option>
-              {ageCategories.map((age) => (
-                <option key={age.id} value={age.name}>
-                  {age.name} ({age.rangeFrom}–{age.rangeTo})
-                </option>
-              ))}
-            </select>
-          )}
+          <select
+            id="entry-age"
+            className={styles.input}
+            value={choice.ageCategory}
+            onChange={(e) => onChoiceChange({ ageCategory: e.target.value })}
+          >
+            <option value={EMPTY_CHOICE}>{AGE_CATEGORY_PLACEHOLDER}</option>
+            {ageCategories.map((age) => (
+              <option key={age.id} value={age.name}>
+                {age.name} ({age.rangeFrom}–{age.rangeTo})
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -162,7 +150,7 @@ export default function EntryCategoryFields({
                 key={style.id}
                 type="button"
                 className={`${styles.option} ${
-                  choice.style === style.name ? styles.optionOn : ''
+                  choice.style === style.name ? styles.optionOn : ""
                 }`}
                 onClick={() => onChoiceChange({ style: style.name })}
               >
@@ -198,7 +186,7 @@ export default function EntryCategoryFields({
                 <button
                   key={nomination.id}
                   type="button"
-                  className={`${styles.nomRow} ${on ? styles.nomRowOn : ''}`}
+                  className={`${styles.nomRow} ${on ? styles.nomRowOn : ""}`}
                   onClick={() => onPickNomination(nomination)}
                 >
                   <span className={styles.nomLabel}>

@@ -40,7 +40,6 @@ import { CreateEntryDto } from './dto/create-entry.dto';
 import { UpdateEntryDto } from './dto/update-entry.dto';
 import type { EntryParticipant } from './entry-participant.interface';
 import { TrackRenamer } from '../tracks/track-renamer.service';
-import type { StaffEntryParticipant } from './staff-entry-participant.interface';
 import type { EntriesStudioOption } from './entries-studio-option.interface';
 import type { MyEntriesQueryDto } from './dto/my-entries-query.dto';
 import { buildMyEntriesPage } from './my-entries-page';
@@ -1239,13 +1238,12 @@ export class EntriesService {
     const people = await Promise.all(
       participantIds.map((id) => this.usersService.findById(id)),
     );
-    const participants: StaffEntryParticipant[] = people
+    const participants: EntryParticipant[] = people
       .filter((person): person is User => person !== null)
       .map((person) => ({
         id: person.id,
         firstName: person.firstName,
         lastName: person.lastName,
-        birthDate: person.birthDate,
       }));
     const charges = await this.entryChargeService.withDancerHistory([entry]);
     return {

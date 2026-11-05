@@ -13,15 +13,13 @@ import type { SetMentorCoachBody } from '../../lib/auth';
 import { AUDIO_ACCEPT } from '../../lib/uploads.constants';
 import { queryKeys } from '../../lib/queryKeys';
 import { formatEntryAmount } from '../../lib/entryAmount';
-import { AGE_CATEGORY_TYPE, STYLE_CATEGORY_TYPE } from '../../lib/categories';
-import { participantAges } from '../../lib/ageEligibility';
-import { resolveGroupAgeCategory } from '../../lib/groupAge';
+import { STYLE_CATEGORY_TYPE } from '../../lib/categories';
 import { NOMINATION_LABEL_SEPARATOR } from '../../lib/nominationNaming';
 import { useNominationAxes } from '../../lib/useNominationAxes';
 import type { Entry } from '../../lib/entries';
 import type {
   EntryDetails,
-  StaffEntryParticipant,
+  EntryParticipant,
   PaymentMethod,
 } from '../../lib/entryEdit.types';
 import type { EntryCategoryChoice } from './entryCategoryChoice.types';
@@ -101,7 +99,7 @@ interface EntryForm {
   nominationId: string;
   // Display only — the form saves the id.
   nominationName: string;
-  participants: StaffEntryParticipant[];
+  participants: EntryParticipant[];
   // The studio the entry is filed under; saved only when it is changed.
   studioId: string;
   initialStudioId: string;
@@ -194,37 +192,17 @@ export default function EntryEditModal({
   // A group of a count-only competition is never given dancers by name.
   const namesDancers =
     !form?.isGroup || competition?.groupLineupMode === LINEUP_MODE.NAMED;
-  // A group that names its dancers does not pick an age category: it follows
-  // from their ages, as in the apply form.
-  const ageAutomatic = !!form?.isGroup && namesDancers;
-
-  const autoAgeCategory = (people: StaffEntryParticipant[]): string | undefined => {
-    if (!competition || !axes) return undefined;
-    const birthDates = people.flatMap((p) => (p.birthDate ? [p.birthDate] : []));
-    const ranges = (axes[AGE_CATEGORY_TYPE] ?? []).map(
-      ({ name, rangeFrom, rangeTo }) => ({ name, rangeFrom, rangeTo }),
-    );
-    return resolveGroupAgeCategory(
-      participantAges(birthDates, competition.dateFrom),
-      ranges,
-    )?.name;
-  };
-
   const choice: EntryCategoryChoice = {
     ...(form?.choice ?? NO_CHOICE),
-    ageCategory:
-      (ageAutomatic && form ? autoAgeCategory(form.participants) : undefined) ??
-      form?.choice.ageCategory ??
-      EMPTY_CHOICE,
     style: form?.choice.style || filedStyle,
   };
 
   const patch = (changes: Partial<EntryForm>) =>
     setForm((prev) => (prev ? { ...prev, ...changes } : prev));
 
-  // A new line-up can move a group into another age category, and the
-  // nomination chosen for the old one then has to be chosen again.
-  const changeParticipants = (people: StaffEntryParticipant[]) => {
+  // Соло, Дуо and Тріо fit different nominations, so a new line-up asks for
+  // the nomination again.
+  const changeParticipants = (people: EntryParticipant[]) => {
     if (
       form &&
       !form.isGroup &&
@@ -235,21 +213,13 @@ export default function EntryEditModal({
       return;
     }
     setParticipantLimitHit(false);
-    const nextAge = ageAutomatic ? autoAgeCategory(people) : undefined;
-    const ageMoved = nextAge !== undefined && nextAge !== choice.ageCategory;
-    // Соло, Дуо and Тріо fit different nominations, so a new line-up asks
-    // for the nomination again.
     const lineupMoved =
       !!form &&
       !form.isGroup &&
       lineupLabel(people.length) !== lineupLabel(form.participants.length);
     patch({
       participants: people,
-      ...(ageMoved && { choice: { ...choice, ageCategory: nextAge } }),
-      ...((ageMoved || lineupMoved) && {
-        choiceChanged: true,
-        nominationId: '',
-      }),
+      ...(lineupMoved && { choiceChanged: true, nominationId: '' }),
     });
   };
 
@@ -311,7 +281,7 @@ export default function EntryEditModal({
       setSaveError(GROUP_HEADCOUNT_REQUIRED_MESSAGE);
       return;
     }
-    if (ageAutomatic && form.participants.length === 0) {
+    if (form.isGroup && namesDancers && form.participants.length === 0) {
       setSaveError(GROUP_PARTICIPANTS_REQUIRED_MESSAGE);
       return;
     }
@@ -422,7 +392,6 @@ export default function EntryEditModal({
 
           <EntryCategoryFields
             competitionId={competitionId}
-            ageAutomatic={ageAutomatic}
             headcount={
               namesDancers
                 ? form.participants.length
