@@ -35,13 +35,14 @@ import { formatEntryAmount } from '../lib/entryAmount';
 import { useEntriesQuote } from '../lib/useEntriesQuote';
 import { SPECIAL_PAID_ONCE_LABEL } from '../lib/entriesQuote.constants';
 import {
-  createCoach,
   getMyMentorCoach,
   getSession,
   refreshSession,
+  resolveCoachId,
 } from '../lib/auth';
 import type { SetMentorCoachBody } from '../lib/auth';
 import { completeProfile } from '../lib/users';
+import { lineupLabel } from '../lib/lineup';
 import { refreshProgram } from '../lib/programCache';
 import MentorCoachPicker from '../components/MentorCoachPicker';
 import SchoolPicker from '../components/SchoolPicker';
@@ -114,14 +115,6 @@ const MY_ENTRIES_PATH = '/my-entries';
 
 function fullName(p: { lastName: string; firstName: string }): string {
   return `${p.lastName} ${p.firstName}`.trim();
-}
-
-// Mirrors the server's resolveLineup: Соло / Дуо / Тріо / Група by count.
-function lineupLabel(count: number): string {
-  if (count >= 4) return 'Група';
-  if (count === 3) return 'Тріо';
-  if (count === 2) return 'Дуо';
-  return 'Соло';
 }
 
 // Does a nomination's line-up category fit the number of picked dancers?
@@ -728,8 +721,7 @@ export default function ApplyPage() {
   // carries a real trainer id.
   const resolveAssignedTrainerId = async (): Promise<string | undefined> => {
     if (!assignedTrainer) return undefined;
-    if ('coachId' in assignedTrainer) return assignedTrainer.coachId;
-    return (await createCoach(assignedTrainer.newCoach)).id;
+    return resolveCoachId(assignedTrainer);
   };
 
   // What to tell the applicant while the number has no usable line-up.

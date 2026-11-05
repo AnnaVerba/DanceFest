@@ -20,8 +20,10 @@ export interface EntryUpdateInput {
   routineTitle?: string;
   nominationId?: string;
   participantIds?: string[];
-  studioName?: string;
-  choreographer?: string;
+  // A group's headcount when its dancers are not named.
+  participantsCount?: number;
+  studioId?: string;
+  trainerId?: string;
   city?: string;
   paymentMethod?: PaymentMethod;
 }

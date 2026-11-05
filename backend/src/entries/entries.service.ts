@@ -29,7 +29,7 @@ import { Entry } from './entry.model';
 import { isNumberAllocationRace } from './number-allocation-race';
 import { normalizeGroupName } from './group-name';
 import type { GroupNameCheck } from './group-name-check.interface';
-import { isGroupLineup, resolveLineup } from './lineup';
+import { isGroupLineup, LINEUP_LABELS, resolveLineup } from './lineup';
 import { dancerCount, roundMoney } from './entry-amount';
 import type { EntryCharge } from './pricing/entry-charge';
 import { EntryChargeService } from './pricing/entry-charge.service';
@@ -39,6 +39,7 @@ import { StudioRole } from '../users/studio-role.enum';
 import { CreateEntryDto } from './dto/create-entry.dto';
 import { UpdateEntryDto } from './dto/update-entry.dto';
 import type { EntryParticipant } from './entry-participant.interface';
+import { TrackRenamer } from '../tracks/track-renamer.service';
 import type { EntriesStudioOption } from './entries-studio-option.interface';
 import type { MyEntriesQueryDto } from './dto/my-entries-query.dto';
 import { buildMyEntriesPage } from './my-entries-page';
@@ -134,6 +135,7 @@ export class EntriesService {
     private readonly participantNumbersService: CompetitionParticipantNumbersService,
     private readonly scheduleService: ScheduleService,
     private readonly entryChargeService: EntryChargeService,
+    private readonly trackRenamer: TrackRenamer,
   ) {}
 
   async list(
@@ -711,6 +713,23 @@ export class EntriesService {
     };
   }
 
+  // What a staff edit changes when it re-files the entry under another studio
+  // or trainer — the same fields a new entry takes from them.
+  private async resolveLeadersChange(
+    dto: Pick<UpdateEntryDto, 'studioId' | 'trainerId'>,
+  ): Promise<Partial<StudioLeaders>> {
+    const trainer = dto.trainerId
+      ? await this.usersService.findByIdOrFail(dto.trainerId)
+      : null;
+    if (trainer && !meetsLevel(trainer.accessLevel, AccessLevel.TRAINER)) {
+      throw new BadRequestException(TRAINER_NOT_A_COACH_MESSAGE);
+    }
+    const leaders = trainer ? await this.studioLeadersFor(trainer) : {};
+    if (!dto.studioId) return leaders;
+    const studio = await this.schoolsService.findByIdOrFail(dto.studioId);
+    return { ...leaders, studioId: studio.id, studioName: studio.name };
+  }
+
   // Whom an entry of a dancer trained by `coach` is filed under. A studio
   // trainer's dancers go under the trainer's studio and its head, with the
   // trainer named next to the head; anyone else's under the coach themself.
@@ -1053,6 +1072,16 @@ export class EntriesService {
       changedBirthDates = submitter.birthDates;
       changes.participantId = submitter.participantId;
       changes.participantIds = submitter.participantIds;
+      // A number named after its dancers follows them; a group keeps the name
+      // it was registered under.
+      if (
+        dto.routineName === undefined &&
+        submitter.routineName &&
+        entry.lineup !== LINEUP_LABELS.GROUP &&
+        resolveLineup(submitter.participantIds.length) !== LINEUP_LABELS.GROUP
+      ) {
+        changes.routineName = submitter.routineName;
+      }
       addedIds = submitter.participantIds.filter(
         (id) => !currentIds.includes(id),
       );
@@ -1091,6 +1120,8 @@ export class EntriesService {
       changedBirthDates,
       changedAgeRange,
     );
+
+    Object.assign(changes, await this.resolveLeadersChange(dto));
 
     if (dto.routineName !== undefined) {
       changes.routineName = dto.routineName.trim();
@@ -1161,6 +1192,13 @@ export class EntriesService {
     );
     if (nominationChanged) {
       await this.scheduleService.followNominationChange(competitionId, entry);
+    }
+    if (
+      nominationChanged ||
+      dto.routineName !== undefined ||
+      dto.participantIds !== undefined
+    ) {
+      await this.trackRenamer.renameToMatch(entry);
     }
 
     return this.toStaffDetailsDto(entry);

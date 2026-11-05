@@ -14,7 +14,6 @@ import { ScheduleModule } from '../schedule/schedule.module';
 import { Track } from './track.model';
 import { TracksController } from './tracks.controller';
 import { TracksService } from './tracks.service';
-import { TrackFileNameResolver } from './track-file-name-resolver.service';
 
 @Module({
   imports: [
@@ -34,6 +33,6 @@ import { TrackFileNameResolver } from './track-file-name-resolver.service';
     CompetitionParticipantNumbersModule,
   ],
   controllers: [TracksController],
-  providers: [TracksService, TrackFileNameResolver],
+  providers: [TracksService],
 })
 export class TracksModule {}
