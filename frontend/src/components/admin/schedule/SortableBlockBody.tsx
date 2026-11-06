@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { SortableHandleContext } from './SortableHandleContext';
 import {
   BLOCK_DRAGGING_OPACITY,
+  BLOCK_DRAGGING_POSITION,
   BLOCK_DRAGGING_Z_INDEX,
 } from './sortableBlock.constants';
 
@@ -33,7 +34,7 @@ export default function SortableBlockBody({
   const style: CSSProperties = {
     transform: CSS.Translate.toString(transform),
     transition,
-    position: 'relative',
+    position: isDragging ? BLOCK_DRAGGING_POSITION : undefined,
     zIndex: isDragging ? BLOCK_DRAGGING_Z_INDEX : undefined,
     opacity: isDragging ? BLOCK_DRAGGING_OPACITY : undefined,
   };
