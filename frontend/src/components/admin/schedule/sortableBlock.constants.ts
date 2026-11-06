@@ -3,6 +3,10 @@
 export const BLOCK_DRAG_ACTIVATION_DISTANCE_PX = 4;
 export const BLOCK_DRAG_HANDLE_LABEL = '⠿';
 export const BLOCK_DRAG_HANDLE_TITLE = 'Перетягніть, щоб змінити порядок';
-// The dragged block sits above the rows it passes over.
+// The dragged block sits above the rows it passes over. Only it is
+// positioned: z-index needs that, and the blocks at rest stay unpositioned,
+// since a positioned table section is a suspected cause of Safari repaint
+// glitches (blocks vanishing after a drop).
+export const BLOCK_DRAGGING_POSITION = 'relative';
 export const BLOCK_DRAGGING_Z_INDEX = 1;
 export const BLOCK_DRAGGING_OPACITY = 0.85;

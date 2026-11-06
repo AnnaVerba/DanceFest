@@ -56,6 +56,7 @@ import {
 } from '@dnd-kit/sortable';
 import SortableBlockBody from './SortableBlockBody';
 import BlockDragHandle from './BlockDragHandle';
+import { useStuckDragGuard } from './useStuckDragGuard';
 import { BLOCK_DRAG_ACTIVATION_DISTANCE_PX } from './sortableBlock.constants';
 import styles from './program.module.css';
 
@@ -165,6 +166,7 @@ export default function ProgramTable({
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
+  const dragGuard = useStuckDragGuard();
   const colCount = tech ? TECH_COLUMN_COUNT : PUBLIC_COLUMN_COUNT;
   const labelSpan = tech ? TECH_LABEL_SPAN : PUBLIC_LABEL_SPAN;
   const dayLabel = (id: string) => {
@@ -527,7 +529,12 @@ export default function ProgramTable({
                     // Its screen-reader texts are <div>s, which a table may
                     // not hold — they go to the page body instead.
                     accessibility={{ container: document.body }}
-                    onDragEnd={(event) => dropBlock(section, event)}
+                    onDragStart={(event) => dragGuard.begin(event.activatorEvent)}
+                    onDragEnd={(event) => {
+                      dragGuard.end();
+                      dropBlock(section, event);
+                    }}
+                    onDragCancel={() => dragGuard.end()}
                   >
                   <SortableContext
                     items={moveGroups.map((g) => g[0].id)}
